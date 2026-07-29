@@ -1,0 +1,50 @@
+# SPEX Platform — Render Blueprint
+# يسمح بنشر الخدمة تلقائياً عبر "New +" → "Blueprint" في Render، بدل ضبط كل شيء يدوياً.
+# راجع README-PRODUCTION.md لتفاصيل كل متغير وكيفية الحصول عليه (خصوصاً DATABASE_URL من Neon).
+
+services:
+  - type: web
+    name: spex-platform
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # قاعدة البيانات: نستخدم Neon (Postgres مُدار خارجياً) وليس قاعدة بيانات Render
+      # الصقه يدوياً من لوحة تحكم Neon بعد إنشاء المشروع — انظر القسم 1 في README-PRODUCTION.md
+      - key: DATABASE_URL
+        sync: false
+
+      # يُولَّد تلقائياً من طرف Render عند أول نشر — لا حاجة لإدخاله يدوياً
+      - key: JWT_SECRET
+        generateValue: true
+
+      # مفتاح Gemini الافتراضي للمنصة (اختياري إن كان كل مستخدم يستخدم مفتاحه الخاص)
+      - key: GEMINI_API_KEY
+        sync: false
+
+      # بريد إعادة تعيين كلمة المرور عبر Resend — راجع القسم 2.1 في README-PRODUCTION.md
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: "SPEX <onboarding@resend.dev>"
+      # يُحدَّث تلقائياً لاحقاً إلى رابط الخدمة الفعلي بعد أول نشر (Settings → Environment)
+      - key: APP_URL
+        value: "https://spex-platform.onrender.com"
+
+      # إنشاء حساب SUPER_ADMIN تلقائياً عند أول إقلاع (موصى به بدل SETUP_SECRET)
+      # اتركهما فارغين إن كنت تفضّل إنشاء المشرف الأول عبر /api/auth/bootstrap-admin
+      - key: SUPER_ADMIN_EMAIL
+        sync: false
+      - key: SUPER_ADMIN_PASSWORD
+        sync: false
+
+      # بديل: رمز سرّي مؤقت لإنشاء أول حساب مشرف عبر واجهة المتصفح (احذفه بعد الاستخدام)
+      - key: SETUP_SECRET
+        generateValue: true

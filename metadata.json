@@ -1,0 +1,8 @@
+{
+  "name": "SPEX - التربية البدنية والرياضية",
+  "description": "المنصة الرقمية الذكية للتربية البدنية والرياضية مع المجتمع المهني والبنك البيداغوجي",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

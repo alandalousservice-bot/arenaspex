@@ -1,0 +1,144 @@
+// SPEX Platform — Production Database Schema (PostgreSQL)
+// قاعدة البيانات الإنتاجية الحقيقية للمنصة
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------
+// المستخدمون — النموذج الوحيد الذي يحتاج أعمدة صارمة لأنه يحمل بيانات المصادقة
+// -----------------------------------------------------------------------
+model User {
+  id                String   @id
+  username          String   @unique
+  spexId            String   @unique
+  firstName         String
+  lastName          String
+  email             String   @unique
+  // كلمة المرور لا تُخزَّن أبداً كنص عادي — فقط الهاش (bcrypt)
+  passwordHash      String
+  role              String // teacher | inspector | director | admin
+  avatar            String?
+  phone             String?
+  directorateId     String
+  districtId        String
+  institutionId     String?
+  schoolName        String?
+  municipality      String?
+  specialization    String?
+  cycle             String?
+  yearsExperience   Int?
+  bio               String?
+  status            String   @default("active") // active | inactive
+  isApprovedByAdmin Boolean  @default(false)
+  followingIds      String[] @default([])
+  followersIds      String[] @default([])
+  publishedResourcesCount Int @default(0)
+  approvedResourcesCount  Int @default(0)
+  privacySettings   Json?
+  // مفتاح Gemini الخاص بالمستخدم (اختياري) — يُستخدم فقط من الخادم، لا يُعرض للعميل بعد الحفظ
+  customApiKey      String?
+  apiKeyStatus      String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  resetTokens PasswordResetToken[]
+
+  @@index([role])
+  @@index([directorateId])
+  @@index([districtId])
+}
+
+// رموز استرجاع كلمة المرور عبر البريد الإلكتروني — رمز واحد صالح لمرة واحدة فقط
+// نخزّن هاش الرمز فقط (وليس الرمز نفسه)، تماماً كما لا نخزّن كلمات المرور نص عادي
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// -----------------------------------------------------------------------
+// بقية المجموعات: هيكلها الحالي معقد ومتغيّر في الواجهة الأمامية، لذا تُخزَّن
+// كـ JSON منظم داخل أعمدة Postgres حقيقية (وليس ملف JSON على القرص) مع أعمدة
+// مفهرسة إضافية للاستعلامات الشائعة والصلاحيات.
+// -----------------------------------------------------------------------
+
+model LessonPlan {
+  id        String   @id
+  ownerId   String?
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+}
+
+model NotebookEntry {
+  id        String   @id
+  ownerId   String?
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+}
+
+model InspectorNote {
+  id        String   @id
+  authorId  String?
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([authorId])
+}
+
+model DistrictMessage {
+  id        String   @id
+  authorId  String?
+  data      Json
+  createdAt DateTime @default(now())
+
+  @@index([authorId])
+}
+
+model DirectMessage {
+  id           String   @id
+  senderId     String?
+  recipientId  String?
+  data         Json
+  createdAt    DateTime @default(now())
+
+  @@index([senderId])
+  @@index([recipientId])
+}
+
+model CommunityResource {
+  id        String   @id
+  authorId  String?
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([authorId])
+}
+
+model CommunityNotification {
+  id         String   @id
+  userId     String?
+  data       Json
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
