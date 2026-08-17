@@ -10,7 +10,7 @@ declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
-      user?: { id: string; role: string };
+      user?: { id: string; role: string; districtId: string };
     }
   }
 }
@@ -31,7 +31,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return res.status(401).json({ error: 'الحساب غير موجود أو معطّل.' });
   }
 
-  req.user = { id: user.id, role: user.role };
+  req.user = { id: user.id, role: user.role, districtId: user.districtId };
   next();
 }
 

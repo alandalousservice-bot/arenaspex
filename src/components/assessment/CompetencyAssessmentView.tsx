@@ -175,17 +175,17 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
   onAddClass
 }) => {
   // Local Classes and Students fallback
-  const [localClasses, setLocalClasses] = useState<ClassRoom[]>(propsClasses || INITIAL_CLASSES);
-  const [localStudents, setLocalStudents] = useState<Student[]>(propsStudents || INITIAL_STUDENTS);
+  const [localClasses, setLocalClasses] = useState<ClassRoom[]>(propsClasses !== undefined ? propsClasses : INITIAL_CLASSES);
+  const [localStudents, setLocalStudents] = useState<Student[]>(propsStudents !== undefined ? propsStudents : INITIAL_STUDENTS);
 
-  const allClasses = propsClasses || localClasses;
-  const allStudentsList = propsStudents || localStudents;
+  const allClasses = propsClasses !== undefined ? propsClasses : localClasses;
+  const allStudentsList = propsStudents !== undefined ? propsStudents : localStudents;
 
   // State for Selection
   const [selectedLevelId, setSelectedLevelId] = useState<string>('lvl_p1');
   const [selectedFieldId, setSelectedFieldId] = useState<string>('f_locomotion');
   const [selectedClassId, setSelectedClassId] = useState<string>(() => {
-    return allClasses[0]?.id || 'cls_1';
+    return allClasses[0]?.id || '';
   });
 
   // Modal State for Assigning / Adding a Class
@@ -211,24 +211,10 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
     }
   };
 
-  // Get active students list for selected class
+  // Get active students list for selected class (Strict real students)
   const activeStudents = useMemo(() => {
-    const list = allStudentsList.filter((s) => s.classId === selectedClassId);
-    if (list.length > 0) return list;
-
-    // Fallback dynamic roster generation if no prior students exist for this class
-    const currentClassObj = allClasses.find((c) => c.id === selectedClassId);
-    const count = currentClassObj?.studentCount || 20;
-    const levelNum = selectedLevelId.replace('lvl_p', '');
-    return Array.from({ length: Math.min(count, 25) }).map((_, i) => ({
-      id: `std_${selectedClassId}_${i + 1}`,
-      classId: selectedClassId,
-      firstName: `تلميذ ${i + 1}`,
-      lastName: `فوج ${currentClassObj?.name || 'التربية البدنية'}`,
-      gender: i % 2 === 0 ? ('ذكر' as const) : ('أنثى' as const),
-      registrationNumber: `2025/${levelNum}0${i + 1}`
-    }));
-  }, [allStudentsList, selectedClassId, allClasses, selectedLevelId]);
+    return allStudentsList.filter((s) => s.classId === selectedClassId);
+  }, [allStudentsList, selectedClassId]);
 
   // Student Grades State: Map `${classId}_${fieldId}` -> studentId -> criterionCode -> AssessmentGrade
   const [studentGradesMap, setStudentGradesMap] = useState<
@@ -304,24 +290,12 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
       const createdClass: ClassRoom = {
         id: newId,
         institutionId: 'inst_ainazel_1',
-        teacherId: currentUser?.id || 'usr_teacher_1',
+        teacherId: currentUser?.id || '',
         levelId: newLevelId,
         name: newClassName.trim(),
-        studentCount: Number(newStudentCount) || 25
+        studentCount: 0
       };
       setLocalClasses((prev) => [...prev, createdClass]);
-
-      // Generate students
-      const levelNum = newLevelId.replace('lvl_p', '');
-      const generated: Student[] = Array.from({ length: Math.min(Number(newStudentCount) || 25, 25) }).map((_, i) => ({
-        id: `std_${newId}_${i + 1}`,
-        classId: newId,
-        firstName: `تلميذ ${i + 1}`,
-        lastName: `قسم ${newClassName.trim()}`,
-        gender: i % 2 === 0 ? 'ذكر' : 'أنثى',
-        registrationNumber: `2025/${levelNum}0${i + 1}`
-      }));
-      setLocalStudents((prev) => [...prev, ...generated]);
 
       setSelectedLevelId(newLevelId);
       setSelectedClassId(newId);

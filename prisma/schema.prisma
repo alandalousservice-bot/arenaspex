@@ -22,6 +22,9 @@ model User {
   email             String   @unique
   // كلمة المرور لا تُخزَّن أبداً كنص عادي — فقط الهاش (bcrypt)
   passwordHash      String
+  // معرّف حساب Google المرتبط (Google "sub") — اختياري، يُستخدم لتسجيل الدخول عبر Google
+  // بدل/بالإضافة إلى كلمة المرور. لا يزال الحساب نفسه يُنشأ حصرياً من طرف المشرف أو المفتش.
+  googleId          String?  @unique
   role              String // teacher | inspector | director | admin
   avatar            String?
   phone             String?
@@ -42,16 +45,140 @@ model User {
   approvedResourcesCount  Int @default(0)
   privacySettings   Json?
   // مفتاح Gemini الخاص بالمستخدم (اختياري) — يُستخدم فقط من الخادم، لا يُعرض للعميل بعد الحفظ
-  customApiKey      String?
+  customApiKey      String? // legacy only; no longer returned or used for AI calls
+  encryptedApiKey   String?
   apiKeyStatus      String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  // بلدية العمل كسجل مرتبط فعلياً بجدول Municipalities (municipality أعلاه يبقى كاسم نصي مخزَّن للعرض السريع فقط)
+  municipalityId    String?
+
   resetTokens PasswordResetToken[]
+
+  // نظام الإسناد التلقائي للأساتذة إلى المفتشين
+  teacherAssignment    InspectorAssignment?  @relation("TeacherAssignment")
+  inspectorAssignments InspectorAssignment[] @relation("InspectorAssignments")
 
   @@index([role])
   @@index([directorateId])
   @@index([districtId])
+  @@index([municipalityId])
+}
+
+// -----------------------------------------------------------------------
+// نظام الإسناد التلقائي للأساتذة إلى المفتشين
+// Directorates / Municipalities / Schools / InspectionDistricts هي الهيكل
+// الإداري الرسمي، وتُدار من طرف الإدارة (admin) عبر مسارات مخصصة، بينما
+// InspectorAssignment هو ناتج منطق الإسناد التلقائي المحسوب من طرف الخادم.
+// -----------------------------------------------------------------------
+
+model Directorate {
+  id         String   @id
+  name       String // e.g. مديرية التربية لولاية سطيف
+  wilayaCode String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  municipalities Municipality[]
+  districts      InspectionDistrict[]
+
+  @@index([name])
+}
+
+model Municipality {
+  id            String   @id @default(cuid())
+  name          String
+  directorateId String
+  directorate   Directorate @relation(fields: [directorateId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  schools     School[]
+  suggestions MunicipalitySuggestion[]
+
+  @@unique([directorateId, name])
+  @@index([directorateId])
+}
+
+model School {
+  id             String   @id @default(cuid())
+  name           String
+  municipalityId String
+  municipality   Municipality @relation(fields: [municipalityId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  suggestions SchoolSuggestion[]
+
+  @@unique([municipalityId, name])
+  @@index([municipalityId])
+}
+
+model InspectionDistrict {
+  id             String   @id @default(cuid())
+  name           String // e.g. المقاطعة 07 - عين أزال
+  directorateId  String
+  directorate    Directorate @relation(fields: [directorateId], references: [id], onDelete: Cascade)
+  districtNumber Int?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([directorateId, name])
+  @@index([directorateId])
+}
+
+// اقتراح إضافة بلدية غير موجودة في القائمة — يقدّمه الأستاذ أثناء استكمال بياناته،
+// ولا يظهر لبقية المستخدمين حتى تعتمده الإدارة (يتحول عندها إلى سجل Municipality حقيقي)
+model MunicipalitySuggestion {
+  id            String   @id @default(cuid())
+  name          String
+  directorateId String
+  municipality  Municipality? @relation(fields: [approvedMunicipalityId], references: [id], onDelete: SetNull)
+  approvedMunicipalityId String?
+  suggestedBy   String // User.id لصاحب الاقتراح
+  status        String   @default("pending") // pending | approved | rejected
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([directorateId])
+  @@index([status])
+}
+
+// اقتراح إضافة مؤسسة تعليمية غير موجودة في القائمة
+model SchoolSuggestion {
+  id             String   @id @default(cuid())
+  name           String
+  municipalityId String
+  school         School?  @relation(fields: [approvedSchoolId], references: [id], onDelete: SetNull)
+  approvedSchoolId String?
+  suggestedBy    String
+  status         String   @default("pending") // pending | approved | rejected
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([municipalityId])
+  @@index([status])
+}
+
+// سجل الإسناد: كل أستاذ يملك سجلاً واحداً فقط (@unique على teacherId)، والمفتش
+// يمكن أن يظهر في عدة سجلات (علاقة واحد-إلى-متعدد حقيقية عبر جدول Postgres، وليس
+// حساباً في الذاكرة)
+model InspectorAssignment {
+  id          String    @id @default(cuid())
+  teacherId   String    @unique
+  teacher     User      @relation("TeacherAssignment", fields: [teacherId], references: [id], onDelete: Cascade)
+  inspectorId String?
+  inspector   User?     @relation("InspectorAssignments", fields: [inspectorId], references: [id], onDelete: SetNull)
+  status      String    @default("Pending") // Pending | Active | Changed | Removed
+  assignedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([inspectorId])
+  @@index([status])
 }
 
 // رموز استرجاع كلمة المرور عبر البريد الإلكتروني — رمز واحد صالح لمرة واحدة فقط
@@ -141,4 +268,50 @@ model CommunityNotification {
   createdAt  DateTime @default(now())
 
   @@index([userId])
+}
+
+// -----------------------------------------------------------------------
+// المخطط السنوي والتوزيع السنوي — يعدّل الأستاذ صياغة الأهداف التعلمية الخاصة
+// به، ويمكن للمفتش اقتراح مخطط/توزيع سنوي لأساتذة مقاطعته (وفق الإسناد الفعلي
+// في InspectorAssignment) ثم اعتماد اقتراحه ليصبح نافذاً عند الأستاذ.
+// كل سجل فريد بـ (الأستاذ، السنة الدراسية، المستوى، النوع: مخطط/توزيع)
+// -----------------------------------------------------------------------
+model AnnualPlan {
+  id                     String    @id
+  teacherId              String
+  academicYearId         String
+  levelId                String
+  kind                   String // 'plan' (المخطط السنوي) | 'schedule' (التوزيع السنوي)
+  status                 String    @default("draft") // draft | proposed | approved
+  proposedByInspectorId  String?
+  approvedAt             DateTime?
+  data                   Json // { overrides: { "<fieldId>__<sessionNumber>": { objective } }, note? }
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@unique([teacherId, academicYearId, levelId, kind])
+  @@index([teacherId])
+  @@index([proposedByInspectorId])
+  @@index([status])
+}
+
+// -----------------------------------------------------------------------
+// إعداد مزودات الذكاء الاصطناعي التي يضيفها مشرف المنظومة من لوحة التحكم.
+// التخزين خادمي حقيقي في Postgres؛ المفتاح يُشفَّر عند الراحة (encryptedApiKey)
+// ولا يُعاد أبداً إلى الواجهة. عند تعذّر قاعدة البيانات يعمل النظام على مزودات
+// البيئة (env) فقط حتى لا تتعطل المنصة.
+// -----------------------------------------------------------------------
+model AIProviderConfig {
+  id              String    @id @default(cuid())
+  name            String // اسم العرض، مثال: "DeepSeek" أو "مزودي الخاص"
+  type            String    @default("openai-compatible") // openai-compatible | openai | nvidia | anthropic | gemini | ollama
+  baseUrl         String? // مطلوب للمزودات المتوافقة مع OpenAI و ollama
+  encryptedApiKey String? // مُشفَّر باستخدام encryptApiKey (AES-256-GCM)
+  model           String? // اسم النموذج
+  enabled         Boolean   @default(true)
+  sortOrder       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([enabled])
 }

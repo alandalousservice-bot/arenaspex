@@ -3,7 +3,7 @@
  * لوحة التحكم المركزية: إعدادات الذكاء الاصطناعي، المزودات، السجلات والتصريحات
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Building2,
   Cpu,
@@ -31,11 +31,20 @@ import {
   KeyRound,
   Eye,
   EyeOff,
-  AlertCircle
+  AlertCircle,
+  Plug
 } from 'lucide-react';
 import { AISetting, AILog, KnowledgeItem, User } from '../../types/spex';
 import { INITIAL_DIRECTORATES } from '../../data/initialState';
-import { testApiKeyOnServer } from '../../services/api';
+import {
+  testApiKeyOnServer,
+  fetchAIProviders,
+  createAIProvider,
+  updateAIProvider,
+  deleteAIProvider,
+  testAIProviderById,
+  AIProviderStatusItem
+} from '../../services/api';
 
 interface AdminDashboardProps {
   aiSettings: AISetting;
@@ -69,6 +78,114 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [maxTokens, setMaxTokens] = useState(aiSettings.maxTokens);
   const [dailyLimit, setDailyLimit] = useState(aiSettings.dailyQuotaLimit);
 
+  // Server-managed AI providers state
+  const [serverProviders, setServerProviders] = useState<AIProviderStatusItem[]>([]);
+  const [providersLoading, setProvidersLoading] = useState(true);
+  const [showProviderModal, setShowProviderModal] = useState(false);
+  const [editingProvider, setEditingProvider] = useState<AIProviderStatusItem | null>(null);
+  const [providerForm, setProviderForm] = useState({ name: '', type: 'openai-compatible', baseUrl: '', apiKey: '', model: '', enabled: true });
+  const [providerSaving, setProviderSaving] = useState(false);
+  const [providerError, setProviderError] = useState('');
+  const [testingProviderId, setTestingProviderId] = useState<string | null>(null);
+  const [providerTestResults, setProviderTestResults] = useState<Record<string, { valid: boolean; message: string }>>({});
+
+  const loadServerProviders = async () => {
+    setProvidersLoading(true);
+    const list = await fetchAIProviders();
+    setServerProviders(list);
+    setProvidersLoading(false);
+  };
+
+  useEffect(() => {
+    loadServerProviders();
+  }, []);
+
+  const openAddProvider = () => {
+    setEditingProvider(null);
+    setProviderError('');
+    setProviderForm({ name: '', type: 'openai-compatible', baseUrl: '', apiKey: '', model: '', enabled: true });
+    setShowProviderModal(true);
+  };
+
+  const openEditProvider = (p: AIProviderStatusItem) => {
+    setEditingProvider(p);
+    setProviderError('');
+    setProviderForm({
+      name: p.name,
+      type: p.type,
+      baseUrl: p.baseUrl || '',
+      apiKey: '',
+      model: p.model || '',
+      enabled: p.enabled
+    });
+    setShowProviderModal(true);
+  };
+
+  const closeProviderModal = () => {
+    if (providerSaving) return;
+    setShowProviderModal(false);
+  };
+
+  const handleSaveProvider = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProviderError('');
+    if (!providerForm.name.trim()) {
+      setProviderError('اسم المزود مطلوب.');
+      return;
+    }
+    const payload = {
+      name: providerForm.name.trim(),
+      type: providerForm.type,
+      baseUrl: providerForm.baseUrl.trim() || undefined,
+      apiKey: providerForm.apiKey,
+      model: providerForm.model.trim() || undefined,
+      enabled: providerForm.enabled,
+      sortOrder: 0
+    };
+    setProviderSaving(true);
+    const result = editingProvider
+      ? await updateAIProvider(editingProvider.id, payload)
+      : await createAIProvider(payload);
+    setProviderSaving(false);
+    if (!result.success) {
+      setProviderError(result.error || 'تعذّرت العملية.');
+      return;
+    }
+    setShowProviderModal(false);
+    await loadServerProviders();
+  };
+
+  const handleDeleteProvider = async (p: AIProviderStatusItem) => {
+    if (!window.confirm(`هل تريد حذف المزود "${p.name}" نهائياً؟`)) return;
+    const result = await deleteAIProvider(p.id);
+    if (!result.success) {
+      alert(result.error || 'تعذّر حذف المزود.');
+      return;
+    }
+    await loadServerProviders();
+  };
+
+  const handleTestProvider = async (p: AIProviderStatusItem) => {
+    setTestingProviderId(p.id);
+    setProviderTestResults((prev) => ({ ...prev, [p.id]: { valid: false, message: 'جارٍ الاختبار...' } }));
+    const res = await testAIProviderById(p.id);
+    setTestingProviderId(null);
+    setProviderTestResults((prev) => ({
+      ...prev,
+      [p.id]: { valid: Boolean(res.valid), message: res.message || 'نتيجة غير معروفة.' }
+    }));
+  };
+
+  const providerTypeLabels: Record<string, string> = {
+    'openai-compatible': 'متوافق مع OpenAI',
+    openai: 'OpenAI',
+    nvidia: 'NVIDIA NIM',
+    anthropic: 'Anthropic Claude',
+    gemini: 'Google Gemini',
+    ollama: 'Ollama (محلي)'
+  };
+  const providerTypesRequiringBaseUrl = ['openai-compatible', 'openai', 'nvidia', 'ollama'];
+
   // User Management state
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'teacher' | 'inspector' | 'director' | 'admin'>('all');
@@ -86,6 +203,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newUserFirstName, setNewUserFirstName] = useState('');
   const [newUserLastName, setNewUserLastName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserPhone, setNewUserPhone] = useState('0661234567');
   const [newUserSchoolName, setNewUserSchoolName] = useState('مدرسة الشهيد بالخيري عبد القادر');
   const [newUserMunicipality, setNewUserMunicipality] = useState('عين أزال - سطيف');
@@ -121,13 +239,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     e.preventDefault();
     if (!newUserFirstName || !newUserLastName || !newUserEmail) return;
 
+    if (newUserPassword.trim().length < 8) {
+      window.alert('كلمة المرور الأولية يجب أن تكون 8 أحرف على الأقل.');
+      return;
+    }
+
     if (onAddUser) {
       const trimmedKey = newUserApiKey.trim();
       onAddUser({
         role: newUserRole,
         firstName: newUserFirstName,
         lastName: newUserLastName,
-        email: newUserEmail,
+        email: newUserEmail.trim().toLowerCase(),
+        password: newUserPassword.trim(),
         phone: newUserPhone,
         schoolName: newUserSchoolName,
         municipality: newUserMunicipality,
@@ -143,6 +267,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setNewUserFirstName('');
     setNewUserLastName('');
     setNewUserEmail('');
+    setNewUserPassword('');
     setNewUserApiKey('');
     setShowAddUserModal(false);
   };
@@ -150,7 +275,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleSaveEditUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser || !onUpdateUser) return;
-    onUpdateUser(editingUser);
+    // إن لم يكتب المشرف كلمة مرور جديدة صراحة، لا نرسل الحقل أصلاً حتى لا تتغير كلمة المرور الحالية
+    const payload = { ...editingUser };
+    if (!payload.password || !String(payload.password).trim()) {
+      delete payload.password;
+    } else if (String(payload.password).trim().length < 8) {
+      window.alert('كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل، أو اترك الحقل فارغاً لعدم التغيير.');
+      return;
+    }
+    onUpdateUser(payload);
     setEditingUser(null);
   };
 
@@ -398,8 +531,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                           <td className="p-3">
                             <div className="font-semibold text-slate-700 dir-ltr">{u.email}</div>
-                            <div className="text-[10px] font-bold text-purple-700 dir-ltr mt-0.5">🔑 {u.password || '12345678'}</div>
-                            <div className="text-[10px] text-slate-400">{u.phone || '0661234567'}</div>
+                            <div className="text-[10px] font-bold text-slate-500 dir-ltr mt-0.5">🆔 {u.spexId}</div>
+                            <div className="text-[10px] text-slate-400">{u.phone || 'بدون هاتف'}</div>
                           </td>
 
                           <td className="p-3 font-medium text-slate-700">
@@ -408,18 +541,46 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                           <td className="p-3">
                             <span
-                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                                u.status === 'active'
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold inline-flex items-center gap-1 ${
+                                !u.isApprovedByAdmin || u.status === 'pending_approval'
+                                  ? 'bg-amber-50 text-amber-800 border border-amber-300'
+                                  : u.status === 'active'
                                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                   : 'bg-rose-50 text-rose-700 border border-rose-200'
                               }`}
                             >
-                              {u.status === 'active' ? 'نشط' : 'معطل'}
+                              {!u.isApprovedByAdmin || u.status === 'pending_approval'
+                                ? '⏳ بانتظار التفعيل'
+                                : u.status === 'active'
+                                ? '🟢 نشط ومفعل'
+                                : '🔴 معطل'}
                             </span>
                           </td>
 
                           <td className="p-3 text-left">
                             <div className="flex items-center justify-end gap-1.5">
+                              {onUpdateUser && (
+                                (!u.isApprovedByAdmin || u.status === 'pending_approval' || u.status === 'inactive') ? (
+                                  <button
+                                    onClick={() => onUpdateUser({ ...u, isApprovedByAdmin: true, status: 'active' })}
+                                    className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+                                    title="تفعيل حساب المستخدم فوراً"
+                                  >
+                                    <UserCheck className="w-3 h-3" />
+                                    <span>تفعيل</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => onUpdateUser({ ...u, isApprovedByAdmin: false, status: 'inactive' })}
+                                    className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-[10px] rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                                    title="تعطيل الحساب وتجميد الوصول"
+                                  >
+                                    <EyeOff className="w-3 h-3 text-rose-600" />
+                                    <span>تعطيل</span>
+                                  </button>
+                                )
+                              )}
+
                               <button
                                 onClick={() => setEditingUser(u)}
                                 className="p-1.5 text-slate-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors cursor-pointer"
@@ -644,6 +805,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       )}
       {activeAdminTab === 'ai_engine' && (
+        <>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left 1 Col: AI Provider Configuration Form */}
           <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
@@ -786,6 +948,155 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Server-Managed AI Providers */}
+        <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Plug className="w-4 h-4 text-purple-600" />
+              <span>إدارة مزودات الذكاء الاصطناعي (تخزين خادمي)</span>
+            </h3>
+            <button
+              onClick={openAddProvider}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              إضافة مزود جديد
+            </button>
+          </div>
+
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600 leading-relaxed">
+            <Server className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
+            <span>
+              يمكنك إضافة أي مزود ذكاء اصطناعي: مزودات سحابية متوافقة مع OpenAI (OpenAI، DeepSeek، Groq، Mistral،
+              Together، vLLM...)، أو محلية بلا مفتاح مثل <b>Ollama</b> و <b>LM Studio</b> عبر الرابط
+              <code className="mx-1 px-1.5 py-0.5 bg-slate-200 rounded-md">http://localhost:11434/v1</code>.
+              عند تعذّر أحد المزودات يتحول النظام تلقائياً إلى المزود التالي.
+            </span>
+          </div>
+
+          {providersLoading ? (
+            <div className="flex items-center justify-center gap-3 py-10 text-slate-400">
+              <RefreshCw className="w-5 h-5 animate-spin" />
+              <span className="text-xs font-bold">جارٍ تحميل المزودات من الخادم...</span>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
+                    <th className="p-2.5">المزود</th>
+                    <th className="p-2.5">النوع</th>
+                    <th className="p-2.5">النموذج</th>
+                    <th className="p-2.5">الرابط / المفتاح</th>
+                    <th className="p-2.5">الحالة</th>
+                    <th className="p-2.5">المصدر</th>
+                    <th className="p-2.5">الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {serverProviders.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="p-6 text-center text-slate-400">
+                        لا توجد مزودات مفعّلة حالياً. أضف مفتاحاً في ملف .env أو أضف مزوداً من الزر أعلاه.
+                      </td>
+                    </tr>
+                  )}
+                  {serverProviders.map((p) => {
+                    const testResult = providerTestResults[p.id];
+                    const testing = testingProviderId === p.id;
+                    return (
+                      <tr key={p.id} className="hover:bg-slate-50/80">
+                        <td className="p-2.5 font-bold text-slate-900">{p.name}</td>
+                        <td className="p-2.5">
+                          <span className="px-2 py-0.5 bg-purple-50 text-purple-700 font-bold rounded-md text-[10px]">
+                            {providerTypeLabels[p.type] || p.type}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-slate-600">{p.model || '—'}</td>
+                        <td className="p-2.5 space-y-1">
+                          {p.baseUrl ? (
+                            <span className="block text-slate-500 text-[10px] dir-ltr text-left">{p.baseUrl}</span>
+                          ) : (
+                            <span className="block text-slate-300 text-[10px]">—</span>
+                          )}
+                          <span className="block text-[10px]">
+                            {p.keyConfigured ? (
+                              <span className="text-emerald-600 font-bold">مفتاح محقون ✓</span>
+                            ) : (
+                              <span className="text-amber-600">{p.type === 'ollama' ? 'لا يتطلب مفتاحاً (محلي)' : 'بدون مفتاح'}</span>
+                            )}
+                          </span>
+                        </td>
+                        <td className="p-2.5">
+                          <span
+                            className={`px-2 py-0.5 font-bold rounded-md text-[10px] ${
+                              p.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {p.enabled ? 'مفعّل' : 'معطّل'}
+                          </span>
+                        </td>
+                        <td className="p-2.5">
+                          <span
+                            className={`px-2 py-0.5 font-bold rounded-md text-[10px] ${
+                              p.source === 'db' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600'
+                            }`}
+                          >
+                            {p.source === 'db' ? 'قاعدة البيانات' : 'ملف .env'}
+                          </span>
+                        </td>
+                        <td className="p-2.5">
+                          <div className="flex flex-col gap-1.5 items-start">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleTestProvider(p)}
+                                disabled={testing}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all cursor-pointer"
+                              >
+                                {testing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                                اختبار
+                              </button>
+                              {p.source === 'db' && (
+                                <>
+                                  <button
+                                    onClick={() => openEditProvider(p)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[10px] rounded-lg transition-all cursor-pointer"
+                                  >
+                                    <Edit className="w-3 h-3" />
+                                    تعديل
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteProvider(p)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] rounded-lg transition-all cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    حذف
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                            {testResult && (
+                              <span
+                                className={`text-[10px] font-bold ${
+                                  testResult.valid ? 'text-emerald-600' : 'text-rose-600'
+                                }`}
+                              >
+                                {testResult.valid ? <CheckCircle2 className="inline w-3 h-3 mr-0.5" /> : <AlertCircle className="inline w-3 h-3 mr-0.5" />}
+                                {testResult.message}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+               </table>
+            </div>
+          )}
+        </div>
+        </>
       )}
 
       {/* TAB 3: AUDIT LOGS & KNOWLEDGE REVIEW */}
@@ -979,39 +1290,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {dir.districts.map((dist) => (
                           <div
                             key={dist.id}
-                            className={`p-3.5 rounded-xl border transition-all flex items-center justify-between ${
-                              dist.inspectorId === 'usr_inspector_1'
-                                ? 'bg-emerald-600 text-white border-emerald-500 shadow-md ring-2 ring-emerald-400/30'
-                                : 'bg-white border-slate-200 hover:border-emerald-300 text-slate-800'
-                            }`}
+                            className="p-3.5 rounded-xl border transition-all flex items-center justify-between bg-white border-slate-200 hover:border-emerald-300 text-slate-800"
                           >
                             <div className="space-y-0.5">
                               <div className="flex items-center gap-2">
-                                <span
-                                  className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
-                                    dist.inspectorId === 'usr_inspector_1'
-                                      ? 'bg-white/20 text-white'
-                                      : 'bg-emerald-100 text-emerald-800'
-                                  }`}
-                                >
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
                                   المقاطعة {dist.districtNumber ? (dist.districtNumber < 10 ? `0${dist.districtNumber}` : dist.districtNumber) : dist.name}
                                 </span>
-                                {dist.inspectorId === 'usr_inspector_1' && (
-                                  <span className="text-[9px] font-bold bg-amber-400 text-slate-950 px-1.5 py-0.5 rounded-md">
-                                    المفتش المتاح للتجربة
-                                  </span>
-                                )}
                               </div>
                               <div className="text-xs font-bold mt-1">
-                                المفتش: {dist.inspectorName}
+                                المفتش: {dist.inspectorName || 'لم يُحدد بعد'}
                               </div>
                             </div>
 
-                            <UserCheck
-                              className={`w-4 h-4 shrink-0 ${
-                                dist.inspectorId === 'usr_inspector_1' ? 'text-emerald-200' : 'text-slate-400'
-                              }`}
-                            />
+                            <UserCheck className="w-4 h-4 shrink-0 text-slate-400" />
                           </div>
                         ))}
                       </div>
@@ -1091,6 +1383,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onChange={(e) => setNewUserEmail(e.target.value)}
                   placeholder="abdelmalek.nabti@education.dz"
                   className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-purple-500 dir-ltr text-left"
+                />
+              </div>
+
+              {/* كلمة المرور الأولية للحساب الجديد — ضرورية لأن الخادم يرفض إنشاء حساب بلا كلمة مرور،
+                  وكان النظام يضبط '12345678' سراً لكل الحسابات الجديدة دون علم المشرف */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">كلمة المرور الأولية</label>
+                <input
+                  type="text"
+                  required
+                  minLength={8}
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  placeholder="8 أحرف على الأقل - سلّمها للمستخدم ليغيّرها لاحقاً"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-purple-500 dir-ltr text-left font-mono"
                 />
               </div>
 
@@ -1285,9 +1592,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <label className="font-bold text-slate-700 block mb-1">كلمة المرور الجديدة</label>
                   <input
                     type="text"
-                    value={editingUser.password || '12345678'}
+                    // فارغة افتراضياً = لا تغيير؛ كان ملؤها آلياً بـ '12345678' يعيد تعيين كلمة مرور المستخدم سراً عند أي تعديل آخر
+                    value={editingUser.password || ''}
                     onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
-                    placeholder="12345678"
+                    placeholder="اتركها فارغة لإبقاء كلمة المرور الحالية"
                     className="w-full p-2.5 rounded-xl border border-purple-200 bg-purple-50/50 outline-none dir-ltr text-left font-bold text-purple-900"
                   />
                 </div>
@@ -1446,6 +1754,138 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-md cursor-pointer"
                 >
                   حفظ وتحديث الحساب
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* AI Provider Add/Edit Modal */}
+      {showProviderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+              <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                <Plug className="w-4 h-4 text-purple-600" />
+                <span>{editingProvider ? `تعديل المزود: ${editingProvider.name}` : 'إضافة مزود ذكاء اصطناعي جديد'}</span>
+              </h3>
+              <button
+                onClick={closeProviderModal}
+                className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProvider} className="p-6 space-y-4 text-xs">
+              {providerError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-bold text-[11px]">
+                  {providerError}
+                </div>
+              )}
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">اسم المزود *</label>
+                <input
+                  type="text"
+                  required
+                  value={providerForm.name}
+                  onChange={(e) => setProviderForm({ ...providerForm, name: e.target.value })}
+                  placeholder="مثال: DeepSeek / Groq / مزودي الخاص"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 focus:border-purple-500 outline-none font-semibold text-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">نوع المزود *</label>
+                  <select
+                    value={providerForm.type}
+                    onChange={(e) => setProviderForm({ ...providerForm, type: e.target.value })}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:border-purple-500 outline-none font-semibold text-slate-900"
+                  >
+                    <option value="openai-compatible">متوافق مع OpenAI (أي مزود)</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic Claude</option>
+                    <option value="gemini">Google Gemini</option>
+                    <option value="nvidia">NVIDIA NIM</option>
+                    <option value="ollama">Ollama (محلي)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">النموذج (Model)</label>
+                  <input
+                    type="text"
+                    value={providerForm.model}
+                    onChange={(e) => setProviderForm({ ...providerForm, model: e.target.value })}
+                    placeholder="مثال: deepseek-chat / gpt-4o-mini"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:border-purple-500 outline-none font-mono text-xs dir-ltr text-left"
+                  />
+                </div>
+              </div>
+
+              {providerTypesRequiringBaseUrl.includes(providerForm.type) && (
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">رابط الخادم (Base URL) *</label>
+                  <input
+                    type="text"
+                    required
+                    value={providerForm.baseUrl}
+                    onChange={(e) => setProviderForm({ ...providerForm, baseUrl: e.target.value })}
+                    placeholder={
+                      providerForm.type === 'ollama'
+                        ? 'http://localhost:11434/v1'
+                        : 'https://api.deepseek.com/v1'
+                    }
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:border-purple-500 outline-none font-mono text-xs dir-ltr text-left"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  {providerForm.type === 'ollama' ? 'مفتاح API (اختياري — محلي بلا مفتاح)' : 'مفتاح API'}
+                </label>
+                <input
+                  type="password"
+                  value={providerForm.apiKey}
+                  onChange={(e) => setProviderForm({ ...providerForm, apiKey: e.target.value })}
+                  placeholder={editingProvider ? 'اتركه فارغاً للإبقاء على المفتاح الحالي' : 'sk-...'}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 focus:border-purple-500 outline-none font-mono text-xs dir-ltr text-left"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  يُشفَّر المفتاح ويُخزَّن في قاعدة بيانات الخادم ولا يُعاد أبداً إلى الواجهة.
+                </p>
+              </div>
+
+              <label className="flex items-center gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={providerForm.enabled}
+                  onChange={(e) => setProviderForm({ ...providerForm, enabled: e.target.checked })}
+                  className="w-4 h-4 accent-purple-600"
+                />
+                <span className="font-bold text-slate-700">مزوّد مفعّل (يشارك في التوليد والتحويل التلقائي)</span>
+              </label>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={closeProviderModal}
+                  disabled={providerSaving}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl cursor-pointer disabled:opacity-50"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={providerSaving}
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-bold rounded-xl shadow-md cursor-pointer inline-flex items-center gap-2"
+                >
+                  {providerSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  {editingProvider ? 'حفظ التعديلات' : 'إضافة المزود'}
                 </button>
               </div>
             </form>

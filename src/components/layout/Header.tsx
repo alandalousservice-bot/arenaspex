@@ -51,7 +51,7 @@ type SearchResultItem = {
   targetTab: string;
 };
 
-export const Header: React.FC<HeaderProps> = ({
+export const Header: React.FC<HeaderProps> = React.memo(({
   currentUser,
   allUsers,
   onSwitchUser,
@@ -133,7 +133,7 @@ export const Header: React.FC<HeaderProps> = ({
           category: 'colleague',
           label: fullName,
           sublabel: u.role === 'inspector' ? 'مفتش بيداغوجي' : u.role === 'admin' ? 'مشرف المنظومة' : 'أستاذ زميل',
-          targetTab: 'professional_community'
+          targetTab: 'professional_hub'
         });
       }
     });
@@ -417,4 +417,4 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
     </header>
   );
-};
+});

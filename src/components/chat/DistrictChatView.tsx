@@ -46,6 +46,10 @@ interface DistrictChatViewProps {
   onSendGroupMessage: (msg: { message: string; replyToId?: string }) => void;
   onSendDirectMessage: (receiverId: string, receiverName: string, message: string) => void;
   onToggleFollowTeacher: (teacherId: string) => void;
+  /** تبويب داخلي مُتحكَّم فيه من الخارج (يُستخدم داخل فضاء التواصل المهني الموحّد) */
+  controlledSubTab?: 'group_chat' | 'directory' | 'direct_chats';
+  onSubTabChange?: (tab: 'group_chat' | 'directory' | 'direct_chats') => void;
+  hideTabBar?: boolean;
 }
 
 export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
@@ -56,10 +60,18 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
   directMessages,
   onSendGroupMessage,
   onSendDirectMessage,
-  onToggleFollowTeacher
+  onToggleFollowTeacher,
+  controlledSubTab,
+  onSubTabChange,
+  hideTabBar = false
 }) => {
   // Navigation sub-tabs inside chat hub
   const [activeSubTab, setActiveSubTab] = useState<'group_chat' | 'directory' | 'direct_chats'>('group_chat');
+  const currentSubTab = controlledSubTab ?? activeSubTab;
+  const goToSubTab = (tab: typeof currentSubTab) => {
+    if (onSubTabChange) onSubTabChange(tab);
+    else setActiveSubTab(tab);
+  };
 
   // Directory Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,7 +97,7 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
 
   const handleStartDirectChatFromProfile = (targetUser: User) => {
     setSelectedDirectUser(targetUser);
-    setActiveSubTab('direct_chats');
+    goToSubTab('direct_chats');
   };
 
   // Local likes tracking
@@ -209,12 +221,13 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
       )}
 
       {/* Primary Navigation Tabs */}
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white p-2 rounded-2xl shadow-xs">
+      {!hideTabBar && (
+        <div className="flex items-center justify-between border-b border-slate-200 bg-white p-2 rounded-2xl shadow-xs">
         <div className="flex items-center gap-2 overflow-x-auto">
           <button
-            onClick={() => setActiveSubTab('group_chat')}
+            onClick={() => goToSubTab('group_chat')}
             className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'group_chat'
+              currentSubTab === 'group_chat'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
@@ -227,9 +240,9 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
           </button>
 
           <button
-            onClick={() => setActiveSubTab('directory')}
+            onClick={() => goToSubTab('directory')}
             className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'directory'
+              currentSubTab === 'directory'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
@@ -242,9 +255,9 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
           </button>
 
           <button
-            onClick={() => setActiveSubTab('direct_chats')}
+            onClick={() => goToSubTab('direct_chats')}
             className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'direct_chats'
+              currentSubTab === 'direct_chats'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
@@ -264,10 +277,11 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
           <span>شرط القبول: معلمو {userDistrictName} فقط</span>
         </div>
-      </div>
+        </div>
+      )}
 
       {/* SUB-VIEW 1: DISTRICT GROUP CHAT (غرفة الدردشة الجماعية) */}
-      {activeSubTab === 'group_chat' && (
+      {currentSubTab === 'group_chat' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Feed Column */}
           <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200/80 shadow-md p-5 flex flex-col justify-between min-h-[580px]">
@@ -550,7 +564,7 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
       )}
 
       {/* SUB-VIEW 2: DISTRICT TEACHERS DIRECTORY & FOLLOW SYSTEM (دليل الأساتذة والمتابعة) */}
-      {activeSubTab === 'directory' && (
+      {currentSubTab === 'directory' && (
         <div className="space-y-6">
           {/* Search & District Filter Controls */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
@@ -671,7 +685,7 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
                         <button
                           onClick={() => {
                             setSelectedDirectUser(teacher);
-                            setActiveSubTab('direct_chats');
+                            goToSubTab('direct_chats');
                           }}
                           className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-2xl transition-all cursor-pointer flex items-center gap-1"
                           title="مراسلة خاصة"
@@ -732,7 +746,7 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
       )}
 
       {/* SUB-VIEW 3: 1-ON-1 DIRECT CHAT WITH FOLLOWED PEERS (المحادثات الثنائية) */}
-      {activeSubTab === 'direct_chats' && (
+      {currentSubTab === 'direct_chats' && (
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-md p-6 space-y-5">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div className="flex items-center gap-3">

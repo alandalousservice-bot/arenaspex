@@ -4,29 +4,40 @@
  */
 
 import React, { useState } from 'react';
-import { BookMarked, CheckCircle2, Clock, AlertCircle, FileText, Sparkles, Calendar, Filter, ArrowUpDown } from 'lucide-react';
+import { BookMarked, Clock, FileText, Sparkles, Calendar, Filter, ArrowUpDown, Trash2 } from 'lucide-react';
 import { DailyNotebookEntry, LessonPlan } from '../../types/spex';
 import { SAMPLE_PE_SESSIONS, PE_FIELDS } from '../../data/algerianCurriculum';
+
+type SessionRefType = { id?: string; sessionTitle?: string; fieldName?: string; levelName?: string };
 
 interface DailyNotebookViewProps {
   notebookEntries: DailyNotebookEntry[];
   lessonPlans: LessonPlan[];
   onUpdateStatus: (entryId: string, status: 'منجزة' | 'مؤجلة' | 'غير منجزة', note?: string) => void;
-  onOpenLessonPlan: (lessonId?: string, sessionRef?: any) => void;
-  onOpenAIGeneratorForSession: (sessionRef: any) => void;
+  onOpenLessonPlan: (lessonId?: string, sessionRef?: SessionRefType) => void;
+  onOpenAIGeneratorForSession: (sessionRef: SessionRefType) => void;
+  onDeleteEntry?: (entryId: string) => void;
 }
 
 export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   notebookEntries,
-  lessonPlans,
+  lessonPlans: _lessonPlans,
   onUpdateStatus,
   onOpenLessonPlan,
-  onOpenAIGeneratorForSession
+  onOpenAIGeneratorForSession,
+  onDeleteEntry
 }) => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [selectedField, setSelectedField] = useState<string>('all');
   const [selectedLevel, setSelectedLevel] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'date' | 'sequence'>('date');
+
+  const handleDeleteEntry = (entryId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (window.confirm('هل أنت متأكد من حذف هذه الحصة من الكراس اليومي؟ لا يمكن التراجع عن هذا الإجراء.')) {
+      onDeleteEntry?.(entryId);
+    }
+  };
 
   // Filter and Sort Entries
   const filteredEntries = notebookEntries.filter((e) => {
@@ -260,6 +271,16 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                       <FileText className="w-4 h-4 text-blue-600" />
                       <span>{hasLessonPlan ? 'عرض المذكرة' : 'إنشاء مذكرة'}</span>
                     </button>
+
+                    {onDeleteEntry && (
+                      <button
+                        onClick={(e) => handleDeleteEntry(entry.id, e)}
+                        title="حذف هذه الحصة من الكراس اليومي"
+                        className="flex items-center gap-1.5 px-3 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-2xl text-xs transition-all cursor-pointer border border-rose-200/80"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -23,7 +23,6 @@ import {
   X,
   Menu,
   Clock,
-  MessageSquare,
   Timer,
   Users
 } from 'lucide-react';
@@ -41,8 +40,7 @@ export type NavTab =
   | 'knowledge_engine'
   | 'competency_assessment'
   | 'gradebook'
-  | 'district_chat'
-  | 'professional_community'
+  | 'professional_hub'
   | 'inspector_portal'
   | 'director_portal'
   | 'admin_portal'
@@ -61,7 +59,7 @@ interface SidebarProps {
   onOpenMobile?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({
+export const Sidebar: React.FC<SidebarProps> = React.memo(({
   currentTab,
   onSelectTab,
   userRole,
@@ -83,7 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         title: 'الوحدات البيداغوجية للأستاذ',
         items: [
           { id: 'dashboard' as NavTab, label: 'لوحة القيادة', icon: LayoutDashboard },
-          { id: 'professional_community' as NavTab, label: 'المجتمع المهني', icon: Users, badge: 'مجتمع SPEX', highlight: true },
+          { id: 'professional_hub' as NavTab, label: 'التواصل المهني', icon: Users, badge: 'فضاء موحّد', highlight: true },
           { id: 'annual_plan' as NavTab, label: 'المخطط السنوي للمناهج', icon: Calendar },
           { id: 'annual_schedule' as NavTab, label: 'التوزيع السنوي للحصص', icon: CalendarCheck },
           { id: 'weekly_schedule' as NavTab, label: 'التوزيع الأسبوعي للحصص', icon: Clock },
@@ -94,7 +92,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           { id: 'knowledge_engine' as NavTab, label: 'بنك المعرفة التربوية', icon: BrainCircuit },
           { id: 'competency_assessment' as NavTab, label: 'تقويم الكفاءة الختامية', icon: Target },
           { id: 'gradebook' as NavTab, label: 'دفتر التنقيط والأقسام', icon: GraduationCap },
-          { id: 'district_chat' as NavTab, label: 'دردشة ومتابعة المقاطعة', icon: MessageSquare },
         ]
       };
     }
@@ -104,8 +101,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         title: 'بوابة الإشراف البيداغوجي',
         items: [
           { id: 'inspector_portal' as NavTab, label: 'بوابة المفتش البيداغوجي', icon: ShieldCheck, badge: unreadInspectorNotesCount > 0 ? `${unreadInspectorNotesCount} ملاحظة` : undefined },
-          { id: 'professional_community' as NavTab, label: 'المجتمع المهني', icon: Users, badge: 'مجتمع SPEX', highlight: true },
-          { id: 'district_chat' as NavTab, label: 'الدردشة الجماعية للمقاطعة', icon: MessageSquare },
+          { id: 'professional_hub' as NavTab, label: 'التواصل المهني', icon: Users, badge: 'فضاء موحّد', highlight: true },
           { id: 'knowledge_engine' as NavTab, label: 'بنك المعرفة والاعتماد', icon: BrainCircuit },
         ]
       };
@@ -116,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         title: 'بوابة مدير المدرسة الابتدائية',
         items: [
           { id: 'director_portal' as NavTab, label: 'لوحة مدير المدرسة', icon: ShieldCheck },
-          { id: 'professional_community' as NavTab, label: 'المجتمع المهني', icon: Users, badge: 'مجتمع SPEX', highlight: true },
+          { id: 'professional_hub' as NavTab, label: 'التواصل المهني', icon: Users, badge: 'فضاء موحّد', highlight: true },
           { id: 'knowledge_engine' as NavTab, label: 'بنك المعرفة التربوية', icon: BrainCircuit },
         ]
       };
@@ -127,7 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'إدارة النظام وقواعد البيانات',
       items: [
         { id: 'admin_portal' as NavTab, label: 'لوحة التحكم والاشتراكات', icon: Building2 },
-        { id: 'professional_community' as NavTab, label: 'المجتمع المهني', icon: Users, badge: 'مجتمع SPEX' },
+        { id: 'professional_hub' as NavTab, label: 'التواصل المهني', icon: Users, badge: 'فضاء موحّد' },
         { id: 'knowledge_engine' as NavTab, label: 'إدارة بنك المعرفة', icon: BrainCircuit },
       ]
     };
@@ -434,4 +430,4 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
     </>
   );
-};
+});

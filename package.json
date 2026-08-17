@@ -1,27 +1,42 @@
 {
-  "name": "react-example",
+  "name": "arenaspex",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "engines": {
     "node": ">=20.0.0"
   },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
-  },
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "vite build",
-    "start": "prisma migrate deploy && tsx prisma/seed.ts && tsx src/server/index.ts",
+    "dev": "tsx server.ts",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit && eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky || true",
     "postinstall": "prisma generate",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
-    "db:seed-from-json": "tsx scripts/migrate-json-to-db.ts"
+    "db:seed-from-json": "tsx scripts/migrate-json-to-db.ts",
+    "render:build": "npm ci && npx prisma generate && npx prisma migrate deploy && npm run db:seed && npm run build",
+    "render:start": "npm start"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,md}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -30,31 +45,47 @@
     "@vitejs/plugin-react": "^5.0.4",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
+    "docx": "^9.7.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "express-async-errors": "^3.1.1",
     "express-rate-limit": "^7.5.0",
+    "google-auth-library": "^10.9.1",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
+    "prisma": "^6.3.1",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "react-router-dom": "^7.18.2",
     "recharts": "^3.10.0",
     "vite": "^6.2.3",
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.17.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.8",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.14.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
-    "prisma": "^6.3.1",
+    "eslint": "^9.17.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.16",
+    "globals": "^15.14.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.3.0",
+    "prettier": "^3.4.2",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "typescript-eslint": "^8.19.0",
+    "vite": "^6.2.3",
+    "vitest": "^2.1.9"
   }
 }

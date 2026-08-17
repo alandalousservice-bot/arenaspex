@@ -5,22 +5,15 @@
 
 import React, { useState } from 'react';
 import {
-  Calendar,
   Clock,
   Plus,
   Trash2,
   Printer,
-  Sparkles,
   MapPin,
   Users,
-  Layers,
-  BookMarked,
-  CheckCircle2,
-  AlertCircle,
-  Settings,
-  Edit2
+  Settings
 } from 'lucide-react';
-import { WeeklyScheduleSlot, ClassRoom, PEField } from '../../types/spex';
+import { WeeklyScheduleSlot, ClassRoom, User } from '../../types/spex';
 import { PE_FIELDS } from '../../data/algerianCurriculum';
 
 interface WeeklyScheduleViewProps {
@@ -30,6 +23,7 @@ interface WeeklyScheduleViewProps {
   onDeleteSlot: (slotId: string) => void;
   teacherName?: string;
   schoolName?: string;
+  currentUser?: User;
 }
 
 const DAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'] as const;
@@ -52,8 +46,9 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
   teacherClasses,
   onAddSlot,
   onDeleteSlot,
-  teacherName = 'أ. علي بن زايد',
-  schoolName = 'مدرسة الشهيد بالخيري عبد القادر'
+  teacherName = 'أستاذ المادة',
+  schoolName = 'المؤسسة التعليمية',
+  currentUser
 }) => {
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -125,7 +120,7 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
     const fieldObj = PE_FIELDS.find((f) => f.id === fieldId) || PE_FIELDS[0];
 
     onAddSlot({
-      teacherId: 'usr_teacher_1',
+      teacherId: currentUser?.id || '',
       day,
       timeSlot,
       classId: classObj?.id || 'cls_1',

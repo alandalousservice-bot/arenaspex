@@ -1,50 +1,89 @@
-# SPEX Platform — Render Blueprint
-# يسمح بنشر الخدمة تلقائياً عبر "New +" → "Blueprint" في Render، بدل ضبط كل شيء يدوياً.
-# راجع README-PRODUCTION.md لتفاصيل كل متغير وكيفية الحصول عليه (خصوصاً DATABASE_URL من Neon).
-
 services:
   - type: web
     name: spex-platform
     runtime: node
     plan: free
-    region: frankfurt
-    buildCommand: npm ci && npm run build
-    startCommand: npm start
-    healthCheckPath: /api/health
-    autoDeploy: true
+    buildCommand: npm run render:build
+    startCommand: npm run render:start
+    healthCheckPath: /health
+    autoDeployTrigger: commit
     envVars:
       - key: NODE_ENV
         value: production
 
-      # قاعدة البيانات: نستخدم Neon (Postgres مُدار خارجياً) وليس قاعدة بيانات Render
-      # الصقه يدوياً من لوحة تحكم Neon بعد إنشاء المشروع — انظر القسم 1 في README-PRODUCTION.md
+      # Neon PostgreSQL
       - key: DATABASE_URL
         sync: false
 
-      # يُولَّد تلقائياً من طرف Render عند أول نشر — لا حاجة لإدخاله يدوياً
+      # Application
+      - key: APP_URL
+        sync: false
       - key: JWT_SECRET
         generateValue: true
+      - key: API_KEY_ENCRYPTION_SECRET
+        generateValue: true
+      - key: SETUP_SECRET
+        generateValue: true
+      - key: RUN_DB_MIGRATIONS_ON_STARTUP
+        value: "false"
 
-      # مفتاح Gemini الافتراضي للمنصة (اختياري إن كان كل مستخدم يستخدم مفتاحه الخاص)
-      - key: GEMINI_API_KEY
-        sync: false
-
-      # بريد إعادة تعيين كلمة المرور عبر Resend — راجع القسم 2.1 في README-PRODUCTION.md
-      - key: RESEND_API_KEY
-        sync: false
-      - key: EMAIL_FROM
-        value: "SPEX <onboarding@resend.dev>"
-      # يُحدَّث تلقائياً لاحقاً إلى رابط الخدمة الفعلي بعد أول نشر (Settings → Environment)
-      - key: APP_URL
-        value: "https://spex-platform.onrender.com"
-
-      # إنشاء حساب SUPER_ADMIN تلقائياً عند أول إقلاع (موصى به بدل SETUP_SECRET)
-      # اتركهما فارغين إن كنت تفضّل إنشاء المشرف الأول عبر /api/auth/bootstrap-admin
+      # First admin account (created via `npm run db:seed` from Render Shell)
       - key: SUPER_ADMIN_EMAIL
         sync: false
       - key: SUPER_ADMIN_PASSWORD
         sync: false
+      - key: SUPER_ADMIN_FIRST_NAME
+        value: "مشرف"
+      - key: SUPER_ADMIN_LAST_NAME
+        value: "المنظومة الرقمية"
+      - key: SUPER_ADMIN_DIRECTORATE_ID
+        value: "setif_de"
+      - key: SUPER_ADMIN_DISTRICT_ID
+        value: "dist_setif_7"
 
-      # بديل: رمز سرّي مؤقت لإنشاء أول حساب مشرف عبر واجهة المتصفح (احذفه بعد الاستخدام)
-      - key: SETUP_SECRET
-        generateValue: true
+      # Email
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+      # Google OAuth
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
+
+      # AI Gateway
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: NVIDIA_BASE_URL
+        value: https://integrate.api.nvidia.com/v1
+      - key: NVIDIA_MODEL
+        value: meta/llama-3.1-8b-instruct
+
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        value: https://api.openai.com/v1
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-3-5-haiku-latest
+
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+
+      # Optional OpenAI-compatible provider (OpenRouter, Groq, self-hosted, etc.)
+      - key: AI_COMPATIBLE_API_KEY
+        sync: false
+      - key: AI_COMPATIBLE_BASE_URL
+        sync: false
+      - key: AI_COMPATIBLE_MODEL
+        sync: false

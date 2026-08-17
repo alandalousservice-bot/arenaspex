@@ -22,10 +22,14 @@ import {
   ChevronUp,
   BookMarked,
   Filter,
-  Check
+  Check,
+  PenSquare,
+  Zap
 } from 'lucide-react';
-import { LessonPlan } from '../../types/spex';
-import { requestAILessonPlan } from '../../services/api';
+import { LessonPlan, User } from '../../types/spex';
+import { requestAILessonPlan, requestAIImproveWording } from '../../services/api';
+import { exportLessonPlanToWord, exportLessonPlanToPdf } from '../../services/lessonPlanExport.service';
+import { autoGenerateLessonPlan } from '../../services/lessonPlan.generator.service';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../../data/algerianCurriculum';
 
 interface LessonPlanViewProps {
@@ -35,6 +39,7 @@ interface LessonPlanViewProps {
   onDeleteLessonPlan?: (lessonId: string) => void;
   onUpdateLessonStatus?: (lessonId: string, status: 'منجزة' | 'مؤجلة' | 'غير منجزة', note?: string) => void;
   onOpenCommandCenterForPlan?: (plan: LessonPlan) => void;
+  currentUser?: User;
 }
 
 const LEVEL_KEY_MAP: Record<string, string> = {
@@ -57,7 +62,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   onSaveLessonPlan,
   onDeleteLessonPlan,
   onUpdateLessonStatus,
-  onOpenCommandCenterForPlan
+  onOpenCommandCenterForPlan,
+  currentUser
 }) => {
   const [selectedLessonId, setSelectedLessonId] = useState<string>(
     activeLessonId || lessonPlans[0]?.id || ''
@@ -74,6 +80,14 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [levelFilter, setLevelFilter] = useState<string>('all');
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
+  const [editingObjectivesId, setEditingObjectivesId] = useState<string | null>(null);
+  const [objectivesDraft, setObjectivesDraft] = useState<{
+    generalObjective: string;
+    motor: string;
+    cognitive: string;
+    communication: string;
+    personalSocial: string;
+  } | null>(null);
 
   const toggleExpand = (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -117,6 +131,68 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       }
     }
   };
+  const startEditingObjectives = (lp: LessonPlan, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingObjectivesId(lp.id);
+    setObjectivesDraft({
+      generalObjective: lp.generalObjective || '',
+      motor: lp.proceduralObjectives.motor || '',
+      cognitive: lp.proceduralObjectives.cognitive || '',
+      communication: lp.proceduralObjectives.communication || '',
+      personalSocial: lp.proceduralObjectives.personalSocial || lp.proceduralObjectives.affective || ''
+    });
+  };
+
+  const [improvingField, setImprovingField] = useState<string | null>(null);
+
+  const handleImproveWording = async (
+    field: 'generalObjective' | 'motor' | 'cognitive' | 'communication' | 'personalSocial',
+    label: string,
+    lp: LessonPlan
+  ) => {
+    if (!objectivesDraft) return;
+    const currentText = objectivesDraft[field];
+    if (!currentText || !currentText.trim()) return;
+    setImprovingField(field);
+    try {
+      const improvedText = await requestAIImproveWording({
+        fieldLabel: label,
+        currentText,
+        context: `${lp.levelName} — ${lp.fieldName} — ${lp.sessionTitle}`
+      });
+      setObjectivesDraft((prev) => prev && { ...prev, [field]: improvedText });
+    } finally {
+      setImprovingField(null);
+    }
+  };
+
+  const cancelEditingObjectives = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingObjectivesId(null);
+    setObjectivesDraft(null);
+  };
+
+  const saveEditingObjectives = (lp: LessonPlan, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!objectivesDraft) return;
+    const updatedLesson: LessonPlan = {
+      ...lp,
+      generalObjective: objectivesDraft.generalObjective,
+      proceduralObjectives: {
+        ...lp.proceduralObjectives,
+        motor: objectivesDraft.motor,
+        cognitive: objectivesDraft.cognitive,
+        communication: objectivesDraft.communication,
+        personalSocial: objectivesDraft.personalSocial
+      }
+    };
+    onSaveLessonPlan(updatedLesson);
+    setEditingObjectivesId(null);
+    setObjectivesDraft(null);
+    setSyncNotice('تم تحديث صياغة الأهداف التعليمية للحصة بنجاح ✅');
+    setTimeout(() => setSyncNotice(null), 4000);
+  };
+
   const [showAIGeneratorModal, setShowAIGeneratorModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -224,9 +300,9 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
 
       const newLesson: LessonPlan = {
         id: `lp_ai_${Date.now()}`,
-        teacherId: 'usr_teacher_1',
-        institutionName: 'مدرسة الشهيد بالخيري عبد القادر الابتدائي',
-        teacherName: 'علي بن زايد',
+        teacherId: currentUser?.id || '',
+        institutionName: currentUser?.schoolName || 'المؤسسة التعليمية',
+        teacherName: currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'أستاذ المادة',
         inspectorName: 'عبد الرحمن سطيفي',
         levelName: genLevel,
         className: '1 ابتدائي 1',
@@ -242,6 +318,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         date: new Date().toISOString().split('T')[0],
         durationMinutes: 60,
         equipmentNeeded: generatedData.equipmentNeeded || genEquipment.split(/[,،]/),
+        equipmentChecklist: (generatedData.equipmentNeeded || genEquipment.split(/[,،]/))
+          .map((s: string) => s.trim())
+          .filter(Boolean)
+          .map((name: string) => ({ name, available: true })),
         generalObjective: generatedData.generalObjective || genCustomObj || genSessionTitle,
         proceduralObjectives: generatedData.proceduralObjectives,
         warmupPhase: generatedData.warmupPhase,
@@ -261,6 +341,39 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleAutoGenerateInstant = () => {
+    const item = levelSessionsList[selectedSessionIndex];
+    if (!item) return;
+
+    const newLesson = autoGenerateLessonPlan(
+      {
+        fieldId: item.fieldId,
+        fieldName: item.fieldName,
+        finalCompetency: item.finalCompetency,
+        segmentGoal: item.segmentGoal,
+        sessionNumber: item.sessionNumber,
+        globalNumber: item.globalNumber,
+        weekNumber: item.weekNumber,
+        type: item.type,
+        typeLabel: item.typeLabel,
+        objective: genCustomObj || item.objective,
+        tools: genEquipment ? genEquipment.split(/[,،]/).map((s) => s.trim()).filter(Boolean) : item.tools
+      },
+      {
+        levelName: genLevel,
+        className: '1 ابتدائي 1',
+        teacher: currentUser,
+        inspectorName: 'عبد الرحمن سطيفي'
+      }
+    );
+
+    onSaveLessonPlan(newLesson);
+    setSelectedLessonId(newLesson.id);
+    setShowAIGeneratorModal(false);
+    setSyncNotice('تم توليد المذكرة تلقائياً وفورياً من التوزيع السنوي ⚡');
+    setTimeout(() => setSyncNotice(null), 4000);
   };
 
   // Filter lesson plans
@@ -507,13 +620,21 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                       </button>
                     </div>
 
-                    {/* Print & Delete Buttons */}
+                    {/* Export & Delete Buttons */}
                     <button
-                      onClick={() => window.print()}
+                      onClick={() => exportLessonPlanToPdf(lp)}
                       className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors cursor-pointer"
-                      title="طباعة هذه المذكرة"
+                      title="تصدير PDF (عبر معاينة الطباعة)"
                     >
                       <Printer className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      onClick={() => exportLessonPlanToWord(lp)}
+                      className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold text-xs transition-colors cursor-pointer"
+                      title="تصدير ملف Word (.docx)"
+                    >
+                      <FileText className="w-4 h-4" />
                     </button>
 
                     <button
@@ -598,20 +719,88 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                         <div className="md:col-span-2 bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
                           <h4 className="text-xs font-extrabold text-slate-900 border-b border-slate-200 pb-1 flex items-center justify-between">
                             <span>الهدف العام الإجرائي للحصة:</span>
-                            <span className="text-[10px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md font-bold">{lp.sessionTitle}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md font-bold">{lp.sessionTitle}</span>
+                              {editingObjectivesId !== lp.id && (
+                                <button
+                                  onClick={(e) => startEditingObjectives(lp, e)}
+                                  className="flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 px-2 py-0.5 rounded-md cursor-pointer"
+                                  title="تعديل صياغة الأهداف التعليمية"
+                                >
+                                  <PenSquare className="w-3 h-3" />
+                                  <span>تعديل الصياغة</span>
+                                </button>
+                              )}
+                            </div>
                           </h4>
-                          <p className="text-xs font-bold text-slate-800 bg-white p-2.5 rounded-xl border border-slate-200">
-                            🎯 {lp.generalObjective}
-                          </p>
 
-                          <div className="text-xs space-y-1 pt-1">
-                            <p><span className="font-bold text-blue-800">1. الهدف المهاري الحركي:</span> {lp.proceduralObjectives.motor}</p>
-                            <p><span className="font-bold text-indigo-800">2. الهدف المعرفي:</span> {lp.proceduralObjectives.cognitive}</p>
-                            {lp.proceduralObjectives.communication && (
-                              <p><span className="font-bold text-amber-800">3. الهدف التواصلي:</span> {lp.proceduralObjectives.communication}</p>
-                            )}
-                            <p><span className="font-bold text-teal-800">{lp.proceduralObjectives.communication ? '4' : '3'}. الهدف الشخصي والاجتماعي:</span> {lp.proceduralObjectives.personalSocial || lp.proceduralObjectives.affective}</p>
-                          </div>
+                          {editingObjectivesId === lp.id && objectivesDraft ? (
+                            <div className="space-y-2 pt-1">
+                              {([
+                                { field: 'generalObjective' as const, label: 'الهدف العام الإجرائي', emoji: '🎯', color: 'text-slate-500', boldValue: true },
+                                { field: 'motor' as const, label: '1. الهدف المهاري الحركي', color: 'text-blue-800' },
+                                { field: 'cognitive' as const, label: '2. الهدف المعرفي', color: 'text-indigo-800' },
+                                { field: 'communication' as const, label: '3. الهدف التواصلي (اختياري)', color: 'text-amber-800' },
+                                { field: 'personalSocial' as const, label: '4. الهدف الشخصي والاجتماعي', color: 'text-teal-800' }
+                              ]).map((f) => (
+                                <div key={f.field}>
+                                  <label className={`text-[10px] font-bold ${f.color} mb-0.5 flex items-center justify-between gap-2`}>
+                                    <span>{f.emoji ? `${f.emoji} ` : ''}{f.label}</span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleImproveWording(f.field, f.label, lp);
+                                      }}
+                                      disabled={improvingField === f.field || !objectivesDraft[f.field]?.trim()}
+                                      className="flex items-center gap-1 text-[10px] font-bold text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100 disabled:opacity-40 disabled:cursor-not-allowed px-1.5 py-0.5 rounded-md cursor-pointer shrink-0"
+                                      title="تحسين الصياغة بالذكاء الاصطناعي"
+                                    >
+                                      <Sparkles className={`w-3 h-3 ${improvingField === f.field ? 'animate-spin' : ''}`} />
+                                      <span>{improvingField === f.field ? 'جارٍ التحسين...' : 'تحسين الصياغة'}</span>
+                                    </button>
+                                  </label>
+                                  <textarea
+                                    value={objectivesDraft[f.field]}
+                                    onChange={(e) => setObjectivesDraft((prev) => prev && { ...prev, [f.field]: e.target.value })}
+                                    onClick={(e) => e.stopPropagation()}
+                                    rows={2}
+                                    className={`w-full text-xs ${f.boldValue ? 'font-bold' : ''} text-slate-800 bg-white p-2.5 rounded-xl border ${f.boldValue ? 'border-blue-300' : 'border-slate-300'} outline-none focus:ring-2 focus:ring-blue-200`}
+                                  />
+                                </div>
+                              ))}
+                              <div className="flex items-center gap-2 pt-1">
+                                <button
+                                  onClick={(e) => saveEditingObjectives(lp, e)}
+                                  className="flex items-center gap-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-xl cursor-pointer"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>حفظ التعديلات</span>
+                                </button>
+                                <button
+                                  onClick={cancelEditingObjectives}
+                                  className="flex items-center gap-1 text-xs font-bold text-slate-600 bg-slate-200 hover:bg-slate-300 px-3 py-1.5 rounded-xl cursor-pointer"
+                                >
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  <span>إلغاء</span>
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-xs font-bold text-slate-800 bg-white p-2.5 rounded-xl border border-slate-200">
+                                🎯 {lp.generalObjective}
+                              </p>
+
+                              <div className="text-xs space-y-1 pt-1">
+                                <p><span className="font-bold text-blue-800">1. الهدف المهاري الحركي:</span> {lp.proceduralObjectives.motor}</p>
+                                <p><span className="font-bold text-indigo-800">2. الهدف المعرفي:</span> {lp.proceduralObjectives.cognitive}</p>
+                                {lp.proceduralObjectives.communication && (
+                                  <p><span className="font-bold text-amber-800">3. الهدف التواصلي:</span> {lp.proceduralObjectives.communication}</p>
+                                )}
+                                <p><span className="font-bold text-teal-800">{lp.proceduralObjectives.communication ? '4' : '3'}. الهدف الشخصي والاجتماعي:</span> {lp.proceduralObjectives.personalSocial || lp.proceduralObjectives.affective}</p>
+                              </div>
+                            </>
+                          )}
                         </div>
 
                         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
@@ -619,8 +808,37 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                             الوسائل وقواعد السلامة:
                           </h4>
                           <div className="text-xs space-y-1">
-                            <span className="font-bold text-slate-700 block">الوسائل:</span>
-                            <p className="text-slate-600">{lp.equipmentNeeded.join('، ')}</p>
+                            <span className="font-bold text-slate-700 block mb-1">الوسائل والتجهيزات (قائمة تحقق):</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {(lp.equipmentChecklist && lp.equipmentChecklist.length > 0
+                                ? lp.equipmentChecklist
+                                : lp.equipmentNeeded.map((name) => ({ name, available: true }))
+                              ).map((item, idx) => (
+                                <button
+                                  key={`${item.name}_${idx}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const base =
+                                      lp.equipmentChecklist && lp.equipmentChecklist.length > 0
+                                        ? lp.equipmentChecklist
+                                        : lp.equipmentNeeded.map((name) => ({ name, available: true }));
+                                    const updatedChecklist = base.map((it, i) =>
+                                      i === idx ? { ...it, available: !it.available } : it
+                                    );
+                                    onSaveLessonPlan({ ...lp, equipmentChecklist: updatedChecklist });
+                                  }}
+                                  title={item.available ? 'متوفر — اضغط لتغيير الحالة إلى: يجب توفيره' : 'يجب توفيره — اضغط لتأكيد التوفر'}
+                                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                                    item.available
+                                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                                      : 'bg-rose-50 border-rose-200 text-rose-800 hover:bg-rose-100'
+                                  }`}
+                                >
+                                  {item.available ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                                  <span>{item.name}</span>
+                                </button>
+                              ))}
+                            </div>
                             <span className="font-bold text-rose-700 block mt-2">الأمن والسلامة:</span>
                             <ul className="list-disc list-inside text-slate-600 text-[11px] space-y-0.5">
                               {lp.safetyRules.map((rule, idx) => (
@@ -890,6 +1108,16 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                   className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl cursor-pointer"
                 >
                   إلغاء
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleAutoGenerateInstant}
+                  className="px-4 py-2.5 bg-emerald-50 text-emerald-800 border border-emerald-200 font-extrabold rounded-xl flex items-center gap-2 hover:bg-emerald-100 cursor-pointer"
+                  title="توليد فوري من بيانات التوزيع السنوي مباشرة، دون انتظار الذكاء الاصطناعي"
+                >
+                  <Zap className="w-4 h-4" />
+                  <span>توليد تلقائي فوري ⚡</span>
                 </button>
 
                 <button

@@ -28,7 +28,7 @@ export interface LessonSessionTiming {
   alertNoPlan: boolean;           // default true
   soundEnabled: boolean;          // default true
   vibrationEnabled: boolean;      // default true
-  floatingOverlayEnabled: boolean;// default true
+  voiceAnnouncements: boolean;    // default true — إعلانات صوتية بالعربية عند تغيير المراحل
   autoLogToNotebook: boolean;     // default true
 }
 
@@ -70,6 +70,7 @@ export interface LessonSession {
   startedAt?: string;
   completedAt?: string;
   isPaused?: boolean;
+  contingencyMode?: 'normal' | 'hot_weather' | 'equipment_shortage' | 'high_fatigue';
 }
 
 export interface LessonExecutionLog {
@@ -91,6 +92,10 @@ export interface LessonExecutionLog {
   delaysOrOverrunsMinutes: number;
   completionStatus: 'منجزة في الوقت' | 'تأخير بسيط' | 'تجاوز زمني';
   notes?: string;
+  studentRatings?: Record<string, string[]>;
+  paceAnalysis?: string;
+  overruns?: Array<{ phase: string; minutes: number }>;
+  contingencyMode?: 'normal' | 'hot_weather' | 'equipment_shortage' | 'high_fatigue';
   attendanceData?: {
     total: number;
     present: number;
@@ -201,17 +206,22 @@ export interface User {
   specialization?: string;
   cycle?: 'ابتدائي';
   yearsExperience?: number;
+  teachingExperienceYears?: number;
+  wilaya?: string;
   bio?: string;            // النبذة الشخصية
-  status: 'active' | 'inactive';
+  status: 'active' | 'inactive' | 'pending_approval';
   isApprovedByAdmin?: boolean; // تفعيل الحساب من طرف المشرف
   password?: string;
   followingIds?: string[];  // معرّفات المستخدمين المتابَعين
   followersIds?: string[];  // معرّفات المتابعين
+  followingCount?: number;
+  followersCount?: number;
   publishedResourcesCount?: number; // عدد الموارد المنشورة
   approvedResourcesCount?: number;  // عدد الموارد المعتمدة
   privacySettings?: UserPrivacySettings; // إعدادات الخصوصية
   customApiKey?: string;   // مفتاح الاستعلام المباشر المخصص للحساب (Gemini API Key)
   apiKeyStatus?: 'active' | 'quota_exceeded' | 'not_set';
+  googleId?: string | null; // معرّف حساب Google المرتبط (إن وُجد) لتسجيل الدخول السريع
 }
 
 // Community Shared Pedagogical Resource
@@ -226,7 +236,7 @@ export interface CommunityResource {
   title: string;
   description: string;
   categoryName?: string;
-  content?: any;
+  content?: unknown;
   fileUrl?: string;
   fileName?: string;
   fileType?: 'pdf' | 'word' | 'image' | 'resource';
@@ -323,8 +333,11 @@ export interface DirectChatMessage {
   receiverName: string;
   districtId: string;
   message: string;
+  content?: string;
+  timestamp?: string;
   createdAt: string;
   read?: boolean;
+  archived?: boolean;
 }
 
 export interface Directorate {
@@ -478,34 +491,58 @@ export interface PESession {
   targetObjective: string;
 }
 
-// Annual Plan
+// Annual Plan (المخطط السنوي) / Annual Schedule (التوزيع السنوي) objective overrides
+// يعدّل الأستاذ صياغة الأهداف التعلمية الخاصة به، ويمكن للمفتش اقتراح مخطط/توزيع
+// سنوي لأساتذة مقاطعته ثم اعتماد اقتراحه ليصبح نافذاً عند الأستاذ.
+// 'plan' و 'schedule': الأنواع القديمة (متوافقية فقط، لم تعد تُستعمل من الواجهات الجديدة).
+// 'plan_components': تخصيص مركبات الكفاءة/الموارد التعلمية/المؤشرات على مستوى الميدان (المخطط السنوي) — المفتاح: fieldId
+// 'section_wording': تخصيص صياغة هدف الحصة وملاحظات الأستاذ على مستوى الحصة (المقاطع التعليمية) — المفتاح: `${fieldId}__${fieldSessionNumber}`
+// 'schedule_dates': تاريخ/حالة تنفيذ كل حصة (التوزيع السنوي والكراس اليومي) — المفتاح: `${fieldId}__${fieldSessionNumber}`
+export type AnnualPlanKind = 'plan' | 'schedule' | 'plan_components' | 'section_wording' | 'schedule_dates';
+export type AnnualPlanStatus = 'draft' | 'proposed' | 'approved';
+export type LessonExecutionStatus = 'مبرمجة' | 'منجزة' | 'مؤجلة' | 'غير منجزة';
+
+// مفتاح كل هدف/حصة هو `${fieldId}__${fieldSessionNumber}` (فريد ضمن المستوى الدراسي)، ما عدا
+// kind='plan_components' حيث المفتاح هو `${fieldId}` فقط (تخصيص على مستوى الميدان/المقطع التعليمي)
+export interface AnnualPlanObjectiveOverride {
+  objective?: string; // صياغة الأستاذ لهدف الحصة (kind: plan | schedule | section_wording)
+  teacherNote?: string; // ملاحظة الأستاذ على مضمون الحصة (kind: section_wording)
+  components?: string[]; // مركبات الكفاءة (kind: plan_components)
+  resources?: string[]; // الموارد التعلمية (kind: plan_components)
+  indicators?: string[]; // مؤشرات الأداء (kind: plan_components)
+  date?: string; // تاريخ تنفيذ الحصة المعدَّل يدوياً (kind: schedule_dates)
+  status?: LessonExecutionStatus; // حالة تنفيذ الحصة (kind: schedule_dates)
+  executionNote?: string; // ملاحظة الأستاذ عند تنفيذ الحصة في الكراس اليومي (kind: schedule_dates)
+}
+
 export interface AnnualPlan {
   id: string;
   teacherId: string;
   academicYearId: string;
   levelId: string;
-  status: 'draft' | 'approved' | 'in_progress';
+  kind: AnnualPlanKind;
+  status: AnnualPlanStatus;
+  proposedByInspectorId?: string | null;
+  approvedAt?: string | null;
+  data: {
+    overrides: Record<string, AnnualPlanObjectiveOverride>;
+    note?: string;
+  };
   createdAt: string;
   updatedAt: string;
-  details: AnnualPlanDetail[];
-}
-
-export interface AnnualPlanDetail {
-  id: string;
-  segmentId: string;
-  startWeek: number;
-  endWeek: number;
-  plannedSessionsCount: number;
 }
 
 // Daily Notebook (الكراس اليومي)
 export interface DailyNotebookEntry {
   id: string;
   teacherId: string;
-  sessionId: string;
-  segmentId: string;
+  sessionId?: string;
+  segmentId?: string;
   classId: string;
   className: string;
+  levelName?: string;
+  segmentTitle?: string;
+  sessionTitle?: string;
   executionDate: string;
   timeSlot: string; // e.g. 08:00 - 10:00
   status: 'منجزة' | 'مؤجلة' | 'غير منجزة';
@@ -522,6 +559,7 @@ export interface LessonPlan {
   teacherName: string;     // اسم الأستاذ
   inspectorName?: string;  // اسم الأستاذ المفتش
   levelName: string;       // المستوى الدراسي
+  level?: string;
   className: string;       // اسم القسم
   fieldName: string;       // الميدان التعليمي
   competencyTitle: string; // الكفاءة الختامية للميدان
@@ -532,9 +570,13 @@ export interface LessonPlan {
   sessionGlobalNumber?: number; // رقم الحصة في التوزيع السنوي (1 إلى 30)
   annualSessionRef?: string;   // مرجع الحصة بالتوزيع السنوي (مثل: "الأسبوع 02 / الحصة 02")
   segmentGoal?: string;        // الهدف البيداغوجي / التعلمي للمقطع البيداغوجي
+  learningGoal?: string;
+  evaluation?: string;
+  duration?: string;
   date: string;
   durationMinutes: number; // default 60
   equipmentNeeded: string[]; // الوسائل المستعملة
+  equipmentChecklist?: { name: string; available: boolean }[]; // قائمة تحقق التجهيزات (متوفر/يجب توفيره) — تُشتق من equipmentNeeded عند التوليد وتبقى متوافقة مع النسخ القديمة
   generalObjective: string; // هدف الحصة التعلمي الخاص والإجرائي المسطر للمقطع
   proceduralObjectives: {
     motor: string; // الهدف المهاري / المنهجي الحركي
@@ -628,6 +670,7 @@ export interface ClassRoom {
   teacherId: string;
   levelId: string;
   name: string; // e.g. 1 متوسط 1
+  levelName?: string;
   studentCount: number;
 }
 
@@ -689,6 +732,7 @@ export interface InspectionVisit {
   areasForImprovement: string[];
   recommendations: string[];
   officialReportGenerated: boolean;
+  createdAt?: string;
 }
 
 // AI Engine Settings & Logs
@@ -734,6 +778,7 @@ export interface WeeklyScheduleSlot {
   id: string;
   teacherId: string;
   day: 'الأحد' | 'الإثنين' | 'الثلاثاء' | 'الأربعاء' | 'الخميس';
+  dayOfWeek?: string;
   timeSlot: string; // e.g. "08:00 - 09:00", "09:00 - 10:00", "10:00 - 11:00", "11:00 - 12:00", "13:00 - 14:00", "14:00 - 15:00", "15:00 - 16:00"
   classId: string;
   className: string;
@@ -785,4 +830,3 @@ export interface ClassEducationalClubConfig {
   clubBCaptainId?: string;
   studentClubAssignments: Record<string, 'club_a' | 'club_b'>; // studentId -> club_a | club_b
 }
-

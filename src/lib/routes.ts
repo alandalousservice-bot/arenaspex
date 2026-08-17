@@ -1,0 +1,82 @@
+/**
+ * SPEX - URL Routing Map
+ * خريطة ثنائية الاتجاه بين تبويبات المنصة (NavTab) وعناوين URL. هي التي تتيح
+ * فتح كل أداة من أدوات المنصة في تبويب متصفح مستقل برابط خاص بها (بدل التنقل
+ * بحالة داخلية تُجبر المستخدم على إغلاق أداة للانتقال إلى أخرى)، مع دعم
+ * الروابط العميقة (deep links) والمشاركة وزّر الرجوع/التقدم في المتصفح.
+ */
+
+import type { NavTab } from '../components/layout/Sidebar';
+import type { UserRole } from '../types/spex';
+
+/** روابط أقسام المصادقة */
+export const AUTH_PATHS = {
+  landing: '/',
+  login: '/login'
+} as const;
+
+/** NavTab → مسار URL */
+export const TAB_PATHS: Record<NavTab, string> = {
+  dashboard: '/dashboard',
+  annual_plan: '/annual-plan',
+  annual_schedule: '/annual-schedule',
+  weekly_schedule: '/weekly-schedule',
+  learning_segments: '/learning-segments',
+  daily_notebook: '/daily-notebook',
+  lesson_plans: '/lesson-plans',
+  lesson_command_center: '/lesson-command-center',
+  knowledge_engine: '/knowledge-engine',
+  competency_assessment: '/assessment',
+  gradebook: '/gradebook',
+  professional_hub: '/community',
+  inspector_portal: '/inspector',
+  director_portal: '/director',
+  admin_portal: '/admin',
+  reports: '/reports',
+  settings: '/settings'
+};
+
+/** مسار URL → NavTab (مشتق آلياً من الجدول ليبقى المصدر واحداً) */
+const PATH_TO_TAB: Record<string, NavTab> = Object.fromEntries(
+  (Object.entries(TAB_PATHS) as Array<[NavTab, string]>).map(([tab, path]) => [path, tab])
+);
+
+export function tabToPath(tab: NavTab): string {
+  return TAB_PATHS[tab] ?? '/dashboard';
+}
+
+/**
+ * يحوّل مسار URL إلى تبويب، أو null إن كان المسار غير معروف
+ * (مثل روابط المصادقة أو أي رابط قديم/غير موجود).
+ */
+export function pathToTab(pathname: string): NavTab | null {
+  // تطبيع: تجاهل الشرطة الأخيرة الزائدة
+  const normalized = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  return PATH_TO_TAB[normalized] ?? null;
+}
+
+/** تبويب البداية الافتراضي حسب دور المستخدم (نفس منطق getEffectiveTab سابقاً) */
+export function defaultTabForRole(role: UserRole): NavTab {
+  if (role === 'inspector') return 'inspector_portal';
+  if (role === 'director') return 'director_portal';
+  if (role === 'admin') return 'admin_portal';
+  return 'dashboard';
+}
+
+/** التبويبات المسموحة لكل دور (مطابقة للقيد السري سابقاً في App.tsx) */
+export const ROLE_TABS: Record<UserRole, NavTab[]> = {
+  teacher: [
+    'dashboard', 'professional_hub', 'annual_plan', 'annual_schedule', 'weekly_schedule', 'learning_segments', 'daily_notebook',
+    'lesson_plans', 'lesson_command_center', 'knowledge_engine', 'competency_assessment', 'gradebook',
+    'reports', 'settings'
+  ],
+  inspector: ['inspector_portal', 'professional_hub', 'knowledge_engine', 'reports', 'settings'],
+  director: ['director_portal', 'professional_hub', 'knowledge_engine', 'reports', 'settings'],
+  admin: ['admin_portal', 'professional_hub', 'knowledge_engine', 'reports', 'settings']
+};
+
+/** يرجع التبويب الفعلي المسموح عرضه للدور، مع السقوط إلى الصفحة الرئيسية للدور */
+export function resolveTabForRole(tab: NavTab, role: UserRole): NavTab {
+  const allowed = ROLE_TABS[role] ?? ROLE_TABS.teacher;
+  return allowed.includes(tab) ? tab : defaultTabForRole(role);
+}

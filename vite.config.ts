@@ -1,24 +1,34 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import express from 'express';
-import cookieParser from 'cookie-parser';
-import 'dotenv/config';
-import { defineConfig } from 'vite';
-import { apiRouter } from './src/server/apiRouter.ts';
-import { authRouter } from './src/server/authRouter.ts';
+import { defineConfig, ViteDevServer } from 'vite';
+
+// تُحمَّل مسارات الخادم (routers) عند الطلب فقط داخل hook التطوير configureServer،
+// وليس عند تحميل ملف الإعداد أثناء `vite build`، لأنها تستورد auth.ts الذي يتحقق
+// من JWT_SECRET في وضع الإنتاج وقد يُعطّل البناء.
+async function loadServerRouters() {
+  const express = (await import('express')).default;
+  const cookieParser = (await import('cookie-parser')).default;
+  const { apiRouter } = await import('./src/server/apiRouter.ts');
+  const { authRouter } = await import('./src/server/authRouter.ts');
+  const { assignmentRouter } = await import('./src/server/assignmentRouter.ts');
+  const { requireAuth } = await import('./src/server/middleware/requireAuth.ts');
+  return { express, cookieParser, apiRouter, authRouter, assignmentRouter, requireAuth };
+}
 
 // نفس مسارات الإنتاج بالضبط (مصادقة حقيقية + Postgres عبر Prisma) تعمل أيضاً في وضع التطوير،
 // فقط موجّهة إلى قاعدة بيانات التطوير المحددة في DATABASE_URL بملف .env المحلي
 function expressApiPlugin() {
   return {
     name: 'express-api-plugin',
-    configureServer(server: any) {
+    async configureServer(server: ViteDevServer) {
+      const { express, cookieParser, apiRouter, authRouter, assignmentRouter, requireAuth } = await loadServerRouters();
       const app = express();
       app.use(cookieParser());
       app.use(express.json());
       app.use('/api/auth', authRouter);
       app.use('/api', apiRouter);
+      app.use('/api', requireAuth, assignmentRouter);
       server.middlewares.use(app);
     }
   };
@@ -32,9 +42,31 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      target: 'es2020',
+      cssCodeSplit: true,
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('recharts') || id.includes('d3')) {
+                return 'vendor-charts';
+              }
+              if (id.includes('lucide-react')) {
+                return 'vendor-icons';
+              }
+              return 'vendor-framework';
+            }
+          },
+        },
+      },
+    },
     server: {
       port: 3000,
       host: '0.0.0.0',
+      // خادم تطوير فقط — السماح لأي مضيف حتى يعمل المعاين عبر نطاقات بروكسي متغيرة (e2b.app وغيرها)
+      allowedHosts: true as const,
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },

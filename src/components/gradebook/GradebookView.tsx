@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { useDebounce } from '../../hooks/useDebounce';
 import {
   GraduationCap,
   Users,
@@ -110,17 +111,21 @@ interface ClubAssignmentMap {
 }
 
 export const GradebookView: React.FC<GradebookViewProps> = ({
-  classes = INITIAL_CLASSES,
-  students = INITIAL_STUDENTS,
+  classes = [],
+  students = [],
   onAddClass,
   onDeleteClass,
   onAddStudent,
   onDeleteStudent,
   currentUser
 }) => {
+  const isDemo = currentUser ? currentUser.id === 'usr_admin_1' : false;
+
   const [activeRegister, setActiveRegister] = useState<RegisterTab>('gradebook');
-  const [selectedClassId, setSelectedClassId] = useState<string>(classes[0]?.id || 'cls_1');
+  const [selectedClassId, setSelectedClassId] = useState<string>(classes[0]?.id || '');
   const [searchVal, setSearchVal] = useState<string>('');
+  // تأخير التصفية عن الطباعة المباشرة لتقليل عمليات إعادة الرسم على قوائم التلاميذ الكبيرة
+  const debouncedSearchVal = useDebounce(searchVal, 300);
   const [selectedTerm, setSelectedTerm] = useState<'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث'>('الفصل الأول');
 
   // Evaluation Weights Settings (Default total = 10 pts)
@@ -148,144 +153,68 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
   const [showAuditModal, setShowAuditModal] = useState<boolean>(false);
   const [selectedAuditStudentId, setSelectedAuditStudentId] = useState<string | null>(null);
 
-  // Initial Demo Grade Records
-  const [gradeRecords, setGradeRecords] = useState<Record<string, GradeRecord>>({
-    std_1: {
-      id: 'gr_1',
-      studentId: 'std_1',
-      classId: 'cls_1',
-      term: 'الفصل الأول',
-      behaviorRating: 'ممتاز',
-      behaviorScore: 2.0,
-      participationRating: 'ممتاز',
-      participationScore: 2.0,
-      attendanceScore: 1.0,
-      unexcusedAbsencesCount: 0,
-      excusedAbsencesCount: 0,
-      competencyRating: 'تمكن ممتاز',
-      competencyScore: 4.8,
-      suggestedMark: 9.8,
-      finalMark: 10.0,
-      isApprovedByTeacher: true,
-      adjustmentReason: 'أظهر تميزاً استثنائياً وروحاً قيادية في الألعاب الجماعية',
-      updatedAt: '2026-07-24 10:30'
-    },
-    std_2: {
-      id: 'gr_2',
-      studentId: 'std_2',
-      classId: 'cls_1',
-      term: 'الفصل الأول',
-      behaviorRating: 'ممتاز',
-      behaviorScore: 2.0,
-      participationRating: 'جيد',
-      participationScore: 1.7,
-      attendanceScore: 1.0,
-      unexcusedAbsencesCount: 0,
-      excusedAbsencesCount: 0,
-      competencyRating: 'تمكن جيد',
-      competencyScore: 4.25,
-      suggestedMark: 8.95,
-      finalMark: 9.0,
-      isApprovedByTeacher: true,
-      updatedAt: '2026-07-24 10:32'
-    },
-    std_3: {
-      id: 'gr_3',
-      studentId: 'std_3',
-      classId: 'cls_1',
-      term: 'الفصل الأول',
-      behaviorRating: 'ممتاز',
-      behaviorScore: 2.0,
-      participationRating: 'ممتاز',
-      participationScore: 2.0,
-      attendanceScore: 1.0, // غياب بمبرر لا يخصم
-      unexcusedAbsencesCount: 0,
-      excusedAbsencesCount: 1,
-      competencyRating: 'تمكن ممتاز',
-      competencyScore: 4.5,
-      suggestedMark: 9.5,
-      finalMark: 9.5,
-      isApprovedByTeacher: true,
-      updatedAt: '2026-07-24 10:35'
-    },
-    std_4: {
-      id: 'gr_4',
-      studentId: 'std_4',
-      classId: 'cls_1',
-      term: 'الفصل الأول',
-      behaviorRating: 'جيد',
-      behaviorScore: 1.7,
-      participationRating: 'متوسط',
-      participationScore: 1.3,
-      attendanceScore: 1.0,
-      unexcusedAbsencesCount: 0,
-      excusedAbsencesCount: 0,
-      competencyRating: 'تمكن متوسط',
-      competencyScore: 3.25,
-      suggestedMark: 7.25,
-      finalMark: 7.5,
-      isApprovedByTeacher: false,
-      adjustmentReason: 'تحسن ملحوظ في السلوك والمواظبة في آخر أسبوعين',
-      updatedAt: '2026-07-24 10:38'
-    },
-    std_5: {
-      id: 'gr_5',
-      studentId: 'std_5',
-      classId: 'cls_1',
-      term: 'الفصل الأول',
-      behaviorRating: 'ممتاز',
-      behaviorScore: 2.0,
-      participationRating: 'ممتاز',
-      participationScore: 2.0,
-      attendanceScore: 1.0,
-      unexcusedAbsencesCount: 0,
-      excusedAbsencesCount: 0,
-      competencyRating: 'تمكن ممتاز',
-      competencyScore: 5.0,
-      suggestedMark: 10.0,
-      finalMark: 10.0,
-      isApprovedByTeacher: true,
-      adjustmentReason: 'معفى طبياً - قام بدوره في التحكيم والملاحظة البيداغوجية باقتدار',
-      updatedAt: '2026-07-24 10:40'
-    }
+  // Grade Records
+  const [gradeRecords, setGradeRecords] = useState<Record<string, GradeRecord>>(() => {
+    const key = currentUser ? `spex_grade_records_${currentUser.id}` : 'spex_grade_records';
+    const saved = localStorage.getItem(key);
+    if (saved) { try { return JSON.parse(saved); } catch (e) { void e; } }
+    return isDemo ? {
+      std_1: {
+        id: 'gr_1',
+        studentId: 'std_1',
+        classId: 'cls_1',
+        term: 'الفصل الأول',
+        behaviorRating: 'ممتاز',
+        behaviorScore: 2.0,
+        participationRating: 'ممتاز',
+        participationScore: 2.0,
+        attendanceScore: 1.0,
+        unexcusedAbsencesCount: 0,
+        excusedAbsencesCount: 0,
+        competencyRating: 'تمكن ممتاز',
+        competencyScore: 4.8,
+        suggestedMark: 9.8,
+        finalMark: 10.0,
+        isApprovedByTeacher: true,
+        adjustmentReason: 'أظهر تميزاً استثنائياً وروحاً قيادية في الألعاب الجماعية',
+        updatedAt: '2026-07-24 10:30'
+      }
+    } : {};
   });
 
   // Revision Audit Trail Logs
-  const [auditLogs, setAuditLogs] = useState<GradeAuditLog[]>([
-    {
-      id: 'aud_1',
-      studentId: 'std_1',
-      studentName: 'أيوب زياني',
-      classId: 'cls_1',
-      term: 'الفصل الأول',
-      suggestedMark: 9.8,
-      previousFinalMark: 9.8,
-      newFinalMark: 10.0,
-      changedByTeacherName: currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'أستاذ التربية البدنية',
-      changeDate: '2026-07-24 10:30',
-      reason: 'أظهر تميزاً استثنائياً وروحاً قيادية في الألعاب الجماعية'
-    },
-    {
-      id: 'aud_2',
-      studentId: 'std_4',
-      studentName: 'ياسمين بن خالد',
-      classId: 'cls_1',
-      term: 'الفصل الأول',
-      suggestedMark: 7.25,
-      previousFinalMark: 7.25,
-      newFinalMark: 7.5,
-      changedByTeacherName: currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'أستاذ التربية البدنية',
-      changeDate: '2026-07-24 10:38',
-      reason: 'تحسن ملحوظ في السلوك والمواظبة في آخر أسبوعين'
-    }
-  ]);
+  const [auditLogs, setAuditLogs] = useState<GradeAuditLog[]>(() => {
+    const key = currentUser ? `spex_audit_logs_${currentUser.id}` : 'spex_audit_logs';
+    const saved = localStorage.getItem(key);
+    if (saved) { try { return JSON.parse(saved); } catch (e) { void e; } }
+    return isDemo ? [
+      {
+        id: 'aud_1',
+        studentId: 'std_1',
+        studentName: 'أيوب زياني',
+        classId: 'cls_1',
+        term: 'الفصل الأول',
+        suggestedMark: 9.8,
+        previousFinalMark: 9.8,
+        newFinalMark: 10.0,
+        changedByTeacherName: currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'أستاذ التربية البدنية',
+        changeDate: '2026-07-24 10:30',
+        reason: 'أظهر تميزاً استثنائياً وروحاً قيادية في الألعاب الجماعية'
+      }
+    ] : [];
+  });
 
   // Attendance State
   const [selectedAttendanceDate, setSelectedAttendanceDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [currentAttendanceStatus, setCurrentAttendanceStatus] = useState<Record<string, 'حاضر' | 'غائب' | 'غائب بمبرر' | 'معفى'>>({});
 
   // Exemptions State
-  const [exemptionsList, setExemptionsList] = useState<ExemptedStudent[]>(INITIAL_EXEMPTIONS);
+  const [exemptionsList, setExemptionsList] = useState<ExemptedStudent[]>(() => {
+    const key = currentUser ? `spex_exemptions_${currentUser.id}` : 'spex_exemptions';
+    const saved = localStorage.getItem(key);
+    if (saved) { try { return JSON.parse(saved); } catch (e) { void e; } }
+    return isDemo ? INITIAL_EXEMPTIONS : [];
+  });
   const [showAddExemptionModal, setShowAddExemptionModal] = useState<boolean>(false);
   const [newExemptionStudentId, setNewExemptionStudentId] = useState<string>('');
   const [newCertNo, setNewCertNo] = useState<string>('');
@@ -294,22 +223,10 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
   const [newPeriod, setNewPeriod] = useState<'كامل السنة الدراسية' | 'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث' | 'محددة بالتواريخ'>('الفصل الأول');
 
   // Per-Class Educational Clubs State (البلدية التربوية لكل قسم)
-  const [classClubNames, setClassClubNames] = useState<Record<string, { aName: string; aSlogan: string; bName: string; bSlogan: string }>>({
-    cls_1: { aName: 'نادي الأمل والرياضة (1 إبتدائي 1)', aSlogan: 'بالرياضة والأخلاق نسبق الجميع', bName: 'نادي التحدي والبطولة (1 إبتدائي 1)', bSlogan: 'بالعزيمة والإصرار نحو القمة' },
-    cls_2: { aName: 'نادي الفرسان (2 إبتدائي 1)', aSlogan: 'القوة والروح الرياضية', bName: 'نادي الأبطال (2 إبتدائي 1)', bSlogan: 'السعي دائماً نحو التميز' },
-    cls_3: { aName: 'نادي النجوم (3 إبتدائي 1)', aSlogan: 'الإبداع في الحركة', bName: 'نادي الصقور (3 إبتدائي 1)', bSlogan: 'السرعة والدقة' },
-    cls_4: { aName: 'نادي الشروق (4 إبتدائي 1)', aSlogan: 'العمل الجماعي والتعاون', bName: 'نادي المستقبل (4 إبتدائي 1)', bSlogan: 'بناء الأجيال بالرياضة' },
-    cls_5: { aName: 'نادي النخبة (5 إبتدائي 1)', aSlogan: 'التفوق والانضباط', bName: 'نادي الريادة (5 إبتدائي 1)', bSlogan: 'القيادة والروح القتالية' },
-  });
+  const [classClubNames, setClassClubNames] = useState<Record<string, { aName: string; aSlogan: string; bName: string; bSlogan: string }>>({});
 
   // Club assignments map: studentId -> 'club_a' | 'club_b'
-  const [clubAssignments, setClubAssignments] = useState<ClubAssignmentMap>({
-    std_1: 'club_a',
-    std_2: 'club_a',
-    std_3: 'club_b',
-    std_4: 'club_b',
-    std_5: 'club_a',
-  });
+  const [clubAssignments, setClubAssignments] = useState<ClubAssignmentMap>({});
 
   const activeClass = classes.find((c) => c.id === selectedClassId) || classes[0] || { id: 'cls_1', name: '1 ابتدائي 1', studentCount: 25 };
   const classStudents = students.filter((s) => s.classId === activeClass.id);
@@ -1062,9 +979,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                     classStudents
                       .filter(
                         (s) =>
-                          s.firstName.includes(searchVal) ||
-                          s.lastName.includes(searchVal) ||
-                          s.registrationNumber?.includes(searchVal)
+                          s.firstName.includes(debouncedSearchVal) ||
+                          s.lastName.includes(debouncedSearchVal) ||
+                          s.registrationNumber?.includes(debouncedSearchVal)
                       )
                       .map((std, idx) => {
                         const rec = getStudentGrade(std.id);

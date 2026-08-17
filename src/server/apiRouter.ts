@@ -4,10 +4,29 @@
  */
 
 import { Router } from 'express';
-import { generatePELessonPlan, suggestPEGames, generateAIChatResponse, testGeminiApiKey } from './aiService.js';
+import { z } from 'zod';
+import { generatePELessonPlan, improvePELessonWording, suggestPEGames, generateAIChatResponse, getConfiguredAIProviders, testConfiguredAIProvider } from './aiService.js';
+import { allAIProviderRecords, invalidateAIProviderCache, type AIProviderType } from './aiGateway.js';
 import { prisma } from './prismaClient.js';
-import { hashPassword, sanitizeUser } from './auth.js';
+import { hashPassword, sanitizeUser, sanitizeOwnUser, encryptApiKey } from './auth.js';
 import { requireAuth, requireRole } from './middleware/requireAuth.js';
+import { reassignTeacher, reassignAllForInspector } from './assignmentService.js';
+import { canWriteRecord, resolveOwnerFieldValue } from './collectionAuth.js';
+
+// نظام الإسناد التلقائي للأساتذة إلى المفتشين: يُعاد احتساب جهة الإشراف تلقائياً
+// عند تسجيل/تعديل أستاذ (يعاد ربطه بمفتشه) أو تسجيل/تعديل مفتش (يعاد ربط كل الأساتذة
+// المطابقين له) — دون أي تدخل يدوي من الإدارة، تماماً كما ورد في المواصفة.
+async function triggerAutoAssignment(savedUser: { id: string; role: string }) {
+  try {
+    if (savedUser.role === 'teacher') {
+      await reassignTeacher(savedUser.id);
+    } else if (savedUser.role === 'inspector') {
+      await reassignAllForInspector(savedUser.id);
+    }
+  } catch (err) {
+    console.error('Error running auto-assignment:', err);
+  }
+}
 
 export const apiRouter = Router();
 
@@ -17,7 +36,7 @@ apiRouter.get('/health', (req, res) => {
     status: 'ok',
     platform: 'SPEX Platform',
     version: '2.0.0',
-    geminiKeyConfigured: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY')
+    aiProvidersConfigured: Boolean(process.env.NVIDIA_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY'))
   });
 });
 
@@ -30,18 +49,73 @@ apiRouter.use(requireAuth);
 // -----------------------------------------------------------------------
 apiRouter.get('/db/users', async (req, res) => {
   const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
-  res.json({ success: true, users: users.map(sanitizeUser) });
+  res.json({
+    success: true,
+    users: users.map((u) => (u.id === req.user!.id ? sanitizeOwnUser(u) : sanitizeUser(u)))
+  });
 });
 
-async function buildUserWriteData(input: any) {
-  const data: any = { ...input };
-  delete data.id;
-  delete data.passwordHash;
-  if (data.password) {
-    data.passwordHash = await hashPassword(String(data.password));
+// الحقول الوحيدة المسموح كتابتها في جدول User — قائمة بيضاء صارمة.
+// أي حقل زائد يصله من الواجهة (مثل apiKeyConfigured، wilaya، teachingExperienceYears،
+// followingCount...) يُتجاهل بدل إسقاط عملية التحديث بخطأ Prisma P2009 (Unknown argument)
+// الذي كان يجعل تفعيل الحساب يفشل بصمت في قاعدة البيانات بينما تعرض الواجهة نجاحاً.
+const USER_WRITEABLE_FIELDS = [
+  'username',
+  'spexId',
+  'firstName',
+  'lastName',
+  'email',
+  'googleId',
+  'role',
+  'avatar',
+  'phone',
+  'directorateId',
+  'districtId',
+  'institutionId',
+  'schoolName',
+  'municipality',
+  'specialization',
+  'cycle',
+  'yearsExperience',
+  'bio',
+  'status',
+  'isApprovedByAdmin',
+  'followingIds',
+  'followersIds',
+  'publishedResourcesCount',
+  'approvedResourcesCount',
+  'privacySettings',
+  'encryptedApiKey',
+  'apiKeyStatus',
+  'municipalityId'
+] as const;
+
+async function buildUserWriteData(input: Record<string, unknown>, allowRoleChanges = false, allowApiKeyChanges = false) {
+  const data: Record<string, unknown> = {};
+  for (const field of USER_WRITEABLE_FIELDS) {
+    if (field in input && input[field] !== undefined) {
+      data[field] = input[field];
+    }
   }
-  delete data.password;
+  if (!allowRoleChanges) {
+    delete data.role;
+    delete data.status;
+    delete data.isApprovedByAdmin;
+  }
+  if (typeof input.password === 'string' && input.password) {
+    data.passwordHash = await hashPassword(input.password);
+  }
   if (data.email) data.email = String(data.email).toLowerCase().trim();
+  if (!allowApiKeyChanges) {
+    // لا يجوز تفعيل أو تغيير مفتاح الذكاء الاصطناعي إلا من طرف مشرف المنظومة (admin) وحده.
+    delete data.encryptedApiKey;
+    delete data.apiKeyStatus;
+  }
+  // API keys are encrypted server-side and never returned to the browser.
+  if (allowApiKeyChanges && typeof input.customApiKey === 'string') {
+    const raw = input.customApiKey.trim();
+    data.encryptedApiKey = raw ? encryptApiKey(raw) : null;
+  }
   return data;
 }
 
@@ -89,7 +163,12 @@ apiRouter.post('/db/users', async (req, res) => {
       }
     }
 
-    const data = await buildUserWriteData(user);
+    const data = await buildUserWriteData(user, isAdmin, isAdmin);
+
+    if (!existing && !data.email) {
+      // تسجيل حساب جديد يشترط امتلاك عنوان بريد إلكتروني
+      return res.status(400).json({ error: 'عنوان البريد الإلكتروني إلزامي لإنشاء حساب جديد.' });
+    }
 
     if (!existing && !data.passwordHash) {
       // إنشاء حساب جديد بدون كلمة مرور أولية — نرفض بدل توليد كلمة افتراضية ضعيفة صامتة
@@ -97,10 +176,12 @@ apiRouter.post('/db/users', async (req, res) => {
     }
 
     const saved = existing
-      ? await prisma.user.update({ where: { id: user.id }, data })
-      : await prisma.user.create({ data: { id: user.id, ...data } });
+      ? await prisma.user.update({ where: { id: user.id }, data: data as any })
+      : await prisma.user.create({ data: { id: user.id, ...data } as any });
 
-    res.json({ success: true, user: sanitizeUser(saved) });
+    await triggerAutoAssignment(saved);
+
+    res.json({ success: true, user: isSelf || isAdmin ? sanitizeOwnUser(saved) : sanitizeUser(saved) });
   } catch (err: any) {
     if (err.code === 'P2002') {
       return res.status(409).json({ error: 'البريد الإلكتروني أو اسم المستخدم مستخدم بالفعل.' });
@@ -119,13 +200,15 @@ apiRouter.post('/db/users/batch', requireRole('admin'), async (req, res) => {
     for (const u of users) {
       if (!u.id) continue;
       const existing = await prisma.user.findUnique({ where: { id: u.id } });
-      const data = await buildUserWriteData(u);
+      const data = await buildUserWriteData(u, true, true);
+      let saved = null;
       if (existing) {
-        await prisma.user.update({ where: { id: u.id }, data });
+        saved = await prisma.user.update({ where: { id: u.id }, data: data as any });
       } else if (data.passwordHash) {
-        await prisma.user.create({ data: { id: u.id, ...data } });
+        saved = await prisma.user.create({ data: { id: u.id, ...data } as any });
       }
       // مستخدم جديد بدون كلمة مرور ضمن دفعة جماعية يُتجاهل بدل رفض الدفعة كاملة
+      if (saved) await triggerAutoAssignment(saved);
     }
     res.json({ success: true, count: users.length });
   } catch (err) {
@@ -137,9 +220,23 @@ apiRouter.post('/db/users/batch', requireRole('admin'), async (req, res) => {
 apiRouter.delete('/db/users/:id', requireRole('admin'), async (req, res) => {
   const { id } = req.params;
   try {
+    const existing = await prisma.user.findUnique({ where: { id } });
+    // إن كان المحذوف مفتشاً، نحتفظ بقائمة أساتذته قبل الحذف حتى نعيد مطابقتهم
+    // (بمفتش آخر مطابق إن وُجد، أو حالة Pending إن لم يوجد) بدل تركهم مرتبطين بمفتش محذوف
+    const affectedTeacherIds =
+      existing?.role === 'inspector'
+        ? (
+            await prisma.inspectorAssignment.findMany({ where: { inspectorId: id }, select: { teacherId: true } })
+          ).map((a) => a.teacherId)
+        : [];
+
     await prisma.user.delete({ where: { id } });
+
+    for (const teacherId of affectedTeacherIds) {
+      await reassignTeacher(teacherId);
+    }
   } catch {
-    // محذوف مسبقاً أو غير موجود
+    // غير موجود مسبقاً
   }
   res.json({ success: true });
 });
@@ -148,33 +245,74 @@ apiRouter.delete('/db/users/:id', requireRole('admin'), async (req, res) => {
 // Helper factory for the simple JSON-blob collections (lessonPlans, notebook, ...)
 // كل سجل يُخزَّن كصف حقيقي في Postgres (id + JSON منظم)، وليس ملف JSON على القرص
 // -----------------------------------------------------------------------
+type DbRecord = Record<string, unknown> & { id: string; data?: unknown };
+
+interface JsonCollectionDelegate {
+  findMany: (args?: unknown) => Promise<DbRecord[]>;
+  findUnique: (args: { where: { id: string } }) => Promise<DbRecord | null>;
+  upsert: (args: unknown) => Promise<DbRecord>;
+  delete: (args: { where: { id: string } }) => Promise<DbRecord>;
+}
+
 function jsonCollectionRoutes(opts: {
   path: string;
-  model: any;
+  model: JsonCollectionDelegate;
   bodyKey: string;
   listKey: string;
   batchBodyKey?: string;
   ownerField?: 'ownerId' | 'authorId' | 'userId' | 'senderId';
+  visibleTo?: (row: DbRecord, user: { id: string; role: string; districtId: string }) => boolean;
+  ownerAssignedByServer?: boolean;
+  transformCreate?: (item: Record<string, unknown>, user: { id: string; role: string; districtId: string }) => Record<string, unknown>;
+  allowedCreateRoles?: string[];
 }) {
-  const { path, model, bodyKey, listKey, batchBodyKey, ownerField } = opts;
+  const { path, model, bodyKey, listKey, batchBodyKey, ownerField, visibleTo, ownerAssignedByServer = true, transformCreate, allowedCreateRoles } = opts;
+
+  const canWrite = (existing: DbRecord | null, user: { id: string; role: string }) =>
+    canWriteRecord(existing, user, ownerField);
 
   apiRouter.get(`/db/${path}`, async (req, res) => {
-    const rows = await model.findMany({ orderBy: { createdAt: 'desc' } });
-    res.json({ success: true, [listKey]: rows.map((r: any) => ({ ...r.data, id: r.id })) });
+    const limit = req.query.limit ? Math.min(Math.max(Number(req.query.limit), 1), 500) : undefined;
+    const offset = req.query.offset ? Math.max(Number(req.query.offset), 0) : undefined;
+
+    const rows = await model.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: offset,
+    });
+    const visible = visibleTo ? rows.filter((r) => visibleTo(r, req.user!)) : rows;
+    res.json({ success: true, [listKey]: visible.map((r) => ({ ...((r.data as Record<string, unknown>) || {}), id: r.id })) });
   });
 
   apiRouter.post(`/db/${path}`, async (req, res) => {
+    if (allowedCreateRoles && !allowedCreateRoles.includes(req.user!.role)) {
+      return res.status(403).json({ error: 'لا تملك الصلاحية لإنشاء هذا النوع من السجلات.' });
+    }
     const item = req.body[bodyKey];
     if (!item || !item.id) {
       return res.status(400).json({ error: 'بيانات غير مكتملة' });
     }
-    const data: any = { data: item };
-    if (ownerField) data[ownerField] = item[ownerField] || req.user!.id;
+
+    const existing = await model.findUnique({ where: { id: item.id } });
+    if (!canWrite(existing, req.user!)) {
+      return res.status(403).json({ error: 'لا تملك الصلاحية لتعديل هذا العنصر.' });
+    }
+
+    const safeItem = transformCreate ? transformCreate({ ...(item as Record<string, unknown>) }, req.user!) : item;
+    const data: Record<string, unknown> = { data: safeItem };
+    // لا يمكن تغيير مالك السجل عند التعديل (منع انتحال الملكية)؛ عند الإنشاء يُنسب دائماً
+    // لصاحب الطلب ما لم يكن الحقل يمثّل طرفاً آخر (مثل مستلم الإشعار)
+    if (ownerField) {
+      data[ownerField] = resolveOwnerFieldValue(existing, item, req.user!.id, ownerAssignedByServer, ownerField);
+    }
+    if (path === 'direct-messages' && typeof safeItem.receiverId === 'string') {
+      data.recipientId = safeItem.receiverId;
+    }
 
     await model.upsert({
       where: { id: item.id },
-      create: { id: item.id, ...data },
-      update: data
+      create: { id: item.id, ...data } as unknown,
+      update: data as unknown
     });
     res.json({ success: true, [bodyKey]: item });
   });
@@ -182,17 +320,29 @@ function jsonCollectionRoutes(opts: {
   if (batchBodyKey) {
     apiRouter.post(`/db/${path}/batch`, async (req, res) => {
       const items = req.body[batchBodyKey];
+      if (allowedCreateRoles && !allowedCreateRoles.includes(req.user!.role)) {
+        return res.status(403).json({ error: 'لا تملك الصلاحية لإنشاء هذا النوع من السجلات.' });
+      }
       if (!Array.isArray(items)) {
         return res.status(400).json({ error: 'قائمة غير صحيحة' });
       }
       for (const item of items) {
         if (!item.id) continue;
-        const data: any = { data: item };
-        if (ownerField) data[ownerField] = item[ownerField] || req.user!.id;
+        const existing = await model.findUnique({ where: { id: item.id } });
+        if (!canWrite(existing, req.user!)) continue; // تجاهل العناصر التي لا يملك المستخدم صلاحية تعديلها
+
+        const safeItem = transformCreate ? transformCreate({ ...(item as Record<string, unknown>) }, req.user!) : item;
+        const data: Record<string, unknown> = { data: safeItem };
+        if (ownerField) {
+          data[ownerField] = resolveOwnerFieldValue(existing, item, req.user!.id, ownerAssignedByServer, ownerField);
+        }
+        if (path === 'direct-messages' && typeof safeItem.receiverId === 'string') {
+          data.recipientId = safeItem.receiverId;
+        }
         await model.upsert({
           where: { id: item.id },
-          create: { id: item.id, ...data },
-          update: data
+          create: { id: item.id, ...data } as unknown,
+          update: data as unknown
         });
       }
       res.json({ success: true, count: items.length });
@@ -201,6 +351,10 @@ function jsonCollectionRoutes(opts: {
 
   apiRouter.delete(`/db/${path}/:id`, async (req, res) => {
     try {
+      const existing = await model.findUnique({ where: { id: req.params.id } });
+      if (existing && !canWrite(existing, req.user!)) {
+        return res.status(403).json({ error: 'لا تملك الصلاحية لحذف هذا العنصر.' });
+      }
       await model.delete({ where: { id: req.params.id } });
     } catch {
       // غير موجود مسبقاً
@@ -209,57 +363,79 @@ function jsonCollectionRoutes(opts: {
   });
 }
 
-// 2. Lesson Plans
+const isStaff = (user: { role: string }) => user.role === 'admin' || user.role === 'inspector';
+
+// 2. Lesson Plans — خاصة بالأستاذ صاحبها، ومرئية أيضاً لطاقم الإشراف (admin/inspector)
 jsonCollectionRoutes({
   path: 'lesson-plans',
   model: prisma.lessonPlan,
   bodyKey: 'lessonPlan',
   listKey: 'lessonPlans',
   batchBodyKey: 'lessonPlans',
-  ownerField: 'ownerId'
+  ownerField: 'ownerId',
+  visibleTo: (row, user) => isStaff(user) || row.ownerId === user.id
 });
 
-// 3. Daily Notebook
+// 3. Daily Notebook — كراس يومي خاص بالأستاذ، لا يُعرض لبقية الأساتذة
 jsonCollectionRoutes({
   path: 'notebook',
   model: prisma.notebookEntry,
   bodyKey: 'entry',
   listKey: 'dailyNotebook',
   batchBodyKey: 'dailyNotebook',
-  ownerField: 'ownerId'
+  ownerField: 'ownerId',
+  visibleTo: (row, user) => isStaff(user) || row.ownerId === user.id
 });
 
-// 4. Inspector Notes
+// 4. Inspector Notes — يراها كاتبها (المفتش) والأستاذ المعنيّ بها فقط، بالإضافة إلى admin
 jsonCollectionRoutes({
   path: 'inspector-notes',
   model: prisma.inspectorNote,
   bodyKey: 'note',
   listKey: 'inspectorNotes',
   batchBodyKey: 'inspectorNotes',
-  ownerField: 'authorId'
+  ownerField: 'authorId',
+  allowedCreateRoles: ['admin', 'inspector'],
+  visibleTo: (row, user) =>
+    user.role === 'admin' || row.authorId === user.id || (row.data as Record<string, unknown>)?.teacherId === user.id
 });
 
-// 5. District Group Chat
+// 5. District Group Chat — تُعرض ضمن نطاق مقاطعة المستخدم (districtId) فقط
 jsonCollectionRoutes({
   path: 'district-messages',
   model: prisma.districtMessage,
   bodyKey: 'message',
   listKey: 'districtMessages',
   batchBodyKey: 'districtMessages',
-  ownerField: 'authorId'
+  ownerField: 'authorId',
+  transformCreate: (item, user) => ({ ...item, districtId: user.districtId }),
+  visibleTo: (row, user) => user.role === 'admin' || (row.data as Record<string, unknown>)?.districtId === user.districtId
 });
 
-// 6. Direct Messages
+// 6. Direct Messages — خاصة بطرفي المحادثة (المُرسل والمُستقبِل) والمفتش والمسؤول
 jsonCollectionRoutes({
   path: 'direct-messages',
   model: prisma.directMessage,
   bodyKey: 'message',
   listKey: 'directMessages',
   batchBodyKey: 'directMessages',
-  ownerField: 'senderId'
+  ownerField: 'senderId',
+  ownerAssignedByServer: true,
+  transformCreate: (item, user) => {
+    const receiverId = typeof item.receiverId === 'string'
+      ? item.receiverId
+      : (typeof item.recipientId === 'string' ? item.recipientId : undefined);
+    const safe: Record<string, unknown> = { ...item, senderId: user.id };
+    delete safe.recipientId;
+    return receiverId ? { ...safe, receiverId } : safe;
+  },
+  visibleTo: (row, user) =>
+    user.role === 'admin' ||
+    row.senderId === user.id ||
+    row.recipientId === user.id
 });
 
-// 7. Community Resources
+// 7. Community Resources — محتوى عام مشترك، يبقى مرئياً للجميع كما هو مصمَّم
 jsonCollectionRoutes({
   path: 'community-resources',
   model: prisma.communityResource,
@@ -269,33 +445,328 @@ jsonCollectionRoutes({
   ownerField: 'authorId'
 });
 
-// 8. Community Notifications
+// 8. Community Notifications — تُعرض فقط لمستلمها أو مُرسلها
+// ملاحظة إصلاح: ownerField هنا هو "userId" وهو حقل *المستلم* (الشخص الذي يجب أن
+// يصله الإشعار)، وليس مالِك السجل بمعنى مُرسِله. لذلك يجب ألا نستخدم
+// ownerAssignedByServer=true (وهو مخصَّص لحقول مثل senderId التي يجب انتحال هويتها
+// من طرف الخادم دائماً)، لأن ذلك كان يستبدل خطأً معرّف المستلم القادم من العميل
+// بمعرّف المرسل نفسه عند الإنشاء — أي أن كل إشعار كان يصل فعلياً لصاحبه فقط ولا
+// يصل أبداً للمستخدم المستهدف الحقيقي. معرّف المُرسِل (senderId) يبقى مضموناً من
+// الخادم عبر transformCreate كما كان، بينما "من يملك حق الحذف/القراءة" (canWrite)
+// يبقى محصوراً في صاحب الإشعار (المستلم) أو admin كما هو مصمَّم.
 jsonCollectionRoutes({
   path: 'community-notifications',
   model: prisma.communityNotification,
   bodyKey: 'notification',
   listKey: 'communityNotifications',
-  ownerField: 'userId'
+  ownerField: 'userId',
+  ownerAssignedByServer: false,
+  transformCreate: (item, user) => ({ ...item, senderId: user.id }),
+  visibleTo: (row, user) => user.role === 'admin' || row.userId === user.id || (row.data as Record<string, unknown>)?.senderId === user.id
+});
+
+// -----------------------------------------------------------------------
+// 9. المخطط السنوي والتوزيع السنوي — الأستاذ يعدّل صياغة أهدافه الخاصة، والمفتش
+//    يقترح مخططاً/توزيعاً لأساتذة مقاطعته (وفق الإسناد الفعلي في InspectorAssignment)
+//    ثم يعتمد اقتراحه بنفسه ليصبح نافذاً عند الأستاذ.
+// -----------------------------------------------------------------------
+
+async function isInspectorOfTeacher(inspectorId: string, teacherId: string): Promise<boolean> {
+  const assignment = await prisma.inspectorAssignment.findUnique({ where: { teacherId } });
+  return !!assignment && assignment.inspectorId === inspectorId && (assignment.status === 'Active' || assignment.status === 'Changed');
+}
+
+apiRouter.get('/db/annual-plans', async (req, res) => {
+  const { teacherId, kind, academicYearId, levelId } = req.query;
+  const user = req.user!;
+
+  const where: Record<string, unknown> = {};
+  if (kind) where.kind = String(kind);
+  if (academicYearId) where.academicYearId = String(academicYearId);
+  if (levelId) where.levelId = String(levelId);
+
+  if (user.role === 'teacher') {
+    // الأستاذ لا يرى إلا سجلاته الخاصة (بما فيها اقتراحات المفتش الموجّهة له)
+    where.teacherId = user.id;
+  } else if (user.role === 'inspector') {
+    if (teacherId) {
+      if (!(await isInspectorOfTeacher(user.id, String(teacherId)))) {
+        return res.status(403).json({ error: 'هذا الأستاذ ليس ضمن مقاطعتك.' });
+      }
+      where.teacherId = String(teacherId);
+    } else {
+      const assignments = await prisma.inspectorAssignment.findMany({
+        where: { inspectorId: user.id, status: { in: ['Active', 'Changed'] } }
+      });
+      where.teacherId = { in: assignments.map((a) => a.teacherId) };
+    }
+  } else if (user.role === 'admin' && teacherId) {
+    where.teacherId = String(teacherId);
+  }
+
+  const annualPlans = await prisma.annualPlan.findMany({ where: where as any, orderBy: { updatedAt: 'desc' } });
+  res.json({ success: true, annualPlans });
+});
+
+// قيمة تخصيص واحدة قد تحمل أحد عدة أشكال بحسب kind السجل (انظر AnnualPlanObjectiveOverride في types/spex.ts):
+// - plan_components: components/resources/indicators (مصفوفات نصية، مفتاحها fieldId)
+// - section_wording: objective/teacherNote (مفتاحها `${fieldId}__${sessionNumber}`)
+// - schedule_dates: date/status/executionNote (مفتاحها `${fieldId}__${sessionNumber}`)
+// - plan/schedule (قديم، للتوافقية فقط): objective
+const annualPlanOverrideValueSchema = z
+  .object({
+    objective: z.string().trim().max(2000).optional(),
+    teacherNote: z.string().trim().max(1000).optional(),
+    components: z.array(z.string().trim().max(500)).max(20).optional(),
+    resources: z.array(z.string().trim().max(500)).max(20).optional(),
+    indicators: z.array(z.string().trim().max(500)).max(20).optional(),
+    date: z.string().trim().max(20).optional(),
+    status: z.enum(['مبرمجة', 'منجزة', 'مؤجلة', 'غير منجزة']).optional(),
+    executionNote: z.string().trim().max(1000).optional()
+  })
+  .refine((v) => Object.values(v).some((x) => x !== undefined), { message: 'لا يمكن حفظ تخصيص فارغ.' });
+
+const annualPlanUpsertSchema = z.object({
+  id: z.string().optional(),
+  teacherId: z.string().min(1),
+  academicYearId: z.string().min(1),
+  levelId: z.string().min(1),
+  kind: z.enum(['plan', 'schedule', 'plan_components', 'section_wording', 'schedule_dates']),
+  data: z.object({
+    overrides: z.record(annualPlanOverrideValueSchema),
+    note: z.string().trim().max(1000).optional()
+  })
+});
+
+// حفظ/تعديل مخطط أو توزيع سنوي: الأستاذ لمسودته الخاصة، أو المفتش كاقتراح لأستاذ
+// من مقاطعته (لا يُعتمد تلقائياً — يبقى بحالة "مقترح" إلى أن يعتمده المفتش نفسه)
+apiRouter.post('/db/annual-plans', async (req, res) => {
+  const parsed = annualPlanUpsertSchema.safeParse(req.body.annualPlan);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.errors[0]?.message || 'بيانات غير صحيحة.' });
+  }
+  const { teacherId, academicYearId, levelId, kind, data } = parsed.data;
+  const user = req.user!;
+
+  let status = 'draft';
+  let proposedByInspectorId: string | null = null;
+
+  if (user.role === 'teacher') {
+    if (teacherId !== user.id) {
+      return res.status(403).json({ error: 'لا يمكنك تعديل مخطط أستاذ آخر.' });
+    }
+  } else if (user.role === 'inspector') {
+    if (!(await isInspectorOfTeacher(user.id, teacherId))) {
+      return res.status(403).json({ error: 'هذا الأستاذ ليس ضمن مقاطعتك، لا يمكنك اقتراح مخطط له.' });
+    }
+    status = 'proposed';
+    proposedByInspectorId = user.id;
+  } else if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'لا تملك الصلاحية لهذا الإجراء.' });
+  }
+
+  const existing = await prisma.annualPlan.findUnique({
+    where: { teacherId_academicYearId_levelId_kind: { teacherId, academicYearId, levelId, kind } }
+  });
+
+  // الأستاذ يعدّل مسودته الخاصة فقط؛ إن كان هناك اقتراح من المفتش (معتمد أو قيد الاعتماد)
+  // لا يمكنه الكتابة فوقه مباشرة
+  if (existing && user.role === 'teacher' && existing.status !== 'draft') {
+    return res.status(409).json({ error: 'يوجد اقتراح من المفتش على هذا المخطط، راجعه أولاً قبل التعديل.' });
+  }
+
+  const saved = await prisma.annualPlan.upsert({
+    where: { teacherId_academicYearId_levelId_kind: { teacherId, academicYearId, levelId, kind } },
+    create: {
+      id: parsed.data.id || `ap_${teacherId}_${kind}_${levelId}_${academicYearId}_${Date.now()}`,
+      teacherId,
+      academicYearId,
+      levelId,
+      kind,
+      status,
+      proposedByInspectorId,
+      data
+    },
+    update: {
+      status,
+      proposedByInspectorId,
+      data,
+      ...(status === 'draft' ? { approvedAt: null } : {})
+    }
+  });
+
+  res.json({ success: true, annualPlan: saved });
+});
+
+// اعتماد المفتش لاقتراحه الخاص فيصبح نافذاً عند الأستاذ (لا يمكن لمفتش اعتماد اقتراح مفتش آخر)
+apiRouter.post('/db/annual-plans/:id/approve', requireRole('inspector'), async (req, res) => {
+  const existing = await prisma.annualPlan.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: 'السجل غير موجود.' });
+  if (existing.proposedByInspectorId !== req.user!.id) {
+    return res.status(403).json({ error: 'لا يمكنك اعتماد اقتراح لم تقدّمه أنت.' });
+  }
+  const saved = await prisma.annualPlan.update({
+    where: { id: existing.id },
+    data: { status: 'approved', approvedAt: new Date() }
+  });
+  res.json({ success: true, annualPlan: saved });
+});
+
+apiRouter.delete('/db/annual-plans/:id', async (req, res) => {
+  try {
+    const existing = await prisma.annualPlan.findUnique({ where: { id: req.params.id } });
+    if (existing) {
+      const user = req.user!;
+      const canDelete = user.role === 'admin' || existing.teacherId === user.id || existing.proposedByInspectorId === user.id;
+      if (!canDelete) return res.status(403).json({ error: 'لا تملك الصلاحية لحذف هذا السجل.' });
+      await prisma.annualPlan.delete({ where: { id: existing.id } });
+    }
+  } catch {
+    // غير موجود مسبقاً
+  }
+  res.json({ success: true });
 });
 
 // -----------------------------------------------------------------------
 // AI Endpoints — تتطلب الآن جلسة صالحة (لم تعد مفتوحة للعموم بدون قيد)
 // -----------------------------------------------------------------------
 
-apiRouter.post('/ai/test-key', async (req, res) => {
+apiRouter.get('/ai/providers', async (_req, res) => {
   try {
-    const customKey = (req.headers['x-custom-api-key'] as string) || req.body.apiKey;
-    const result = await testGeminiApiKey(customKey);
-    res.json(result);
-  } catch (err: any) {
-    res.status(500).json({ valid: false, message: 'حدث خطأ أثناء الاتصال بالخادم للتحقق من المفتاح.' });
+    res.json({ success: true, providers: await getConfiguredAIProviders() });
+  } catch {
+    res.json({ success: true, providers: [] });
+  }
+});
+
+apiRouter.post('/ai/test-provider', async (req, res) => {
+  try {
+    const provider = req.body.provider;
+    if (!provider) {
+      return res.status(400).json({ valid: false, message: 'مزود غير معروف.' });
+    }
+    res.json(await testConfiguredAIProvider(provider));
+  } catch {
+    res.status(500).json({ valid: false, message: 'حدث خطأ أثناء اختبار مزود الذكاء الاصطناعي.' });
+  }
+});
+
+// -----------------------------------------------------------------------
+// إدارة مزودات الذكاء الاصطناعي المخصصة (مقتصرة على مشرف المنظومة)
+// يُخزَّن المفتاح مشفّراً في قاعدة البيانات ولا يُعاد أبداً إلى الواجهة.
+// -----------------------------------------------------------------------
+const AI_PROVIDER_TYPES: AIProviderType[] = ['openai-compatible', 'openai', 'nvidia', 'anthropic', 'gemini', 'ollama'];
+const AI_TYPES_REQUIRING_BASE_URL: AIProviderType[] = ['openai-compatible', 'openai', 'nvidia', 'ollama'];
+
+function validateAIProviderInput(input: Record<string, unknown>): { ok: true; data: { name: string; type: AIProviderType; baseUrl?: string; model?: string; enabled: boolean; sortOrder: number } } | { ok: false; message: string } {
+  const name = typeof input.name === 'string' ? input.name.trim() : '';
+  const type = input.type as AIProviderType;
+  const baseUrl = typeof input.baseUrl === 'string' ? input.baseUrl.trim() : undefined;
+  const model = typeof input.model === 'string' ? input.model.trim() : undefined;
+  const enabled = input.enabled !== false;
+  const sortOrder = typeof input.sortOrder === 'number' ? input.sortOrder : 0;
+
+  if (!name) return { ok: false, message: 'اسم المزود مطلوب.' };
+  if (!AI_PROVIDER_TYPES.includes(type)) return { ok: false, message: 'نوع المزود غير معروف.' };
+  if (AI_TYPES_REQUIRING_BASE_URL.includes(type) && !baseUrl) {
+    return { ok: false, message: 'رابط الخادم (Base URL) مطلوب لهذا النوع من المزودات.' };
+  }
+  return { ok: true, data: { name, type, baseUrl, model, enabled, sortOrder } };
+}
+
+apiRouter.post('/ai/providers', requireRole('admin'), async (req, res) => {
+  try {
+    const validated = validateAIProviderInput(req.body || {});
+    if (!('data' in validated)) {
+      return res.status(400).json({ error: validated.message });
+    }
+
+    const rawKey = typeof req.body.apiKey === 'string' ? req.body.apiKey.trim() : '';
+    const created = await prisma.aIProviderConfig.create({
+      data: {
+        name: validated.data.name,
+        type: validated.data.type,
+        baseUrl: validated.data.baseUrl,
+        model: validated.data.model,
+        enabled: validated.data.enabled,
+        sortOrder: validated.data.sortOrder,
+        encryptedApiKey: rawKey ? encryptApiKey(rawKey) : null
+      }
+    });
+    invalidateAIProviderCache();
+    res.json({ success: true, provider: { id: created.id, name: created.name, type: created.type, baseUrl: created.baseUrl, model: created.model, enabled: created.enabled, sortOrder: created.sortOrder, source: 'db', keyConfigured: Boolean(rawKey) } });
+  } catch (error) {
+    console.error('Error creating AI provider:', error);
+    res.status(500).json({ error: 'تعذّر حفظ المزود. تأكد من اتصال قاعدة البيانات.' });
+  }
+});
+
+apiRouter.put('/ai/providers/:id', requireRole('admin'), async (req, res) => {
+  try {
+    const existing = await prisma.aIProviderConfig.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'المزود غير موجود.' });
+
+    const validated = validateAIProviderInput(req.body || {});
+    if (!('data' in validated)) {
+      return res.status(400).json({ error: validated.message });
+    }
+
+    // فقط عند إرسال مفتاح جديد يُحدَّث؛ إرسال string فارغ يمسحه، وعدمه يبقي القديم
+    let encryptedApiKey = existing.encryptedApiKey;
+    if (typeof req.body.apiKey === 'string') {
+      const rawKey = req.body.apiKey.trim();
+      encryptedApiKey = rawKey ? encryptApiKey(rawKey) : null;
+    }
+
+    const updated = await prisma.aIProviderConfig.update({
+      where: { id: req.params.id },
+      data: {
+        name: validated.data.name,
+        type: validated.data.type,
+        baseUrl: validated.data.baseUrl,
+        model: validated.data.model,
+        enabled: validated.data.enabled,
+        sortOrder: validated.data.sortOrder,
+        encryptedApiKey
+      }
+    });
+    invalidateAIProviderCache();
+    res.json({ success: true, provider: { id: updated.id, name: updated.name, type: updated.type, baseUrl: updated.baseUrl, model: updated.model, enabled: updated.enabled, sortOrder: updated.sortOrder, source: 'db', keyConfigured: Boolean(encryptedApiKey) } });
+  } catch (error) {
+    console.error('Error updating AI provider:', error);
+    res.status(500).json({ error: 'تعذّر تحديث المزود. تأكد من اتصال قاعدة البيانات.' });
+  }
+});
+
+apiRouter.delete('/ai/providers/:id', requireRole('admin'), async (req, res) => {
+  try {
+    const existing = await prisma.aIProviderConfig.findUnique({ where: { id: req.params.id } });
+    if (existing) {
+      await prisma.aIProviderConfig.delete({ where: { id: req.params.id } });
+    }
+    invalidateAIProviderCache();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting AI provider:', error);
+    res.status(500).json({ error: 'تعذّر حذف المزود. تأكد من اتصال قاعدة البيانات.' });
+  }
+});
+
+apiRouter.post('/ai/providers/:id/test', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const records = await allAIProviderRecords();
+    const exists = records.some((p) => p.id === id);
+    if (!exists) return res.status(404).json({ valid: false, message: 'المزود غير موجود.' });
+    res.json(await testConfiguredAIProvider(id));
+  } catch {
+    res.status(500).json({ valid: false, message: 'حدث خطأ أثناء اختبار المزود.' });
   }
 });
 
 apiRouter.post('/ai/generate-lesson', async (req, res) => {
   try {
-    const { levelName, fieldName, competencyTitle, segmentTitle, sessionTitle, sessionType, customObjective, customEquipment, customApiKey } = req.body;
-    const keyToUse = (req.headers['x-custom-api-key'] as string) || customApiKey;
+    const { levelName, fieldName, competencyTitle, segmentTitle, sessionTitle, sessionType, customObjective, customEquipment, preferredProvider, preferredModel } = req.body;
 
     if (!sessionTitle || !fieldName) {
       return res.status(400).json({ error: 'عناصر الحصة والميدان مطلوبة لتوليد المذكرة' });
@@ -310,37 +781,54 @@ apiRouter.post('/ai/generate-lesson', async (req, res) => {
       sessionType,
       customObjective,
       customEquipment,
-      customApiKey: keyToUse
+      preferredProvider,
+      preferredModel
     });
 
     res.json({ success: true, data: lessonData });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in /ai/generate-lesson:', error);
-    res.status(500).json({ error: 'حدث خطأ أثناء التوليد من قاعدة البيانات', details: error.message });
+    res.status(500).json({ error: 'حدث خطأ أثناء توليد المذكرة، يرجى المحاولة لاحقاً.' });
+  }
+});
+
+apiRouter.post('/ai/improve-wording', async (req, res) => {
+  try {
+    const { fieldLabel, currentText, context, preferredProvider, preferredModel } = req.body;
+
+    if (!fieldLabel || !currentText || typeof currentText !== 'string' || !currentText.trim()) {
+      return res.status(400).json({ error: 'النص الحالي واسم الحقل مطلوبان لتحسين الصياغة' });
+    }
+
+    const result = await improvePELessonWording({ fieldLabel, currentText, context, preferredProvider, preferredModel });
+    res.json({ success: true, data: result });
+  } catch (error: unknown) {
+    console.error('Error in /ai/improve-wording:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء تحسين الصياغة، يرجى المحاولة لاحقاً.' });
   }
 });
 
 apiRouter.post('/ai/suggest-games', async (req, res) => {
   try {
-    const { fieldName, levelName, customApiKey } = req.body;
-    const keyToUse = (req.headers['x-custom-api-key'] as string) || customApiKey;
-    const games = await suggestPEGames(fieldName || 'الميدان الجماعي', levelName || 'ابتدائي', keyToUse);
+    const { fieldName, levelName, preferredProvider, preferredModel } = req.body;
+    const games = await suggestPEGames(fieldName || 'الميدان الجماعي', levelName || 'ابتدائي', preferredProvider, preferredModel);
     res.json({ success: true, games });
-  } catch (error: any) {
-    res.status(500).json({ error: 'خطأ في اقتراح الألعاب', details: error.message });
+  } catch (error: unknown) {
+    console.error('Error in /ai/suggest-games:', error);
+    res.status(500).json({ error: 'خطأ في اقتراح الألعاب، يرجى المحاولة لاحقاً.' });
   }
 });
 
 apiRouter.post('/ai/chat', async (req, res) => {
   try {
-    const { message, history, customApiKey } = req.body;
-    const keyToUse = (req.headers['x-custom-api-key'] as string) || customApiKey;
+    const { message, history, preferredProvider, preferredModel } = req.body;
     if (!message) {
       return res.status(400).json({ error: 'الرسالة مطلوبة' });
     }
-    const responseText = await generateAIChatResponse(message, history || [], keyToUse);
+    const responseText = await generateAIChatResponse(message, history || [], preferredProvider, preferredModel);
     res.json({ success: true, response: responseText });
-  } catch (error: any) {
-    res.status(500).json({ error: 'خطأ في الاستعلام من قاعدة البيانات', details: error.message });
+  } catch (error: unknown) {
+    console.error('Error in /ai/chat:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء المحادثة، يرجى المحاولة لاحقاً.' });
   }
 });

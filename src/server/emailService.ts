@@ -15,6 +15,18 @@ export function isEmailConfigured(): boolean {
   return Boolean(RESEND_API_KEY);
 }
 
+// الاسم الأول قادم من بيانات مستخدم (يُدخله صاحبه بحرية عند التسجيل) ويُدرَج مباشرة
+// داخل HTML البريد الإلكتروني، فيجب تعقيمه من رموز HTML الخاصة لمنع حقن وسوم/سكربتات
+// قد تُعرَض داخل عميل بريد يدعم HTML كاملاً.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 async function sendEmail(to: string, subject: string, html: string): Promise<{ sent: boolean; error?: string }> {
   if (!RESEND_API_KEY) {
     console.warn('⚠️ RESEND_API_KEY غير معرّف — لن يُرسل أي بريد فعلياً. راجع README-PRODUCTION.md.');
@@ -51,7 +63,7 @@ export async function sendPasswordResetEmail(to: string, firstName: string, rawT
     <div dir="rtl" style="font-family: Tahoma, Arial, sans-serif; max-width: 480px; margin: 0 auto; background:#0f172a; padding: 32px; border-radius: 16px; color:#e2e8f0;">
       <h2 style="color:#60a5fa; margin-bottom: 4px;">منصة SPEX الابتدائي</h2>
       <p style="font-size: 13px; color:#94a3b8;">طلب إعادة تعيين كلمة المرور</p>
-      <p style="font-size: 14px; line-height: 1.7;">مرحباً ${firstName || ''}،</p>
+      <p style="font-size: 14px; line-height: 1.7;">مرحباً ${escapeHtml(firstName || '')}،</p>
       <p style="font-size: 14px; line-height: 1.7;">
         وصلنا طلب لإعادة تعيين كلمة مرور حسابك. اضغط الزر أدناه لاختيار كلمة مرور جديدة.
         هذا الرابط صالح لمدة <strong>30 دقيقة</strong> فقط ولمرة واحدة.
