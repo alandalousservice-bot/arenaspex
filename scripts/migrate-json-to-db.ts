@@ -159,4 +159,11 @@ main()
     console.error('❌ فشل الترحيل:', e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(async () => {
+    // حماية من فشل التنظيف الختامي نفسه (قد يفشل إيقاف محرك لم يقلع أصلاً)
+    try {
+      await prisma.$disconnect();
+    } catch {
+      // آمن للتجاهل
+    }
+  });

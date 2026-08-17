@@ -162,13 +162,50 @@ export async function requestAILessonPlan(payload: LessonGeneratorPayload) {
 
     const json = await response.json();
     if (json.data) {
-      return json.data;
+      // الذكاء الاصطناعي قد يعيد بنية ناقصة أحياناً، فنركّب النتيجة فوق القالب
+      // المحلي الكامل لضمان اكتمال كل الحقول التي تعتمدها الواجهة (ولا تتحطم الشاشة)
+      return normalizeLessonPlanData(json.data, payload);
     }
     throw new Error('لم يتم استلام بيانات المذكرة');
   } catch (err) {
     console.warn('API error, relying on local fallback client generation:', err);
     return fallbackLessonClientGenerator(payload);
   }
+}
+
+/**
+ * دمج عميق بين نتيجة الذكاء الاصطناعي (قد تكون ناقصة) والقالب المحلي الكامل:
+ * أي حقل أو مرحلة ينقصها ردّ النموذج تُستكمل من القالب فلا تنكسر واجهة عرض المذكرة.
+ */
+function normalizeLessonPlanData(data: any, payload: LessonGeneratorPayload) {
+  const base = fallbackLessonClientGenerator(payload);
+  const warmupGame = data?.warmupPhase?.pedagogicalWarmupGame || base.warmupPhase.pedagogicalWarmupGame;
+
+  return {
+    ...base,
+    ...(data || {}),
+    generalObjective: data?.generalObjective || base.generalObjective,
+    proceduralObjectives: { ...base.proceduralObjectives, ...(data?.proceduralObjectives || {}) },
+    equipmentNeeded:
+      Array.isArray(data?.equipmentNeeded) && data.equipmentNeeded.length > 0
+        ? data.equipmentNeeded
+        : base.equipmentNeeded,
+    safetyRules:
+      Array.isArray(data?.safetyRules) && data.safetyRules.length > 0 ? data.safetyRules : base.safetyRules,
+    warmupPhase: {
+      ...base.warmupPhase,
+      ...(data?.warmupPhase || {}),
+      pedagogicalWarmupGame: warmupGame
+    },
+    mainPhase: {
+      ...base.mainPhase,
+      ...(data?.mainPhase || {}),
+      learningSituation1: { ...base.mainPhase.learningSituation1, ...(data?.mainPhase?.learningSituation1 || {}) },
+      learningSituation2: { ...base.mainPhase.learningSituation2, ...(data?.mainPhase?.learningSituation2 || {}) },
+      guidedApplication: { ...base.mainPhase.guidedApplication, ...(data?.mainPhase?.guidedApplication || {}) }
+    },
+    coolDownPhase: { ...base.coolDownPhase, ...(data?.coolDownPhase || {}) }
+  };
 }
 
 export async function requestAIGames(fieldName: string, levelName: string) {

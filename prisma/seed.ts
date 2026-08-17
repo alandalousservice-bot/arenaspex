@@ -78,5 +78,11 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
-    await prisma.$disconnect();
+    // قد يرمي $disconnect نفسه إن لم يكن المحرك أقلع أصلاً (تخطّينا الإنشاء) —
+    // لا نريد أن يُفشل ذلك أمر npm start بأكمله بسبب تنظيف ختامي شكلي
+    try {
+      await prisma.$disconnect();
+    } catch {
+      // لا شيء يُفصَل فعلياً — آمن تماماً للتجاهل
+    }
   });

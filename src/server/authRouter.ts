@@ -19,6 +19,7 @@ import {
   hashResetToken
 } from './auth.js';
 import { sendPasswordResetEmail } from './emailService.js';
+import { wrapRouterAsyncErrors } from './middleware/asyncHandler.js';
 
 export const authRouter = Router();
 
@@ -219,3 +220,6 @@ authRouter.post('/reset-password', async (req, res) => {
 
   res.json({ success: true, message: 'تم تحديث كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول بها.' });
 });
+
+// التقاط أخطاء الوعود المرفوضة من معالجات async وتحويلها إلى معالج الأخطاء بدل إسقاط العملية
+wrapRouterAsyncErrors(authRouter);

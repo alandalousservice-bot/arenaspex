@@ -419,7 +419,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
       const studentName = std ? `${std.firstName} ${std.lastName}` : 'تلميذ';
 
       const auditEntry: GradeAuditLog = {
-        id: `aud_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        id: `aud_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         studentId,
         studentName,
         classId: activeClass.id,

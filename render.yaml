@@ -8,7 +8,9 @@ services:
     runtime: node
     plan: free
     region: frankfurt
-    buildCommand: npm ci && npm run build
+    # --include=dev ضروري: Render يمرّر NODE_ENV=production أثناء البناء أيضاً،
+    # وnpm عندها يحذف devDependencies (vite/tsx/prisma) فيفشل البناء أو الإقلاع
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true

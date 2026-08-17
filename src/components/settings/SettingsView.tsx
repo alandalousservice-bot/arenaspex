@@ -147,9 +147,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
     setPasswordError('');
 
     // Password validation if user entered a new password
+    // الحد الأدنى 8 أحرف — موحّد مع سياسة الخادم (reset-password / bootstrap تفرض 8)
     if (newPassword || confirmPassword) {
-      if (newPassword.length < 6) {
-        setPasswordError('كلمة المرور الجديدة يجب أن تحتوي على 6 أحرف أو أرقام على الأقل.');
+      if (newPassword.length < 8) {
+        setPasswordError('كلمة المرور الجديدة يجب أن تحتوي على 8 أحرف على الأقل.');
         return;
       }
       if (newPassword !== confirmPassword) {

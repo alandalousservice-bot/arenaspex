@@ -24,13 +24,14 @@ import {
   Filter,
   Check
 } from 'lucide-react';
-import { LessonPlan } from '../../types/spex';
+import { LessonPlan, User } from '../../types/spex';
 import { requestAILessonPlan } from '../../services/api';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../../data/algerianCurriculum';
 
 interface LessonPlanViewProps {
   lessonPlans: LessonPlan[];
   activeLessonId?: string;
+  currentUser?: User;
   onSaveLessonPlan: (lesson: LessonPlan) => void;
   onDeleteLessonPlan?: (lessonId: string) => void;
   onUpdateLessonStatus?: (lessonId: string, status: 'منجزة' | 'مؤجلة' | 'غير منجزة', note?: string) => void;
@@ -54,6 +55,7 @@ const FIELD_SEGMENT_GOALS: Record<string, string> = {
 export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   lessonPlans,
   activeLessonId,
+  currentUser,
   onSaveLessonPlan,
   onDeleteLessonPlan,
   onUpdateLessonStatus,
@@ -224,9 +226,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
 
       const newLesson: LessonPlan = {
         id: `lp_ai_${Date.now()}`,
-        teacherId: 'usr_teacher_1',
-        institutionName: 'مدرسة الشهيد بالخيري عبد القادر الابتدائي',
-        teacherName: 'علي بن زايد',
+        // توثق المذكرة باسم الأستاذ ومؤسسته الحقيقيين المسجلين في الجلسة (وليس بيانات تجريبية)
+        teacherId: currentUser?.id || 'usr_teacher_1',
+        institutionName: currentUser?.schoolName || 'المدرسة الابتدائية',
+        teacherName: currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'الأستاذ(ة)',
         inspectorName: 'عبد الرحمن سطيفي',
         levelName: genLevel,
         className: '1 ابتدائي 1',
@@ -605,12 +608,12 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                           </p>
 
                           <div className="text-xs space-y-1 pt-1">
-                            <p><span className="font-bold text-blue-800">1. الهدف المهاري الحركي:</span> {lp.proceduralObjectives.motor}</p>
-                            <p><span className="font-bold text-indigo-800">2. الهدف المعرفي:</span> {lp.proceduralObjectives.cognitive}</p>
-                            {lp.proceduralObjectives.communication && (
+                            <p><span className="font-bold text-blue-800">1. الهدف المهاري الحركي:</span> {lp.proceduralObjectives?.motor || '—'}</p>
+                            <p><span className="font-bold text-indigo-800">2. الهدف المعرفي:</span> {lp.proceduralObjectives?.cognitive || '—'}</p>
+                            {lp.proceduralObjectives?.communication && (
                               <p><span className="font-bold text-amber-800">3. الهدف التواصلي:</span> {lp.proceduralObjectives.communication}</p>
                             )}
-                            <p><span className="font-bold text-teal-800">{lp.proceduralObjectives.communication ? '4' : '3'}. الهدف الشخصي والاجتماعي:</span> {lp.proceduralObjectives.personalSocial || lp.proceduralObjectives.affective}</p>
+                            <p><span className="font-bold text-teal-800">{lp.proceduralObjectives?.communication ? '4' : '3'}. الهدف الشخصي والاجتماعي:</span> {lp.proceduralObjectives?.personalSocial || lp.proceduralObjectives?.affective || '—'}</p>
                           </div>
                         </div>
 
@@ -620,10 +623,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                           </h4>
                           <div className="text-xs space-y-1">
                             <span className="font-bold text-slate-700 block">الوسائل:</span>
-                            <p className="text-slate-600">{lp.equipmentNeeded.join('، ')}</p>
+                            <p className="text-slate-600">{(lp.equipmentNeeded || []).join('، ') || '—'}</p>
                             <span className="font-bold text-rose-700 block mt-2">الأمن والسلامة:</span>
                             <ul className="list-disc list-inside text-slate-600 text-[11px] space-y-0.5">
-                              {lp.safetyRules.map((rule, idx) => (
+                              {(lp.safetyRules || []).map((rule, idx) => (
                                 <li key={idx}>{rule}</li>
                               ))}
                             </ul>
@@ -641,11 +644,11 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                         <div className="border border-slate-200 rounded-2xl overflow-hidden text-xs">
                           <div className="bg-blue-600 text-white p-2.5 font-bold flex items-center justify-between">
                             <span>1. المرحلة التحضيرية (المجلس والتهيئة + لعبة تربوية إحمائية)</span>
-                            <span className="bg-blue-800 px-2 py-0.5 rounded-lg text-[11px]">{lp.warmupPhase.duration}</span>
+                            <span className="bg-blue-800 px-2 py-0.5 rounded-lg text-[11px]">{lp.warmupPhase?.duration || '10-12 دقيقة'}</span>
                           </div>
                           
                           <div className="p-4 bg-slate-50 space-y-3">
-                            {lp.warmupPhase.pedagogicalWarmupGame && (
+                            {lp.warmupPhase?.pedagogicalWarmupGame && (
                               <div className="bg-white p-3 rounded-xl border border-blue-200 shadow-2xs space-y-1">
                                 <span className="text-xs font-black text-blue-900 flex items-center gap-1">
                                   <Sparkles className="w-3.5 h-3.5 text-amber-500" />
@@ -661,11 +664,11 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                               <div>
                                 <span className="font-bold text-slate-800 block">الإحماء العام والخاص:</span>
-                                <p className="text-slate-600">{lp.warmupPhase.generalWarmup} - {lp.warmupPhase.specificWarmup}</p>
+                                <p className="text-slate-600">{lp.warmupPhase?.generalWarmup || ''}{lp.warmupPhase?.specificWarmup ? ` - ${lp.warmupPhase.specificWarmup}` : ''}</p>
                               </div>
                               <div>
                                 <span className="font-bold text-slate-800 block">التنظيم والتوجيه:</span>
-                                <p className="text-slate-600">{lp.warmupPhase.organization}</p>
+                                <p className="text-slate-600">{lp.warmupPhase?.organization || ''}</p>
                               </div>
                             </div>
                           </div>
@@ -675,42 +678,42 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                         <div className="border border-slate-200 rounded-2xl overflow-hidden text-xs">
                           <div className="bg-indigo-600 text-white p-2.5 font-bold flex items-center justify-between">
                             <span>2. المرحلة الرئيسية (وضعية المشكل والمواقف التعلمية التنافسية)</span>
-                            <span className="bg-indigo-800 px-2 py-0.5 rounded-lg text-[11px]">{lp.mainPhase.duration}</span>
+                            <span className="bg-indigo-800 px-2 py-0.5 rounded-lg text-[11px]">{lp.mainPhase?.duration || '30-35 دقيقة'}</span>
                           </div>
 
                           <div className="p-4 bg-white space-y-3">
-                            {lp.mainPhase.problemSituation && (
+                            {lp.mainPhase?.problemSituation && (
                               <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-200 text-amber-950 font-bold">
                                 <span>الوضعية المشكلة الانطلاقية: </span>
-                                <span className="font-normal">{lp.mainPhase.problemSituation}</span>
+                                <span className="font-normal">{lp.mainPhase?.problemSituation}</span>
                               </div>
                             )}
 
                             {/* Situation 1 */}
                             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1">
-                              <h5 className="font-extrabold text-blue-900 text-xs">{lp.mainPhase.learningSituation1.title}</h5>
-                              <p className="text-slate-700 text-xs">{lp.mainPhase.learningSituation1.description}</p>
+                              <h5 className="font-extrabold text-blue-900 text-xs">{lp.mainPhase?.learningSituation1?.title || 'الموقف التعليمي الأول'}</h5>
+                              <p className="text-slate-700 text-xs">{lp.mainPhase?.learningSituation1?.description || '—'}</p>
                               <div className="flex flex-wrap gap-3 pt-1 text-[11px] font-bold text-slate-500">
-                                <span>الجرعة البدنية: {lp.mainPhase.learningSituation1.dosing}</span>
-                                <span>معايير النجاح: {lp.mainPhase.learningSituation1.criteria}</span>
+                                <span>الجرعة البدنية: {lp.mainPhase?.learningSituation1?.dosing || '—'}</span>
+                                <span>معايير النجاح: {lp.mainPhase?.learningSituation1?.criteria || '—'}</span>
                               </div>
                             </div>
 
                             {/* Situation 2 */}
                             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1">
-                              <h5 className="font-extrabold text-indigo-900 text-xs">{lp.mainPhase.learningSituation2.title}</h5>
-                              <p className="text-slate-700 text-xs">{lp.mainPhase.learningSituation2.description}</p>
+                              <h5 className="font-extrabold text-indigo-900 text-xs">{lp.mainPhase?.learningSituation2?.title || 'الموقف التعليمي الثاني'}</h5>
+                              <p className="text-slate-700 text-xs">{lp.mainPhase?.learningSituation2?.description || '—'}</p>
                               <div className="flex flex-wrap gap-3 pt-1 text-[11px] font-bold text-slate-500">
-                                <span>الجرعة البدنية: {lp.mainPhase.learningSituation2.dosing}</span>
-                                <span>معايير النجاح: {lp.mainPhase.learningSituation2.criteria}</span>
+                                <span>الجرعة البدنية: {lp.mainPhase?.learningSituation2?.dosing || '—'}</span>
+                                <span>معايير النجاح: {lp.mainPhase?.learningSituation2?.criteria || '—'}</span>
                               </div>
                             </div>
 
                             {/* Guided Application */}
-                            {lp.mainPhase.guidedApplication && (
+                            {lp.mainPhase?.guidedApplication && (
                               <div className="bg-teal-50/60 p-3 rounded-xl border border-teal-200 text-teal-950">
-                                <span className="font-bold">{lp.mainPhase.guidedApplication.title}: </span>
-                                <span>{lp.mainPhase.guidedApplication.description}</span>
+                                <span className="font-bold">{lp.mainPhase?.guidedApplication?.title || 'التطبيق الموجه'}: </span>
+                                <span>{lp.mainPhase?.guidedApplication?.description || ''}</span>
                               </div>
                             )}
                           </div>
@@ -720,18 +723,18 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                         <div className="border border-slate-200 rounded-2xl overflow-hidden text-xs">
                           <div className="bg-slate-800 text-white p-2.5 font-bold flex items-center justify-between">
                             <span>3. المرحلة الختامية (التهدئة والحوار البيداغوجي واستخلاص النتائج)</span>
-                            <span className="bg-slate-900 px-2 py-0.5 rounded-lg text-[11px]">{lp.coolDownPhase.duration}</span>
+                            <span className="bg-slate-900 px-2 py-0.5 rounded-lg text-[11px]">{lp.coolDownPhase?.duration || '5-10 دقائق'}</span>
                           </div>
 
                           <div className="p-4 bg-slate-50">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                               <div>
                                 <span className="font-bold text-slate-800 block">تمارين التهدئة والاسترخاء:</span>
-                                <p className="text-slate-700">{lp.coolDownPhase.activities}</p>
+                                <p className="text-slate-700">{lp.coolDownPhase?.activities || '—'}</p>
                               </div>
                               <div>
                                 <span className="font-bold text-slate-800 block">التقييم الذاتي والحوار الهادف:</span>
-                                <p className="text-slate-700">{lp.coolDownPhase.assessmentAndDialogue}</p>
+                                <p className="text-slate-700">{lp.coolDownPhase?.assessmentAndDialogue || '—'}</p>
                               </div>
                             </div>
                           </div>

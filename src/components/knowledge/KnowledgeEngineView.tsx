@@ -45,15 +45,39 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
 
   const handleCopyText = (item: KnowledgeItem) => {
     const textToCopy = `${item.title}\n\n${item.description}\n\nالأدوات: ${item.equipment?.join('، ')}\nالقوانين: ${item.rules}`;
-    navigator.clipboard.writeText(textToCopy);
+    // clipboard API غير متوفرة في السياقات غير الآمنة (http) أو بعض المتصفحات — بديل آمن
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(textToCopy).catch(() => fallbackCopyText(textToCopy));
+      } else {
+        fallbackCopyText(textToCopy);
+      }
+    } catch {
+      fallbackCopyText(textToCopy);
+    }
     setCopiedId(item.id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const fallbackCopyText = (text: string) => {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    } catch (e) {
+      console.warn('Copy to clipboard failed:', e);
+    }
   };
 
   const handleRequestAIGames = async () => {
     setIsSuggestingGames(true);
     try {
-      const suggestedGames = await requestAIGames('الميدان الجماعي (كرة اليد)', 'المتوسط');
+      const suggestedGames = await requestAIGames('الميدان العام والألعاب الجماعية', 'الطور الابتدائي');
       suggestedGames.forEach((g: any, i: number) => {
         onAddKnowledgeItem({
           category: 'game',

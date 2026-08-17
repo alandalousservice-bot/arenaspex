@@ -1,20 +1,47 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# SPEX — المنصة الرقمية الذكية للتربية البدنية والرياضية (الطور الابتدائي)
 
-# Run and deploy your AI Studio app
+منظومة رقمية جزائرية متكاملة لأستاذ التربية البدنية والرياضية: مولّد المذكرات
+البيداغوجية بالذكاء الاصطناعي (Gemini)، قمرة قيادة الحصة، الكراس اليومي،
+دفتر التقويم، المجتمع المهني، وبوابات المفتش والمدير والمشرف.
 
-This contains everything you need to run your app locally.
+## التشغيل المحلي (التطوير)
 
-View your app in AI Studio: https://ai.studio/apps/a7941edb-5dae-4ddd-909b-be546f583dee
+**المتطلبات:** Node.js 20 أو أحدث، وقاعدة بيانات PostgreSQL.
 
-## Run Locally
+1. ثبّت الاعتماديات:
+   ```bash
+   npm install
+   ```
+2. انسخ ملف البيئة واملأ قيمه (لا ترفع `.env` إلى Git أبداً):
+   ```bash
+   cp .env.example .env
+   ```
+   الإلزامي: `DATABASE_URL` و`JWT_SECRET` (32 حرفاً على الأقل).
+   الاختياري: `GEMINI_API_KEY`، إعدادات بريد `RESEND_*`، و`SUPER_ADMIN_*`
+   لإنشاء حساب المشرف الأول تلقائياً.
+3. طبّق مخطط قاعدة البيانات وشغّل المنصة:
+   ```bash
+   npx prisma migrate deploy
+   npm run dev
+   ```
 
-**Prerequisites:**  Node.js
+ثم افتح http://localhost:3000
 
+## الإنتاج
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- `npm run build` يبني الواجهة في `dist/`.
+- `npm start` يطبّق الهجرات، ينشئ حساب SUPER_ADMIN إن وُجدت متغيراته،
+  ثم يشغّل خادم Express الذي يقدّم الواجهة + واجهة API المحمية.
+
+📖 **الدليل الكامل للإنتاج والنشر (Neon + Render، إنشاء المشرف الأول،
+البريد الإلكتروني، استكشاف الأخطاء):** راجع [README-PRODUCTION.md](./README-PRODUCTION.md)
+
+## أوامر مفيدة
+
+| الأمر | الوظيفة |
+| --- | --- |
+| `npm run dev` | خادم التطوير (واجهة + API معاً) |
+| `npm run lint` | فحص TypeScript بدون بناء |
+| `npm run build` | بناء الإنتاج |
+| `npm run db:studio` | متصفح قاعدة البيانات (Prisma Studio) |
+| `npm run db:seed-from-json` | ترحيل بيانات `data_store.json` القديمة إلى Postgres |

@@ -177,7 +177,7 @@ npm run dev
 2. على [railway.app](https://railway.app): New Project → Deploy from GitHub repo.
 3. في تبويب **Variables**، أضف كل متغيرات `.env` (نفس القيم: `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`, وأضف `NODE_ENV=production`).
 4. في تبويب **Settings → Build**:
-   - Build Command: `npm run build`
+   - Build Command: `npm ci --include=dev && npm run build`
    - Start Command: `npm start`
 5. أمر `npm start` يطبّق مخطط قاعدة البيانات تلقائياً (`prisma migrate deploy`) في كل مرة يُقلع فيها الخادم، فلا حاجة لتشغيل أي أمر يدوي عبر Shell.
 6. Railway يوفّر نطاقاً مجانياً بشهادة HTTPS تلقائياً (`*.up.railway.app`). يمكنك ربط نطاق مخصص لاحقاً من نفس الإعدادات.
@@ -202,10 +202,11 @@ npm run dev
 
 1. New → Web Service → اربط مستودع GitHub.
 2. Environment: **Node**.
-3. Build Command: `npm ci && npm run build`
+3. Build Command: `npm ci --include=dev && npm run build`
 4. Start Command: `npm start`
 5. أضف نفس متغيرات البيئة الموجودة في `.env.example` يدوياً في تبويب **Environment**.
-6. أمر `npm start` يطبّق مخطط قاعدة البيانات تلقائياً (`prisma migrate deploy`) عند كل إقلاع، فهذا يعمل حتى على خطة Render المجانية التي لا توفّر تبويب Shell.
+6. ⚠️ لا تحذف `--include=dev` من أمر البناء: بعض منصات الاستضافة (Render ضمنها) تضبط `NODE_ENV=production` أثناء البناء فيحذف npm حزم التطوير تلقائياً، بينما يحتاجها مشروعنا في البناء (`vite`, `tailwindcss`) وفي الإقلاع (`tsx`, `prisma`).
+7. أمر `npm start` يطبّق مخطط قاعدة البيانات تلقائياً (`prisma migrate deploy`) عند كل إقلاع، فهذا يعمل حتى على خطة Render المجانية التي لا توفّر تبويب Shell.
 7. Render يوفّر شهادة HTTPS تلقائياً على نطاقه الفرعي المجاني.
 
 > ملاحظة Neon + Render: قاعدة Neon المجانية "تنام" بعد فترة خمول، وأول طلب بعدها قد يستغرق بضع ثوانٍ إضافية لإيقاظها (طبيعي وليس عطلاً). كذلك خطة Render المجانية توقف الخدمة بعد خمول طويل وتعيد تشغيلها عند أول طلب لاحق (أول تحميل بعد الخمول أبطأ من المعتاد).

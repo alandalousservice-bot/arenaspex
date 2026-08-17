@@ -86,6 +86,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newUserFirstName, setNewUserFirstName] = useState('');
   const [newUserLastName, setNewUserLastName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserPhone, setNewUserPhone] = useState('0661234567');
   const [newUserSchoolName, setNewUserSchoolName] = useState('مدرسة الشهيد بالخيري عبد القادر');
   const [newUserMunicipality, setNewUserMunicipality] = useState('عين أزال - سطيف');
@@ -121,13 +122,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     e.preventDefault();
     if (!newUserFirstName || !newUserLastName || !newUserEmail) return;
 
+    if (newUserPassword.trim().length < 8) {
+      alert('كلمة المرور الأولية يجب أن تكون 8 أحرف على الأقل.');
+      return;
+    }
+
     if (onAddUser) {
       const trimmedKey = newUserApiKey.trim();
       onAddUser({
         role: newUserRole,
         firstName: newUserFirstName,
         lastName: newUserLastName,
-        email: newUserEmail,
+        email: newUserEmail.trim().toLowerCase(),
+        password: newUserPassword.trim(),
         phone: newUserPhone,
         schoolName: newUserSchoolName,
         municipality: newUserMunicipality,
@@ -143,6 +150,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setNewUserFirstName('');
     setNewUserLastName('');
     setNewUserEmail('');
+    setNewUserPassword('');
     setNewUserApiKey('');
     setShowAddUserModal(false);
   };
@@ -150,7 +158,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleSaveEditUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser || !onUpdateUser) return;
-    onUpdateUser(editingUser);
+    // إن لم يكتب المشرف كلمة مرور جديدة صراحة، لا نرسل الحقل أصلاً حتى لا تتغير كلمة المرور الحالية
+    const payload = { ...editingUser };
+    if (!payload.password || !String(payload.password).trim()) {
+      delete payload.password;
+    } else if (String(payload.password).trim().length < 8) {
+      alert('كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل، أو اترك الحقل فارغاً لعدم التغيير.');
+      return;
+    }
+    onUpdateUser(payload);
     setEditingUser(null);
   };
 
@@ -398,8 +414,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                           <td className="p-3">
                             <div className="font-semibold text-slate-700 dir-ltr">{u.email}</div>
-                            <div className="text-[10px] font-bold text-purple-700 dir-ltr mt-0.5">🔑 {u.password || '12345678'}</div>
-                            <div className="text-[10px] text-slate-400">{u.phone || '0661234567'}</div>
+                            <div className="text-[10px] font-bold text-slate-500 dir-ltr mt-0.5">🆔 {u.spexId}</div>
+                            <div className="text-[10px] text-slate-400">{u.phone || 'بدون هاتف'}</div>
                           </td>
 
                           <td className="p-3 font-medium text-slate-700">
@@ -1094,6 +1110,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 />
               </div>
 
+              {/* كلمة المرور الأولية للحساب الجديد — ضرورية لأن الخادم يرفض إنشاء حساب بلا كلمة مرور،
+                  وكان النظام يضبط '12345678' سراً لكل الحسابات الجديدة دون علم المشرف */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">كلمة المرور الأولية</label>
+                <input
+                  type="text"
+                  required
+                  minLength={8}
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  placeholder="8 أحرف على الأقل - سلّمها للمستخدم ليغيّرها لاحقاً"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-purple-500 dir-ltr text-left font-mono"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 block mb-1">رقم الهاتف</label>
@@ -1285,9 +1316,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <label className="font-bold text-slate-700 block mb-1">كلمة المرور الجديدة</label>
                   <input
                     type="text"
-                    value={editingUser.password || '12345678'}
+                    // فارغة افتراضياً = لا تغيير؛ كان ملؤها آلياً يعيد تعيين كلمة مرور المستخدم سراً عند أي تعديل
+                    value={editingUser.password || ''}
                     onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
-                    placeholder="12345678"
+                    placeholder="اتركها فارغة لإبقاء كلمة المرور الحالية"
                     className="w-full p-2.5 rounded-xl border border-purple-200 bg-purple-50/50 outline-none dir-ltr text-left font-bold text-purple-900"
                   />
                 </div>

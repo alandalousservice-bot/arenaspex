@@ -9,8 +9,15 @@ import express from 'express';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
-import { apiRouter } from './apiRouter.js';
-import { authRouter } from './authRouter.js';
+import { installProcessSafetyNet } from './processSafety.js';
+
+// تُثبَّت قبل أي شيء آخر، ثم تُستورد الراوترات ديناميكياً لاحقاً —
+// لأن استيرادات ESM الثابتة تُقيَّم كلها قبل تنفيذ جسم هذا الملف، فلو انفجر خطأ
+// أثناء تهيئة وحدة مستوردة بشكل ثابت (كتحميل محرك Prisma) لسقط الخادم دون أي تغطية.
+installProcessSafetyNet();
+
+const { apiRouter } = await import('./apiRouter.js');
+const { authRouter } = await import('./authRouter.js');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();

@@ -96,6 +96,11 @@ import {
 
 import { INITIAL_KNOWLEDGE_BANK } from './data/knowledgeBankData';
 
+// الحسابات التجريبية (DEMO_USERS) معروضة للتقييم فقط وتحمل كلمة المرور العمومية المعروفة
+// '12345678' — مزامنتها تلقائياً إلى قاعدة البيانات كانت تحوّلها إلى حسابات حقيقية
+// قابلة لتسجيل الدخول بكلمة مرور متداولة! لذا تُستبعد من كل مسارات المزامنة الصادرة.
+const DEMO_USER_IDS = new Set(DEMO_USERS.map((u) => u.id));
+
 export default function App() {
   // Authentication state — the source of truth is now the server session (httpOnly cookie),
   // not a flag readable/writable from the browser console.
@@ -507,6 +512,38 @@ export default function App() {
             return Array.from(map.values());
           });
         }
+
+        // الرسائل المباشرة وموارد وإشعارات المجتمع — كانت تُزامَن صعوداً فقط ولا تُجلب
+        // عند التحميل، فتضيع لدى تغيير الجهاز أو مسح التخزين المحلي
+        const dbDirectMsgs = await fetchDirectMessagesFromDB();
+        if (dbDirectMsgs && dbDirectMsgs.length > 0) {
+          setDirectMessages((prev) => {
+            const map = new Map();
+            prev.forEach((m) => map.set(m.id, m));
+            dbDirectMsgs.forEach((m: any) => map.set(m.id, m));
+            return Array.from(map.values());
+          });
+        }
+
+        const dbResources = await fetchCommunityResourcesFromDB();
+        if (dbResources && dbResources.length > 0) {
+          setCommunityResources((prev) => {
+            const map = new Map();
+            prev.forEach((r) => map.set(r.id, r));
+            dbResources.forEach((r: any) => map.set(r.id, r));
+            return Array.from(map.values());
+          });
+        }
+
+        const dbNotifications = await fetchCommunityNotificationsFromDB();
+        if (dbNotifications && dbNotifications.length > 0) {
+          setCommunityNotifications((prev) => {
+            const map = new Map();
+            prev.forEach((n) => map.set(n.id, n));
+            dbNotifications.forEach((n: any) => map.set(n.id, n));
+            return Array.from(map.values());
+          });
+        }
       } catch (e) {
         console.warn('Initial DB load error:', e);
       }
@@ -520,7 +557,10 @@ export default function App() {
   useEffect(() => {
     if (currentUser && isAuthenticated) {
       localStorage.setItem('spex_current_user', JSON.stringify(currentUser));
-      syncUserToDB(currentUser);
+      // الحسابات التجريبية لا تُزامَن إلى قاعدة البيانات إطلاقاً (كلمة مرورها عمومية معروفة)
+      if (!DEMO_USER_IDS.has(currentUser.id)) {
+        syncUserToDB(currentUser);
+      }
     }
   }, [currentUser, isAuthenticated]);
 
@@ -560,8 +600,10 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('spex_all_users', JSON.stringify(allUsersList));
-    if (allUsersList.length > 0) {
-      syncUsersBatchToDB(allUsersList);
+    // لا نزامن الحسابات التجريبية المعروضة افتراضياً — فقط حسابات حقيقية أُدخلت عبر الإدارة
+    const realUsers = allUsersList.filter((u) => !DEMO_USER_IDS.has(u.id));
+    if (realUsers.length > 0) {
+      syncUsersBatchToDB(realUsers);
     }
   }, [allUsersList]);
 
@@ -626,7 +668,9 @@ export default function App() {
       firstName: userPartial.firstName || 'مستخدم',
       lastName: userPartial.lastName || 'جديد',
       email: userPartial.email || `user_${Date.now()}@spex.dz`,
-      password: userPartial.password || '12345678',
+      // بدون كلمة مرور ضمنية: الخادم يرفض إنشاء حساب بلا كلمة مرور أولية ويعيد خطأ واضحاً
+      // بدل أن تُنشأ الحسابات بكلمة افتراضية لا يعلمها أحد
+      password: userPartial.password || '',
       role: userPartial.role || 'teacher',
       phone: userPartial.phone || '0661234567',
       schoolName: userPartial.schoolName || 'مدرسة الشهيد بالخيري عبد القادر',
@@ -651,12 +695,32 @@ export default function App() {
     // نرسل كلمة المرور للخادم ليشفّرها فوراً، ثم نستبدل الحالة المحلية بالنسخة الآمنة
     // المُعادة من الخادم بدل الاحتفاظ بكلمة المرور نص عادي في ذاكرة المتصفح
     const result = await syncUserToDB(newUser);
+    if (!result.success) {
+      // بدون هذا الإشعار كان المستخدم يُضاف محلياً فقط ولا يُحفظ في قاعدة البيانات إطلاقاً دون علم المشرف
+      alert(`تعذر حفظ الحساب في قاعدة بيانات المنصة (لن يتمكن صاحبه من تسجيل الدخول):\n${result.error || 'خطأ غير معروف'}`);
+      return;
+    }
     const { password: _discard, ...safeLocalUser } = newUser;
     setAllUsersList((prev) => [result.user || safeLocalUser, ...prev]);
   };
 
   const handleUpdateUser = async (updatedUser: User) => {
+    // حساب تجريبي: تعديل محلي فقط ولا يُرسل للخادم أبداً (تفادي إنشاء حسابات بكلمة مرور عمومية)
+    if (DEMO_USER_IDS.has(updatedUser.id)) {
+      const { password: _d, ...safeDemo } = updatedUser;
+      setAllUsersList((prev) => prev.map((u) => (u.id === safeDemo.id ? safeDemo : u)));
+      if (currentUser.id === safeDemo.id) {
+        setCurrentUser(safeDemo as User);
+      }
+      return;
+    }
+
     const result = await syncUserToDB(updatedUser);
+    if (!result.success) {
+      // لا نحدّث الحالة المحلية عند فشل الحفظ في الخادم حتى لا يظن المستخدم أن التعديل حُفظ
+      alert(`تعذر حفظ التعديلات في قاعدة بيانات المنصة:\n${result.error || 'خطأ غير معروف'}`);
+      return;
+    }
     const { password: _discard, ...safeLocalUser } = updatedUser;
     const finalUser = result.user || safeLocalUser;
     setAllUsersList((prev) => prev.map((u) => (u.id === finalUser.id ? finalUser : u)));
@@ -881,7 +945,7 @@ export default function App() {
   }) => {
     if (!params.userId || params.userId === currentUser.id) return; // never notify self
     const notif: CommunityNotification = {
-      id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
       userId: params.userId,
       senderId: currentUser.id,
       senderUsername: currentUser.username || '',
@@ -941,6 +1005,8 @@ export default function App() {
       read: true
     };
     setDirectMessages((prev) => [...prev, newMsg]);
+    // كانت رسائل دردشة المقاطعة تبقى محلية فقط وتضيع عند التحديث — نزامنها مثل رسائل المجتمع
+    syncDirectMessageToDB(newMsg);
   };
 
   const handleToggleLikeResource = (resourceId: string) => {
@@ -1120,6 +1186,7 @@ export default function App() {
             <LessonPlanView
               lessonPlans={lessonPlans}
               activeLessonId={activeLessonPlanId}
+              currentUser={currentUser}
               onSaveLessonPlan={handleSaveLessonPlan}
               onDeleteLessonPlan={handleDeleteLessonPlan}
               onUpdateLessonStatus={handleUpdateLessonStatus}
@@ -1281,6 +1348,8 @@ export default function App() {
                   read: true
                 };
                 setDirectMessages((prev) => [...prev, newMsg]);
+                // مزامنة مثل باقي قنوات المراسلة حتى لا تضيع رسائل المفتش عند التحديث
+                syncDirectMessageToDB(newMsg);
               }}
             />
           )}

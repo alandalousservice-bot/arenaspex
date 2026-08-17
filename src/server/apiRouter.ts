@@ -8,6 +8,7 @@ import { generatePELessonPlan, suggestPEGames, generateAIChatResponse, testGemin
 import { prisma } from './prismaClient.js';
 import { hashPassword, sanitizeUser } from './auth.js';
 import { requireAuth, requireRole } from './middleware/requireAuth.js';
+import { wrapRouterAsyncErrors } from './middleware/asyncHandler.js';
 
 export const apiRouter = Router();
 
@@ -155,11 +156,31 @@ function jsonCollectionRoutes(opts: {
   listKey: string;
   batchBodyKey?: string;
   ownerField?: 'ownerId' | 'authorId' | 'userId' | 'senderId';
+  // قيود خصوصية على القراءة: بعض المجموعات خاصة بصاحبها ولا يجوز بثها لجميع المستخدمين
+  scopeToCurrentUser?: 'directParties' | 'recipient';
 }) {
-  const { path, model, bodyKey, listKey, batchBodyKey, ownerField } = opts;
+  const { path, model, bodyKey, listKey, batchBodyKey, ownerField, scopeToCurrentUser } = opts;
 
   apiRouter.get(`/db/${path}`, async (req, res) => {
-    const rows = await model.findMany({ orderBy: { createdAt: 'desc' } });
+    let rows = await model.findMany({ orderBy: { createdAt: 'desc' } });
+
+    if (scopeToCurrentUser === 'directParties') {
+      // الرسائل المباشرة: لا يراها إلا طرفا المحادثة (المُرسل أو المستقبِل)
+      // نفحص العمود المفهرس وحمولة JSON معاً لضمان التوافق مع كل مسارات الكتابة
+      const uid = req.user!.id;
+      rows = rows.filter(
+        (r: any) =>
+          r.senderId === uid ||
+          r.data?.senderId === uid ||
+          r.data?.receiverId === uid ||
+          r.data?.recipientId === uid
+      );
+    } else if (scopeToCurrentUser === 'recipient') {
+      // الإشعارات: يرى المستخدم إشعاراته الموجهة إليه فقط
+      const uid = req.user!.id;
+      rows = rows.filter((r: any) => r.userId === uid || r.data?.userId === uid);
+    }
+
     res.json({ success: true, [listKey]: rows.map((r: any) => ({ ...r.data, id: r.id })) });
   });
 
@@ -201,6 +222,20 @@ function jsonCollectionRoutes(opts: {
 
   apiRouter.delete(`/db/${path}/:id`, async (req, res) => {
     try {
+      // المجموعات المقيّدة بالمستخدم الحالي: يمنع حذف سجلات الغير
+      if (scopeToCurrentUser) {
+        const uid = req.user!.id;
+        const row = await model.findUnique({ where: { id: req.params.id } });
+        if (row) {
+          const isParty =
+            scopeToCurrentUser === 'recipient'
+              ? row.userId === uid || row.data?.userId === uid
+              : row.senderId === uid || row.data?.senderId === uid || row.data?.receiverId === uid;
+          if (!isParty) {
+            return res.status(403).json({ error: 'لا تملك الصلاحية لحذف هذا السجل.' });
+          }
+        }
+      }
       await model.delete({ where: { id: req.params.id } });
     } catch {
       // غير موجود مسبقاً
@@ -249,14 +284,15 @@ jsonCollectionRoutes({
   ownerField: 'authorId'
 });
 
-// 6. Direct Messages
+// 6. Direct Messages — خاصة بطرفي المحادثة (لا تصدَّر لجميع المستخدمين)
 jsonCollectionRoutes({
   path: 'direct-messages',
   model: prisma.directMessage,
   bodyKey: 'message',
   listKey: 'directMessages',
   batchBodyKey: 'directMessages',
-  ownerField: 'senderId'
+  ownerField: 'senderId',
+  scopeToCurrentUser: 'directParties'
 });
 
 // 7. Community Resources
@@ -269,13 +305,14 @@ jsonCollectionRoutes({
   ownerField: 'authorId'
 });
 
-// 8. Community Notifications
+// 8. Community Notifications — خاصة بالمستلم (لا تصدَّر لجميع المستخدمين)
 jsonCollectionRoutes({
   path: 'community-notifications',
   model: prisma.communityNotification,
   bodyKey: 'notification',
   listKey: 'communityNotifications',
-  ownerField: 'userId'
+  ownerField: 'userId',
+  scopeToCurrentUser: 'recipient'
 });
 
 // -----------------------------------------------------------------------
@@ -344,3 +381,7 @@ apiRouter.post('/ai/chat', async (req, res) => {
     res.status(500).json({ error: 'خطأ في الاستعلام من قاعدة البيانات', details: error.message });
   }
 });
+
+// التقاط أخطاء الوعود المرفوضة من معالجات async (مثل أخطاء Prisma عند تعذر الوصول لقاعدة البيانات)
+// وتحويلها إلى معالج الأخطاء العام بدل إسقاط عملية الخادم بالكامل — Express 4 لا يلتقطها تلقائياً
+wrapRouterAsyncErrors(apiRouter);
