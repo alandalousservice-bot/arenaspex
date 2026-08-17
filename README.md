@@ -1,47 +1,49 @@
-# SPEX — المنصة الرقمية الذكية للتربية البدنية والرياضية (الطور الابتدائي)
+# SPEX (arenaspex) — المنصة الرقمية الذكية للتربية البدنية والرياضية (الطور الابتدائي)
 
-منظومة رقمية جزائرية متكاملة لأستاذ التربية البدنية والرياضية: مولّد المذكرات
-البيداغوجية بالذكاء الاصطناعي (Gemini)، قمرة قيادة الحصة، الكراس اليومي،
-دفتر التقويم، المجتمع المهني، وبوابات المفتش والمدير والمشرف.
+منظومة جزائرية متكاملة لأستاذ ومفتش التربية البدنية: مولّد المذكرات البيداغوجية بالذكاء
+الاصطناعي (Gemini ومزودون آخرون)، قمرة قيادة الحصة، الكراس اليومي، دفتر التقويم،
+المحور المهني، إسناد الأساتذة للمفتشين، تسجيل الدخول بالبريد وكلمة المرور أو عبر
+Google، وبوابات المفتش والمدير والمشرف — **بواجهة متعددة الصفحات بروابط URL حقيقية**
+(كل أداة تُفتح برابطها في تبويب مستقل).
 
-## التشغيل المحلي (التطوير)
+## التقنيات
 
-**المتطلبات:** Node.js 20 أو أحدث، وقاعدة بيانات PostgreSQL.
+- **الواجهة**: React 19 + Vite 6 + Tailwind 4 + React Router 7 (روابط حقيقية لكل أداة)
+- **الخادم**: Express 4 (ملف `server.ts` موحّد للتطوير والإنتاج) + JWT في كوكيز httpOnly
+- **قاعدة البيانات**: PostgreSQL (Neon موصى به) عبر Prisma 6 — هجرات مُدارة
+- **جودة**: TypeScript + ESLint + Prettier + Vitest (35 اختباراً) + Husky
 
-1. ثبّت الاعتماديات:
-   ```bash
-   npm install
-   ```
-2. انسخ ملف البيئة واملأ قيمه (لا ترفع `.env` إلى Git أبداً):
-   ```bash
-   cp .env.example .env
-   ```
-   الإلزامي: `DATABASE_URL` و`JWT_SECRET` (32 حرفاً على الأقل).
-   الاختياري: `GEMINI_API_KEY`، إعدادات بريد `RESEND_*`، و`SUPER_ADMIN_*`
-   لإنشاء حساب المشرف الأول تلقائياً.
-3. طبّق مخطط قاعدة البيانات وشغّل المنصة:
-   ```bash
-   npx prisma migrate deploy
-   npm run dev
-   ```
+## التشغيل المحلي
 
-ثم افتح http://localhost:3000
+```bash
+npm install                     # أول مرة (يشغّل prisma generate تلقائياً)
+cp .env.example .env            # املأ DATABASE_URL و JWT_SECRET على الأقل
+npx prisma migrate deploy       # تطبيق مخطط قاعدة البيانات
+npm run db:seed                 # إنشاء SUPER_ADMIN (إن عرّفت SUPER_ADMIN_EMAIL/PASSWORD)
+npm run dev                     # http://localhost:3000
+```
 
-## الإنتاج
-
-- `npm run build` يبني الواجهة في `dist/`.
-- `npm start` يطبّق الهجرات، ينشئ حساب SUPER_ADMIN إن وُجدت متغيراته،
-  ثم يشغّل خادم Express الذي يقدّم الواجهة + واجهة API المحمية.
-
-📖 **الدليل الكامل للإنتاج والنشر (Neon + Render، إنشاء المشرف الأول،
-البريد الإلكتروني، استكشاف الأخطاء):** راجع [README-PRODUCTION.md](./README-PRODUCTION.md)
-
-## أوامر مفيدة
+## أوامر رئيسية
 
 | الأمر | الوظيفة |
 | --- | --- |
-| `npm run dev` | خادم التطوير (واجهة + API معاً) |
-| `npm run lint` | فحص TypeScript بدون بناء |
-| `npm run build` | بناء الإنتاج |
-| `npm run db:studio` | متصفح قاعدة البيانات (Prisma Studio) |
-| `npm run db:seed-from-json` | ترحيل بيانات `data_store.json` القديمة إلى Postgres |
+| `npm run dev` | خادم التطوير الموحّد (خادم + واجهة) |
+| `npm test` | تشغيل اختبارات Vitest |
+| `npm run typecheck` · `npm run lint` | فحص الأنواع + ESLint |
+| `npm run build` | بناء الواجهة + حزم الخادم (`dist/server.cjs`) |
+| `npm start` | تشغيل الإنتاج من `dist/server.cjs` |
+
+## النشر (Render + Neon)
+
+ملف `render.yaml` جاهز كنظام Blueprint: الأمران هما
+`npm run render:build` (تثبيت + prisma generate + migrate deploy + seed + build)
+و`npm run render:start`. المتغيرات الإلزامية: `DATABASE_URL` و`JWT_SECRET`.
+الاختيارية وآثارها موثقة تفصيلياً في `.env.example` (الذكاء الاصطناعي متعدد المزودين
+مع تشفير المفاتيح في القاعدة، بريد Resend لاسترجاع كلمة المرور، Google OAuth…).
+
+## ملاحظات أمنية
+
+- لا جلسات في المتصفح: المصادقة عبر كوكي httpOnly موقّع، وكلمات المرور bcrypt فقط.
+- كل مسارات `/api` محمية، وصلاحيات الملكية/المقاطعة مفروضة خادمياً (`collectionAuth`).
+- الدخول عبر Google يعمل فقط بعد ضبط `GOOGLE_CLIENT_ID` + `VITE_GOOGLE_CLIENT_ID`
+  ولا ينشئ حسابات جديدة (الحسابات يفتحها المشرف حصراً).

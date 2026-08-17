@@ -17,16 +17,11 @@ import {
   EyeOff,
   KeyRound,
   Mail,
-  AlertCircle,
-  Cpu,
-  Zap,
-  RefreshCw,
-  Sparkles,
-  Bot,
-  Key
+  AlertCircle
 } from 'lucide-react';
 import { User } from '../../types/spex';
-import { getStoredApiKey, setStoredApiKey, testApiKeyOnServer } from '../../services/api';
+import { getStoredApiKey, setStoredApiKey, testApiKeyOnServer, googleLinkRequest, googleUnlinkRequest } from '../../services/api';
+import { GoogleSignInButton } from '../auth/GoogleSignInButton';
 
 interface SettingsViewProps {
   currentUser: User;
@@ -142,12 +137,43 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
     }
   };
 
+  const [googleMsg, setGoogleMsg] = useState({ type: '', text: '' });
+  const [isGoogleBusy, setIsGoogleBusy] = useState(false);
+
+  // ربط حساب Google بالحساب الحالي (يتحقق الخادم من تطابق البريدين ووثاقة البريد)
+  const handleLinkGoogle = async (credential: string) => {
+    setGoogleMsg({ type: '', text: '' });
+    setIsGoogleBusy(true);
+    const result = await googleLinkRequest(credential);
+    setIsGoogleBusy(false);
+    if (!result.success || !result.user) {
+      setGoogleMsg({ type: 'error', text: result.error || 'تعذر ربط حساب Google.' });
+      return;
+    }
+    onUpdateUser(result.user);
+    setGoogleMsg({ type: 'success', text: 'تم ربط حساب Google بنجاح! يمكنك الآن الدخول به مباشرة دون كلمة مرور.' });
+  };
+
+  const handleUnlinkGoogle = async () => {
+    if (!window.confirm('هل تريد فك الربط مع حساب Google؟ ستعود إلى الدخول بكلمة المرور فقط.')) return;
+    setGoogleMsg({ type: '', text: '' });
+    setIsGoogleBusy(true);
+    const result = await googleUnlinkRequest();
+    setIsGoogleBusy(false);
+    if (!result.success || !result.user) {
+      setGoogleMsg({ type: 'error', text: result.error || 'تعذر فك الربط.' });
+      return;
+    }
+    onUpdateUser(result.user);
+    setGoogleMsg({ type: 'success', text: 'تم فك الارتباط مع حساب Google.' });
+  };
+
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
 
     // Password validation if user entered a new password
-    // الحد الأدنى 8 أحرف — موحّد مع سياسة الخادم (reset-password / bootstrap تفرض 8)
+    // الحد الأدنى 8 أحرف — موحّد مع سياسة الخادم (مسارا reset-password / bootstrap يفرضان 8)
     if (newPassword || confirmPassword) {
       if (newPassword.length < 8) {
         setPasswordError('كلمة المرور الجديدة يجب أن تحتوي على 8 أحرف على الأقل.');
@@ -159,9 +185,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
       }
     }
 
-    // Save API key locally and on user object
+    // Save API key locally and on user object (admin only)
+    const isAdminUser = currentUser.role === 'admin';
     const trimmedKey = customApiKeyInput.trim();
-    setStoredApiKey(trimmedKey);
+    if (isAdminUser) setStoredApiKey(trimmedKey);
 
     const updatedUser: User = {
       ...currentUser,
@@ -175,8 +202,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
       municipality,
       directorateId: directorateId === 'other_de' && customDirectorateName ? customDirectorateName : directorateId,
       districtId: districtId === 'custom' && customDistrictName ? customDistrictName : districtId,
-      customApiKey: trimmedKey,
-      apiKeyStatus: trimmedKey ? 'active' : 'not_set',
+      ...(isAdminUser
+        ? { customApiKey: trimmedKey, apiKeyStatus: trimmedKey ? 'active' : 'not_set' }
+        : {}),
       ...(newPassword ? { password: newPassword } : {})
     };
 
@@ -282,7 +310,104 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
             </div>
           </div>
 
-          {/* Section 2: Personal Details */}
+          {/* Section 1.5: Google account linking (دخول سريع بدون كلمة مرور) */}
+          <div className="space-y-3 p-4 rounded-2xl bg-white border border-slate-200/80">
+            <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-200/80 pb-2 flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-blue-600" />
+              <span>1.5. ربط الحساب بـ Google (دخول سريع)</span>
+            </h3>
+
+            {googleMsg.text && (
+              <div className={`p-3 rounded-xl border text-xs font-bold ${googleMsg.type === 'error' ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+                {googleMsg.text}
+              </div>
+            )}
+
+            {currentUser.googleId ? (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <p className="text-slate-700 font-bold">
+                  ✅ حسابك مربوط بحساب Google — يمكنك الدخول فوراً عبر الزر بدون كلمة مرور.
+                  <span className="block text-[10px] text-slate-400 font-normal mt-1 dir-ltr text-right">Google ID: {currentUser.googleId.slice(0, 10)}…</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={handleUnlinkGoogle}
+                  disabled={isGoogleBusy}
+                  className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold rounded-xl border border-rose-200 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  فك الربط
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  اربط حسابك بحساب Google يحمل <strong>نفس بريدك الإلكتروني المسجل</strong> لتتمكن لاحقاً من الدخول بنقرة واحدة من شاشة الدخول.
+                </p>
+                <GoogleSignInButton onCredential={handleLinkGoogle} text="continue_with" disabled={isGoogleBusy} />
+              </div>
+            )}
+          </div>
+
+          {/* Section 1.6: Custom Gemini API Key — admin only */}
+          {currentUser.role === 'admin' && (
+          <div className="space-y-3 p-4 rounded-2xl bg-indigo-50/60 border border-indigo-200/80">
+            <h3 className="text-sm font-extrabold text-slate-900 border-b border-indigo-200/80 pb-2 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-indigo-600" />
+                <span>1.6 مفتاح الذكاء الاصطناعي المخصص (Gemini API Key)</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowApiKey(!showApiKey)}
+                className="text-[11px] text-indigo-600 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                <span>{showApiKey ? 'إخفاء المفتاح' : 'إظهار المفتاح'}</span>
+              </button>
+            </h3>
+
+            <p className="text-[11px] text-slate-600">
+              يمكنك ربط مفتاح Gemini API جديد خاص بحسابك لتوليد المذكرات البيداغوجية والخطط التوجيهية بدون قيود الاستخدام العام.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type={showApiKey ? 'text' : 'password'}
+                value={customApiKeyInput}
+                onChange={(e) => setCustomApiKeyInput(e.target.value)}
+                placeholder="AIzaSy..."
+                className="flex-1 p-2.5 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 font-mono text-xs bg-white"
+              />
+              <button
+                type="button"
+                onClick={handleTestKeyConnection}
+                disabled={keyTestLoading}
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl disabled:opacity-50 cursor-pointer text-xs shrink-0"
+              >
+                {keyTestLoading ? 'جاري الفحص...' : 'فحص واختبار المفتاح'}
+              </button>
+            </div>
+
+            {keyTestFeedback && (
+              <div
+                className={`p-3 rounded-xl font-bold flex items-center gap-2 text-xs ${
+                  keyTestFeedback.type === 'success'
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                    : keyTestFeedback.type === 'warning'
+                    ? 'bg-amber-50 border border-amber-200 text-amber-800'
+                    : 'bg-rose-50 border border-rose-200 text-rose-800'
+                }`}
+              >
+                {keyTestFeedback.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                )}
+                <span>{keyTestFeedback.message}</span>
+              </div>
+            )}
+          </div>
+          )}
           <div className="space-y-4">
             <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
               <UserIcon className="w-4 h-4 text-blue-600" />
@@ -339,7 +464,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                 <input
                   type="number"
                   min={0}
-                  max={45}
+                  max={32}
                   value={yearsExperience}
                   onChange={(e) => setYearsExperience(Number(e.target.value))}
                   className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-medium"
@@ -366,7 +491,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                   required
                   value={schoolName}
                   onChange={(e) => setSchoolName(e.target.value)}
-                  placeholder="مثال: مدرسة الشهيد بالخيري عبد القادر"
+                  placeholder="مثال: مدرسة الشهيد مزيان عمار "
                   className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-medium bg-slate-50/50"
                 />
               </div>
@@ -419,11 +544,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                   className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-bold bg-white"
                 >
                   <option value="dist_setif_7">المقاطعة 07 - عين أزال (سطيف)</option>
-                  <option value="dist_setif_1">المقاطعة 01 - سطيف شرق</option>
-                  <option value="dist_setif_2">المقاطعة 02 - سطيف غرب</option>
-                  <option value="dist_setif_5">المقاطعة 05 - عين ولمان</option>
-                  <option value="dist_alg_1">المقاطعة التفتيشية الأولى - رويبة والدار البيضاء</option>
-                  <option value="dist_oran_1">المقاطعة التفتيشية 01 - وهران شرق</option>
+                  <option value="dist_setif_1">المقاطعة 01 - سطيف </option>
+                  <option value="dist_setif_2">المقاطعة 02 - سطيف </option>
+                  <option value="dist_setif_5">المقاطعة 03 - سطيف </option>
+                  <option value="dist_setif_2">المقاطعة 04 - سطيف </option>
+                  <option value="dist_setif_2">المقاطعة 05 - سطيف </option>
+                  <option value="dist_setif_2">المقاطعة 06 - سطيف </option>
+                  <option value="dist_setif_2">المقاطعة 08 - سطيف </option>
+                  <option value="dist_setif_2">المقاطعة 09 - سطيف </option>
+                  <option value="dist_setif_2">المقاطعة 10 - سطيف </option>
                   <option value="custom">مقاطعة أخرى (كتابة يدوية)...</option>
                 </select>
                 {districtId === 'custom' && (

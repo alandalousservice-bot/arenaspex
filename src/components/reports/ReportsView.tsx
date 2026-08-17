@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { FileSpreadsheet, Printer, Download, FileText, CheckCircle2, ShieldCheck, Award } from 'lucide-react';
+import { FileSpreadsheet, Printer } from 'lucide-react';
 import { User, LessonPlan, InspectorNote } from '../../types/spex';
 
 interface ReportsViewProps {

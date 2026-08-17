@@ -51,6 +51,21 @@ export const PE_LEVELS: PELevel[] = [
   { id: 'lvl_p5', name: 'السنة الخامسة ابتدائي', cycle: 'ابتدائي', order: 5 },
 ];
 
+// الكفاءة الختامية الشاملة لكل مستوى دراسي (ملتقى الكفاءات الختامية الثلاث للميادين التعليمية الثلاثة)
+// Grade → Overall Competency (واحدة لكل مستوى وفق الهيكلة البيداغوجية الرسمية)
+export const OVERALL_COMPETENCY_BY_LEVEL: Record<string, string> = {
+  lvl_p1: 'التحكم في الوضعيات والتنقلات والحركات القاعدية الأساسية وتوظيفها في وضعيات لعب ونشاطات جماعية بسيطة منظمة، في إطار احترام الذات والآخرين.',
+  lvl_p2: 'التحكم في التنقلات والحركات القاعدية المركّبة وتوظيفها في وضعيات حركية ولعب جماعي منظم، مع الالتزام بقواعد النشاط والتعاون مع الزملاء.',
+  lvl_p3: 'بناء وتوظيف مهارات حركية وجماعية متنوعة في وضعيات مشكلة تتطلب التخطيط والتعاون واحترام القواعد، مع تنمية روح المبادرة.',
+  lvl_p4: 'التحكم في مهارات حركية وجماعية أكثر تعقيداً وتوظيفها في وضعيات تنافسية منظمة، مع تحمل المسؤولية الجماعية واحترام روح المنافسة الشريفة.',
+  lvl_p5: 'إدماج مجمل المكتسبات الحركية والمعرفية والاجتماعية في وضعيات تنافسية جماعية مركّبة، وبناء حلول جماعية تُظهر الاستقلالية والمسؤولية والانضباط.'
+};
+
+/** الحجم الساعي المرصود لميدان تعليمي/مقطع تعليمي (كل حصة تعلّمية ≈ ساعة تدريسية واحدة) */
+export function getFieldAllocatedHours(field: { sessionsCount: number }): number {
+  return field.sessionsCount;
+}
+
 // PE Fields - Official Algerian Primary PE Curriculum (الميادين التعليمية الثلاثة المعتمدة حصراً وفق المنهاج الوزاري)
 export const PE_FIELDS: PEField[] = [
   {
@@ -748,12 +763,12 @@ export function generateAnnualTimeDistribution(
   levelId: string = 'lvl_p1',
   startDateStr: string = '2025-09-21',
   teachingDayOfWeek: number = 0, // 0: الأحد, 1: الاثنين, 2: الثلاثاء, 3: الأربعاء, 4: الخميس
-  className: string = '1 ابتدائي 1'
+  _className: string = '1 ابتدائي 1'
 ): ScheduledAnnualSession[] {
   const levelData = COMPLETE_ANNUAL_CURRICULUM[levelId] || COMPLETE_ANNUAL_CURRICULUM['lvl_p1'];
   const scheduledSessions: ScheduledAnnualSession[] = [];
 
-  let currentDate = new Date(startDateStr);
+  const currentDate = new Date(startDateStr);
 
   // Align to first occurrence of the selected teaching day of week
   while (currentDate.getDay() !== (teachingDayOfWeek === 0 ? 0 : teachingDayOfWeek)) {

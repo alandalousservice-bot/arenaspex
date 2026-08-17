@@ -69,6 +69,10 @@ interface ProfessionalCommunityViewProps {
   onNotifyNewFollower?: (targetUserId: string) => void;
   lessonPlans: LessonPlan[];
   knowledgeItems: KnowledgeItem[];
+  /** تبويب داخلي مُتحكَّم فيه من الخارج (يُستخدم داخل فضاء التواصل المهني الموحّد) */
+  controlledTab?: 'feed' | 'search' | 'chat' | 'notifications' | 'profile_privacy';
+  onTabChange?: (tab: 'feed' | 'search' | 'chat' | 'notifications' | 'profile_privacy') => void;
+  hideTabBar?: boolean;
 }
 
 export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps> = ({
@@ -88,9 +92,17 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
   onDeleteNotification,
   onNotifyNewFollower,
   lessonPlans,
-  knowledgeItems
+  knowledgeItems,
+  controlledTab,
+  onTabChange,
+  hideTabBar = false
 }) => {
   const [activeTab, setActiveTab] = useState<'feed' | 'search' | 'chat' | 'notifications' | 'profile_privacy'>('feed');
+  const currentTab = controlledTab ?? activeTab;
+  const goToTab = (tab: typeof currentTab) => {
+    if (onTabChange) onTabChange(tab);
+    else setActiveTab(tab);
+  };
   
   // Search state - ONLY search by username
   const [searchUsernameQuery, setSearchUsernameQuery] = useState('');
@@ -304,11 +316,12 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
         </div>
 
         {/* Navigation Tabs Bar */}
-        <div className="mt-6 pt-4 border-t border-white/10 flex items-center gap-2 overflow-x-auto scrollbar-none">
+        {!hideTabBar && (
+          <div className="mt-6 pt-4 border-t border-white/10 flex items-center gap-2 overflow-x-auto scrollbar-none">
           <button
-            onClick={() => setActiveTab('feed')}
+            onClick={() => goToTab('feed')}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'feed'
+              currentTab === 'feed'
                 ? 'bg-white text-blue-900 shadow-md font-black'
                 : 'bg-white/10 text-white hover:bg-white/20'
             }`}
@@ -318,9 +331,9 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
           </button>
 
           <button
-            onClick={() => setActiveTab('search')}
+            onClick={() => goToTab('search')}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'search'
+              currentTab === 'search'
                 ? 'bg-white text-blue-900 shadow-md font-black'
                 : 'bg-white/10 text-white hover:bg-white/20'
             }`}
@@ -330,9 +343,9 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
           </button>
 
           <button
-            onClick={() => setActiveTab('chat')}
+            onClick={() => goToTab('chat')}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap relative ${
-              activeTab === 'chat'
+              currentTab === 'chat'
                 ? 'bg-white text-blue-900 shadow-md font-black'
                 : 'bg-white/10 text-white hover:bg-white/20'
             }`}
@@ -342,9 +355,9 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
           </button>
 
           <button
-            onClick={() => setActiveTab('notifications')}
+            onClick={() => goToTab('notifications')}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap relative ${
-              activeTab === 'notifications'
+              currentTab === 'notifications'
                 ? 'bg-white text-blue-900 shadow-md font-black'
                 : 'bg-white/10 text-white hover:bg-white/20'
             }`}
@@ -359,9 +372,9 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
           </button>
 
           <button
-            onClick={() => setActiveTab('profile_privacy')}
+            onClick={() => goToTab('profile_privacy')}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'profile_privacy'
+              currentTab === 'profile_privacy'
                 ? 'bg-white text-blue-900 shadow-md font-black'
                 : 'bg-white/10 text-white hover:bg-white/20'
             }`}
@@ -370,12 +383,13 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
             <span>حسابي الشخصي والخصوصية</span>
           </button>
         </div>
+        )}
       </div>
 
       {/* TABS CONTENT */}
 
       {/* 1. PEDAGOGICAL RESOURCES FEED TAB */}
-      {activeTab === 'feed' && (
+      {currentTab === 'feed' && (
         <div className="space-y-6">
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
@@ -422,7 +436,9 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                         <h4 className="text-xs font-black text-slate-900 flex items-center gap-1">
                           <span>{res.authorName}</span>
                           {res.isApprovedByInspector && (
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" title="معتمد من التفتيش" />
+                            <span title="معتمد من التفتيش">
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            </span>
                           )}
                         </h4>
                         <div className="flex items-center gap-2 text-[10px] text-slate-500">
@@ -492,7 +508,7 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                         if (author) {
                           setSelectedChatUser(author);
                           setSelectedResourceToShare(res);
-                          setActiveTab('chat');
+                          goToTab('chat');
                         } else {
                           alert('لا يمكن الاتصال بصاحب المورد حالياً');
                         }
@@ -511,7 +527,7 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
       )}
 
       {/* 2. SEARCH BY USERNAME ONLY TAB */}
-      {activeTab === 'search' && (
+      {currentTab === 'search' && (
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex items-center gap-3">
@@ -644,7 +660,7 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                         <button
                           onClick={() => {
                             setSelectedChatUser(user);
-                            setActiveTab('chat');
+                            goToTab('chat');
                           }}
                           className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
                         >
@@ -662,7 +678,7 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
       )}
 
       {/* 3. DIRECT COMMUNITY CHAT TAB */}
-      {activeTab === 'chat' && (
+      {currentTab === 'chat' && (
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-md overflow-hidden grid grid-cols-1 md:grid-cols-3 min-h-[520px]">
           {/* Chat Contacts Sidebar */}
           <div className="border-b md:border-b-0 md:border-l border-slate-200 bg-slate-50/50 p-4 space-y-4">
@@ -924,7 +940,7 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
       )}
 
       {/* 4. NOTIFICATIONS TAB */}
-      {activeTab === 'notifications' && (
+      {currentTab === 'notifications' && (
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
@@ -986,7 +1002,7 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
       )}
 
       {/* 5. PROFILE & PRIVACY SETTINGS TAB */}
-      {activeTab === 'profile_privacy' && (
+      {currentTab === 'profile_privacy' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Personal Card & Identity Details */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
@@ -1318,7 +1334,7 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                       onClick={() => {
                         setIsFollowersModalOpen(false);
                         setSelectedChatUser(u);
-                        setActiveTab('chat');
+                        goToTab('chat');
                       }}
                       className="px-3 py-1 bg-slate-900 text-white text-[11px] font-bold rounded-lg"
                     >

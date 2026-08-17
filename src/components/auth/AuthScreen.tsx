@@ -21,7 +21,8 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { User as UserType, UserRole } from '../../types/spex';
-import { loginRequest, forgotPasswordRequest, resetPasswordRequest } from '../../services/api';
+import { loginRequest, registerRequest, forgotPasswordRequest, resetPasswordRequest, googleLoginRequest } from '../../services/api';
+import { GoogleSignInButton } from './GoogleSignInButton';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: UserType) => void;
@@ -32,9 +33,14 @@ interface AuthScreenProps {
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackToLanding }) => {
   const [activeForm, setActiveForm] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
 
-  // Form states - empty by default so user MUST type their authorized credentials
+  // Form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [schoolName, setSchoolName] = useState('');
+  const [municipality, setMunicipality] = useState('');
+  const [phone, setPhone] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole>('teacher');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -74,6 +80,54 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
       return;
     }
 
+    onLoginSuccess(result.user);
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password) {
+      setErrorMsg('يرجى ملء كافة الحقول الأساسية لإنشاء الحساب.');
+      return;
+    }
+    if (password.length < 6) {
+      setErrorMsg('كلمة المرور يجب أن تكون 6 أحرف على الأقل.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const result = await registerRequest({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: email.trim(),
+      password,
+      role: selectedRole,
+      schoolName: schoolName.trim() || 'مدرسة ابتدائية',
+      municipality: municipality.trim() || 'عين أزال - سطيف',
+      phone: phone.trim() || '0661234567'
+    });
+    setIsSubmitting(false);
+
+    if (!result.success || !result.user) {
+      setErrorMsg(result.error || 'تعذر إنشاء الحساب.');
+      return;
+    }
+
+    onLoginSuccess(result.user);
+  };
+
+  const handleGoogleCredential = async (credential: string) => {
+    setErrorMsg('');
+    setIsSubmitting(true);
+    const result = await googleLoginRequest(credential);
+    setIsSubmitting(false);
+
+    if (!result.success || !result.user) {
+      setErrorMsg(result.error || 'تعذر تسجيل الدخول عبر Google.');
+      return;
+    }
     onLoginSuccess(result.user);
   };
 
@@ -355,42 +409,138 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
           </form>
         )}
 
-        {/* Form 2: REGISTER (DISABLED FOR PUBLIC - ADMIN ONLY POLICY) */}
+        {/* Form 2: PUBLIC REGISTER FORM */}
+        {/* Google Sign-In — يظهر فقط في شاشة الدخول، أسفل نموذج البريد وكلمة المرور */}
+        {activeForm === 'login' && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-slate-700/70" />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">أو</span>
+              <div className="h-px flex-1 bg-slate-700/70" />
+            </div>
+            <GoogleSignInButton onCredential={handleGoogleCredential} disabled={isSubmitting} />
+            <p className="text-[10px] text-slate-500 text-center leading-relaxed">
+              يعمل الدخول عبر Google فقط لحساب موجود مسبقاً بنفس البريد الإلكتروني، ويربطه تلقائياً بحساب Google عند أول استخدام.
+            </p>
+          </div>
+        )}
+
         {activeForm === 'register' && (
-          <div className="space-y-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs leading-relaxed">
-            <div className="flex items-center gap-2 text-amber-400 font-extrabold text-sm border-b border-amber-500/20 pb-2">
-              <Lock className="w-5 h-5 shrink-0" />
-              <span>ميزة التسجيل الذاتي غير مفعلة للعموم</span>
+          <form onSubmit={handleRegister} className="space-y-3.5">
+            <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-300 text-[11px] leading-relaxed">
+              <span className="font-extrabold text-white">📌 تلميح التسجيل:</span> عند إنشاء الحساب، يمكنك الدخول مباشرة في <strong className="text-amber-300">وضع المشاهدة والاطلاع على مزايا المنظومة</strong>، وتفعيل الوصول الكامل يتم عبر <strong className="text-emerald-300">مشرف المنظومة الرقمية</strong>.
             </div>
 
-            <p className="font-semibold text-slate-200">
-              إنشاء الحسابات الجديدة في منصة <strong className="text-blue-400">SPEX</strong> مقتصر حصرياً على <strong className="text-emerald-400">مشرف المنظومة الرقمية</strong> و<strong className="text-amber-400">المفتش البيداغوجي</strong> للقطاع.
-            </p>
-
-            <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700/80 space-y-2 text-[11px] text-slate-300">
-              <div className="font-bold text-white flex items-center gap-1.5">
-                <Shield className="w-4 h-4 text-emerald-400" />
-                <span>كيفية الحصول على حسابك المهني:</span>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">الاسم الأول *</label>
+                <input
+                  type="text"
+                  required
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="مثال: عبد القادر"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                />
               </div>
-              <ul className="list-disc list-inside space-y-1 text-slate-300">
-                <li>يتولى مشرف النظام إنشاء الحسابات بأسماء المدرسين والمفتشين المعتمدين.</li>
-                <li>تُسلم كلمة المرور الافتراضية والبريد الرسمي مباشرة عبر المفتشية أو المديرية.</li>
-                <li>يمكن للمشرف تفعيل مفتاح الـ API الخاص بكل أستاذ من لوحة التحكم العليا.</li>
-              </ul>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">اللقب *</label>
+                <input
+                  type="text"
+                  required
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="مثال: بومدين"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-300">البريد الإلكتروني *</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@domain.dz"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-300">كلمة المرور * (6 أحرف على الأقل)</label>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">الرتبة / الصفة المهنية</label>
+                <select
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value as UserRole)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-[11px] text-white focus:outline-none focus:border-purple-500"
+                >
+                  <option value="teacher">أستاذ التربية البدنية</option>
+                  <option value="inspector">مفتش بيداغوجي</option>
+                  <option value="director">مدير مدرسة ابتدائية</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">المؤسسة / المدرسة</label>
+                <input
+                  type="text"
+                  value={schoolName}
+                  onChange={(e) => setSchoolName(e.target.value)}
+                  placeholder="مدرسة عبد الحميد بن باديس"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">البلدية / المقاطعة</label>
+                <input
+                  type="text"
+                  value={municipality}
+                  onChange={(e) => setMunicipality(e.target.value)}
+                  placeholder="عين أزال - سطيف"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">رقم الهاتف للتفعيل</label>
+                <input
+                  type="text"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="0661234567"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right"
+                />
+              </div>
             </div>
 
             <button
-              type="button"
-              onClick={() => {
-                setActiveForm('login');
-                setErrorMsg('');
-              }}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs shadow-lg shadow-purple-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
             >
-              <LogIn className="w-4 h-4" />
-              <span>العودة لشاشة تسجيل الدخول</span>
+              <UserPlus className="w-4 h-4" />
+              <span>{isSubmitting ? 'جارٍ تسجيل الحساب...' : 'تسجيل الحساب والدخول لوضع المشاهدة'}</span>
             </button>
-          </div>
+          </form>
         )}
 
         {/* Form 3: FORGOT PASSWORD */}

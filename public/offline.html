@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SPEX - لا يوجد اتصال بالإنترنت</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #1e3a8a, #4338ca);
+        color: #fff;
+        font-family: -apple-system, "Segoe UI", Tahoma, sans-serif;
+        text-align: center;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+      .card {
+        max-width: 420px;
+      }
+      h1 { font-size: 22px; margin-bottom: 8px; }
+      p { font-size: 14px; opacity: 0.85; line-height: 1.7; }
+      button {
+        margin-top: 16px;
+        background: #fff;
+        color: #1d4ed8;
+        border: none;
+        padding: 10px 24px;
+        border-radius: 12px;
+        font-weight: 800;
+        font-size: 14px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>لا يوجد اتصال بالإنترنت حالياً</h1>
+      <p>تعذّر الوصول إلى منصة SPEX لعدم توفر اتصال بالشبكة. تحقّق من اتصالك بالإنترنت ثم أعد المحاولة، ستستمر البيانات المحفوظة سابقاً في الظهور بمجرد استعادة الاتصال.</p>
+      <button onclick="location.reload()">إعادة المحاولة</button>
+    </div>
+  </body>
+</html>

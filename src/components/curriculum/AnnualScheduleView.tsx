@@ -1,6 +1,8 @@
 /**
  * SPEX - Annual Schedule View Component
- * التوزيع السنوي للحصص (30 حصة) في خانة مستقلة مع الربط البيداغوجي مع المخطط السنوي
+ * التوزيع السنوي: مسؤول حصرياً عن برمجة تواريخ تنفيذ الحصص المعرَّفة مسبقاً في
+ * المقاطع التعليمية. لا يُنشئ حصصاً ولا يعدّل ترتيبها أو نوعها أو صياغتها — فقط
+ * يعيّن/يؤجل/يعيد برمجة التاريخ، مع التفادي الآلي للعطل المدرسية.
  */
 
 import React, { useState, useMemo } from 'react';
@@ -13,23 +15,34 @@ import {
   Filter,
   ArrowLeft,
   Calendar,
-  CheckCircle2,
-  Sparkles,
-  Info
+  ShieldCheck,
+  RotateCcw,
+  PenLine
 } from 'lucide-react';
 import {
   PE_LEVELS,
   PE_FIELDS,
   COMPLETE_ANNUAL_CURRICULUM,
-  generateAnnualTimeDistribution,
-  ScheduledAnnualSession
+  generateAnnualTimeDistribution
 } from '../../data/algerianCurriculum';
+import { User, LessonExecutionStatus } from '../../types/spex';
+import { useCurriculumOverrides } from '../../hooks/useCurriculumOverrides';
+import { mergeSchedule } from '../../services/schedule/scheduleMerge';
 
 interface AnnualScheduleViewProps {
+  currentUser: User;
   onNavigateToAnnualPlan?: () => void;
 }
 
+const STATUS_STYLES: Record<LessonExecutionStatus, string> = {
+  'مبرمجة': 'bg-blue-100 text-blue-800 border-blue-200',
+  'منجزة': 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  'مؤجلة': 'bg-amber-100 text-amber-800 border-amber-200',
+  'غير منجزة': 'bg-slate-200 text-slate-700 border-slate-300'
+};
+
 export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
+  currentUser,
   onNavigateToAnnualPlan
 }) => {
   const [selectedLevelId, setSelectedLevelId] = useState<string>('lvl_p1');
@@ -39,28 +52,44 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
   const [filterField, setFilterField] = useState<string>('all');
 
   const selectedLevel = PE_LEVELS.find((l) => l.id === selectedLevelId) || PE_LEVELS[0];
-  const levelCurriculum = COMPLETE_ANNUAL_CURRICULUM[selectedLevelId] || COMPLETE_ANNUAL_CURRICULUM['lvl_p1'];
 
-  // Calculate dynamic 30-session distribution
-  const scheduledSessions = useMemo(() => {
+  // تخصيصات التاريخ/الحالة لكل حصة (تأجيل/إعادة برمجة يدوية) — نفس المصدر الذي
+  // يقرأه الكراس اليومي تلقائياً، بدون أي تكرار للبيانات
+  const {
+    values: scheduleOverrides,
+    setValueAndSave,
+    restore: restoreLesson,
+    isLockedForTeacher
+  } = useCurriculumOverrides({ currentUser, levelId: selectedLevelId, kind: 'schedule_dates' });
+
+  const canEdit = currentUser.role === 'teacher' && !isLockedForTeacher;
+
+  // Calculate dynamic 30-session distribution (auto-computed base, holiday-avoiding)
+  const baseSchedule = useMemo(() => {
     return generateAnnualTimeDistribution(selectedLevelId, startDate, teachingDay, className);
   }, [selectedLevelId, startDate, teachingDay, className]);
 
-  const filteredScheduledSessions = useMemo(() => {
-    if (filterField === 'all') return scheduledSessions;
-    return scheduledSessions.filter((s) => s.fieldId === filterField);
-  }, [scheduledSessions, filterField]);
+  const mergedSchedule = useMemo(
+    () => mergeSchedule(baseSchedule, scheduleOverrides),
+    [baseSchedule, scheduleOverrides]
+  );
 
-  const totalPostponedHolidays = useMemo(() => {
-    return scheduledSessions.filter((s) => s.isHolidayPostponed).length;
-  }, [scheduledSessions]);
+  const filteredSchedule = useMemo(() => {
+    if (filterField === 'all') return mergedSchedule;
+    return mergedSchedule.filter((s) => s.fieldId === filterField);
+  }, [mergedSchedule, filterField]);
+
+  const totalPostponedHolidays = useMemo(
+    () => baseSchedule.filter((s) => s.isHolidayPostponed).length,
+    [baseSchedule]
+  );
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200 print:space-y-3">
       {/* Printable Header */}
       <div className="hidden print:block text-center border-b-2 border-slate-900 pb-3 mb-4 space-y-1">
         <h3 className="text-sm font-black text-slate-900">الجمهورية الجزائرية الديمقراطية الشعبية</h3>
-        <h4 className="text-xs font-bold text-slate-700">وزارة التربية الوطنية - مديرية التربية لولاية سطيف</h4>
+        <h4 className="text-xs font-bold text-slate-700">وزارة التربية الوطنية - {currentUser.schoolName || 'المدرسة الابتدائية'}</h4>
         <h5 className="text-xs font-extrabold text-blue-900 mt-1">
           التوزيع الزمني السنوي للحصص التعليمية (30 حصة) - {selectedLevel.name} - قسم: {className}
         </h5>
@@ -76,7 +105,7 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg">
-              التخطيط والتوزيع الزمني للحصص
+              برمجة تواريخ التنفيذ فقط
             </span>
             <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">
               البرمجة الآلية لـ 30 حصة
@@ -87,11 +116,11 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
             <span>التوزيع السنوي للحصص التعليمية</span>
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            نظام البرمجة الزمنية للحصص الثلاثين (30) للتربية البدنية والرياضية مع التفادي الآلي للعطل المدرسية الجزائرية
+            برمجة/تأجيل/إعادة برمجة تاريخ كل حصة، مع التفادي الآلي للعطل — الحصص ونوعها وترتيبها ثابتة من المقاطع التعليمية
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 print:hidden">
           <button
             onClick={() => window.print()}
             className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-2xl shadow-sm transition-all cursor-pointer"
@@ -102,6 +131,13 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
         </div>
       </div>
 
+      {isLockedForTeacher && (
+        <div className="rounded-2xl p-4 border bg-amber-50 border-amber-200 text-amber-900 flex items-center gap-3 text-xs font-bold print:hidden">
+          <ShieldCheck className="w-5 h-5 shrink-0" />
+          <span>يوجد اقتراح برمجة من مفتش المقاطعة على هذا المستوى بانتظار اعتماده.</span>
+        </div>
+      )}
+
       {/* Direct Pedagogical Link Banner */}
       <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-3xl p-5 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-blue-800">
         <div className="flex items-center gap-3">
@@ -111,10 +147,10 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
           <div>
             <span className="text-[11px] font-bold text-amber-300 block">الربط البيداغوجي المباشر بالمنهاج</span>
             <h3 className="text-sm sm:text-base font-extrabold text-white">
-              المخطط السنوي للمناهج والكفاءات الختامية المعيارية ({selectedLevel.name})
+              الحصص مستوردة تلقائياً من المقاطع التعليمية ({selectedLevel.name})
             </h3>
             <p className="text-xs text-slate-300 mt-0.5">
-              يتصل هذا التوزيع السنوي للحصص مباشرة بالكفاءات الختامية والمعايير الرسمية للميدان والمستوى
+              أي تعديل لصياغة الأهداف يتم من وحدة المقاطع التعليمية؛ هذه الوحدة تُبرمج التاريخ فقط
             </p>
           </div>
         </div>
@@ -168,7 +204,7 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
               خصائص التوزيع الزمني والتفادي التلقائي للعطل
             </h3>
             <p className="text-xs text-slate-500">
-              اختر تاريخ بداية الموسم ويوم التدريس لحساب تواريخ الحصص الـ 30 تلقائياً
+              اختر تاريخ بداية الموسم ويوم التدريس لحساب تواريخ الحصص الـ 30 تلقائياً (يمكن لاحقاً تعديل أي حصة يدوياً)
             </p>
           </div>
 
@@ -255,7 +291,7 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
             <span>التوزيع الزمني الرسمي لـ {selectedLevel.name} - قسم: {className}</span>
           </div>
           <span className="text-blue-700 font-black bg-blue-100 px-3 py-1 rounded-xl">
-            {filteredScheduledSessions.length} حصة مبرمجة معروضة
+            {filteredSchedule.length} حصة مبرمجة معروضة
           </span>
         </div>
 
@@ -264,19 +300,19 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
             <thead className="bg-slate-100 text-slate-800 font-extrabold border-b border-slate-200">
               <tr>
                 <th className="p-3 text-center">رقم الحصة</th>
-                <th className="p-3">تاريخ الحصة</th>
-                <th className="p-3">الميدان التعلمي</th>
+                <th className="p-3">المقطع التعليمي (Learning Section)</th>
                 <th className="p-3">نوع الحصة</th>
-                <th className="p-3">الهدف التعلمي الخاص بالحصة</th>
-                <th className="p-3 text-center">ملاحظات الرزنامة والعطل</th>
+                <th className="p-3">تاريخ التنفيذ</th>
+                <th className="p-3 text-center">حالة التنفيذ</th>
+                <th className="p-3 text-center">ملاحظات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
-              {filteredScheduledSessions.map((sess) => (
+              {filteredSchedule.map((sess) => (
                 <tr
-                  key={sess.globalSessionNumber}
+                  key={sess.key}
                   className={`hover:bg-slate-50 transition-colors ${
-                    sess.isHolidayPostponed ? 'bg-amber-50/40' : ''
+                    sess.isHolidayPostponed || sess.isManuallyRescheduled ? 'bg-amber-50/40' : ''
                   }`}
                 >
                   <td className="p-3 text-center font-extrabold text-slate-900">
@@ -285,14 +321,9 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
                     </span>
                   </td>
 
-                  <td className="p-3 font-bold text-slate-800 whitespace-nowrap">
-                    <span className="bg-slate-100 px-2.5 py-1 rounded-lg text-slate-900 border border-slate-200 font-mono">
-                      {sess.scheduledDate}
-                    </span>
-                  </td>
-
                   <td className="p-3 font-extrabold text-slate-900 whitespace-nowrap">
                     {sess.fieldName}
+                    <span className="block text-[10px] font-bold text-slate-400">حصة {sess.fieldSessionNumber}/10</span>
                   </td>
 
                   <td className="p-3 whitespace-nowrap">
@@ -311,8 +342,51 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
                     </span>
                   </td>
 
-                  <td className="p-3 font-semibold text-slate-800 leading-relaxed">
-                    {sess.targetObjective}
+                  <td className="p-3 whitespace-nowrap">
+                    {canEdit ? (
+                      <input
+                        type="date"
+                        value={sess.scheduledDate}
+                        onChange={(e) => setValueAndSave(sess.key, { date: e.target.value })}
+                        className="px-2 py-1 rounded-lg text-slate-900 border border-slate-200 font-mono text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    ) : (
+                      <span className="bg-slate-100 px-2.5 py-1 rounded-lg text-slate-900 border border-slate-200 font-mono">
+                        {sess.scheduledDate}
+                      </span>
+                    )}
+                    {sess.isManuallyRescheduled && (
+                      <span className="block text-[10px] font-bold text-amber-700 mt-1 flex items-center gap-1">
+                        <PenLine className="w-2.5 h-2.5" /> معدَّلة يدوياً (الأصل: {sess.originalScheduledDate})
+                        {canEdit && (
+                          <button
+                            onClick={() => restoreLesson(sess.key)}
+                            className="text-blue-700 hover:underline flex items-center gap-0.5 mr-1"
+                          >
+                            <RotateCcw className="w-2.5 h-2.5" /> رجوع
+                          </button>
+                        )}
+                      </span>
+                    )}
+                  </td>
+
+                  <td className="p-3 text-center">
+                    {canEdit ? (
+                      <select
+                        value={sess.status}
+                        onChange={(e) => setValueAndSave(sess.key, { status: e.target.value as LessonExecutionStatus })}
+                        className={`px-2 py-1 rounded-lg font-bold text-[11px] border cursor-pointer outline-none ${STATUS_STYLES[sess.status]}`}
+                      >
+                        <option value="مبرمجة">مبرمجة</option>
+                        <option value="منجزة">منجزة</option>
+                        <option value="مؤجلة">مؤجلة</option>
+                        <option value="غير منجزة">غير منجزة</option>
+                      </select>
+                    ) : (
+                      <span className={`px-2.5 py-1 rounded-lg font-bold text-[11px] border ${STATUS_STYLES[sess.status]}`}>
+                        {sess.status}
+                      </span>
+                    )}
                   </td>
 
                   <td className="p-3 text-center whitespace-nowrap">

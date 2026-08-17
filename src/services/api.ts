@@ -7,9 +7,12 @@
 // Real Authentication — يستبدل المقارنة المحلية لكلمة المرور في المتصفح
 // الجلسة محفوظة في كوكي httpOnly، لذا لا حاجة لتخزين أي رمز يدوياً هنا
 // -----------------------------------------------------------------------
+import { User } from '../types/spex';
+import type { AnnualPlan, AnnualPlanKind, AnnualPlanObjectiveOverride } from '../types/spex';
+
 export interface AuthResult {
   success: boolean;
-  user?: any;
+  user?: User;
   error?: string;
 }
 
@@ -30,11 +33,90 @@ export async function loginRequest(email: string, password: string): Promise<Aut
   }
 }
 
+export async function registerRequest(userData: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  role?: string;
+  schoolName?: string;
+  municipality?: string;
+  phone?: string;
+}): Promise<AuthResult> {
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userData)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, error: data.error || 'تعذر إنشاء الحساب.' };
+    }
+    return { success: true, user: data.user };
+  } catch (e) {
+    return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
+  }
+}
+
 export async function logoutRequest(): Promise<void> {
   try {
     await fetch('/api/auth/logout', { method: 'POST' });
   } catch (e) {
     // تجاهل: تنظيف الحالة المحلية سيحدث بغض النظر
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Google Sign-In (ID token القادم من زر GSI) — لا ينشئ حسابات جديدة إطلاقاً:
+// الخادم يقبل فقط الحسابات الموجودة المعتمدة، ويربط googleId تلقائياً عند أول
+// دخول ناجح بنفس البريد الإلكتروني
+// ---------------------------------------------------------------------------
+export async function googleLoginRequest(credential: string): Promise<AuthResult> {
+  try {
+    const res = await fetch('/api/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, error: data.error || 'تعذر تسجيل الدخول عبر Google.' };
+    }
+    return { success: true, user: data.user };
+  } catch (e) {
+    return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
+  }
+}
+
+// ربط حساب Google بحساب مسجّل الدخول حالياً (من صفحة الإعدادات)
+export async function googleLinkRequest(credential: string): Promise<AuthResult> {
+  try {
+    const res = await fetch('/api/auth/google/link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, error: data.error || 'تعذر ربط حساب Google.' };
+    }
+    return { success: true, user: data.user };
+  } catch (e) {
+    return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
+  }
+}
+
+export async function googleUnlinkRequest(): Promise<AuthResult> {
+  try {
+    const res = await fetch('/api/auth/google/unlink', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, error: data.error || 'تعذر إلغاء ربط حساب Google.' };
+    }
+    return { success: true, user: data.user };
+  } catch (e) {
+    return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
   }
 }
 
@@ -111,19 +193,105 @@ export function setStoredApiKey(key: string) {
   }
 }
 
-export async function testApiKeyOnServer(key: string) {
+export async function testAIProviderOnServer(provider: string) {
   try {
-    const response = await fetch('/api/ai/test-key', {
+    const response = await fetch('/api/ai/test-provider', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-custom-api-key': key.trim()
-      },
-      body: JSON.stringify({ apiKey: key.trim() })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider })
     });
     return await response.json();
-  } catch (err) {
-    return { valid: false, message: 'تعذر الاتصال بالخادم لفحص المفتاح.' };
+  } catch {
+    return { valid: false, message: 'تعذر الاتصال بالخادم لفحص مزود الذكاء الاصطناعي.' };
+  }
+}
+
+// Backward-compatible alias for existing settings UI; it now tests the server's default provider.
+export async function testApiKeyOnServer(_key: string) {
+  return testAIProviderOnServer('nvidia');
+}
+
+// -----------------------------------------------------------------------
+// إدارة مزودات الذكاء الاصطناعي (تخزين خادمي عبر لوحة المشرف)
+// -----------------------------------------------------------------------
+export interface AIProviderStatusItem {
+  id: string;
+  name: string;
+  type: string;
+  baseUrl?: string;
+  model?: string;
+  enabled: boolean;
+  source: 'env' | 'db';
+  keyConfigured: boolean;
+}
+
+export interface AIProviderInput {
+  name: string;
+  type: string;
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+  enabled?: boolean;
+  sortOrder?: number;
+}
+
+export async function fetchAIProviders(): Promise<AIProviderStatusItem[]> {
+  try {
+    const res = await fetch('/api/ai/providers', { method: 'GET' });
+    const data = await res.json();
+    return (data && data.providers) || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function createAIProvider(input: AIProviderInput): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch('/api/ai/providers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input)
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, error: data.error || 'تعذّر حفظ المزود.' };
+    return { success: true };
+  } catch {
+    return { success: false, error: 'تعذّر الاتصال بالخادم.' };
+  }
+}
+
+export async function updateAIProvider(id: string, input: AIProviderInput): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`/api/ai/providers/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input)
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, error: data.error || 'تعذّر تحديث المزود.' };
+    return { success: true };
+  } catch {
+    return { success: false, error: 'تعذّر الاتصال بالخادم.' };
+  }
+}
+
+export async function deleteAIProvider(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`/api/ai/providers/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) return { success: false, error: data.error || 'تعذّر حذف المزود.' };
+    return { success: true };
+  } catch {
+    return { success: false, error: 'تعذّر الاتصال بالخادم.' };
+  }
+}
+
+export async function testAIProviderById(id: string) {
+  try {
+    const res = await fetch(`/api/ai/providers/${encodeURIComponent(id)}/test`, { method: 'POST' });
+    return await res.json();
+  } catch {
+    return { valid: false, message: 'تعذر الاتصال بالخادم لفحص المزود.' };
   }
 }
 
@@ -145,15 +313,11 @@ export interface LessonGeneratorPayload {
 }
 
 export async function requestAILessonPlan(payload: LessonGeneratorPayload) {
-  const customApiKey = getStoredApiKey();
   try {
     const response = await fetch('/api/ai/generate-lesson', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(customApiKey ? { 'x-custom-api-key': customApiKey } : {})
-      },
-      body: JSON.stringify({ ...payload, customApiKey })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     });
 
     if (!response.ok) {
@@ -208,16 +372,35 @@ function normalizeLessonPlanData(data: any, payload: LessonGeneratorPayload) {
   };
 }
 
+export interface ImproveWordingPayload {
+  fieldLabel: string;
+  currentText: string;
+  context?: string;
+}
+
+export async function requestAIImproveWording(payload: ImproveWordingPayload): Promise<string> {
+  try {
+    const response = await fetch('/api/ai/improve-wording', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) throw new Error(`Server returned status ${response.status}`);
+    const json = await response.json();
+    if (json.data?.improvedText) return json.data.improvedText as string;
+    throw new Error('لم يتم استلام صياغة محسّنة');
+  } catch (err) {
+    console.warn('improve-wording API error:', err);
+    return payload.currentText;
+  }
+}
+
 export async function requestAIGames(fieldName: string, levelName: string) {
-  const customApiKey = getStoredApiKey();
   try {
     const response = await fetch('/api/ai/suggest-games', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(customApiKey ? { 'x-custom-api-key': customApiKey } : {})
-      },
-      body: JSON.stringify({ fieldName, levelName, customApiKey })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fieldName, levelName })
     });
     const json = await response.json();
     return json.games || [];
@@ -235,15 +418,11 @@ export async function requestAIGames(fieldName: string, levelName: string) {
 }
 
 export async function sendAIChatMessage(message: string, history: { role: 'user' | 'model'; text: string }[]) {
-  const customApiKey = getStoredApiKey();
   try {
     const response = await fetch('/api/ai/chat', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(customApiKey ? { 'x-custom-api-key': customApiKey } : {})
-      },
-      body: JSON.stringify({ message, history, customApiKey })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, history })
     });
     const json = await response.json();
     return json.response || 'عذراً، حدث خطأ في معالجة الرسالة.';
@@ -254,7 +433,7 @@ export async function sendAIChatMessage(message: string, history: { role: 'user'
 
 // Platform DB Auto-Save Sync Helpers
 
-export async function syncUserToDB(user: any): Promise<{ success: boolean; user?: any; error?: string }> {
+export async function syncUserToDB(user: User): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
     const res = await fetch('/api/db/users', {
       method: 'POST',
@@ -281,7 +460,7 @@ export async function deleteUserFromDB(userId: string) {
   }
 }
 
-export async function syncUsersBatchToDB(users: any[]) {
+export async function syncUsersBatchToDB(users: User[]) {
   try {
     await fetch('/api/db/users/batch', {
       method: 'POST',
@@ -303,7 +482,7 @@ export async function fetchUsersFromDB() {
   }
 }
 
-export async function syncLessonPlanToDB(lessonPlan: any) {
+export async function syncLessonPlanToDB(lessonPlan: unknown) {
   try {
     await fetch('/api/db/lesson-plans', {
       method: 'POST',
@@ -315,7 +494,7 @@ export async function syncLessonPlanToDB(lessonPlan: any) {
   }
 }
 
-export async function syncLessonPlansBatchToDB(lessonPlans: any[]) {
+export async function syncLessonPlansBatchToDB(lessonPlans: unknown[]) {
   try {
     await fetch('/api/db/lesson-plans/batch', {
       method: 'POST',
@@ -337,7 +516,15 @@ export async function fetchLessonPlansFromDB() {
   }
 }
 
-export async function syncNotebookEntryToDB(entry: any) {
+export async function deleteLessonPlanFromDB(lessonId: string) {
+  try {
+    await fetch(`/api/db/lesson-plans/${lessonId}`, { method: 'DELETE' });
+  } catch (e) {
+    console.warn('DB deleteLessonPlan failed:', e);
+  }
+}
+
+export async function syncNotebookEntryToDB(entry: unknown) {
   try {
     await fetch('/api/db/notebook', {
       method: 'POST',
@@ -349,7 +536,7 @@ export async function syncNotebookEntryToDB(entry: any) {
   }
 }
 
-export async function syncNotebookBatchToDB(dailyNotebook: any[]) {
+export async function syncNotebookBatchToDB(dailyNotebook: unknown[]) {
   try {
     await fetch('/api/db/notebook/batch', {
       method: 'POST',
@@ -361,7 +548,15 @@ export async function syncNotebookBatchToDB(dailyNotebook: any[]) {
   }
 }
 
-export async function syncInspectorNoteToDB(note: any) {
+export async function deleteNotebookEntryFromDB(entryId: string) {
+  try {
+    await fetch(`/api/db/notebook/${entryId}`, { method: 'DELETE' });
+  } catch (e) {
+    console.warn('DB deleteNotebookEntry failed:', e);
+  }
+}
+
+export async function syncInspectorNoteToDB(note: unknown) {
   try {
     await fetch('/api/db/inspector-notes', {
       method: 'POST',
@@ -373,7 +568,7 @@ export async function syncInspectorNoteToDB(note: any) {
   }
 }
 
-export async function syncDistrictMessageToDB(message: any) {
+export async function syncDistrictMessageToDB(message: unknown) {
   try {
     await fetch('/api/db/district-messages', {
       method: 'POST',
@@ -395,7 +590,7 @@ export async function fetchDistrictMessagesFromDB() {
   }
 }
 
-export async function syncDirectMessageToDB(message: any) {
+export async function syncDirectMessageToDB(message: unknown) {
   try {
     await fetch('/api/db/direct-messages', {
       method: 'POST',
@@ -417,7 +612,7 @@ export async function fetchDirectMessagesFromDB() {
   }
 }
 
-export async function syncCommunityResourceToDB(resource: any) {
+export async function syncCommunityResourceToDB(resource: unknown) {
   try {
     await fetch('/api/db/community-resources', {
       method: 'POST',
@@ -439,7 +634,7 @@ export async function fetchCommunityResourcesFromDB() {
   }
 }
 
-export async function syncCommunityNotificationToDB(notification: any) {
+export async function syncCommunityNotificationToDB(notification: unknown) {
   try {
     await fetch('/api/db/community-notifications', {
       method: 'POST',
@@ -468,6 +663,133 @@ export async function fetchCommunityNotificationsFromDB() {
     return [];
   }
 }
+
+// -----------------------------------------------------------------------
+// نظام الإسناد التلقائي للأساتذة إلى المفتشين
+// -----------------------------------------------------------------------
+
+async function getJSON(url: string) {
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) return { success: false, error: data.error };
+    return data;
+  } catch (e) {
+    return { success: false, error: 'تعذر الاتصال بالخادم.' };
+  }
+}
+
+async function postJSON(url: string, body?: unknown, method: 'POST' | 'PUT' | 'DELETE' = 'POST') {
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: body !== undefined ? JSON.stringify(body) : undefined
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, error: data.error };
+    return data;
+  } catch (e) {
+    return { success: false, error: 'تعذر الاتصال بالخادم.' };
+  }
+}
+
+export const fetchDirectorates = () => getJSON('/api/locations/directorates');
+export const fetchMunicipalities = (directorateId: string) =>
+  getJSON(`/api/locations/directorates/${directorateId}/municipalities`);
+export const fetchInspectionDistricts = (directorateId: string) =>
+  getJSON(`/api/locations/directorates/${directorateId}/districts`);
+export const fetchSchools = (municipalityId: string) =>
+  getJSON(`/api/locations/municipalities/${municipalityId}/schools`);
+
+export const suggestMunicipality = (name: string, directorateId: string) =>
+  postJSON('/api/locations/municipalities/suggest', { name, directorateId });
+export const suggestSchool = (name: string, municipalityId: string) =>
+  postJSON('/api/locations/schools/suggest', { name, municipalityId });
+
+export interface TeacherProfessionalData {
+  directorateId: string;
+  municipalityId: string;
+  institutionId: string;
+  districtId: string;
+}
+export const saveTeacherProfessionalData = (payload: TeacherProfessionalData) =>
+  postJSON('/api/teacher/professional-data', payload, 'PUT');
+
+export const fetchMyAssignment = () => getJSON('/api/teacher/assignment');
+
+export const fetchMyAssignedTeachers = (filters?: { municipalityId?: string; institutionId?: string }) => {
+  const params = new URLSearchParams();
+  if (filters?.municipalityId) params.set('municipalityId', filters.municipalityId);
+  if (filters?.institutionId) params.set('institutionId', filters.institutionId);
+  const qs = params.toString();
+  return getJSON(`/api/inspector/teachers${qs ? `?${qs}` : ''}`);
+};
+
+// --- إدارة (Admin) ---
+export const adminCreateDirectorate = (payload: { id: string; name: string; wilayaCode?: string }) =>
+  postJSON('/api/admin/directorates', payload);
+export const adminCreateMunicipality = (payload: { name: string; directorateId: string }) =>
+  postJSON('/api/admin/municipalities', payload);
+export const adminCreateSchool = (payload: { name: string; municipalityId: string }) =>
+  postJSON('/api/admin/schools', payload);
+export const adminCreateDistrict = (payload: { name: string; directorateId: string; districtNumber?: number }) =>
+  postJSON('/api/admin/districts', payload);
+
+export const adminDeleteDirectorate = (id: string) => postJSON(`/api/admin/directorates/${id}`, undefined, 'DELETE');
+export const adminDeleteMunicipality = (id: string) => postJSON(`/api/admin/municipalities/${id}`, undefined, 'DELETE');
+export const adminDeleteSchool = (id: string) => postJSON(`/api/admin/schools/${id}`, undefined, 'DELETE');
+export const adminDeleteDistrict = (id: string) => postJSON(`/api/admin/districts/${id}`, undefined, 'DELETE');
+
+export const fetchPendingSuggestions = () => getJSON('/api/admin/suggestions');
+export const approveMunicipalitySuggestion = (id: string) =>
+  postJSON(`/api/admin/suggestions/municipalities/${id}/approve`);
+export const rejectMunicipalitySuggestion = (id: string) =>
+  postJSON(`/api/admin/suggestions/municipalities/${id}/reject`);
+export const approveSchoolSuggestion = (id: string) => postJSON(`/api/admin/suggestions/schools/${id}/approve`);
+export const rejectSchoolSuggestion = (id: string) => postJSON(`/api/admin/suggestions/schools/${id}/reject`);
+
+export const fetchAllAssignments = (status?: string) =>
+  getJSON(`/api/admin/assignments${status ? `?status=${status}` : ''}`);
+export const reassignAllTeachers = () => postJSON('/api/admin/assignments/reassign-all');
+export const removeTeacherAssignment = (teacherId: string) => postJSON(`/api/admin/assignments/${teacherId}/remove`);
+export const reassignSingleTeacher = (teacherId: string) => postJSON(`/api/admin/assignments/${teacherId}/reassign`);
+
+// -----------------------------------------------------------------------
+// المخطط السنوي / التوزيع السنوي — تعديل الأستاذ لصياغة الأهداف، واقتراح
+// المفتش لأساتذة مقاطعته مع إمكانية اعتماد اقتراحه
+// -----------------------------------------------------------------------
+
+export const fetchAnnualPlans = (params: {
+  teacherId?: string;
+  kind?: AnnualPlanKind;
+  academicYearId?: string;
+  levelId?: string;
+}) => {
+  const query = new URLSearchParams();
+  if (params.teacherId) query.set('teacherId', params.teacherId);
+  if (params.kind) query.set('kind', params.kind);
+  if (params.academicYearId) query.set('academicYearId', params.academicYearId);
+  if (params.levelId) query.set('levelId', params.levelId);
+  const qs = query.toString();
+  return getJSON(`/api/db/annual-plans${qs ? `?${qs}` : ''}`) as Promise<{ success: boolean; annualPlans?: AnnualPlan[]; error?: string }>;
+};
+
+// الأستاذ يحفظ مسودته الخاصة، أو المفتش يحفظ اقتراحاً لأستاذ من مقاطعته (يبقى
+// بحالة "مقترح" إلى أن يعتمده المفتش بنفسه عبر approveAnnualPlan)
+export const saveAnnualPlan = (payload: {
+  id?: string;
+  teacherId: string;
+  academicYearId: string;
+  levelId: string;
+  kind: AnnualPlanKind;
+  data: { overrides: Record<string, AnnualPlanObjectiveOverride>; note?: string };
+}) => postJSON('/api/db/annual-plans', { annualPlan: payload }) as Promise<{ success: boolean; annualPlan?: AnnualPlan; error?: string }>;
+
+export const approveAnnualPlan = (id: string) =>
+  postJSON(`/api/db/annual-plans/${id}/approve`) as Promise<{ success: boolean; annualPlan?: AnnualPlan; error?: string }>;
+
+export const deleteAnnualPlan = (id: string) => postJSON(`/api/db/annual-plans/${id}`, undefined, 'DELETE');
 
 function fallbackLessonClientGenerator(payload: LessonGeneratorPayload) {
   const customObj = payload.customObjective || `تحقيق هدف المقطع التعليمي لـ (${payload.sessionTitle}) وفق المعايير الرسمية المعتمدة.`;

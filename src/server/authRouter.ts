@@ -12,20 +12,86 @@ import {
   signSession,
   setSessionCookie,
   clearSessionCookie,
-  sanitizeUser,
+  sanitizeOwnUser,
   getSessionTokenFromRequest,
   verifySession,
   generateResetToken,
   hashResetToken
 } from './auth.js';
 import { sendPasswordResetEmail } from './emailService.js';
-import { wrapRouterAsyncErrors } from './middleware/asyncHandler.js';
+import { requireAuth } from './middleware/requireAuth.js';
+import { verifyGoogleIdToken, isGoogleSignInConfigured } from './googleAuth.js';
 
 export const authRouter = Router();
 
 const loginSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(1)
+});
+
+const registerSchema = z.object({
+  firstName: z.string().trim().min(2, 'الاسم الأول يجب أن يكون حرفين على الأقل'),
+  lastName: z.string().trim().min(2, 'اللقب يجب أن يكون حرفين على الأقل'),
+  email: z.string().trim().email('يرجى إدخال بريد إلكتروني صحيح'),
+  password: z.string().min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
+  schoolName: z.string().optional(),
+  municipality: z.string().optional(),
+  phone: z.string().optional()
+});
+
+authRouter.post('/register', async (req, res) => {
+  const parsed = registerSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.errors[0]?.message || 'بيانات غير صحيحة.' });
+  }
+
+  const { firstName, lastName, email, password, schoolName, municipality, phone } = parsed.data;
+  const role = 'teacher';
+  const lowerEmail = email.toLowerCase();
+
+  const existingUser = await prisma.user.findUnique({ where: { email: lowerEmail } });
+  if (existingUser) {
+    return res.status(409).json({ error: 'هذا البريد الإلكتروني مسجل مسبقاً في المنظومة. يمكنك تسجيل الدخول به.' });
+  }
+
+  const passwordHash = await hashPassword(password);
+  const spexId = `SPX-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+  const userId = `usr_${crypto.randomUUID()}`;
+
+  try {
+    const user = await prisma.user.create({
+      data: {
+        id: userId,
+        username: `user_${Date.now().toString().slice(-6)}`,
+        spexId,
+        firstName,
+        lastName,
+        email: lowerEmail,
+        passwordHash,
+        role,
+        phone: phone || null,
+        schoolName: schoolName || null,
+        municipality: municipality || null,
+        directorateId: '',
+        districtId: '',
+        institutionId: null,
+        specialization: 'أستاذ التربية البدنية والرياضية - الطور الابتدائي',
+        yearsExperience: null,
+        status: 'pending_approval',
+        isApprovedByAdmin: false,
+        customApiKey: '',
+        apiKeyStatus: 'not_set'
+      }
+    });
+
+    const token = signSession({ userId: user.id, role: user.role });
+    setSessionCookie(res, token);
+
+    res.json({ success: true, user: sanitizeOwnUser(user) });
+  } catch (err: unknown) {
+    console.error('Registration error:', err);
+    res.status(500).json({ error: 'تعذر إنشاء الحساب، يرجى إعادة المحاولة.' });
+  }
 });
 
 authRouter.post('/login', async (req, res) => {
@@ -37,18 +103,10 @@ authRouter.post('/login', async (req, res) => {
 
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
 
-  // رسالة خطأ عامة موحدة سواء كان البريد غير موجود أو كلمة المرور خاطئة
-  // (لتفادي تسريب معلومة "هل هذا البريد مسجل؟" لمهاجم محتمل)
-  const genericError = 'البريد الإلكتروني أو كلمة المرور غير صحيحة، أو لم يُنشأ لك حساب بعد من طرف المشرف.';
+  const genericError = 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
 
   if (!user) {
     return res.status(401).json({ error: genericError });
-  }
-
-  if (user.isApprovedByAdmin === false || user.status === 'inactive') {
-    return res.status(403).json({
-      error: '⛔ حسابك قيد التفعيل أو لم يتم اعتماده من طرف مشرف المنظومة الرقمية بعد.'
-    });
   }
 
   const validPassword = await verifyPassword(password, user.passwordHash);
@@ -56,15 +114,128 @@ authRouter.post('/login', async (req, res) => {
     return res.status(401).json({ error: genericError });
   }
 
+  if (user.status !== 'active' || !user.isApprovedByAdmin) {
+    return res.status(403).json({
+      error: 'حسابك قيد انتظار موافقة الإدارة أو غير مفعّل حالياً.',
+      code: 'ACCOUNT_PENDING_APPROVAL',
+      user: sanitizeOwnUser(user)
+    });
+  }
+
   const token = signSession({ userId: user.id, role: user.role });
   setSessionCookie(res, token);
 
-  res.json({ success: true, user: sanitizeUser(user) });
+  res.json({ success: true, user: sanitizeOwnUser(user) });
 });
 
 authRouter.post('/logout', (req, res) => {
   clearSessionCookie(res);
   res.json({ success: true });
+});
+
+// -----------------------------------------------------------------------
+// Sign in with Google
+// السياسة نفسها المطبقة على تسجيل الدخول العادي: لا يُنشأ أي حساب جديد تلقائياً
+// عبر Google — الحساب يجب أن يكون موجوداً مسبقاً (أنشأه المشرف أو المفتش) ومفعّلاً.
+// أول دخول ناجح عبر Google لبريد إلكتروني مطابق لحساب موجود يقوم "بربط" الحساب
+// تلقائياً (تخزين googleId)، وبعدها تكفي الضغطة على الزر للدخول دون كلمة مرور.
+// -----------------------------------------------------------------------
+const googleAuthSchema = z.object({
+  credential: z.string().min(10) // Google ID token (JWT) القادم من Google Identity Services
+});
+
+authRouter.post('/google', async (req, res) => {
+  if (!isGoogleSignInConfigured()) {
+    return res.status(503).json({ error: 'تسجيل الدخول عبر Google غير مفعّل حالياً على هذه المنصة.' });
+  }
+
+  const parsed = googleAuthSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'طلب دخول غير صالح عبر Google.' });
+  }
+
+  const profile = await verifyGoogleIdToken(parsed.data.credential);
+  if (!profile) {
+    return res.status(401).json({ error: 'تعذر التحقق من حساب Google. يرجى إعادة المحاولة.' });
+  }
+  if (!profile.emailVerified) {
+    return res.status(401).json({ error: 'يجب أن يكون بريد حساب Google موثّقاً (verified) لاستخدامه في الدخول.' });
+  }
+
+  // نبحث أولاً عن حساب مربوط مسبقاً بهذا الـ googleId، ثم عن حساب يطابق البريد الإلكتروني
+  let user = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
+  if (!user) {
+    user = await prisma.user.findUnique({ where: { email: profile.email } });
+  }
+
+  // لا يتم إنشاء حسابات تلقائياً عبر Google. الحساب يجب أن يكون مسجلاً ومقبولاً مسبقاً.
+  if (!user) {
+    return res.status(403).json({
+      error: 'لا يوجد حساب SPEX مرتبط بهذا البريد الإلكتروني. يرجى إنشاء حساب عبر التسجيل وانتظار موافقة الإدارة.'
+    });
+  }
+
+  if (user.status !== 'active' || !user.isApprovedByAdmin) {
+    return res.status(403).json({
+      error: 'حسابك قيد انتظار موافقة الإدارة أو غير مفعّل حالياً.',
+      code: 'ACCOUNT_PENDING_APPROVAL',
+      user: sanitizeOwnUser(user)
+    });
+  }
+
+  if (!user.googleId) {
+    // ربط تلقائي عند أول دخول ناجح عبر Google بنفس البريد الإلكتروني المسجل
+    try {
+      user = await prisma.user.update({ where: { id: user.id }, data: { googleId: profile.googleId } });
+    } catch (err: unknown) {
+      console.error('تعذر ربط حساب Google تلقائياً:', err);
+    }
+  }
+
+  const token = signSession({ userId: user.id, role: user.role });
+  setSessionCookie(res, token);
+
+  res.json({ success: true, user: sanitizeOwnUser(user) });
+});
+
+// ربط حساب Google بحساب مسجّل الدخول حالياً (من صفحة الإعدادات، بدلاً من شاشة الدخول)
+authRouter.post('/google/link', requireAuth, async (req, res) => {
+  if (!isGoogleSignInConfigured()) {
+    return res.status(503).json({ error: 'تسجيل الدخول عبر Google غير مفعّل حالياً على هذه المنصة.' });
+  }
+
+  const parsed = googleAuthSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'طلب ربط غير صالح.' });
+  }
+
+  const profile = await verifyGoogleIdToken(parsed.data.credential);
+  if (!profile) {
+    return res.status(401).json({ error: 'تعذر التحقق من حساب Google. يرجى إعادة المحاولة.' });
+  }
+  if (!profile.emailVerified) {
+    return res.status(401).json({ error: 'يجب أن يكون بريد حساب Google موثّقاً (verified) لربطه بحسابك.' });
+  }
+
+  const existing = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
+  if (existing && existing.id !== req.user!.id) {
+    return res.status(409).json({ error: 'حساب Google هذا مرتبط بالفعل بحساب SPEX آخر.' });
+  }
+
+  const me = await prisma.user.findUnique({ where: { id: req.user!.id } });
+  if (me && me.email.toLowerCase() !== profile.email) {
+    return res.status(400).json({
+      error: 'يجب أن يطابق بريد حساب Google بريد حسابك الحالي على SPEX لربطهما.'
+    });
+  }
+
+  const updated = await prisma.user.update({ where: { id: req.user!.id }, data: { googleId: profile.googleId } });
+  res.json({ success: true, user: sanitizeOwnUser(updated) });
+});
+
+authRouter.post('/google/unlink', requireAuth, async (req, res) => {
+  const updated = await prisma.user.update({ where: { id: req.user!.id }, data: { googleId: null } });
+  res.json({ success: true, user: sanitizeOwnUser(updated) });
 });
 
 // -----------------------------------------------------------------------
@@ -127,8 +298,8 @@ authRouter.post('/bootstrap-admin', async (req, res) => {
     });
 
     res.json({ success: true, message: `تم إنشاء حساب المشرف بنجاح: ${admin.email}` });
-  } catch (err: any) {
-    if (err.code === 'P2002') {
+  } catch (err: unknown) {
+    if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === 'P2002') {
       return res.status(409).json({ error: 'البريد الإلكتروني أو اسم المستخدم مستخدم بالفعل.' });
     }
     console.error('Error creating bootstrap admin:', err);
@@ -144,12 +315,12 @@ authRouter.get('/me', async (req, res) => {
   if (!payload) return res.status(401).json({ error: 'الجلسة غير صالحة.' });
 
   const user = await prisma.user.findUnique({ where: { id: payload.userId } });
-  if (!user || user.status === 'inactive') {
+  if (!user) {
     clearSessionCookie(res);
-    return res.status(401).json({ error: 'الحساب غير موجود أو معطّل.' });
+    return res.status(401).json({ error: 'الحساب غير موجود.' });
   }
 
-  res.json({ success: true, user: sanitizeUser(user) });
+  res.json({ success: true, user: sanitizeOwnUser(user) });
 });
 
 // -----------------------------------------------------------------------
@@ -220,6 +391,3 @@ authRouter.post('/reset-password', async (req, res) => {
 
   res.json({ success: true, message: 'تم تحديث كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول بها.' });
 });
-
-// التقاط أخطاء الوعود المرفوضة من معالجات async وتحويلها إلى معالج الأخطاء بدل إسقاط العملية
-wrapRouterAsyncErrors(authRouter);

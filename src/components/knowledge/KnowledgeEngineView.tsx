@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { KnowledgeItem, KnowledgeCategory } from '../../types/spex';
 import { requestAIGames } from '../../services/api';
+import { useDebounce } from '../../hooks/useDebounce';
 
 interface KnowledgeEngineViewProps {
   knowledgeItems: KnowledgeItem[];
@@ -33,13 +34,15 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
   const [searchVal, setSearchVal] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isSuggestingGames, setIsSuggestingGames] = useState(false);
+  // تأخير التصفية عن الطباعة المباشرة لتقليل عمليات إعادة الرسم على القوائم الكبيرة
+  const debouncedSearchVal = useDebounce(searchVal, 300);
 
   const filteredItems = knowledgeItems.filter((item) => {
     const matchesCategory = item.category === activeTab;
     const matchesSearch =
-      item.title.includes(searchVal) ||
-      item.description.includes(searchVal) ||
-      item.tags.some((t) => t.includes(searchVal));
+      item.title.includes(debouncedSearchVal) ||
+      item.description.includes(debouncedSearchVal) ||
+      item.tags.some((t) => t.includes(debouncedSearchVal));
     return matchesCategory && matchesSearch;
   });
 
