@@ -3,7 +3,6 @@
  * شاشة الدخول الإجبارية: تسجيل الدخول، إنشاء حساب جديد، واسترجاع كلمة المرور
  * حصرية للطور الابتدائي بالجمهورية الجزائرية الديمقراطية الشعبية
  */
-
 import React, { useState } from 'react';
 import {
   Lock,
@@ -23,16 +22,13 @@ import {
 import { User as UserType, UserRole } from '../../types/spex';
 import { loginRequest, registerRequest, forgotPasswordRequest, resetPasswordRequest, googleLoginRequest } from '../../services/api';
 import { GoogleSignInButton } from './GoogleSignInButton';
-
 interface AuthScreenProps {
   onLoginSuccess: (user: UserType) => void;
   onBackToLanding?: () => void;
   usersList?: UserType[];
 }
-
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackToLanding }) => {
   const [activeForm, setActiveForm] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
-
   // Form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -45,13 +41,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
   // Reset-password form state
   const [resetToken, setResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [resetDone, setResetDone] = useState(false);
-
   // إن وصل المستخدم عبر رابط إعادة تعيين كلمة المرور من بريده، افتح نموذج التعيين مباشرة
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -60,34 +54,34 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
       setResetToken(tokenFromUrl);
       setActiveForm('reset');
     }
+    // عودة فاشلة من مسار Google الاحتياطي (gsi-callback): نظهر رسالتها للمستخدم
+    // ثم ننظّف العنوان حتى لا تبقى الرسالة عالقة عند إعادة التحميل أو مشاركة الرابط
+    const googleError = params.get('google_error');
+    if (googleError) {
+      setErrorMsg(`الدخول عبر Google: ${googleError}`);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, []);
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
-
     if (!email.trim() || !password) {
       setErrorMsg('يرجى إدخال البريد الإلكتروني وكلمة المرور للدخول');
       return;
     }
-
     setIsSubmitting(true);
     const result = await loginRequest(email.trim(), password);
     setIsSubmitting(false);
-
     if (!result.success || !result.user) {
       setErrorMsg(result.error || 'تعذر تسجيل الدخول.');
       return;
     }
-
     onLoginSuccess(result.user);
   };
-
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
-
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !password) {
       setErrorMsg('يرجى ملء كافة الحقول الأساسية لإنشاء الحساب.');
       return;
@@ -96,7 +90,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
       setErrorMsg('كلمة المرور يجب أن تكون 6 أحرف على الأقل.');
       return;
     }
-
     setIsSubmitting(true);
     const result = await registerRequest({
       firstName: firstName.trim(),
@@ -109,28 +102,23 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
       phone: phone.trim() || '0661234567'
     });
     setIsSubmitting(false);
-
     if (!result.success || !result.user) {
       setErrorMsg(result.error || 'تعذر إنشاء الحساب.');
       return;
     }
-
     onLoginSuccess(result.user);
   };
-
   const handleGoogleCredential = async (credential: string) => {
     setErrorMsg('');
     setIsSubmitting(true);
     const result = await googleLoginRequest(credential);
     setIsSubmitting(false);
-
     if (!result.success || !result.user) {
       setErrorMsg(result.error || 'تعذر تسجيل الدخول عبر Google.');
       return;
     }
     onLoginSuccess(result.user);
   };
-
   const handleForgot = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -142,19 +130,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
     setIsSubmitting(true);
     const result = await forgotPasswordRequest(email.trim());
     setIsSubmitting(false);
-
     if (!result.success) {
       setErrorMsg(result.error || 'تعذر إرسال الطلب.');
       return;
     }
     setSuccessMsg(result.message || 'إن كان هذا البريد مسجلاً لدينا، فسيصلك رابط إعادة التعيين خلال دقائق.');
   };
-
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
-
     if (newPassword.length < 8) {
       setErrorMsg('كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل.');
       return;
@@ -163,28 +148,23 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
       setErrorMsg('كلمتا المرور غير متطابقتين.');
       return;
     }
-
     setIsSubmitting(true);
     const result = await resetPasswordRequest(resetToken, newPassword);
     setIsSubmitting(false);
-
     if (!result.success) {
       setErrorMsg(result.error || 'تعذر تحديث كلمة المرور.');
       return;
     }
-
     setResetDone(true);
     setSuccessMsg(result.message || 'تم تحديث كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول بها.');
     // إزالة الرمز من رابط المتصفح حتى لا يُعاد استخدامه بالخطأ أو يُشارَك سهواً
     window.history.replaceState({}, '', window.location.pathname);
   };
-
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden font-sans">
       {/* Background Graphic Accents */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
-
       <div className="max-w-md w-full bg-slate-800/90 border border-slate-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl relative z-10 space-y-6">
         {onBackToLanding && (
           <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
@@ -201,7 +181,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             </span>
           </div>
         )}
-
         {/* Header Logo & Title */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-emerald-500 text-white shadow-lg shadow-blue-500/20 mb-2">
@@ -216,7 +195,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             <span className="text-emerald-400 font-bold">وزارة التربية الوطنية - الجمهورية الجزائرية</span>
           </p>
         </div>
-
         {/* Role Identity Selection Cards */}
         <div className="space-y-2">
           <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block text-center">
@@ -244,7 +222,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 المذكرة البيداغوجية، الكراس اليومي، والمخطط السنوي
               </p>
             </button>
-
             {/* 2. Inspector */}
             <button
               type="button"
@@ -266,7 +243,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 زيارات التفتيش والمتابعة الميدانية للأساتذة
               </p>
             </button>
-
             {/* 3. Admin */}
             <button
               type="button"
@@ -290,7 +266,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             </button>
           </div>
         </div>
-
         {/* Tab Switchers */}
         <div className="grid grid-cols-3 p-1 bg-slate-900/80 rounded-xl text-xs font-bold text-slate-400">
           <button
@@ -330,7 +305,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             <HelpCircle className="w-3.5 h-3.5" /> نسيت كلمة السر
           </button>
         </div>
-
         {/* Alert Messages */}
         {errorMsg && (
           <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold flex items-center gap-2">
@@ -344,7 +318,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             <span>{successMsg}</span>
           </div>
         )}
-
         {/* Form 1: LOGIN */}
         {activeForm === 'login' && (
           <form onSubmit={handleLogin} className="space-y-4">
@@ -362,7 +335,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 <User className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
               </div>
             </div>
-
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-300">كلمة المرور</label>
               <div className="relative">
@@ -377,7 +349,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
               </div>
             </div>
-
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-300">الرتبة / الصفة المهنية</label>
               <select
@@ -390,7 +361,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 <option value="admin">مشرف المنظومة الرقمية</option>
               </select>
             </div>
-
             <button
               type="submit"
               disabled={isSubmitting}
@@ -399,7 +369,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               <LogIn className="w-4 h-4" />
               <span>{isSubmitting ? 'جارٍ التحقق...' : 'الدخول للمنصة البيداغوجية'}</span>
             </button>
-
             {/* Secure Login Footer Notice */}
             <div className="pt-2 text-center">
               <p className="text-[10px] text-slate-400 font-medium">
@@ -408,8 +377,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             </div>
           </form>
         )}
-
-        {/* Form 2: PUBLIC REGISTER FORM */}
         {/* Google Sign-In — يظهر فقط في شاشة الدخول، أسفل نموذج البريد وكلمة المرور */}
         {activeForm === 'login' && (
           <div className="space-y-3">
@@ -424,13 +391,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             </p>
           </div>
         )}
-
+        {/* Form 2: PUBLIC REGISTER FORM */}
         {activeForm === 'register' && (
           <form onSubmit={handleRegister} className="space-y-3.5">
             <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-300 text-[11px] leading-relaxed">
               <span className="font-extrabold text-white">📌 تلميح التسجيل:</span> عند إنشاء الحساب، يمكنك الدخول مباشرة في <strong className="text-amber-300">وضع المشاهدة والاطلاع على مزايا المنظومة</strong>، وتفعيل الوصول الكامل يتم عبر <strong className="text-emerald-300">مشرف المنظومة الرقمية</strong>.
             </div>
-
             <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-300">الاسم الأول *</label>
@@ -443,7 +409,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
                 />
               </div>
-
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-300">اللقب *</label>
                 <input
@@ -456,7 +421,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 />
               </div>
             </div>
-
             <div className="space-y-1">
               <label className="text-[11px] font-bold text-slate-300">البريد الإلكتروني *</label>
               <input
@@ -468,7 +432,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right"
               />
             </div>
-
             <div className="space-y-1">
               <label className="text-[11px] font-bold text-slate-300">كلمة المرور * (6 أحرف على الأقل)</label>
               <input
@@ -481,7 +444,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right"
               />
             </div>
-
             <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-300">الرتبة / الصفة المهنية</label>
@@ -495,7 +457,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                   <option value="director">مدير مدرسة ابتدائية</option>
                 </select>
               </div>
-
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-300">المؤسسة / المدرسة</label>
                 <input
@@ -507,7 +468,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 />
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-300">البلدية / المقاطعة</label>
@@ -519,7 +479,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
                 />
               </div>
-
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-300">رقم الهاتف للتفعيل</label>
                 <input
@@ -531,7 +490,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 />
               </div>
             </div>
-
             <button
               type="submit"
               disabled={isSubmitting}
@@ -542,7 +500,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             </button>
           </form>
         )}
-
         {/* Form 3: FORGOT PASSWORD */}
         {activeForm === 'forgot' && (
           <form onSubmit={handleForgot} className="space-y-4">
@@ -569,7 +526,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             </button>
           </form>
         )}
-
         {/* Form 4: RESET PASSWORD (reached via emailed link) */}
         {activeForm === 'reset' && (
           <div className="space-y-4">
@@ -626,7 +582,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             )}
           </div>
         )}
-
         {/* Footer info */}
         <div className="pt-2 text-center text-[10px] text-slate-500">
           SPEX v3.5 - المناهج الرسمية للجمهورية الجزائرية الديمقراطية الشعبية
@@ -635,3 +590,4 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
     </div>
   );
 };
+
