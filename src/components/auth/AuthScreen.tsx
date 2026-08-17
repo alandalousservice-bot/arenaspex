@@ -1,456 +1,645 @@
 /**
- * SPEX - Authentication Router
- * تسجيل الدخول الحقيقي (bcrypt + JWT في كوكيز httpOnly)، بدل التحقق من كلمة المرور في المتصفح
+ * SPEX - Mandatory Authentication Screen
+ * شاشة الدخول الإجبارية: تسجيل الدخول، إنشاء حساب جديد، واسترجاع كلمة المرور
+ * حصرية للطور الابتدائي بالجمهورية الجزائرية الديمقراطية الشعبية
  */
-import { Router, urlencoded } from 'express';
-import crypto from 'crypto';
-import { z } from 'zod';
-import { prisma } from './prismaClient.js';
+
+import React, { useState } from 'react';
 import {
-  verifyPassword,
-  hashPassword,
-  signSession,
-  setSessionCookie,
-  clearSessionCookie,
-  sanitizeOwnUser,
-  getSessionTokenFromRequest,
-  verifySession,
-  generateResetToken,
-  hashResetToken
-} from './auth.js';
-import { sendPasswordResetEmail } from './emailService.js';
-import { requireAuth } from './middleware/requireAuth.js';
-import { verifyGoogleIdToken, isGoogleSignInConfigured } from './googleAuth.js';
+  Lock,
+  User,
+  KeyRound,
+  UserPlus,
+  LogIn,
+  HelpCircle,
+  CheckCircle2,
+  AlertCircle,
+  Building2,
+  Shield,
+  School,
+  Sparkles,
+  ArrowRight
+} from 'lucide-react';
+import { User as UserType, UserRole } from '../../types/spex';
+import { loginRequest, registerRequest, forgotPasswordRequest, resetPasswordRequest, googleLoginRequest } from '../../services/api';
+import { GoogleSignInButton } from './GoogleSignInButton';
 
-export const authRouter = Router();
+interface AuthScreenProps {
+  onLoginSuccess: (user: UserType) => void;
+  onBackToLanding?: () => void;
+  usersList?: UserType[];
+}
 
-const loginSchema = z.object({
-  email: z.string().trim().email(),
-  password: z.string().min(1)
-});
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackToLanding }) => {
+  const [activeForm, setActiveForm] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
 
-const registerSchema = z.object({
-  firstName: z.string().trim().min(2, 'الاسم الأول يجب أن يكون حرفين على الأقل'),
-  lastName: z.string().trim().min(2, 'اللقب يجب أن يكون حرفين على الأقل'),
-  email: z.string().trim().email('يرجى إدخال بريد إلكتروني صحيح'),
-  password: z.string().min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
-  schoolName: z.string().optional(),
-  municipality: z.string().optional(),
-  phone: z.string().optional()
-});
+  // Form states
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [schoolName, setSchoolName] = useState('');
+  const [municipality, setMunicipality] = useState('');
+  const [phone, setPhone] = useState('');
+  const [selectedRole, setSelectedRole] = useState<UserRole>('teacher');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-authRouter.post('/register', async (req, res) => {
-  const parsed = registerSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.errors[0]?.message || 'بيانات غير صحيحة.' });
-  }
+  // Reset-password form state
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [resetDone, setResetDone] = useState(false);
 
-  const { firstName, lastName, email, password, schoolName, municipality, phone } = parsed.data;
-  const role = 'teacher';
-  const lowerEmail = email.toLowerCase();
-
-  const existingUser = await prisma.user.findUnique({ where: { email: lowerEmail } });
-  if (existingUser) {
-    return res.status(409).json({ error: 'هذا البريد الإلكتروني مسجل مسبقاً في المنظومة. يمكنك تسجيل الدخول به.' });
-  }
-
-  const passwordHash = await hashPassword(password);
-  const spexId = `SPX-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-  const userId = `usr_${crypto.randomUUID()}`;
-
-  try {
-    const user = await prisma.user.create({
-      data: {
-        id: userId,
-        username: `user_${Date.now().toString().slice(-6)}`,
-        spexId,
-        firstName,
-        lastName,
-        email: lowerEmail,
-        passwordHash,
-        role,
-        phone: phone || null,
-        schoolName: schoolName || null,
-        municipality: municipality || null,
-        directorateId: '',
-        districtId: '',
-        institutionId: null,
-        specialization: 'أستاذ التربية البدنية والرياضية - الطور الابتدائي',
-        yearsExperience: null,
-        status: 'pending_approval',
-        isApprovedByAdmin: false,
-        customApiKey: '',
-        apiKeyStatus: 'not_set'
-      }
-    });
-
-    const token = signSession({ userId: user.id, role: user.role });
-    setSessionCookie(res, token);
-
-    res.json({ success: true, user: sanitizeOwnUser(user) });
-  } catch (err: unknown) {
-    console.error('Registration error:', err);
-    res.status(500).json({ error: 'تعذر إنشاء الحساب، يرجى إعادة المحاولة.' });
-  }
-});
-
-authRouter.post('/login', async (req, res) => {
-  const parsed = loginSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'يرجى إدخال بريد إلكتروني صحيح وكلمة مرور.' });
-  }
-  const { email, password } = parsed.data;
-
-  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-
-  const genericError = 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
-
-  if (!user) {
-    return res.status(401).json({ error: genericError });
-  }
-
-  const validPassword = await verifyPassword(password, user.passwordHash);
-  if (!validPassword) {
-    return res.status(401).json({ error: genericError });
-  }
-
-  if (user.status !== 'active' || !user.isApprovedByAdmin) {
-    return res.status(403).json({
-      error: 'حسابك قيد انتظار موافقة الإدارة أو غير مفعّل حالياً.',
-      code: 'ACCOUNT_PENDING_APPROVAL',
-      user: sanitizeOwnUser(user)
-    });
-  }
-
-  const token = signSession({ userId: user.id, role: user.role });
-  setSessionCookie(res, token);
-
-  res.json({ success: true, user: sanitizeOwnUser(user) });
-});
-
-authRouter.post('/logout', (req, res) => {
-  clearSessionCookie(res);
-  res.json({ success: true });
-});
-
-// -----------------------------------------------------------------------
-// Sign in with Google
-// السياسة نفسها المطبقة على تسجيل الدخول العادي: لا يُنشأ أي حساب جديد تلقائياً
-// عبر Google — الحساب يجب أن يكون موجوداً مسبقاً (أنشأه المشرف أو المفتش) ومفعّلاً.
-// أول دخول ناجح عبر Google لبريد إلكتروني مطابق لحساب موجود يقوم "بربط" الحساب
-// تلقائياً (تخزين googleId)، وبعدها تكفي الضغطة على الزر للدخول دون كلمة مرور.
-// -----------------------------------------------------------------------
-const googleAuthSchema = z.object({
-  credential: z.string().min(10) // Google ID token (JWT) القادم من Google Identity Services
-});
-
-authRouter.post('/google', async (req, res) => {
-  if (!isGoogleSignInConfigured()) {
-    return res.status(503).json({ error: 'تسجيل الدخول عبر Google غير مفعّل حالياً على هذه المنصة.' });
-  }
-
-  const parsed = googleAuthSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'طلب دخول غير صالح عبر Google.' });
-  }
-
-  const profile = await verifyGoogleIdToken(parsed.data.credential);
-  if (!profile) {
-    return res.status(401).json({ error: 'تعذر التحقق من حساب Google. يرجى إعادة المحاولة.' });
-  }
-  if (!profile.emailVerified) {
-    return res.status(401).json({ error: 'يجب أن يكون بريد حساب Google موثّقاً (verified) لاستخدامه في الدخول.' });
-  }
-
-  // نبحث أولاً عن حساب مربوط مسبقاً بهذا الـ googleId، ثم عن حساب يطابق البريد الإلكتروني
-  let user = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
-  if (!user) {
-    user = await prisma.user.findUnique({ where: { email: profile.email } });
-  }
-
-  // لا يتم إنشاء حسابات تلقائياً عبر Google. الحساب يجب أن يكون مسجلاً ومقبولاً مسبقاً.
-  if (!user) {
-    return res.status(403).json({
-      error: 'لا يوجد حساب SPEX مرتبط بهذا البريد الإلكتروني. يرجى إنشاء حساب عبر التسجيل وانتظار موافقة الإدارة.'
-    });
-  }
-
-  if (user.status !== 'active' || !user.isApprovedByAdmin) {
-    return res.status(403).json({
-      error: 'حسابك قيد انتظار موافقة الإدارة أو غير مفعّل حالياً.',
-      code: 'ACCOUNT_PENDING_APPROVAL',
-      user: sanitizeOwnUser(user)
-    });
-  }
-
-  if (!user.googleId) {
-    // ربط تلقائي عند أول دخول ناجح عبر Google بنفس البريد الإلكتروني المسجل
-    try {
-      user = await prisma.user.update({ where: { id: user.id }, data: { googleId: profile.googleId } });
-    } catch (err: unknown) {
-      console.error('تعذر ربط حساب Google تلقائياً:', err);
-    }
-  }
-
-  const token = signSession({ userId: user.id, role: user.role });
-  setSessionCookie(res, token);
-
-  res.json({ success: true, user: sanitizeOwnUser(user) });
-});
-
-// ربط حساب Google بحساب مسجّل الدخول حالياً (من صفحة الإعدادات، بدلاً من شاشة الدخول)
-authRouter.post('/google/link', requireAuth, async (req, res) => {
-  if (!isGoogleSignInConfigured()) {
-    return res.status(503).json({ error: 'تسجيل الدخول عبر Google غير مفعّل حالياً على هذه المنصة.' });
-  }
-
-  const parsed = googleAuthSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'طلب ربط غير صالح.' });
-  }
-
-  const profile = await verifyGoogleIdToken(parsed.data.credential);
-  if (!profile) {
-    return res.status(401).json({ error: 'تعذر التحقق من حساب Google. يرجى إعادة المحاولة.' });
-  }
-  if (!profile.emailVerified) {
-    return res.status(401).json({ error: 'يجب أن يكون بريد حساب Google موثّقاً (verified) لربطه بحسابك.' });
-  }
-
-  const existing = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
-  if (existing && existing.id !== req.user!.id) {
-    return res.status(409).json({ error: 'حساب Google هذا مرتبط بالفعل بحساب SPEX آخر.' });
-  }
-
-  const me = await prisma.user.findUnique({ where: { id: req.user!.id } });
-  if (me && me.email.toLowerCase() !== profile.email) {
-    return res.status(400).json({
-      error: 'يجب أن يطابق بريد حساب Google بريد حسابك الحالي على SPEX لربطهما.'
-    });
-  }
-
-  const updated = await prisma.user.update({ where: { id: req.user!.id }, data: { googleId: profile.googleId } });
-  res.json({ success: true, user: sanitizeOwnUser(updated) });
-});
-
-// ---------------------------------------------------------------------------
-// مسار العودة الاحتياطي (login_uri) لـ Google Identity Services:
-// عندما تمنع المتصفحات كوكيز الطرف الثالث، يتحول زر Google إلى نموذج يُرسَل عبر
-// accounts.google.com/gsi/transform ثم يعود POST إلى هنا حاملاً credential
-// و g_csrf_token (نموذج urlencoded) — نتحقق من مطابقة رمز CSRF (كوكي/جسم) ثم
-// نكمل نفس منطق الدخول، ونعيد التوجيه إلى واجهة المنصة.
-// ---------------------------------------------------------------------------
-authRouter.post('/google/gsi-callback', urlencoded({ extended: false }), async (req, res) => {
-  const fail = (message: string) => res.redirect(`/login?google_error=${encodeURIComponent(message)}`);
-
-  try {
-    if (!isGoogleSignInConfigured()) {
-      return fail('تسجيل الدخول عبر Google غير مفعّل حالياً على هذه المنصة.');
+  // إن وصل المستخدم عبر رابط إعادة تعيين كلمة المرور من بريده، افتح نموذج التعيين مباشرة
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tokenFromUrl = params.get('reset_token');
+    if (tokenFromUrl) {
+      setResetToken(tokenFromUrl);
+      setActiveForm('reset');
     }
 
-    // حماية CSRF الخاصة بمسار GSI: الرمز في الكوكي يجب أن يطابق رمز جسم الطلب
-    const cookieToken = req.cookies?.g_csrf_token;
-    const bodyToken = req.body?.g_csrf_token;
-    if (!cookieToken || !bodyToken || cookieToken !== bodyToken) {
-      return fail('فشل التحقق من أمان الطلب (CSRF). أعد المحاولة.');
+    // عودة فاشلة من مسار Google الاحتياطي (gsi-callback): نظهر رسالتها للمستخدم
+    // ثم ننظّف العنوان حتى لا تبقى الرسالة عالقة عند إعادة التحميل أو مشاركة الرابط
+    const googleError = params.get('google_error');
+    if (googleError) {
+      setErrorMsg(`الدخول عبر Google: ${googleError}`);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+
+    if (!email.trim() || !password) {
+      setErrorMsg('يرجى إدخال البريد الإلكتروني وكلمة المرور للدخول');
+      return;
     }
 
-    const credential = req.body?.credential;
-    if (!credential || typeof credential !== 'string' || credential.length < 10) {
-      return fail('رمز هوية Google مفقود أو غير صالح.');
+    setIsSubmitting(true);
+    const result = await loginRequest(email.trim(), password);
+    setIsSubmitting(false);
+
+    if (!result.success || !result.user) {
+      setErrorMsg(result.error || 'تعذر تسجيل الدخول.');
+      return;
     }
 
-    const profile = await verifyGoogleIdToken(credential);
-    if (!profile) {
-      return fail('تعذر التحقق من حساب Google. يرجى إعادة المحاولة.');
-    }
-    if (!profile.emailVerified) {
-      return fail('يجب أن يكون بريد حساب Google موثّقاً (verified).');
-    }
-
-    let user = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
-    if (!user) {
-      user = await prisma.user.findUnique({ where: { email: profile.email } });
-    }
-    if (!user) {
-      return fail('لا يوجد حساب SPEX مرتبط بهذا البريد. أنشئ حساباً وانتظر موافقة الإدارة.');
-    }
-    if (user.status !== 'active' || !user.isApprovedByAdmin) {
-      return fail('حسابك قيد انتظار موافقة الإدارة أو غير مفعّل حالياً.');
-    }
-
-    if (!user.googleId) {
-      try {
-        user = await prisma.user.update({ where: { id: user.id }, data: { googleId: profile.googleId } });
-      } catch (err) {
-        console.error('تعذر ربط حساب Google تلقائياً (مسار gsi-callback):', err);
-      }
-    }
-
-    const token = signSession({ userId: user.id, role: user.role });
-    setSessionCookie(res, token);
-    return res.redirect('/dashboard');
-  } catch (err) {
-    console.error('خطأ في مسار Google gsi-callback:', err);
-    return fail('حدث خطأ غير متوقع أثناء الدخول عبر Google.');
-  }
-});
-
-authRouter.post('/google/unlink', requireAuth, async (req, res) => {
-  const updated = await prisma.user.update({ where: { id: req.user!.id }, data: { googleId: null } });
-  res.json({ success: true, user: sanitizeOwnUser(updated) });
-});
-
-// -----------------------------------------------------------------------
-// One-time Admin Bootstrap
-// لإنشاء أول حساب مشرف بدون الحاجة لوصول Shell/CLI (بعض منصات الاستضافة المجانية
-// لا توفره). يعمل هذا المسار مرة واحدة فقط: يرفض العمل إن كان هناك مشرف واحد
-// على الأقل موجود مسبقاً في قاعدة البيانات، ويتطلب أيضاً معرفة SETUP_SECRET
-// (متغير بيئة سرّي تضبطه أنت) — وليس مجرد معرفة رابط المسار.
-// -----------------------------------------------------------------------
-const bootstrapSchema = z.object({
-  setupSecret: z.string().min(1),
-  email: z.string().trim().email(),
-  password: z.string().min(8),
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  directorateId: z.string().min(1).default('setif_de'),
-  districtId: z.string().min(1).default('dist_setif_7')
-});
-
-authRouter.post('/bootstrap-admin', async (req, res) => {
-  const configuredSecret = process.env.SETUP_SECRET;
-  if (!configuredSecret) {
-    return res.status(403).json({ error: 'ميزة الإنشاء الأولي غير مفعّلة (SETUP_SECRET غير معرّف في متغيرات البيئة).' });
-  }
-
-  const parsed = bootstrapSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.errors[0]?.message || 'بيانات غير صحيحة.' });
-  }
-
-  if (parsed.data.setupSecret !== configuredSecret) {
-    return res.status(403).json({ error: 'الرمز السرّي غير صحيح.' });
-  }
-
-  const existingAdmin = await prisma.user.findFirst({ where: { role: 'admin' } });
-  if (existingAdmin) {
-    return res.status(403).json({ error: 'يوجد حساب مشرف بالفعل. هذا المسار يعمل مرة واحدة فقط لأول إنشاء (بما في ذلك حساب SUPER_ADMIN إن كان قد أُنشئ تلقائياً عبر seed).' });
-  }
-
-  const passwordHash = await hashPassword(parsed.data.password);
-  // معرّف عشوائي قوي (وليس Math.random) لتفادي أي تصادم على قيد spexId الفريد
-  const spexId = `SPX-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-
-  try {
-    const admin = await prisma.user.create({
-      data: {
-        id: `usr_admin_${Date.now()}`,
-        username: 'admin',
-        spexId,
-        firstName: parsed.data.firstName,
-        lastName: parsed.data.lastName,
-        email: parsed.data.email.toLowerCase(),
-        passwordHash,
-        role: 'admin',
-        directorateId: parsed.data.directorateId,
-        districtId: parsed.data.districtId,
-        status: 'active',
-        isApprovedByAdmin: true
-      }
-    });
-
-    res.json({ success: true, message: `تم إنشاء حساب المشرف بنجاح: ${admin.email}` });
-  } catch (err: unknown) {
-    if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === 'P2002') {
-      return res.status(409).json({ error: 'البريد الإلكتروني أو اسم المستخدم مستخدم بالفعل.' });
-    }
-    console.error('Error creating bootstrap admin:', err);
-    res.status(500).json({ error: 'تعذر إنشاء حساب المشرف.' });
-  }
-});
-
-authRouter.get('/me', async (req, res) => {
-  const token = getSessionTokenFromRequest(req);
-  if (!token) return res.status(401).json({ error: 'لا توجد جلسة نشطة.' });
-
-  const payload = verifySession(token);
-  if (!payload) return res.status(401).json({ error: 'الجلسة غير صالحة.' });
-
-  const user = await prisma.user.findUnique({ where: { id: payload.userId } });
-  if (!user) {
-    clearSessionCookie(res);
-    return res.status(401).json({ error: 'الحساب غير موجود.' });
-  }
-
-  res.json({ success: true, user: sanitizeOwnUser(user) });
-});
-
-// -----------------------------------------------------------------------
-// Forgot / Reset Password
-// -----------------------------------------------------------------------
-
-const forgotSchema = z.object({ email: z.string().trim().email() });
-
-authRouter.post('/forgot-password', async (req, res) => {
-  const parsed = forgotSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'يرجى إدخال بريد إلكتروني صحيح.' });
-  }
-
-  // رسالة واحدة موحدة سواء كان البريد مسجلاً أم لا، لتفادي تسريب معلومة وجود الحساب من عدمه
-  const genericResponse = {
-    success: true,
-    message: 'إن كان هذا البريد الإلكتروني مسجلاً لدينا، فسيصلك رابط إعادة تعيين كلمة المرور خلال دقائق.'
+    onLoginSuccess(result.user);
   };
 
-  const user = await prisma.user.findUnique({ where: { email: parsed.data.email.toLowerCase() } });
-  if (!user || user.status === 'inactive') {
-    return res.json(genericResponse);
-  }
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
 
-  const { rawToken, tokenHash, expiresAt } = generateResetToken();
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password) {
+      setErrorMsg('يرجى ملء كافة الحقول الأساسية لإنشاء الحساب.');
+      return;
+    }
+    if (password.length < 6) {
+      setErrorMsg('كلمة المرور يجب أن تكون 6 أحرف على الأقل.');
+      return;
+    }
 
-  // إبطال أي رموز سابقة غير مستخدمة لهذا المستخدم قبل إنشاء رمز جديد
-  await prisma.passwordResetToken.deleteMany({ where: { userId: user.id, usedAt: null } });
-  await prisma.passwordResetToken.create({
-    data: { userId: user.id, tokenHash, expiresAt }
-  });
+    setIsSubmitting(true);
+    const result = await registerRequest({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: email.trim(),
+      password,
+      role: selectedRole,
+      schoolName: schoolName.trim() || 'مدرسة ابتدائية',
+      municipality: municipality.trim() || 'عين أزال - سطيف',
+      phone: phone.trim() || '0661234567'
+    });
+    setIsSubmitting(false);
 
-  const result = await sendPasswordResetEmail(user.email, user.firstName, rawToken);
-  if (!result.sent) {
-    // لا نُفشل الطلب على العميل حتى لا نكشف حالة الخادم الداخلية، لكن نسجّل الخطأ للمشرف
-    console.error(`فشل إرسال بريد إعادة التعيين إلى ${user.email}: ${result.error}`);
-  }
+    if (!result.success || !result.user) {
+      setErrorMsg(result.error || 'تعذر إنشاء الحساب.');
+      return;
+    }
 
-  res.json(genericResponse);
-});
+    onLoginSuccess(result.user);
+  };
 
-const resetSchema = z.object({
-  token: z.string().min(10),
-  newPassword: z.string().min(8, 'كلمة المرور يجب أن تكون 8 أحرف على الأقل')
-});
+  const handleGoogleCredential = async (credential: string) => {
+    setErrorMsg('');
+    setIsSubmitting(true);
+    const result = await googleLoginRequest(credential);
+    setIsSubmitting(false);
 
-authRouter.post('/reset-password', async (req, res) => {
-  const parsed = resetSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.errors[0]?.message || 'بيانات غير صحيحة.' });
-  }
-  const { token, newPassword } = parsed.data;
-  const tokenHash = hashResetToken(token);
+    if (!result.success || !result.user) {
+      setErrorMsg(result.error || 'تعذر تسجيل الدخول عبر Google.');
+      return;
+    }
+    onLoginSuccess(result.user);
+  };
 
-  const resetRecord = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+    if (!email) {
+      setErrorMsg('يرجى إدخال البريد الإلكتروني الخاص بك');
+      return;
+    }
+    setIsSubmitting(true);
+    const result = await forgotPasswordRequest(email.trim());
+    setIsSubmitting(false);
 
-  if (!resetRecord || resetRecord.usedAt || resetRecord.expiresAt < new Date()) {
-    return res.status(400).json({ error: 'رابط إعادة التعيين غير صالح أو منتهي الصلاحية. يرجى طلب رابط جديد.' });
-  }
+    if (!result.success) {
+      setErrorMsg(result.error || 'تعذر إرسال الطلب.');
+      return;
+    }
+    setSuccessMsg(result.message || 'إن كان هذا البريد مسجلاً لدينا، فسيصلك رابط إعادة التعيين خلال دقائق.');
+  };
 
-  const passwordHash = await hashPassword(newPassword);
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
 
-  await prisma.$transaction([
-    prisma.user.update({ where: { id: resetRecord.userId }, data: { passwordHash } }),
-    prisma.passwordResetToken.update({ where: { id: resetRecord.id }, data: { usedAt: new Date() } })
-  ]);
+    if (newPassword.length < 8) {
+      setErrorMsg('كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setErrorMsg('كلمتا المرور غير متطابقتين.');
+      return;
+    }
 
-  res.json({ success: true, message: 'تم تحديث كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول بها.' });
-});
+    setIsSubmitting(true);
+    const result = await resetPasswordRequest(resetToken, newPassword);
+    setIsSubmitting(false);
+
+    if (!result.success) {
+      setErrorMsg(result.error || 'تعذر تحديث كلمة المرور.');
+      return;
+    }
+
+    setResetDone(true);
+    setSuccessMsg(result.message || 'تم تحديث كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول بها.');
+    // إزالة الرمز من رابط المتصفح حتى لا يُعاد استخدامه بالخطأ أو يُشارَك سهواً
+    window.history.replaceState({}, '', window.location.pathname);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden font-sans">
+      {/* Background Graphic Accents */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="max-w-md w-full bg-slate-800/90 border border-slate-700/80 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl relative z-10 space-y-6">
+        {onBackToLanding && (
+          <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
+            <button
+              type="button"
+              onClick={onBackToLanding}
+              className="text-xs text-slate-400 hover:text-emerald-400 font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <ArrowRight className="w-3.5 h-3.5" />
+              <span>العودة للصفحة الرئيسية للمنصة</span>
+            </button>
+            <span className="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-full">
+              بوابة الدخول
+            </span>
+          </div>
+        )}
+
+        {/* Header Logo & Title */}
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-emerald-500 text-white shadow-lg shadow-blue-500/20 mb-2">
+            <Shield className="w-9 h-9" />
+          </div>
+          <h1 className="text-2xl font-black text-white tracking-tight">
+            منصة SPEX <span className="text-blue-400">الابتدائي</span>
+          </h1>
+          <p className="text-xs text-slate-400 font-medium leading-relaxed">
+            المنظومة الرقمية المعتمدة المستقلة لأساتذة ومفتشي التربية البدنية والرياضية للطور الابتدائي
+            <br />
+            <span className="text-emerald-400 font-bold">وزارة التربية الوطنية - الجمهورية الجزائرية</span>
+          </p>
+        </div>
+
+        {/* Role Identity Selection Cards */}
+        <div className="space-y-2">
+          <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block text-center">
+            اختر صفك المهني لتوجيه شاشة الدخول:
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {/* 1. Teacher */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedRole('teacher');
+                setErrorMsg('');
+              }}
+              className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
+                selectedRole === 'teacher'
+                  ? 'bg-blue-600/20 border-blue-500 text-white ring-2 ring-blue-500/40 shadow-lg'
+                  : 'bg-slate-900/80 border-slate-700/80 text-slate-300 hover:border-slate-500 hover:bg-slate-800/80'
+              }`}
+            >
+              <div className="flex items-center justify-between w-full mb-1">
+                <span className="text-xs font-black text-blue-400">أستاذ المادة</span>
+                <School className="w-4 h-4 text-blue-400" />
+              </div>
+              <p className="text-[10px] text-slate-400 leading-tight">
+                المذكرة البيداغوجية، الكراس اليومي، والمخطط السنوي
+              </p>
+            </button>
+
+            {/* 2. Inspector */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedRole('inspector');
+                setErrorMsg('');
+              }}
+              className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
+                selectedRole === 'inspector'
+                  ? 'bg-emerald-600/20 border-emerald-500 text-white ring-2 ring-emerald-500/40 shadow-lg'
+                  : 'bg-slate-900/80 border-slate-700/80 text-slate-300 hover:border-slate-500 hover:bg-slate-800/80'
+              }`}
+            >
+              <div className="flex items-center justify-between w-full mb-1">
+                <span className="text-xs font-black text-emerald-400">مفتش بيداغوجي</span>
+                <Shield className="w-4 h-4 text-emerald-400" />
+              </div>
+              <p className="text-[10px] text-slate-400 leading-tight">
+                زيارات التفتيش والمتابعة الميدانية للأساتذة
+              </p>
+            </button>
+
+            {/* 3. Admin */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedRole('admin');
+                setErrorMsg('');
+              }}
+              className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
+                selectedRole === 'admin'
+                  ? 'bg-purple-600/20 border-purple-500 text-white ring-2 ring-purple-500/40 shadow-lg'
+                  : 'bg-slate-900/80 border-slate-700/80 text-slate-300 hover:border-slate-500 hover:bg-slate-800/80'
+              }`}
+            >
+              <div className="flex items-center justify-between w-full mb-1">
+                <span className="text-xs font-black text-purple-400">مشرف المنظومة</span>
+                <KeyRound className="w-4 h-4 text-purple-400" />
+              </div>
+              <p className="text-[10px] text-slate-400 leading-tight">
+                إدارة الحسابات، المناهج، والاشتراكات
+              </p>
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Switchers */}
+        <div className="grid grid-cols-3 p-1 bg-slate-900/80 rounded-xl text-xs font-bold text-slate-400">
+          <button
+            onClick={() => {
+              setActiveForm('login');
+              setErrorMsg('');
+              setSuccessMsg('');
+            }}
+            className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+              activeForm === 'login' ? 'bg-blue-600 text-white shadow-md' : 'hover:text-slate-200'
+            }`}
+          >
+            <LogIn className="w-3.5 h-3.5" /> تسجيل الدخول
+          </button>
+          <button
+            onClick={() => {
+              setActiveForm('register');
+              setErrorMsg('');
+              setSuccessMsg('');
+            }}
+            className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+              activeForm === 'register' ? 'bg-blue-600 text-white shadow-md' : 'hover:text-slate-200'
+            }`}
+          >
+            <UserPlus className="w-3.5 h-3.5" /> إنشاء حساب
+          </button>
+          <button
+            onClick={() => {
+              setActiveForm('forgot');
+              setErrorMsg('');
+              setSuccessMsg('');
+            }}
+            className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+              activeForm === 'forgot' ? 'bg-blue-600 text-white shadow-md' : 'hover:text-slate-200'
+            }`}
+          >
+            <HelpCircle className="w-3.5 h-3.5" /> نسيت كلمة السر
+          </button>
+        </div>
+
+        {/* Alert Messages */}
+        {errorMsg && (
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+        {successMsg && (
+          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>{successMsg}</span>
+          </div>
+        )}
+
+        {/* Form 1: LOGIN */}
+        {activeForm === 'login' && (
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-300">البريد الإلكتروني المهني</label>
+              <div className="relative">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@spex.dz"
+                  required
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 pl-9"
+                />
+                <User className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-300">كلمة المرور</label>
+              <div className="relative">
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 pl-9"
+                />
+                <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-300">الرتبة / الصفة المهنية</label>
+              <select
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value as UserRole)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="teacher">أستاذ التربية البدنية (مرحلة ابتدائية)</option>
+                <option value="inspector">مفتش التربية البدنية والرياضية (مقاطعة 07)</option>
+                <option value="admin">مشرف المنظومة الرقمية</option>
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>{isSubmitting ? 'جارٍ التحقق...' : 'الدخول للمنصة البيداغوجية'}</span>
+            </button>
+
+            {/* Secure Login Footer Notice */}
+            <div className="pt-2 text-center">
+              <p className="text-[10px] text-slate-400 font-medium">
+                🔒 دخول محمي. يرجى إدخال البريد الإلكتروني وكلمة المرور المسلمة لك من طرف مشرف المنظومة.
+              </p>
+            </div>
+          </form>
+        )}
+
+        {/* Google Sign-In (في شاشة الدخول فقط — الحساب يجب أن يكون موجوداً مسبقاً بنفس البريد) */}
+        {activeForm === 'login' && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-slate-700/70" />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">أو</span>
+              <div className="h-px flex-1 bg-slate-700/70" />
+            </div>
+            <GoogleSignInButton onCredential={handleGoogleCredential} disabled={isSubmitting} />
+            <p className="text-[10px] text-slate-500 text-center leading-relaxed">
+              يعمل الدخول عبر Google فقط لحساب موجود مسبقاً بنفس البريد الإلكتروني، ويربطه تلقائياً بحساب Google عند أول استخدام.
+            </p>
+          </div>
+        )}
+
+        {/* Form 2: PUBLIC REGISTER FORM */}
+        {activeForm === 'register' && (
+          <form onSubmit={handleRegister} className="space-y-3.5">
+            <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-300 text-[11px] leading-relaxed">
+              <span className="font-extrabold text-white">📌 تلميح التسجيل:</span> عند إنشاء الحساب، يمكنك الدخول مباشرة في <strong className="text-amber-300">وضع المشاهدة والاطلاع على مزايا المنظومة</strong>، وتفعيل الوصول الكامل يتم عبر <strong className="text-emerald-300">مشرف المنظومة الرقمية</strong>.
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">الاسم الأول *</label>
+                <input
+                  type="text"
+                  required
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="مثال: عبد القادر"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">اللقب *</label>
+                <input
+                  type="text"
+                  required
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="مثال: بومدين"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-300">البريد الإلكتروني *</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@domain.dz"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-slate-300">كلمة المرور * (6 أحرف على الأقل)</label>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">الرتبة / الصفة المهنية</label>
+                <select
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value as UserRole)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-[11px] text-white focus:outline-none focus:border-purple-500"
+                >
+                  <option value="teacher">أستاذ التربية البدنية</option>
+                  <option value="inspector">مفتش بيداغوجي</option>
+                  <option value="director">مدير مدرسة ابتدائية</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">المؤسسة / المدرسة</label>
+                <input
+                  type="text"
+                  value={schoolName}
+                  onChange={(e) => setSchoolName(e.target.value)}
+                  placeholder="مدرسة عبد الحميد بن باديس"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">البلدية / المقاطعة</label>
+                <input
+                  type="text"
+                  value={municipality}
+                  onChange={(e) => setMunicipality(e.target.value)}
+                  placeholder="عين أزال - سطيف"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">رقم الهاتف للتفعيل</label>
+                <input
+                  type="text"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="0661234567"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs shadow-lg shadow-purple-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>{isSubmitting ? 'جارٍ تسجيل الحساب...' : 'تسجيل الحساب والدخول لوضع المشاهدة'}</span>
+            </button>
+          </form>
+        )}
+
+        {/* Form 3: FORGOT PASSWORD */}
+        {activeForm === 'forgot' && (
+          <form onSubmit={handleForgot} className="space-y-4">
+            <p className="text-xs text-slate-400 leading-relaxed">
+              أدخل بريدك الإلكتروني المهني المسجل بالنظام لاستلام رابط إعادة تعيين كلمة المرور فوراً.
+            </p>
+            <div>
+              <label className="text-xs font-bold text-slate-300">البريد الإلكتروني المهني</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="teacher@spex.dz"
+                required
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs transition-all"
+            >
+              {isSubmitting ? 'جارٍ الإرسال...' : 'إرسال رابط إعادة الضبط'}
+            </button>
+          </form>
+        )}
+
+        {/* Form 4: RESET PASSWORD (reached via emailed link) */}
+        {activeForm === 'reset' && (
+          <div className="space-y-4">
+            {!resetDone ? (
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  أدخل كلمة مرور جديدة لحسابك. يجب أن تكون 8 أحرف على الأقل.
+                </p>
+                <div>
+                  <label className="text-xs font-bold text-slate-300">كلمة المرور الجديدة</label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    minLength={8}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-300">تأكيد كلمة المرور الجديدة</label>
+                  <input
+                    type="password"
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    minLength={8}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs shadow-lg transition-all"
+                >
+                  {isSubmitting ? 'جارٍ التحديث...' : 'تحديث كلمة المرور'}
+                </button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveForm('login');
+                  setSuccessMsg('');
+                  setErrorMsg('');
+                }}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>الذهاب لتسجيل الدخول</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Footer info */}
+        <div className="pt-2 text-center text-[10px] text-slate-500">
+          SPEX v3.5 - المناهج الرسمية للجمهورية الجزائرية الديمقراطية الشعبية
+        </div>
+      </div>
+    </div>
+  );
+};
