@@ -147,11 +147,28 @@ async function startServer() {
 
 // فحص اتصال قاعدة البيانات عند بدء التشغيل (غير مميت — الخادم يبقى يخدم /health،
 // مع رسالة واضحة عند وجود خلل في DATABASE_URL بدل أخطاء "Closed" غامضة عند أول طلب).
+// ويكتشف أيضاً حالة "قاعدة تعمل لكن الجداول لم تُهجَّر بعد" — أشهر لغط نشراً —
+// فيرشد فوراً إلى الحل بدل ظهور أخطاء P2021/P2022 عند أول تسجيل دخول.
 async function verifyDatabaseConnection() {
   try {
     const prisma = (await import('./src/server/prismaClient.js')).prisma;
     await prisma.$queryRaw`SELECT 1`;
     console.log('✅ SPEX DB: PostgreSQL connection verified.');
+
+    // فحص جاهزية المخطط: بدون جدول User لا يعمل أي تسجيل دخول — لكننا لا نهجّر تلقائياً
+    // هنا (الهجرات إما عبر render:build أو RUN_DB_MIGRATIONS_ON_STARTUP=true)
+    try {
+      await prisma.$queryRaw`SELECT 1 FROM "User" LIMIT 1`;
+    } catch (schemaErr: unknown) {
+      const code = (schemaErr as { code?: string })?.code;
+      if (code === 'P2021' || code === 'P2022') {
+        console.error(
+          '⚠️ SPEX DB: الجداول/الأعمدة غير مكتملة — هجرات Prisma لم تُطبَّق على هذه القاعدة بعد.\n' +
+            '   الحل: فعّل RUN_DB_MIGRATIONS_ON_STARTUP=true في متغيرات البيئة (يُهجّر عند كل إقلاع بأمان)،\n' +
+            '   أو اضبط Build Command على: npm run render:build (يُهجّر أثناء البناء)، ثم أعد النشر.'
+        );
+      }
+    }
   } catch (err) {
     console.error(
       '❌ SPEX DB: تعذّر الاتصال بقاعدة البيانات. تحقق من DATABASE_URL في Render Dashboard → Environment ' +

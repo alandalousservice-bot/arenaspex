@@ -38,6 +38,12 @@ npm run dev                     # http://localhost:3000
 ملف `render.yaml` جاهز كنظام Blueprint: الأمران هما
 `npm run render:build` (تثبيت + prisma generate + migrate deploy + seed + build)
 و`npm run render:start`. المتغيرات الإلزامية: `DATABASE_URL` و`JWT_SECRET`.
+
+> ⚠️ **إن أنشأت الخدمة يدوياً (بدون Blueprint)** فاضبط Build Command على
+> `npm run render:build` (وليس `npm run build`) — فالأخير لا يطبّق هجرات قاعدة
+> البيانات فيفشل كل دخول بأخطاء `P2021/P2022`. البديل: أضف المتغير
+> `RUN_DB_MIGRATIONS_ON_STARTUP=true` فيُطبَّق `prisma migrate deploy` عند كل إقلاع.
+> حساب المشرف الأول يُنشأ آلياً من `SUPER_ADMIN_EMAIL` + `SUPER_ADMIN_PASSWORD` أثناء البناء.
 الاختيارية وآثارها موثقة تفصيلياً في `.env.example` (الذكاء الاصطناعي متعدد المزودين
 مع تشفير المفاتيح في القاعدة، بريد Resend لاسترجاع كلمة المرور، Google OAuth…).
 
