@@ -72,12 +72,16 @@ export async function logoutRequest(): Promise<void> {
 // الخادم يقبل فقط الحسابات الموجودة المعتمدة، ويربط googleId تلقائياً عند أول
 // دخول ناجح بنفس البريد الإلكتروني
 // ---------------------------------------------------------------------------
-export async function googleLoginRequest(credential: string): Promise<AuthResult> {
+export async function googleLoginRequest(
+  credential: string,
+  role?: 'teacher' | 'inspector' | 'director'
+): Promise<AuthResult> {
   try {
     const res = await fetch('/api/auth/google', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ credential })
+      // الدور يُمرَّر فقط عند الإنشاء الأول للحساب (الخادم يحصّنه ضد admin)
+      body: JSON.stringify(role ? { credential, role } : { credential })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -88,7 +92,6 @@ export async function googleLoginRequest(credential: string): Promise<AuthResult
     return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
   }
 }
-
 // ربط حساب Google بحساب مسجّل الدخول حالياً (من صفحة الإعدادات)
 export async function googleLinkRequest(credential: string): Promise<AuthResult> {
   try {
