@@ -129,7 +129,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
   const handleGoogleCredential = async (credential: string) => {
     setErrorMsg('');
     setIsSubmitting(true);
-    const result = await googleLoginRequest(credential);
+    // الدور المحدد في بطاقات الاختيار يُمرَّر فقط عند إنشاء حساب جديد؛ الحساب
+    // الموجود يبقى بصلاحياته الأصلية مهما كان محدداً
+    const requestedRole = selectedRole === 'admin' ? 'teacher' : selectedRole;
+    const result = await googleLoginRequest(credential, requestedRole);
     setIsSubmitting(false);
 
     if (!result.success || !result.user) {
@@ -417,7 +420,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
           </form>
         )}
 
-        {/* Google Sign-In (في شاشة الدخول فقط — الحساب يجب أن يكون موجوداً مسبقاً بنفس البريد) */}
+        {/* Google Sign-In — إنشاء حساب فوري بوضع المشاهدة أو دخول مباشر لحساب مفعّل */}
         {activeForm === 'login' && (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
@@ -427,7 +430,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             </div>
             <GoogleSignInButton onCredential={handleGoogleCredential} disabled={isSubmitting} />
             <p className="text-[10px] text-slate-500 text-center leading-relaxed">
-              يعمل الدخول عبر Google فقط لحساب موجود مسبقاً بنفس البريد الإلكتروني، ويربطه تلقائياً بحساب Google عند أول استخدام.
+              بدون حساب؟ اضغط الزر بأي بريد Google وسيُنشأ حسابك تلقائياً في وضع المشاهدة بانتظار تفعيل المشرف — ولحساب موجود يُربَط تلقائياً بنفس البريد ويدخلك مباشرة بعد التفعيل.
             </p>
           </div>
         )}
