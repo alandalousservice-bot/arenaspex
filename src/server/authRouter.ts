@@ -2,7 +2,7 @@
  * SPEX - Authentication Router
  * تسجيل الدخول الحقيقي (bcrypt + JWT في كوكيز httpOnly)، بدل التحقق من كلمة المرور في المتصفح
  */
-import { Router } from 'express';
+import { Router, urlencoded } from 'express';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { prisma } from './prismaClient.js';
@@ -134,15 +134,89 @@ authRouter.post('/logout', (req, res) => {
 });
 
 // -----------------------------------------------------------------------
-// Sign in with Google
-// السياسة نفسها المطبقة على تسجيل الدخول العادي: لا يُنشأ أي حساب جديد تلقائياً
-// عبر Google — الحساب يجب أن يكون موجوداً مسبقاً (أنشأه المشرف أو المفتش) ومفعّلاً.
-// أول دخول ناجح عبر Google لبريد إلكتروني مطابق لحساب موجود يقوم "بربط" الحساب
-// تلقائياً (تخزين googleId)، وبعدها تكفي الضغطة على الزر للدخول دون كلمة مرور.
+// Sign in with Google — سياسة المنصة: الإنشاء الذاتي مسموح للأدوار البيداغوجية
+// (أستاذ/مفتش/مدير): أي بريد Google موثّق ينشئ حساباً فورياً بوضع المشاهدة
+// (pending_approval) والمشرف يفعّله لاحقاً من بوابته. الحسابات الموجودة بنفس
+// البريد تُربَط تلقائياً وتدخل بصلاحياتها الحقيقية.
 // -----------------------------------------------------------------------
 const googleAuthSchema = z.object({
-  credential: z.string().min(10) // Google ID token (JWT) القادم من Google Identity Services
+  credential: z.string().min(10), // Google ID token (JWT) القادم من Google Identity Services
+  // دور ذاتي الاختيار عند الإنشاء الأول — أبداً "admin" من هنا (الإدارة للمشرف)
+  role: z.enum(['teacher', 'inspector', 'director']).optional()
 });
+
+const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher', 'inspector', 'director']);
+
+/**
+ * منطق Google الموحّد (يخدم مسارَي /google و /google/gsi-callback):
+ * - حساب مربوط بـ googleId: دخول مباشر (بعد فحص التفعيل).
+ * - حساب موجود بنفس البريد بلا ربط: ربط تلقائي ثم دخول (بعد فحص التفعيل).
+ * - لا حساب إطلاقاً: إنشاء حساب جديد فوراً بوضع "بانتظار تفعيل المشرف"
+ *   (pending_approval — نفس سياسة التسجيل العادي)، بكلمة مرور عشوائية غير
+ *   قابلة للاستعمال (لا يحتاجها — الدخول عبر Google، ويمكنه تعيين كلمة مرور
+ *   لاحقاً من الإعدادات).
+ */
+async function findOrCreateGoogleUser(
+  profile: { googleId: string; email: string; emailVerified: boolean; firstName: string; lastName: string; avatar?: string },
+  requestedRole?: string
+) {
+  let user = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
+  if (!user) {
+    user = await prisma.user.findUnique({ where: { email: profile.email } });
+  }
+
+  if (user) {
+    if (user.status !== 'active' || !user.isApprovedByAdmin) {
+      return { kind: 'pending' as const, user };
+    }
+    if (!user.googleId) {
+      try {
+        user = await prisma.user.update({ where: { id: user.id }, data: { googleId: profile.googleId } });
+      } catch (err) {
+        console.error('تعذر ربط حساب Google تلقائياً:', err);
+      }
+    }
+    return { kind: 'ok' as const, user, created: false };
+  }
+
+  // إنشاء أول للحساب عبر Google — معتمد للأدوار البيداغوجية فقط وبانتظار تفعيل المشرف
+  const role = requestedRole && GOOGLE_SELF_REGISTER_ROLES.has(requestedRole) ? requestedRole : 'teacher';
+  const passwordHash = await hashPassword(crypto.randomBytes(24).toString('hex')); // غير قابلة للاستعمال إطلاقاً
+  const spexId = `SPX-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+  const created = await prisma.user.create({
+    data: {
+      id: `usr_${crypto.randomUUID()}`,
+      username: `user_${Date.now().toString().slice(-6)}`,
+      spexId,
+      firstName: profile.firstName || 'مستخدم',
+      lastName: profile.lastName || 'جديد',
+      email: profile.email,
+      passwordHash,
+      role,
+      avatar: profile.avatar || null,
+      phone: null,
+      schoolName: null,
+      municipality: null,
+      directorateId: '',
+      districtId: '',
+      institutionId: null,
+      specialization:
+        role === 'teacher'
+          ? 'أستاذ التربية البدنية والرياضية - الطور الابتدائي'
+          : role === 'inspector'
+            ? 'مفتش التربية البدنية والرياضية'
+            : 'مدير مدرسة ابتدائية',
+      yearsExperience: null,
+      status: 'pending_approval',
+      isApprovedByAdmin: false,
+      customApiKey: '',
+      apiKeyStatus: 'not_set'
+    }
+  });
+
+  return { kind: 'ok' as const, user: created, created: true };
+}
 
 authRouter.post('/google', async (req, res) => {
   if (!isGoogleSignInConfigured()) {
@@ -162,40 +236,26 @@ authRouter.post('/google', async (req, res) => {
     return res.status(401).json({ error: 'يجب أن يكون بريد حساب Google موثّقاً (verified) لاستخدامه في الدخول.' });
   }
 
-  // نبحث أولاً عن حساب مربوط مسبقاً بهذا الـ googleId، ثم عن حساب يطابق البريد الإلكتروني
-  let user = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
-  if (!user) {
-    user = await prisma.user.findUnique({ where: { email: profile.email } });
-  }
+  const outcome = await findOrCreateGoogleUser(profile, parsed.data.role);
 
-  // لا يتم إنشاء حسابات تلقائياً عبر Google. الحساب يجب أن يكون مسجلاً ومقبولاً مسبقاً.
-  if (!user) {
-    return res.status(403).json({
-      error: 'لا يوجد حساب SPEX مرتبط بهذا البريد الإلكتروني. يرجى إنشاء حساب عبر التسجيل وانتظار موافقة الإدارة.'
-    });
-  }
-
-  if (user.status !== 'active' || !user.isApprovedByAdmin) {
+  if (outcome.kind === 'pending') {
     return res.status(403).json({
       error: 'حسابك قيد انتظار موافقة الإدارة أو غير مفعّل حالياً.',
       code: 'ACCOUNT_PENDING_APPROVAL',
-      user: sanitizeOwnUser(user)
+      user: sanitizeOwnUser(outcome.user)
     });
   }
 
-  if (!user.googleId) {
-    // ربط تلقائي عند أول دخول ناجح عبر Google بنفس البريد الإلكتروني المسجل
-    try {
-      user = await prisma.user.update({ where: { id: user.id }, data: { googleId: profile.googleId } });
-    } catch (err: unknown) {
-      console.error('تعذر ربط حساب Google تلقائياً:', err);
-    }
-  }
-
+  const { user, created } = outcome;
   const token = signSession({ userId: user.id, role: user.role });
   setSessionCookie(res, token);
 
-  res.json({ success: true, user: sanitizeOwnUser(user) });
+  res.json({
+    success: true,
+    // created=true تعني: حساب جديد في وضع المشاهدة بانتظار تفعيل المشرف
+    created,
+    user: sanitizeOwnUser(user)
+  });
 });
 
 // ربط حساب Google بحساب مسجّل الدخول حالياً (من صفحة الإعدادات، بدلاً من شاشة الدخول)
@@ -231,6 +291,64 @@ authRouter.post('/google/link', requireAuth, async (req, res) => {
 
   const updated = await prisma.user.update({ where: { id: req.user!.id }, data: { googleId: profile.googleId } });
   res.json({ success: true, user: sanitizeOwnUser(updated) });
+});
+
+// ---------------------------------------------------------------------------
+// مسار العودة الاحتياطي (login_uri) لـ Google Identity Services:
+// عندما تمنع المتصفحات كوكيز الطرف الثالث، يتحول زر Google إلى نموذج يُرسَل عبر
+// accounts.google.com/gsi/transform ثم يعود POST إلى هنا حاملاً credential
+// و g_csrf_token (نموذج urlencoded) — نتحقق من مطابقة رمز CSRF (كوكي/جسم) ثم
+// نكمل نفس منطق الدخول، ونعيد التوجيه إلى واجهة المنصة.
+// ---------------------------------------------------------------------------
+authRouter.post('/google/gsi-callback', urlencoded({ extended: false }), async (req, res) => {
+  const fail = (message: string) => res.redirect(`/login?google_error=${encodeURIComponent(message)}`);
+
+  try {
+    if (!isGoogleSignInConfigured()) {
+      return fail('تسجيل الدخول عبر Google غير مفعّل حالياً على هذه المنصة.');
+    }
+
+    // حماية CSRF الخاصة بمسار GSI: الرمز في الكوكي يجب أن يطابق رمز جسم الطلب
+    const cookieToken = req.cookies?.g_csrf_token;
+    const bodyToken = req.body?.g_csrf_token;
+    if (!cookieToken || !bodyToken || cookieToken !== bodyToken) {
+      return fail('فشل التحقق من أمان الطلب (CSRF). أعد المحاولة.');
+    }
+
+    const credential = req.body?.credential;
+    if (!credential || typeof credential !== 'string' || credential.length < 10) {
+      return fail('رمز هوية Google مفقود أو غير صالح.');
+    }
+
+    const profile = await verifyGoogleIdToken(credential);
+    if (!profile) {
+      return fail('تعذر التحقق من حساب Google. يرجى إعادة المحاولة.');
+    }
+    if (!profile.emailVerified) {
+      return fail('يجب أن يكون بريد حساب Google موثّقاً (verified).');
+    }
+
+    let outcome;
+    try {
+      outcome = await findOrCreateGoogleUser(profile);
+    } catch (err) {
+      console.error('خطأ أثناء البحث/الإنشاء (gsi-callback):', err);
+      return fail('تعذر إتمام الدخول الآن. أعد المحاولة بعد قليل.');
+    }
+
+    if (outcome.kind === 'pending') {
+      return fail('حسابك قيد انتظار موافقة الإدارة أو غير مفعّل حالياً.');
+    }
+
+    const user = outcome.user;
+    const token = signSession({ userId: user.id, role: user.role });
+    setSessionCookie(res, token);
+    // الحساب الجديد يدخل فوراً على وضع المشاهدة (بوابة التفعيل تظهر له آلياً)
+    return res.redirect('/dashboard');
+  } catch (err) {
+    console.error('خطأ في مسار Google gsi-callback:', err);
+    return fail('حدث خطأ غير متوقع أثناء الدخول عبر Google.');
+  }
 });
 
 authRouter.post('/google/unlink', requireAuth, async (req, res) => {
