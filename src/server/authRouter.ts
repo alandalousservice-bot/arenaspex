@@ -36,8 +36,21 @@ const registerSchema = z.object({
   password: z.string().min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
   schoolName: z.string().optional(),
   municipality: z.string().optional(),
-  phone: z.string().optional()
+  phone: z.string().optional(),
+  // PART A: هيكلية جغرافية وطنية + تسجيل بالقوائم المتراكبة
+  eduDirectorateId: z.string().trim().optional(),
+  eduDistrictId: z.string().trim().optional(),
+  eduSchoolId: z.string().trim().optional(),
+  municipalityId: z.string().trim().optional()
 });
+
+function remapHistoricDirectorateId(id?: string | null): string | null {
+  if (!id) return null;
+  const trimmed = id.trim();
+  if (trimmed === 'de_19' || trimmed === 'de_19'.toLowerCase()) return 'setif_de';
+  // also handle de_19 variations like de_19 padded? already
+  return trimmed;
+}
 
 authRouter.post('/register', async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
@@ -45,7 +58,7 @@ authRouter.post('/register', async (req, res) => {
     return res.status(400).json({ error: parsed.error.errors[0]?.message || 'بيانات غير صحيحة.' });
   }
 
-  const { firstName, lastName, email, password, schoolName, municipality, phone } = parsed.data;
+  const { firstName, lastName, email, password, schoolName, municipality, phone, eduDirectorateId, eduDistrictId, eduSchoolId, municipalityId } = parsed.data;
   const role = 'teacher';
   const lowerEmail = email.toLowerCase();
 
@@ -57,6 +70,10 @@ authRouter.post('/register', async (req, res) => {
   const passwordHash = await hashPassword(password);
   const spexId = `SPX-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
   const userId = `usr_${crypto.randomUUID()}`;
+
+  // ترمية الأكواد التاريخية de_19→setif_de
+  const normalizedEduDir = remapHistoricDirectorateId(eduDirectorateId || null);
+  const normalizedLegacyDir = normalizedEduDir || '';
 
   try {
     const user = await prisma.user.create({
@@ -72,16 +89,20 @@ authRouter.post('/register', async (req, res) => {
         phone: phone || null,
         schoolName: schoolName || null,
         municipality: municipality || null,
-        directorateId: '',
-        districtId: '',
-        institutionId: null,
+        directorateId: normalizedLegacyDir,
+        districtId: eduDistrictId || '',
+        institutionId: eduSchoolId || null,
+        municipalityId: municipalityId || null,
+        eduDirectorateId: normalizedEduDir,
+        eduDistrictId: eduDistrictId || null,
+        eduSchoolId: eduSchoolId || null,
         specialization: 'أستاذ التربية البدنية والرياضية - الطور الابتدائي',
         yearsExperience: null,
         status: 'pending_approval',
         isApprovedByAdmin: false,
         customApiKey: '',
         apiKeyStatus: 'not_set'
-      }
+      } as any
     });
 
     const token = signSession({ userId: user.id, role: user.role });
@@ -166,15 +187,16 @@ async function findOrCreateGoogleUser(
   }
 
   if (user) {
-    if (user.status !== 'active' || !user.isApprovedByAdmin) {
-      return { kind: 'pending' as const, user };
-    }
+    // ربط Google تلقائياً حتى للحسابات المعلقة — يسمح بالدخول المباشر عبر Google لأي بريد
     if (!user.googleId) {
       try {
         user = await prisma.user.update({ where: { id: user.id }, data: { googleId: profile.googleId } });
       } catch (err) {
         console.error('تعذر ربط حساب Google تلقائياً:', err);
       }
+    }
+    if (user.status !== 'active' || !user.isApprovedByAdmin) {
+      return { kind: 'pending' as const, user };
     }
     return { kind: 'ok' as const, user, created: false };
   }
@@ -238,11 +260,17 @@ authRouter.post('/google', async (req, res) => {
 
   const outcome = await findOrCreateGoogleUser(profile, parsed.data.role);
 
+  // السماح لأي مستخدم بالتسجيل مباشرة عبر Google — حتى الحساب المعلق يدخل لوضع المشاهدة بدل 403
+  // (فرق واضح بين تسجيل الدخول العادي الذي يرفض المعلق، وبين Google الذي يُعتبر تسجيلاً مباشراً)
   if (outcome.kind === 'pending') {
-    return res.status(403).json({
-      error: 'حسابك قيد انتظار موافقة الإدارة أو غير مفعّل حالياً.',
-      code: 'ACCOUNT_PENDING_APPROVAL',
-      user: sanitizeOwnUser(outcome.user)
+    const user = outcome.user;
+    const token = signSession({ userId: user.id, role: user.role });
+    setSessionCookie(res, token);
+    return res.json({
+      success: true,
+      pending: true,
+      message: 'حسابك قيد انتظار موافقة الإدارة — تم الدخول لوضع المشاهدة.',
+      user: sanitizeOwnUser(user)
     });
   }
 
@@ -336,14 +364,12 @@ authRouter.post('/google/gsi-callback', urlencoded({ extended: false }), async (
       return fail('تعذر إتمام الدخول الآن. أعد المحاولة بعد قليل.');
     }
 
-    if (outcome.kind === 'pending') {
-      return fail('حسابك قيد انتظار موافقة الإدارة أو غير مفعّل حالياً.');
-    }
-
+    // أي مستخدم (حتى المعلق) يستطيع الدخول عبر Google مباشرة إلى وضع المشاهدة
+    // بدل إظهار صفحة خطأ — التسجيل المباشر عبر Google مسموح لأي بريد موثّق
     const user = outcome.user;
     const token = signSession({ userId: user.id, role: user.role });
     setSessionCookie(res, token);
-    // الحساب الجديد يدخل فوراً على وضع المشاهدة (بوابة التفعيل تظهر له آلياً)
+    // الحساب الجديد أو المعلق يدخل فوراً على وضع المشاهدة (بوابة التفعيل تظهر له آلياً)
     return res.redirect('/dashboard');
   } catch (err) {
     console.error('خطأ في مسار Google gsi-callback:', err);
@@ -427,15 +453,26 @@ authRouter.post('/bootstrap-admin', async (req, res) => {
 
 authRouter.get('/me', async (req, res) => {
   const token = getSessionTokenFromRequest(req);
-  if (!token) return res.status(401).json({ error: 'لا توجد جلسة نشطة.' });
+  if (!token) return res.status(401).json({ error: 'لا توجد جلسة نشطة.', code: 'ACCOUNT_GONE' });
 
   const payload = verifySession(token);
-  if (!payload) return res.status(401).json({ error: 'الجلسة غير صالحة.' });
+  if (!payload) return res.status(401).json({ error: 'الجلسة غير صالحة.', code: 'ACCOUNT_GONE' });
 
   const user = await prisma.user.findUnique({ where: { id: payload.userId } });
   if (!user) {
     clearSessionCookie(res);
-    return res.status(401).json({ error: 'الحساب غير موجود.' });
+    return res.status(401).json({ error: 'الحساب غير موجود.', code: 'ACCOUNT_GONE' });
+  }
+
+  // PART C/C3: إذا كان الحساب معطلاً ⇒ كيان الخادم (inactive) ⇒ يقفل إلى وضع المشاهدة
+  // نعيد {disabled:true, user} مع كود ACCOUNT_DISABLED
+  if (user.status === 'inactive') {
+    return res.status(401).json({
+      error: 'الحساب معطّل من طرف الإدارة.',
+      code: 'ACCOUNT_DISABLED',
+      disabled: true,
+      user: sanitizeOwnUser(user)
+    });
   }
 
   res.json({ success: true, user: sanitizeOwnUser(user) });

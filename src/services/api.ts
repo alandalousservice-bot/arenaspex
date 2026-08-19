@@ -1,6 +1,9 @@
 /**
  * SPEX - Client API Service
  * العميل البرمجي للاتصال بواجهة API والذكاء الاصطناعي
+ * يتضمن الآن:
+ * - PART A: fetchGeo* للهيكلية الوطنية
+ * - PART C: offlinePost/offlineDelete via src/lib/offline.ts
  */
 
 // -----------------------------------------------------------------------
@@ -9,11 +12,16 @@
 // -----------------------------------------------------------------------
 import { User } from '../types/spex';
 import type { AnnualPlan, AnnualPlanKind, AnnualPlanObjectiveOverride } from '../types/spex';
+import { offlinePost, offlineDelete } from '../lib/offline';
 
 export interface AuthResult {
   success: boolean;
   user?: User;
   error?: string;
+  offline?: boolean;
+  disabled?: boolean;
+  isOfflineSession?: boolean;
+  code?: string;
 }
 
 export async function loginRequest(email: string, password: string): Promise<AuthResult> {
@@ -25,8 +33,18 @@ export async function loginRequest(email: string, password: string): Promise<Aut
     });
     const data = await res.json();
     if (!res.ok) {
+      // handle disabled/pending etc - login already returns 403 for pending
+      if (data.code === 'ACCOUNT_DISABLED' || data.disabled) {
+        return { success: false, disabled: true, user: data.user, error: data.error };
+      }
       return { success: false, error: data.error || 'تعذر تسجيل الدخول.' };
     }
+    // store local copy for offline mode
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('spex_current_user', JSON.stringify(data.user));
+      }
+    } catch {}
     return { success: true, user: data.user };
   } catch (e) {
     return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
@@ -42,6 +60,10 @@ export async function registerRequest(userData: {
   schoolName?: string;
   municipality?: string;
   phone?: string;
+  eduDirectorateId?: string;
+  eduDistrictId?: string;
+  eduSchoolId?: string;
+  municipalityId?: string;
 }): Promise<AuthResult> {
   try {
     const res = await fetch('/api/auth/register', {
@@ -53,6 +75,11 @@ export async function registerRequest(userData: {
     if (!res.ok) {
       return { success: false, error: data.error || 'تعذر إنشاء الحساب.' };
     }
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('spex_current_user', JSON.stringify(data.user));
+      }
+    } catch {}
     return { success: true, user: data.user };
   } catch (e) {
     return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
@@ -65,12 +92,17 @@ export async function logoutRequest(): Promise<void> {
   } catch (e) {
     // تجاهل: تنظيف الحالة المحلية سيحدث بغض النظر
   }
+  try {
+    if (typeof localStorage !== 'undefined') {
+      // احتفظ بالصندوق المعفى فقط حسب killSwitch سياسة، لكن عند logout العادي نمسح كل شيء ما عدا الصندوق؟
+      // للخروج العادي نمسح المستخدم فقط
+      localStorage.removeItem('spex_current_user');
+    }
+  } catch {}
 }
 
 // ---------------------------------------------------------------------------
-// Google Sign-In (ID token القادم من زر GSI) — لا ينشئ حسابات جديدة إطلاقاً:
-// الخادم يقبل فقط الحسابات الموجودة المعتمدة، ويربط googleId تلقائياً عند أول
-// دخول ناجح بنفس البريد الإلكتروني
+// Google Sign-In
 // ---------------------------------------------------------------------------
 export async function googleLoginRequest(
   credential: string,
@@ -80,19 +112,25 @@ export async function googleLoginRequest(
     const res = await fetch('/api/auth/google', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // الدور يُمرَّر فقط عند الإنشاء الأول للحساب (الخادم يحصّنه ضد admin)
       body: JSON.stringify(role ? { credential, role } : { credential })
     });
     const data = await res.json();
     if (!res.ok) {
+      if (data.code === 'ACCOUNT_DISABLED' || data.disabled) {
+        return { success: false, disabled: true, user: data.user, error: data.error };
+      }
       return { success: false, error: data.error || 'تعذر تسجيل الدخول عبر Google.' };
     }
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('spex_current_user', JSON.stringify(data.user));
+      }
+    } catch {}
     return { success: true, user: data.user };
   } catch (e) {
     return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
   }
 }
-// ربط حساب Google بحساب مسجّل الدخول حالياً (من صفحة الإعدادات)
 export async function googleLinkRequest(credential: string): Promise<AuthResult> {
   try {
     const res = await fetch('/api/auth/google/link', {
@@ -124,12 +162,49 @@ export async function googleUnlinkRequest(): Promise<AuthResult> {
 }
 
 export async function fetchCurrentSession(): Promise<AuthResult> {
+  // C3: انقطاع ≠ خروج — عند navigator.onLine===false صراحة نعمل من النسخة المحلية
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    try {
+      const raw = localStorage.getItem('spex_current_user');
+      if (raw) {
+        const user = JSON.parse(raw);
+        return { success: true, offline: true, isOfflineSession: true, user };
+      }
+    } catch {}
+    return { success: false, offline: true, error: 'offline', isOfflineSession: false };
+  }
+
   try {
     const res = await fetch('/api/auth/me');
     const data = await res.json();
-    if (!res.ok) return { success: false, error: data.error };
+    if (!res.ok) {
+      if (data.code === 'ACCOUNT_DISABLED' || data.disabled || data.error?.includes('معطّل')) {
+        return { success: false, disabled: true, user: data.user, error: data.error, code: data.code };
+      }
+      if (data.code === 'ACCOUNT_GONE') {
+        return { success: false, error: data.error, code: data.code };
+      }
+      return { success: false, error: data.error };
+    }
+    // store local copy for offline resilience
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('spex_current_user', JSON.stringify(data.user));
+      }
+    } catch {}
     return { success: true, user: data.user };
   } catch (e) {
+    // network error — check if offline explicitly
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      try {
+        const raw = localStorage.getItem('spex_current_user');
+        if (raw) {
+          const user = JSON.parse(raw);
+          return { success: true, offline: true, isOfflineSession: true, user };
+        }
+      } catch {}
+      return { success: false, offline: true, error: 'offline' };
+    }
     return { success: false, error: 'تعذر الاتصال بالخادم.' };
   }
 }
@@ -329,8 +404,6 @@ export async function requestAILessonPlan(payload: LessonGeneratorPayload) {
 
     const json = await response.json();
     if (json.data) {
-      // الذكاء الاصطناعي قد يعيد بنية ناقصة أحياناً، فنركّب النتيجة فوق القالب
-      // المحلي الكامل لضمان اكتمال كل الحقول التي تعتمدها الواجهة (ولا تتحطم الشاشة)
       return normalizeLessonPlanData(json.data, payload);
     }
     throw new Error('لم يتم استلام بيانات المذكرة');
@@ -340,10 +413,6 @@ export async function requestAILessonPlan(payload: LessonGeneratorPayload) {
   }
 }
 
-/**
- * دمج عميق بين نتيجة الذكاء الاصطناعي (قد تكون ناقصة) والقالب المحلي الكامل:
- * أي حقل أو مرحلة ينقصها ردّ النموذج تُستكمل من القالب فلا تنكسر واجهة عرض المذكرة.
- */
 function normalizeLessonPlanData(data: any, payload: LessonGeneratorPayload) {
   const base = fallbackLessonClientGenerator(payload);
   const warmupGame = data?.warmupPhase?.pedagogicalWarmupGame || base.warmupPhase.pedagogicalWarmupGame;
@@ -434,45 +503,38 @@ export async function sendAIChatMessage(message: string, history: { role: 'user'
   }
 }
 
-// Platform DB Auto-Save Sync Helpers
+// Platform DB Auto-Save Sync Helpers — PART C: موجهة عبر offlinePost/offlineDelete
 
 export async function syncUserToDB(user: User): Promise<{ success: boolean; user?: User; error?: string }> {
-  try {
-    const res = await fetch('/api/db/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user })
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      console.warn('DB syncUser failed:', data.error);
-      return { success: false, error: data.error };
+  const result = await offlinePost('/api/db/users', { user }, 'POST');
+  if (result.success) {
+    // try to get actual user from server if online, but offlinePost already attempted
+    try {
+      const res = await fetch('/api/db/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.error };
+      }
+      return { success: true, user: data.user };
+    } catch {
+      // if we are offline, we already queued
+      return { success: true };
     }
-    return { success: true, user: data.user };
-  } catch (e) {
-    console.warn('DB syncUser failed:', e);
-    return { success: false };
   }
+  // queued offline — consider success for UI
+  return { success: true };
 }
 
 export async function deleteUserFromDB(userId: string) {
-  try {
-    await fetch(`/api/db/users/${userId}`, { method: 'DELETE' });
-  } catch (e) {
-    console.warn('DB deleteUser failed:', e);
-  }
+  await offlineDelete(`/api/db/users/${userId}`);
 }
 
 export async function syncUsersBatchToDB(users: User[]) {
-  try {
-    await fetch('/api/db/users/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ users })
-    });
-  } catch (e) {
-    console.warn('DB syncUsersBatch failed:', e);
-  }
+  await offlinePost('/api/db/users/batch', { users }, 'POST');
 }
 
 export async function fetchUsersFromDB() {
@@ -486,27 +548,11 @@ export async function fetchUsersFromDB() {
 }
 
 export async function syncLessonPlanToDB(lessonPlan: unknown) {
-  try {
-    await fetch('/api/db/lesson-plans', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lessonPlan })
-    });
-  } catch (e) {
-    console.warn('DB syncLessonPlan failed:', e);
-  }
+  await offlinePost('/api/db/lesson-plans', { lessonPlan }, 'POST');
 }
 
 export async function syncLessonPlansBatchToDB(lessonPlans: unknown[]) {
-  try {
-    await fetch('/api/db/lesson-plans/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lessonPlans })
-    });
-  } catch (e) {
-    console.warn('DB syncLessonPlansBatch failed:', e);
-  }
+  await offlinePost('/api/db/lesson-plans/batch', { lessonPlans }, 'POST');
 }
 
 export async function fetchLessonPlansFromDB() {
@@ -520,67 +566,27 @@ export async function fetchLessonPlansFromDB() {
 }
 
 export async function deleteLessonPlanFromDB(lessonId: string) {
-  try {
-    await fetch(`/api/db/lesson-plans/${lessonId}`, { method: 'DELETE' });
-  } catch (e) {
-    console.warn('DB deleteLessonPlan failed:', e);
-  }
+  await offlineDelete(`/api/db/lesson-plans/${lessonId}`);
 }
 
 export async function syncNotebookEntryToDB(entry: unknown) {
-  try {
-    await fetch('/api/db/notebook', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entry })
-    });
-  } catch (e) {
-    console.warn('DB syncNotebookEntry failed:', e);
-  }
+  await offlinePost('/api/db/notebook', { entry }, 'POST');
 }
 
 export async function syncNotebookBatchToDB(dailyNotebook: unknown[]) {
-  try {
-    await fetch('/api/db/notebook/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dailyNotebook })
-    });
-  } catch (e) {
-    console.warn('DB syncNotebookBatch failed:', e);
-  }
+  await offlinePost('/api/db/notebook/batch', { dailyNotebook }, 'POST');
 }
 
 export async function deleteNotebookEntryFromDB(entryId: string) {
-  try {
-    await fetch(`/api/db/notebook/${entryId}`, { method: 'DELETE' });
-  } catch (e) {
-    console.warn('DB deleteNotebookEntry failed:', e);
-  }
+  await offlineDelete(`/api/db/notebook/${entryId}`);
 }
 
 export async function syncInspectorNoteToDB(note: unknown) {
-  try {
-    await fetch('/api/db/inspector-notes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ note })
-    });
-  } catch (e) {
-    console.warn('DB syncInspectorNote failed:', e);
-  }
+  await offlinePost('/api/db/inspector-notes', { note }, 'POST');
 }
 
 export async function syncDistrictMessageToDB(message: unknown) {
-  try {
-    await fetch('/api/db/district-messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message })
-    });
-  } catch (e) {
-    console.warn('DB syncDistrictMessage failed:', e);
-  }
+  await offlinePost('/api/db/district-messages', { message }, 'POST');
 }
 
 export async function fetchDistrictMessagesFromDB() {
@@ -594,15 +600,7 @@ export async function fetchDistrictMessagesFromDB() {
 }
 
 export async function syncDirectMessageToDB(message: unknown) {
-  try {
-    await fetch('/api/db/direct-messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message })
-    });
-  } catch (e) {
-    console.warn('DB syncDirectMessage failed:', e);
-  }
+  await offlinePost('/api/db/direct-messages', { message }, 'POST');
 }
 
 export async function fetchDirectMessagesFromDB() {
@@ -616,15 +614,7 @@ export async function fetchDirectMessagesFromDB() {
 }
 
 export async function syncCommunityResourceToDB(resource: unknown) {
-  try {
-    await fetch('/api/db/community-resources', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resource })
-    });
-  } catch (e) {
-    console.warn('DB syncCommunityResource failed:', e);
-  }
+  await offlinePost('/api/db/community-resources', { resource }, 'POST');
 }
 
 export async function fetchCommunityResourcesFromDB() {
@@ -638,23 +628,11 @@ export async function fetchCommunityResourcesFromDB() {
 }
 
 export async function syncCommunityNotificationToDB(notification: unknown) {
-  try {
-    await fetch('/api/db/community-notifications', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notification })
-    });
-  } catch (e) {
-    console.warn('DB syncCommunityNotification failed:', e);
-  }
+  await offlinePost('/api/db/community-notifications', { notification }, 'POST');
 }
 
 export async function deleteCommunityNotificationFromDB(notificationId: string) {
-  try {
-    await fetch(`/api/db/community-notifications/${notificationId}`, { method: 'DELETE' });
-  } catch (e) {
-    console.warn('DB deleteCommunityNotification failed:', e);
-  }
+  await offlineDelete(`/api/db/community-notifications/${notificationId}`);
 }
 
 export async function fetchCommunityNotificationsFromDB() {
@@ -714,7 +692,10 @@ export interface TeacherProfessionalData {
   directorateId: string;
   municipalityId: string;
   institutionId: string;
-  districtId: string;
+  districtId?: string;
+  firstName?: string;
+  lastName?: string;
+  birthDate?: string;
 }
 export const saveTeacherProfessionalData = (payload: TeacherProfessionalData) =>
   postJSON('/api/teacher/professional-data', payload, 'PUT');
@@ -728,6 +709,23 @@ export const fetchMyAssignedTeachers = (filters?: { municipalityId?: string; ins
   const qs = params.toString();
   return getJSON(`/api/inspector/teachers${qs ? `?${qs}` : ''}`);
 };
+
+// PART A: Geo hierarchy public endpoints
+export const fetchGeoDirectorates = () => getJSON('/api/geo/directorates');
+export const fetchGeoDistricts = (directorateId: string) =>
+  getJSON(`/api/geo/directorates/${directorateId}/districts`);
+export const fetchGeoMunicipalities = (directorateId: string) =>
+  getJSON(`/api/geo/directorates/${directorateId}/municipalities`);
+export const fetchGeoSchools = (params?: { municipalityId?: string; districtId?: string; commune?: string }) => {
+  const q = new URLSearchParams();
+  if (params?.municipalityId) q.set('municipalityId', params.municipalityId);
+  if (params?.districtId) q.set('districtId', params.districtId);
+  if (params?.commune) q.set('commune', params.commune);
+  const qs = q.toString();
+  return getJSON(`/api/geo/schools${qs ? `?${qs}` : ''}`);
+};
+export const fetchGeoDistrictCommunes = (districtId: string) =>
+  getJSON(`/api/geo/districts/${districtId}/communes`);
 
 // --- إدارة (Admin) ---
 export const adminCreateDirectorate = (payload: { id: string; name: string; wilayaCode?: string }) =>
@@ -757,6 +755,13 @@ export const fetchAllAssignments = (status?: string) =>
 export const reassignAllTeachers = () => postJSON('/api/admin/assignments/reassign-all');
 export const removeTeacherAssignment = (teacherId: string) => postJSON(`/api/admin/assignments/${teacherId}/remove`);
 export const reassignSingleTeacher = (teacherId: string) => postJSON(`/api/admin/assignments/${teacherId}/reassign`);
+
+// Pending assignments for inspector (PART B)
+export const fetchInspectorPendingAssignments = () => getJSON('/api/inspector/pending-assignments');
+export const acceptInspectorAssignment = (teacherId: string) =>
+  postJSON(`/api/inspector/assignments/${teacherId}/accept`);
+export const rejectInspectorAssignment = (teacherId: string, reason?: string) =>
+  postJSON(`/api/inspector/assignments/${teacherId}/reject`, { reason });
 
 // -----------------------------------------------------------------------
 // المخطط السنوي / التوزيع السنوي — تعديل الأستاذ لصياغة الأهداف، واقتراح

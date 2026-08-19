@@ -17,6 +17,8 @@ import { logoutRequest } from './services/api';
 import { tabToPath, pathToTab, defaultTabForRole, resolveTabForRole } from './lib/routes';
 import { User } from './types/spex';
 import { DEMO_USERS, INITIAL_DIRECTORATES } from './data/initialState';
+import { registerOnlineFlush } from './lib/offline';
+import { OfflineBanner } from './components/common/OfflineBanner';
 
 const TeacherDashboard = lazy(() => import('./components/dashboard/TeacherDashboard').then((m) => ({ default: m.TeacherDashboard })));
 const InspectorDashboard = lazy(() => import('./components/dashboard/InspectorDashboard').then((m) => ({ default: m.InspectorDashboard })));
@@ -45,7 +47,7 @@ const ViewFallback = () => (
 );
 
 export default function App() {
-  const { isAuthenticated, setIsAuthenticated, isCheckingSession, authView, setAuthView, currentUser, setCurrentUser } = useAuth();
+  const { isAuthenticated, setIsAuthenticated, isCheckingSession, isOfflineSession, authView, setAuthView, currentUser, setCurrentUser } = useAuth() as any;
 
   // ---------------------------------------------------------------
   // التنقل عبر عناوين URL: التبويب النشط يُشتق من الرابط دائماً، وأي
@@ -142,6 +144,12 @@ export default function App() {
     refreshSessionUser
   } = store;
 
+  // PART C/C1: صندوق صادر بلا إنترنت — تفريغ عند 'online' + banner
+  useEffect(() => {
+    const cleanup = registerOnlineFlush();
+    return cleanup;
+  }, []);
+
   // حارس صلاحيات العرض: أي تبويب لا ينتمي لدور المستخدم يُستبدل بالصفحة الرئيسية
   // للدور (والمعيّنة أيضاً في lib/routes حتى تبقى صالحة عند الروابط العميقة)
   const activeTab = resolveTabForRole(currentTab, currentUser.role);
@@ -227,16 +235,20 @@ export default function App() {
   // إذا كان الحساب بانتظار تفعيل المشرف أو معطلاً، تظهر واجهة المشاهدة واستكشاف المزايا والتواصل مع المشرف
   if (currentUser && (!currentUser.isApprovedByAdmin || currentUser.status === 'pending_approval' || currentUser.status === 'inactive')) {
     return (
-      <PendingApprovalViewerScreen
-        user={currentUser}
-        onLogout={handleLogout}
-        onRefreshStatus={refreshSessionUser}
-      />
+      <>
+        <OfflineBanner isOfflineSession={isOfflineSession} />
+        <PendingApprovalViewerScreen
+          user={currentUser}
+          onLogout={handleLogout}
+          onRefreshStatus={refreshSessionUser}
+        />
+      </>
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
+      <OfflineBanner isOfflineSession={isOfflineSession} />
       {/* Top Navigation Header */}
       <Header
         currentUser={currentUser}

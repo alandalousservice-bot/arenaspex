@@ -36,6 +36,7 @@ import { InspectorResourceValidationView } from './inspector/InspectorResourceVa
 import { InspectorReportsView } from './inspector/InspectorReportsView';
 import { InspectorCurriculumAuditView } from './inspector/InspectorCurriculumAuditView';
 import { InspectorBroadcastsView } from './inspector/InspectorBroadcastsView';
+import { InspectorPendingAssignments } from './inspector/InspectorPendingAssignments';
 
 interface InspectorDashboardProps {
   inspector: User;
@@ -203,6 +204,9 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
             totalStudentsTaught={totalStudentsTaught}
             weeklyHoursCount={weeklyHoursCount}
           />
+
+          {/* PART B/B4: Pending Assignments - قبل قائمة الأساتذة */}
+          <InspectorPendingAssignments />
 
           {/* Teacher Selection Grid */}
           <InspectorTeacherList

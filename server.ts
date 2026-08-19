@@ -17,6 +17,7 @@ import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './src/server/apiRouter.js';
 import { authRouter } from './src/server/authRouter.js';
 import { assignmentRouter } from './src/server/assignmentRouter.js';
+import { geoRouter } from './src/server/geoRouter.js';
 import { requireAuth } from './src/server/middleware/requireAuth.js';
 
 // شبكة أمان أخيرة: انقطاع مؤقت لقاعدة البيانات أو أي خطأ غير متوقع لا يجب أن
@@ -104,7 +105,8 @@ async function startServer() {
   });
   app.use('/api', apiLimiter);
 
-  // API Routes
+  // API Routes - geoRouter عام قبل حارس الجلسة (PART A)
+  app.use('/api/geo', geoRouter);
   app.use('/api/auth', authRouter);
   app.use('/api', apiRouter);
   app.use('/api', requireAuth, assignmentRouter);
@@ -133,8 +135,26 @@ async function startServer() {
     });
   }
 
-  // Error Handler
+  // Error Handler — مع معالجة خاصة لأخطاء Neon E57P01 (terminating connection due to administrator command)
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const msg: string = (err?.message || '').toString();
+    const isNeonTerminating =
+      msg.includes('terminating connection due to administrator command') ||
+      msg.includes('E57P01') ||
+      msg.includes('57P01') ||
+      err?.code === 'P1001' ||
+      err?.code === 'P1008' ||
+      err?.code === 'P1017';
+
+    if (isNeonTerminating) {
+      console.warn('⚠️ SPEX DB: Transient Neon termination (E57P01) caught in error handler — responding 503 to trigger client retry, server stays alive:', msg.slice(0, 200));
+      return res.status(503).json({
+        error: 'قاعدة البيانات تعيد التشغيل مؤقتاً (Neon scale-to-zero). يرجى إعادة المحاولة بعد لحظات.',
+        code: 'DB_RETRYABLE',
+        retryable: true
+      });
+    }
+
     console.error('Unhandled server error:', err);
     res.status(500).json({ error: 'حدث خطأ غير متوقع في الخادم.' });
   });

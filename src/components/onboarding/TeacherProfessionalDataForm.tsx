@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Building2, MapPin, School, ShieldCheck, CheckCircle2, PlusCircle, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Building2, MapPin, School, ShieldCheck, CheckCircle2, PlusCircle, Loader2, ArrowRight, ArrowLeft, User, Calendar } from 'lucide-react';
 import {
   fetchDirectorates,
   fetchMunicipalities,
@@ -9,8 +9,14 @@ import {
   suggestSchool,
   saveTeacherProfessionalData
 } from '../../services/api';
+import {
+  fetchGeoDirectorates,
+  fetchGeoDistricts,
+  fetchGeoMunicipalities,
+  fetchGeoSchools
+} from '../../services/api';
 
-import { User } from '../../types/spex';
+import { User as UserType } from '../../types/spex';
 
 interface Option {
   id: string;
@@ -18,24 +24,37 @@ interface Option {
 }
 
 interface TeacherProfessionalDataFormProps {
-  onCompleted: (result: { user: User; assignment: unknown; inspector: unknown }) => void;
+  user?: UserType;
+  onCompleted: (result: { user: UserType; assignment: unknown; inspector: unknown }) => void;
 }
 
-const STEPS = ['المديرية', 'البلدية', 'المؤسسة', 'المقاطعة'] as const;
+const STEPS = ['البطاقة الشخصية', 'المديرية', 'البلدية', 'المؤسسة', 'المقاطعة (اختيارية)'] as const;
 
 /**
- * نموذج استكمال البيانات المهنية للأستاذ — أربع خطوات وفق المواصفة:
- * مديرية التربية ← بلدية العمل ← المؤسسة التعليمية ← المقاطعة التفتيشية.
- * عند الحفظ، يستدعي /api/teacher/professional-data الذي يشغّل الإسناد التلقائي
- * فوراً في الخادم، ويعرض النتيجة (مفتش تم ربطه، أو "بانتظار مفتش").
+ * نموذج استكمال البيانات المهنية للأستاذ — PART B/B4
+ * خطوة صفرية «البطاقة الشخصية» (الاسم/اللقب/تاريخ الميلاد بتاريخ html)
+ * ثم بقية الخطوات وتصير المقاطعة اختيارية حقيقة (زر الحفظ غير مشروط بها).
  */
-export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormProps> = ({ onCompleted }) => {
+export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormProps> = ({ user, onCompleted }) => {
   const [step, setStep] = useState(0);
 
   const [directorates, setDirectorates] = useState<Option[]>([]);
   const [municipalities, setMunicipalities] = useState<Option[]>([]);
   const [schools, setSchools] = useState<Option[]>([]);
   const [districts, setDistricts] = useState<Option[]>([]);
+
+  const [firstName, setFirstName] = useState(user?.firstName || '');
+  const [lastName, setLastName] = useState(user?.lastName || '');
+  const [birthDate, setBirthDate] = useState(() => {
+    const bd = (user as any)?.birthDate;
+    if (!bd) return '';
+    try {
+      const d = new Date(bd);
+      return d.toISOString().slice(0, 10);
+    } catch {
+      return '';
+    }
+  });
 
   const [directorateId, setDirectorateId] = useState('');
   const [municipalityId, setMunicipalityId] = useState('');
@@ -51,11 +70,17 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
   const [suggestName, setSuggestName] = useState('');
   const [suggestSent, setSuggestSent] = useState(false);
 
+  // Fetch directorates (prefer geo public, fallback to legacy)
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const res = await fetchDirectorates();
-      if (res.success) setDirectorates(res.directorates);
+      let res = await fetchGeoDirectorates().catch(() => ({ success: false } as any));
+      if (!res.success) {
+        const legacy = await fetchDirectorates();
+        if (legacy.success) setDirectorates(legacy.directorates);
+      } else {
+        setDirectorates(res.directorates);
+      }
       setLoading(false);
     })();
   }, []);
@@ -68,12 +93,26 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
     setSchools([]);
     (async () => {
       setLoading(true);
-      const [muniRes, distRes] = await Promise.all([
-        fetchMunicipalities(directorateId),
-        fetchInspectionDistricts(directorateId)
+      // Try geo first
+      const [muniResGeo, distResGeo] = await Promise.all([
+        fetchGeoMunicipalities(directorateId).catch(() => ({ success: false } as any)),
+        fetchGeoDistricts(directorateId).catch(() => ({ success: false } as any))
       ]);
-      if (muniRes.success) setMunicipalities(muniRes.municipalities);
-      if (distRes.success) setDistricts(distRes.districts);
+
+      if (muniResGeo.success) {
+        setMunicipalities(muniResGeo.municipalities);
+      } else {
+        const muniRes = await fetchMunicipalities(directorateId);
+        if (muniRes.success) setMunicipalities(muniRes.municipalities);
+      }
+
+      if (distResGeo.success) {
+        setDistricts(distResGeo.districts);
+      } else {
+        const distRes = await fetchInspectionDistricts(directorateId);
+        if (distRes.success) setDistricts(distRes.districts);
+      }
+
       setLoading(false);
     })();
   }, [directorateId]);
@@ -83,8 +122,14 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
     setInstitutionId('');
     (async () => {
       setLoading(true);
-      const res = await fetchSchools(municipalityId);
-      if (res.success) setSchools(res.schools);
+      // Try geo schools by municipalityId
+      const geoSchools = await fetchGeoSchools({ municipalityId }).catch(() => ({ success: false } as any));
+      if (geoSchools.success) {
+        setSchools(geoSchools.schools);
+      } else {
+        const res = await fetchSchools(municipalityId);
+        if (res.success) setSchools(res.schools);
+      }
       setLoading(false);
     })();
   }, [municipalityId]);
@@ -93,10 +138,13 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
   const goBack = () => setStep((s) => Math.max(s - 1, 0));
 
   const canGoNext =
-    (step === 0 && !!directorateId) ||
-    (step === 1 && !!municipalityId) ||
-    (step === 2 && !!institutionId) ||
-    step === 3;
+    (step === 0 && firstName.trim().length >= 2 && lastName.trim().length >= 2) ||
+    (step === 1 && !!directorateId) ||
+    (step === 2 && !!municipalityId) ||
+    (step === 3 && !!institutionId) ||
+    step === 4;
+
+  const canSave = !!directorateId && !!municipalityId && !!institutionId && firstName.trim().length >= 2 && lastName.trim().length >= 2 && !saving;
 
   const handleSuggestSubmit = async () => {
     if (!suggestName.trim()) return;
@@ -114,7 +162,17 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
   const handleSave = async () => {
     setError('');
     setSaving(true);
-    const res = await saveTeacherProfessionalData({ directorateId, municipalityId, institutionId, districtId });
+    const payload: any = {
+      directorateId,
+      municipalityId,
+      institutionId,
+      // المقاطعة اختيارية حقيقة
+      ...(districtId ? { districtId } : {}),
+      ...(firstName ? { firstName: firstName.trim() } : {}),
+      ...(lastName ? { lastName: lastName.trim() } : {}),
+      ...(birthDate ? { birthDate } : {})
+    };
+    const res = await saveTeacherProfessionalData(payload);
     setSaving(false);
     if (!res.success) {
       setError(res.error || 'تعذر حفظ البيانات.');
@@ -185,13 +243,13 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
   return (
     <div className="mx-auto max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-sm" dir="rtl">
       <h3 className="mb-1 text-lg font-bold text-gray-800">استكمال البيانات المهنية</h3>
-      <p className="mb-5 text-sm text-gray-500">لربطك تلقائياً بمفتش التربية البدنية والرياضية المختص.</p>
+      <p className="mb-5 text-sm text-gray-500">لربطك تلقائياً بمفتش التربية البدنية والرياضية المختص — المقاطعة اختيارية.</p>
 
       <div className="mb-5 flex items-center gap-1">
         {STEPS.map((label, i) => (
           <div key={label} className="flex flex-1 items-center">
             <div
-              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
                 i <= step ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500'
               }`}
             >
@@ -212,6 +270,44 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
       ) : (
         <>
           {step === 0 && (
+            <div className="space-y-4">
+              <div>
+                <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <User className="h-4 w-4" /> الاسم الأول
+                </label>
+                <input
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="مثال: عبد القادر"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <User className="h-4 w-4" /> اللقب
+                </label>
+                <input
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="مثال: بومدين"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <Calendar className="h-4 w-4" /> تاريخ الميلاد (اختياري)
+                </label>
+                <input
+                  type="date"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none text-sm"
+                />
+              </div>
+            </div>
+          )}
+
+          {step === 1 && (
             <div>
               <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
                 <Building2 className="h-4 w-4" /> مديرية التربية
@@ -231,7 +327,7 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
             </div>
           )}
 
-          {step === 1 && (
+          {step === 2 && (
             <div>
               <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
                 <MapPin className="h-4 w-4" /> بلدية العمل
@@ -252,7 +348,7 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
             </div>
           )}
 
-          {step === 2 && (
+          {step === 3 && (
             <div>
               <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
                 <School className="h-4 w-4" /> المؤسسة التعليمية
@@ -273,23 +369,26 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <div>
               <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
-                <ShieldCheck className="h-4 w-4" /> المقاطعة التفتيشية
+                <ShieldCheck className="h-4 w-4" /> المقاطعة التفتيشية (اختيارية)
               </label>
               <select
                 value={districtId}
                 onChange={(e) => setDistrictId(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none"
               >
-                <option value="">اختر المقاطعة التي تتبع لها مؤسستك...</option>
+                <option value="">— بلا مقاطعة (لم أطلب الإسناد بعد) —</option>
                 {districts.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
                   </option>
                 ))}
               </select>
+              <p className="mt-2 text-[11px] text-slate-500">
+                إن تركتها فارغة فلن يُنشأ لك سجل إسناد وستظهر رسالة «لم تطلب الإسناد بعد». يمكنك اختيار المقاطعة لاحقاً.
+              </p>
             </div>
           )}
         </>
@@ -315,7 +414,7 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
         ) : (
           <button
             onClick={handleSave}
-            disabled={!districtId || saving}
+            disabled={!canSave}
             className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}

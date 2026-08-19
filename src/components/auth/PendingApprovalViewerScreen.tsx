@@ -26,9 +26,12 @@ import {
   School,
   ExternalLink,
   ShieldCheck,
-  ChevronLeft
+  ChevronLeft,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { User } from '../../types/spex';
+import { TeacherProfessionalDataForm } from '../onboarding/TeacherProfessionalDataForm';
 
 interface PendingApprovalViewerScreenProps {
   user: User;
@@ -43,6 +46,7 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+  const [isProfessionalFormOpen, setIsProfessionalFormOpen] = useState(false);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -51,6 +55,13 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
     setIsRefreshing(false);
     setRefreshMessage('تم تحديث حالة الحساب من خادم المنظومة');
     setTimeout(() => setRefreshMessage(null), 4000);
+  };
+
+  const handleProfessionalCompleted = async () => {
+    setRefreshMessage('تم تحديث بياناتك المهنية — جارٍ مزامنة الجلسة...');
+    await onRefreshStatus();
+    setRefreshMessage('تم تحديث بياناتك بنجاح، وسيتم مراجعتها من المشرف.');
+    setTimeout(() => setRefreshMessage(null), 5000);
   };
 
   const isInactive = user.status === 'inactive';
@@ -159,6 +170,30 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
           </div>
         </div>
 
+        {/* PART B/B4: Professional Data Form collapsible during blocking */}
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <button
+            onClick={() => setIsProfessionalFormOpen(!isProfessionalFormOpen)}
+            className="w-full flex items-center justify-between p-5 text-right hover:bg-slate-50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+                <School className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900">استكمال البيانات المهنية والبطاقة الشخصية</h3>
+                <p className="text-xs text-slate-500">يمكنك تحديث بياناتك (الاسم، تاريخ الميلاد، المديرية، البلدية، المدرسة، المقاطعة الاختيارية) حتى أثناء فترة الحجب</p>
+              </div>
+            </div>
+            {isProfessionalFormOpen ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+          </button>
+          {isProfessionalFormOpen && (
+            <div className="p-6 border-t border-slate-100 bg-slate-50/50">
+              <TeacherProfessionalDataForm user={user} onCompleted={handleProfessionalCompleted} />
+            </div>
+          )}
+        </div>
+
         {/* Action Card: Contact Supervisor for Activation */}
         <div className="bg-gradient-to-br from-amber-950/40 via-slate-900 to-purple-950/40 border-2 border-amber-500/40 p-6 sm:p-8 rounded-3xl shadow-xl space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -177,7 +212,7 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
               <a
-                href="https://wa.me/213661234567?text=%D8%B3%D9%84%D8%A7%D9%85%20%D8%B9%D9%84%D9%8A%D9%83%D9%85%D8%8C%20%D9%82%D9%85%D8%AA%20%D8%A8%D8%AA%D8%B3%D8%AC%D9%8A%D9%84%20%D8%AD%D8%B3%D8%A7%D8%A8%20%D8%AC%D8%AF%D9%8A%D8%AF%20%D8%B9%D9%84%D9%89%20%D9%85%D9%86%D8%B5%D8%A9%20SPEX%20%D9%88%D8%A3%D8%B1%D8%BA%D8%A8%20%D9%81%D9%8A%20%D8%AA%D9%81%D8%B9%D9%8A%D9%84%D9%87"
+                href={`https://wa.me/${(import.meta as any).env?.VITE_ADMIN_WHATSAPP || '213661234567'}?text=%D8%B3%D9%84%D8%A7%D9%85%20%D8%B9%D9%84%D9%8A%D9%83%D9%85%D8%8C%20%D9%82%D9%85%D8%AA%20%D8%A8%D8%AA%D8%B3%D8%AC%D9%8A%D9%84%20%D8%AD%D8%B3%D8%A7%D8%A8%20%D8%AC%D8%AF%D9%8A%D8%AF%20%D8%B9%D9%84%D9%89%20%D9%85%D9%86%D8%B5%D8%A9%20SPEX%20%D9%88%D8%A3%D8%B1%D8%BA%D8%A8%20%D9%81%D9%8A%20%D8%AA%D9%81%D8%B9%D9%8A%D9%84%D9%87`}
                 target="_blank"
                 rel="noreferrer"
                 className="px-5 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer text-center"

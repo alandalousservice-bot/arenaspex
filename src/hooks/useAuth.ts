@@ -1,13 +1,18 @@
 /**
- * SPEX - Authentication Session Hook
- * Owns the session state (isAuthenticated, authView, currentUser) and performs
- * the server-side session check on mount. The source of truth is the server
- * session (httpOnly cookie), not a flag readable/writable from the browser console.
+ * SPEX - Authentication Session Hook (PART C - C3)
+ * Owns the session state and performs server-side session check.
+ * C3 additions:
+ * - انقطاع ≠ خروج: عند fetchCurrentSession بـ{offline:true} (navigator.onLine===false صراحة)
+ *   نعمل من النسخة المحلية spex_current_user مع علم isOfflineSession
+ * - نبض إعادة التحقق (دقيقتان + visibilitychange + 'online') دوماً عند التوفر
+ * - إن عاد بـ{disabled:true, user} ⇒ كيان الخادم (inactive) ⇒ يقفل إلى وضع المشاهدة
+ *   + استدعاء lib/killSwitch.ts
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { User } from '../types/spex';
 import { fetchCurrentSession } from '../services/api';
+import { triggerKillSwitch } from '../lib/killSwitch';
 import { DEMO_USERS } from '../data/initialState';
 
 export type AuthView = 'landing' | 'login';
@@ -15,38 +20,134 @@ export type AuthView = 'landing' | 'login';
 export function useAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isCheckingSession, setIsCheckingSession] = useState<boolean>(true);
+  const [isOfflineSession, setIsOfflineSession] = useState<boolean>(false);
   const [authView, setAuthView] = useState<AuthView>(() =>
     typeof window !== 'undefined' && window.location.search.includes('reset_token=') ? 'login' : 'landing'
   );
   const [currentUser, setCurrentUser] = useState<User>(DEMO_USERS[0]);
 
-  // On load, ask the server whether we have a valid session instead of trusting local storage
-  useEffect(() => {
-    let cancelled = false;
-    async function checkSession() {
-      const result = await fetchCurrentSession();
-      if (cancelled) return;
-      if (result.success && result.user) {
+  const pollingRef = useRef<number | null>(null);
+
+  const checkSession = useCallback(async () => {
+    const result = await fetchCurrentSession();
+
+    // PART C: انقطاع ≠ خروج — نعمل من النسخة المحلية
+    if ((result as any).offline) {
+      if (result.user) {
         setCurrentUser(result.user);
         setIsAuthenticated(true);
+        setIsOfflineSession(true);
+        setIsCheckingSession(false);
+        return;
       } else {
+        // offline بلا نسخة محلية → غير مصادق
         setIsAuthenticated(false);
+        setIsOfflineSession(true);
+        setIsCheckingSession(false);
+        return;
       }
-      setIsCheckingSession(false);
     }
-    checkSession();
+
+    // PART C: تعطيل الحساب من المشرف => قفل إلى وضع المشاهدة + killSwitch
+    if ((result as any).disabled && (result as any).user) {
+      const disabledUser = (result as any).user as User;
+      setCurrentUser(disabledUser);
+      setIsAuthenticated(true); // يبقى مصادقاً لكن App سيعرض PendingApprovalViewerScreen لأنه inactive
+      setIsOfflineSession(false);
+      setIsCheckingSession(false);
+      try {
+        triggerKillSwitch();
+      } catch {}
+      // حفظ المستخدم المعطل محلياً لعرض شاشته
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('spex_current_user', JSON.stringify(disabledUser));
+        }
+      } catch {}
+      return;
+    }
+
+    if (result.success && result.user) {
+      setCurrentUser(result.user);
+      setIsAuthenticated(true);
+      setIsOfflineSession(false);
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('spex_current_user', JSON.stringify(result.user));
+        }
+      } catch {}
+    } else {
+      // check if result code is ACCOUNT_GONE -> clear local
+      if ((result as any).code === 'ACCOUNT_GONE') {
+        try {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem('spex_current_user');
+          }
+        } catch {}
+      }
+      setIsAuthenticated(false);
+      setIsOfflineSession(false);
+    }
+    setIsCheckingSession(false);
+  }, []);
+
+  // Initial check
+  useEffect(() => {
+    let cancelled = false;
+    async function initial() {
+      if (cancelled) return;
+      await checkSession();
+    }
+    initial();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [checkSession]);
+
+  // نبض إعادة التحقق (دقيقتان + visibilitychange + 'online') دوماً عند التوفر
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const startPolling = () => {
+      if (pollingRef.current) window.clearInterval(pollingRef.current);
+      pollingRef.current = window.setInterval(() => {
+        if (navigator.onLine) {
+          checkSession();
+        }
+      }, 2 * 60 * 1000); // دقيقتان
+    };
+
+    startPolling();
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        checkSession();
+      }
+    };
+
+    const onOnline = () => {
+      checkSession();
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('online', onOnline);
+
+    return () => {
+      if (pollingRef.current) window.clearInterval(pollingRef.current);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('online', onOnline);
+    };
+  }, [checkSession]);
 
   return {
     isAuthenticated,
     setIsAuthenticated,
     isCheckingSession,
+    isOfflineSession,
     authView,
     setAuthView,
     currentUser,
-    setCurrentUser
+    setCurrentUser,
+    refreshSession: checkSession
   };
 }

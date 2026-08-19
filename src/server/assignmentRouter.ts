@@ -1,13 +1,25 @@
 /**
- * SPEX - مسارات نظام الإسناد التلقائي للأساتذة إلى المفتشين
+ * SPEX - مسارات نظام الإسناد اليدوي بقبول المفتش (PART B)
  * (الهيكل الإداري: مديريات / بلديات / مؤسسات / مقاطعات تفتيشية + الاقتراحات + الإسناد)
+ * يتضمن:
+ * - GET /api/inspector/pending-assignments (قبل بوابة admin)
+ * - POST /api/inspector/assignments/:teacherId/accept
+ * - POST /api/inspector/assignments/:teacherId/reject
+ * - PUT /teacher/professional-data مع firstName/lastName/birthDate اختيارية و districtId اختيارية
  */
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from './prismaClient.js';
 import { sanitizeUser } from './auth.js';
 import { requireRole } from './middleware/requireAuth.js';
-import { reassignTeacher, bulkReassignAll, removeAssignment } from './assignmentService.js';
+import {
+  reassignTeacher,
+  bulkReassignAll,
+  removeAssignment,
+  acceptAssignment,
+  rejectAssignment,
+  AssignmentError
+} from './assignmentService.js';
 
 export const assignmentRouter = Router();
 
@@ -100,28 +112,46 @@ assignmentRouter.post('/locations/schools/suggest', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------
-// 3. استكمال البيانات المهنية للأستاذ — الخطوة التي تُطلق الإسناد التلقائي
+// 3. استكمال البيانات المهنية للأستاذ — PART B/B3
+//    تقبل firstName/lastName/birthDate(YYYY-MM-DD) اختيارية و districtId اختيارية
+//    (بلا مقاطعة ⇒ لا سجل إسناد إطلاقاً ورسالة «لم تطلب الإسناد بعد»)
+//    وتملأ عندما تُملأ: eduDirectorateId=edu, eduSchoolId=institutionId, eduDistrictId و districtId القديم للتوافق
 // -----------------------------------------------------------------------
 
 const professionalDataSchema = z.object({
   directorateId: z.string().min(1, 'يجب اختيار مديرية التربية'),
   municipalityId: z.string().min(1, 'يجب اختيار بلدية العمل'),
   institutionId: z.string().min(1, 'يجب اختيار المؤسسة التعليمية'),
-  districtId: z.string().min(1, 'يجب اختيار المقاطعة التفتيشية')
+  districtId: z.string().optional(),
+  firstName: z.string().trim().min(2).optional(),
+  lastName: z.string().trim().min(2).optional(),
+  birthDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'تاريخ الميلاد يجب أن يكون بصيغة YYYY-MM-DD')
+    .optional()
 });
+
+function remapHistoricDirectorateId(id?: string | null): string | null {
+  if (!id) return null;
+  const trimmed = id.trim();
+  if (trimmed === 'de_19') return 'setif_de';
+  return trimmed;
+}
 
 assignmentRouter.put('/teacher/professional-data', requireRole('teacher'), async (req, res) => {
   const parsed = professionalDataSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.errors[0]?.message || 'بيانات غير صحيحة.' });
   }
-  const { directorateId, municipalityId, institutionId, districtId } = parsed.data;
+  const { directorateId: rawDirectorateId, municipalityId, institutionId, districtId, firstName, lastName, birthDate } = parsed.data;
+
+  const directorateId = remapHistoricDirectorateId(rawDirectorateId) || rawDirectorateId;
 
   const [directorate, municipality, school, district] = await Promise.all([
     prisma.directorate.findUnique({ where: { id: directorateId } }),
     prisma.municipality.findUnique({ where: { id: municipalityId } }),
     prisma.school.findUnique({ where: { id: institutionId } }),
-    prisma.inspectionDistrict.findUnique({ where: { id: districtId } })
+    districtId ? prisma.inspectionDistrict.findUnique({ where: { id: districtId } }) : Promise.resolve(null)
   ]);
 
   if (!directorate) return res.status(404).json({ error: 'مديرية التربية غير موجودة.' });
@@ -131,22 +161,68 @@ assignmentRouter.put('/teacher/professional-data', requireRole('teacher'), async
   if (!school || school.municipalityId !== municipalityId) {
     return res.status(400).json({ error: 'المؤسسة المحددة لا تتبع البلدية المختارة.' });
   }
-  if (!district || district.directorateId !== directorateId) {
+  if (districtId && district && district.directorateId !== directorateId) {
     return res.status(400).json({ error: 'المقاطعة التفتيشية المحددة لا تتبع مديرية التربية المختارة.' });
+  }
+  if (districtId && !district) {
+    return res.status(404).json({ error: 'المقاطعة التفتيشية غير موجودة.' });
+  }
+
+  // بناء بيانات التحديث: الحقول الأساسية + الحقول الجغرافية الجديدة + البطاقة الشخصية
+  const updateData: any = {
+    directorateId,
+    municipalityId,
+    municipality: municipality.name,
+    institutionId,
+    schoolName: school.name,
+    eduDirectorateId: directorateId,
+    eduSchoolId: institutionId,
+    // eduDistrictId و districtId القديم للتوافق — يملأ عندما تُملأ المقاطعة
+  };
+
+  if (districtId) {
+    updateData.districtId = districtId;
+    updateData.eduDistrictId = districtId;
+  } else {
+    // بلا مقاطعة ⇒ لا نملأ districtId؟ نحتفظ بـ districtId فارغ ليعكس عدم طلب الإسناد
+    // حسب المواصفة: بلا مقاطعة ⇒ لا سجل إسناد إطلاقاً
+    updateData.districtId = '';
+    updateData.eduDistrictId = null;
+  }
+
+  if (firstName) updateData.firstName = firstName.trim();
+  if (lastName) updateData.lastName = lastName.trim();
+  if (birthDate) {
+    try {
+      updateData.birthDate = new Date(birthDate);
+    } catch {
+      return res.status(400).json({ error: 'تاريخ الميلاد غير صالح.' });
+    }
   }
 
   const updated = await prisma.user.update({
     where: { id: req.user!.id },
-    data: {
-      directorateId,
-      municipalityId,
-      municipality: municipality.name,
-      institutionId,
-      schoolName: school.name,
-      districtId
-    }
+    data: updateData
   });
 
+  // إذا لم يطلب المقاطعة ⇒ لا سجل إسناد إطلاقاً
+  if (!districtId) {
+    // احذف أي سجل إسناد سابق إن وجد (حتى لا يبقى مرتبطاً بمفتش قديم)
+    try {
+      await prisma.inspectorAssignment.delete({ where: { teacherId: updated.id } });
+    } catch {
+      // لا يوجد سجل مسبق — طبيعي
+    }
+    return res.json({
+      success: true,
+      user: sanitizeUser(updated),
+      assignment: null,
+      inspector: null,
+      message: 'لم تطلب الإسناد بعد'
+    });
+  }
+
+  // عند وجود مقاطعة: إعادة احتساب الإسناد بنظام Pending الجديد
   const assignment = await reassignTeacher(updated.id);
 
   let inspector = null;
@@ -161,9 +237,11 @@ assignmentRouter.put('/teacher/professional-data', requireRole('teacher'), async
     assignment,
     inspector,
     message:
-      assignment?.status === 'Active' || assignment?.status === 'Changed'
-        ? 'تم استكمال بياناتك وربطك تلقائياً بمفتش التربية البدنية والرياضية المختص.'
-        : 'تم حفظ بياناتك بنجاح. لا يوجد حالياً مفتش مسجَّل لمقاطعتك، وسيتم الإسناد تلقائياً بمجرد توفره.'
+      assignment?.status === 'Active'
+        ? 'تم استكمال بياناتك وربطك بمفتشك (مقبول سابقاً).'
+        : assignment?.inspectorId
+          ? 'تم حفظ بياناتك وإرسال طلب الإسناد إلى المفتش المختص بانتظار موافقته.'
+          : 'تم حفظ بياناتك بنجاح. لا يوجد حالياً مفتش مسجَّل لمقاطعتك، وسيتم الإسناد تلقائياً بمجرد توفره.'
   });
 });
 
@@ -185,7 +263,7 @@ assignmentRouter.get('/teacher/assignment', requireRole('teacher'), async (req, 
 });
 
 // -----------------------------------------------------------------------
-// 5. صلاحيات المفتش: قائمة الأساتذة التابعين له فقط
+// 5. صلاحيات المفتش: قائمة الأساتذة التابعين له فقط + الطلبات المعلقة (PART B)
 // -----------------------------------------------------------------------
 
 assignmentRouter.get('/inspector/teachers', requireRole('inspector'), async (req, res) => {
@@ -206,6 +284,81 @@ assignmentRouter.get('/inspector/teachers', requireRole('inspector'), async (req
   });
 
   res.json({ success: true, teachers: teachers.map(sanitizeUser) });
+});
+
+// PART B/B2 — قبل بوابة requireRole('admin') مباشرة: مسارات المفتش لقبول/رفض الإسناد
+assignmentRouter.get('/inspector/pending-assignments', requireRole('inspector'), async (req, res) => {
+  try {
+    const pending = await prisma.inspectorAssignment.findMany({
+      where: { inspectorId: req.user!.id, status: 'Pending' },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const teacherIds = pending.map((p) => p.teacherId);
+    const teachers = await prisma.user.findMany({ where: { id: { in: teacherIds } } });
+    const teacherMap = new Map(teachers.map((t) => [t.id, t]));
+
+    const result = pending.map((a) => {
+      const teacher = teacherMap.get(a.teacherId) as any;
+      // الكيان المعقم للأستاذ: الاسم، schoolName، municipality، الهاتف، البريد، تاريخ الطلب
+      const sterilized = teacher
+        ? {
+            id: teacher.id,
+            firstName: teacher.firstName,
+            lastName: teacher.lastName,
+            schoolName: teacher.schoolName,
+            municipality: teacher.municipality,
+            phone: teacher.phone,
+            email: teacher.email,
+            birthDate: teacher.birthDate || null,
+            createdAt: a.createdAt,
+            updatedAt: a.updatedAt
+          }
+        : null;
+      return {
+        ...a,
+        teacher: sterilized ? sanitizeUser(sterilized as any) : null
+      };
+    });
+
+    res.json({ success: true, assignments: result });
+  } catch (err) {
+    console.error('pending-assignments error:', err);
+    res.status(500).json({ success: false, error: 'تعذر جلب طلبات الإسناد المعلقة.' });
+  }
+});
+
+assignmentRouter.post('/inspector/assignments/:teacherId/accept', requireRole('inspector'), async (req, res) => {
+  const { teacherId } = req.params;
+  try {
+    const assignment = await acceptAssignment(teacherId, req.user!.id);
+    res.json({ success: true, assignment });
+  } catch (err: any) {
+    if (err instanceof AssignmentError) {
+      if (err.code === 'NOT_FOUND') return res.status(404).json({ success: false, error: err.message, code: err.code });
+      if (err.code === 'FORBIDDEN') return res.status(403).json({ success: false, error: err.message, code: err.code });
+      if (err.code === 'ALREADY_HANDLED') return res.status(409).json({ success: false, error: err.message, code: err.code });
+    }
+    console.error('accept assignment error:', err);
+    res.status(500).json({ success: false, error: 'تعذر قبول الإسناد.' });
+  }
+});
+
+assignmentRouter.post('/inspector/assignments/:teacherId/reject', requireRole('inspector'), async (req, res) => {
+  const { teacherId } = req.params;
+  const { reason } = req.body as { reason?: string };
+  try {
+    const assignment = await rejectAssignment(teacherId, req.user!.id, reason);
+    res.json({ success: true, assignment });
+  } catch (err: any) {
+    if (err instanceof AssignmentError) {
+      if (err.code === 'NOT_FOUND') return res.status(404).json({ success: false, error: err.message, code: err.code });
+      if (err.code === 'FORBIDDEN') return res.status(403).json({ success: false, error: err.message, code: err.code });
+      if (err.code === 'ALREADY_HANDLED') return res.status(409).json({ success: false, error: err.message, code: err.code });
+    }
+    console.error('reject assignment error:', err);
+    res.status(500).json({ success: false, error: 'تعذر رفض الإسناد.' });
+  }
 });
 
 // -----------------------------------------------------------------------

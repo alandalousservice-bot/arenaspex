@@ -1,10 +1,10 @@
 /**
  * SPEX - Mandatory Authentication Screen
  * شاشة الدخول الإجبارية: تسجيل الدخول، إنشاء حساب جديد، واسترجاع كلمة المرور
- * حصرية للطور الابتدائي بالجمهورية الجزائرية الديمقراطية الشعبية
+ * PART A/A7: نموذج إنشاء حساب بسلسلة قوائم حية: مديرية ← مقاطعة (اختيارية) ← بلدية ← مدرسة (أو كتابة يدوية)
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Lock,
   User,
@@ -17,17 +17,31 @@ import {
   Building2,
   Shield,
   School,
-  Sparkles,
   ArrowRight
 } from 'lucide-react';
 import { User as UserType, UserRole } from '../../types/spex';
-import { loginRequest, registerRequest, forgotPasswordRequest, resetPasswordRequest, googleLoginRequest } from '../../services/api';
+import {
+  loginRequest,
+  registerRequest,
+  forgotPasswordRequest,
+  resetPasswordRequest,
+  googleLoginRequest,
+  fetchGeoDirectorates,
+  fetchGeoDistricts,
+  fetchGeoMunicipalities,
+  fetchGeoSchools
+} from '../../services/api';
 import { GoogleSignInButton } from './GoogleSignInButton';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: UserType) => void;
   onBackToLanding?: () => void;
   usersList?: UserType[];
+}
+
+interface GeoOption {
+  id: string;
+  name: string;
 }
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackToLanding }) => {
@@ -46,23 +60,30 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
   const [successMsg, setSuccessMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Geo registration states (PART A/A7)
+  const [geoDirectorates, setGeoDirectorates] = useState<GeoOption[]>([]);
+  const [geoDistricts, setGeoDistricts] = useState<GeoOption[]>([]);
+  const [geoMunicipalities, setGeoMunicipalities] = useState<GeoOption[]>([]);
+  const [geoSchools, setGeoSchools] = useState<GeoOption[]>([]);
+  const [eduDirectorateId, setEduDirectorateId] = useState('');
+  const [eduDistrictId, setEduDistrictId] = useState('');
+  const [selectedMunicipalityId, setSelectedMunicipalityId] = useState('');
+  const [eduSchoolId, setEduSchoolId] = useState('');
+  const [geoLoading, setGeoLoading] = useState(false);
+
   // Reset-password form state
   const [resetToken, setResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [resetDone, setResetDone] = useState(false);
 
-  // إن وصل المستخدم عبر رابط إعادة تعيين كلمة المرور من بريده، افتح نموذج التعيين مباشرة
-  React.useEffect(() => {
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tokenFromUrl = params.get('reset_token');
     if (tokenFromUrl) {
       setResetToken(tokenFromUrl);
       setActiveForm('reset');
     }
-
-    // عودة فاشلة من مسار Google الاحتياطي (gsi-callback): نظهر رسالتها للمستخدم
-    // ثم ننظّف العنوان حتى لا تبقى الرسالة عالقة عند إعادة التحميل أو مشاركة الرابط
     const googleError = params.get('google_error');
     if (googleError) {
       setErrorMsg(`الدخول عبر Google: ${googleError}`);
@@ -70,24 +91,90 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
     }
   }, []);
 
+  // Load directorates for registration
+  useEffect(() => {
+    if (activeForm !== 'register') return;
+    (async () => {
+      setGeoLoading(true);
+      const res = await fetchGeoDirectorates();
+      if (res.success) setGeoDirectorates(res.directorates);
+      setGeoLoading(false);
+    })();
+  }, [activeForm]);
+
+  // When directorate changes: load districts and municipalities
+  useEffect(() => {
+    if (!eduDirectorateId) {
+      setGeoDistricts([]);
+      setGeoMunicipalities([]);
+      setGeoSchools([]);
+      setEduDistrictId('');
+      setSelectedMunicipalityId('');
+      setEduSchoolId('');
+      return;
+    }
+    (async () => {
+      setGeoLoading(true);
+      const [distRes, muniRes] = await Promise.all([
+        fetchGeoDistricts(eduDirectorateId),
+        fetchGeoMunicipalities(eduDirectorateId)
+      ]);
+      if (distRes.success) setGeoDistricts(distRes.districts);
+      else setGeoDistricts([]);
+      if (muniRes.success) setGeoMunicipalities(muniRes.municipalities);
+      else setGeoMunicipalities([]);
+      setGeoSchools([]);
+      setSelectedMunicipalityId('');
+      setEduSchoolId('');
+      setGeoLoading(false);
+    })();
+  }, [eduDirectorateId]);
+
+  // When municipality changes: load schools
+  useEffect(() => {
+    if (!selectedMunicipalityId) {
+      setGeoSchools([]);
+      setEduSchoolId('');
+      return;
+    }
+    (async () => {
+      setGeoLoading(true);
+      const schoolsRes = await fetchGeoSchools({ municipalityId: selectedMunicipalityId });
+      if (schoolsRes.success) {
+        setGeoSchools(schoolsRes.schools);
+        // Fill municipality text for compatibility
+        const muni = geoMunicipalities.find((m) => m.id === selectedMunicipalityId);
+        if (muni) setMunicipality(muni.name);
+      } else {
+        setGeoSchools([]);
+      }
+      setEduSchoolId('');
+      setGeoLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMunicipalityId]);
+
+  // When school selected: fill schoolName text
+  useEffect(() => {
+    if (!eduSchoolId) return;
+    const sch = geoSchools.find((s) => s.id === eduSchoolId);
+    if (sch) setSchoolName(sch.name);
+  }, [eduSchoolId, geoSchools]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
-
     if (!email.trim() || !password) {
       setErrorMsg('يرجى إدخال البريد الإلكتروني وكلمة المرور للدخول');
       return;
     }
-
     setIsSubmitting(true);
     const result = await loginRequest(email.trim(), password);
     setIsSubmitting(false);
-
     if (!result.success || !result.user) {
       setErrorMsg(result.error || 'تعذر تسجيل الدخول.');
       return;
     }
-
     onLoginSuccess(result.user);
   };
 
@@ -95,7 +182,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
-
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !password) {
       setErrorMsg('يرجى ملء كافة الحقول الأساسية لإنشاء الحساب.');
       return;
@@ -104,7 +190,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
       setErrorMsg('كلمة المرور يجب أن تكون 6 أحرف على الأقل.');
       return;
     }
-
     setIsSubmitting(true);
     const result = await registerRequest({
       firstName: firstName.trim(),
@@ -112,29 +197,28 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
       email: email.trim(),
       password,
       role: selectedRole,
-      schoolName: schoolName.trim() || 'مدرسة ابتدائية',
-      municipality: municipality.trim() || 'عين أزال - سطيف',
-      phone: phone.trim() || '0661234567'
+      schoolName: schoolName.trim() || (eduSchoolId ? geoSchools.find((s) => s.id === eduSchoolId)?.name : '') || 'مدرسة ابتدائية',
+      municipality: municipality.trim() || (selectedMunicipalityId ? geoMunicipalities.find((m) => m.id === selectedMunicipalityId)?.name : '') || 'عين أزال - سطيف',
+      phone: phone.trim() || '0661234567',
+      eduDirectorateId: eduDirectorateId || undefined,
+      eduDistrictId: eduDistrictId || undefined,
+      eduSchoolId: eduSchoolId || undefined,
+      municipalityId: selectedMunicipalityId || undefined
     });
     setIsSubmitting(false);
-
     if (!result.success || !result.user) {
       setErrorMsg(result.error || 'تعذر إنشاء الحساب.');
       return;
     }
-
     onLoginSuccess(result.user);
   };
 
   const handleGoogleCredential = async (credential: string) => {
     setErrorMsg('');
     setIsSubmitting(true);
-    // الدور المحدد في بطاقات الاختيار يُمرَّر فقط عند إنشاء حساب جديد؛ الحساب
-    // الموجود يبقى بصلاحياته الأصلية مهما كان محدداً
     const requestedRole = selectedRole === 'admin' ? 'teacher' : selectedRole;
     const result = await googleLoginRequest(credential, requestedRole);
     setIsSubmitting(false);
-
     if (!result.success || !result.user) {
       setErrorMsg(result.error || 'تعذر تسجيل الدخول عبر Google.');
       return;
@@ -153,7 +237,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
     setIsSubmitting(true);
     const result = await forgotPasswordRequest(email.trim());
     setIsSubmitting(false);
-
     if (!result.success) {
       setErrorMsg(result.error || 'تعذر إرسال الطلب.');
       return;
@@ -165,7 +248,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
-
     if (newPassword.length < 8) {
       setErrorMsg('كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل.');
       return;
@@ -174,25 +256,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
       setErrorMsg('كلمتا المرور غير متطابقتين.');
       return;
     }
-
     setIsSubmitting(true);
     const result = await resetPasswordRequest(resetToken, newPassword);
     setIsSubmitting(false);
-
     if (!result.success) {
       setErrorMsg(result.error || 'تعذر تحديث كلمة المرور.');
       return;
     }
-
     setResetDone(true);
     setSuccessMsg(result.message || 'تم تحديث كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول بها.');
-    // إزالة الرمز من رابط المتصفح حتى لا يُعاد استخدامه بالخطأ أو يُشارَك سهواً
     window.history.replaceState({}, '', window.location.pathname);
   };
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden font-sans">
-      {/* Background Graphic Accents */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -207,13 +284,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               <ArrowRight className="w-3.5 h-3.5" />
               <span>العودة للصفحة الرئيسية للمنصة</span>
             </button>
-            <span className="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-full">
-              بوابة الدخول
-            </span>
+            <span className="text-[10px] bg-slate-700 text-slate-300 font-bold px-2 py-0.5 rounded-full">بوابة الدخول</span>
           </div>
         )}
 
-        {/* Header Logo & Title */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-emerald-500 text-white shadow-lg shadow-blue-500/20 mb-2">
             <Shield className="w-9 h-9" />
@@ -228,13 +302,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
           </p>
         </div>
 
-        {/* Role Identity Selection Cards */}
         <div className="space-y-2">
-          <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block text-center">
-            اختر صفك المهني لتوجيه شاشة الدخول:
-          </label>
+          <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block text-center">اختر صفك المهني لتوجيه شاشة الدخول:</label>
           <div className="grid grid-cols-3 gap-2">
-            {/* 1. Teacher */}
             <button
               type="button"
               onClick={() => {
@@ -251,12 +321,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 <span className="text-xs font-black text-blue-400">أستاذ المادة</span>
                 <School className="w-4 h-4 text-blue-400" />
               </div>
-              <p className="text-[10px] text-slate-400 leading-tight">
-                المذكرة البيداغوجية، الكراس اليومي، والمخطط السنوي
-              </p>
+              <p className="text-[10px] text-slate-400 leading-tight">المذكرة البيداغوجية، الكراس اليومي، والمخطط السنوي</p>
             </button>
 
-            {/* 2. Inspector */}
             <button
               type="button"
               onClick={() => {
@@ -273,12 +340,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 <span className="text-xs font-black text-emerald-400">مفتش بيداغوجي</span>
                 <Shield className="w-4 h-4 text-emerald-400" />
               </div>
-              <p className="text-[10px] text-slate-400 leading-tight">
-                زيارات التفتيش والمتابعة الميدانية للأساتذة
-              </p>
+              <p className="text-[10px] text-slate-400 leading-tight">زيارات التفتيش والمتابعة الميدانية للأساتذة</p>
             </button>
 
-            {/* 3. Admin */}
             <button
               type="button"
               onClick={() => {
@@ -295,14 +359,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 <span className="text-xs font-black text-purple-400">مشرف المنظومة</span>
                 <KeyRound className="w-4 h-4 text-purple-400" />
               </div>
-              <p className="text-[10px] text-slate-400 leading-tight">
-                إدارة الحسابات، المناهج، والاشتراكات
-              </p>
+              <p className="text-[10px] text-slate-400 leading-tight">إدارة الحسابات، المناهج، والاشتراكات</p>
             </button>
           </div>
         </div>
 
-        {/* Tab Switchers */}
         <div className="grid grid-cols-3 p-1 bg-slate-900/80 rounded-xl text-xs font-bold text-slate-400">
           <button
             onClick={() => {
@@ -310,9 +371,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               setErrorMsg('');
               setSuccessMsg('');
             }}
-            className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-              activeForm === 'login' ? 'bg-blue-600 text-white shadow-md' : 'hover:text-slate-200'
-            }`}
+            className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeForm === 'login' ? 'bg-blue-600 text-white shadow-md' : 'hover:text-slate-200'}`}
           >
             <LogIn className="w-3.5 h-3.5" /> تسجيل الدخول
           </button>
@@ -322,9 +381,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               setErrorMsg('');
               setSuccessMsg('');
             }}
-            className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-              activeForm === 'register' ? 'bg-blue-600 text-white shadow-md' : 'hover:text-slate-200'
-            }`}
+            className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeForm === 'register' ? 'bg-blue-600 text-white shadow-md' : 'hover:text-slate-200'}`}
           >
             <UserPlus className="w-3.5 h-3.5" /> إنشاء حساب
           </button>
@@ -334,15 +391,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               setErrorMsg('');
               setSuccessMsg('');
             }}
-            className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-              activeForm === 'forgot' ? 'bg-blue-600 text-white shadow-md' : 'hover:text-slate-200'
-            }`}
+            className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeForm === 'forgot' ? 'bg-blue-600 text-white shadow-md' : 'hover:text-slate-200'}`}
           >
             <HelpCircle className="w-3.5 h-3.5" /> نسيت كلمة السر
           </button>
         </div>
 
-        {/* Alert Messages */}
         {errorMsg && (
           <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -356,7 +410,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
           </div>
         )}
 
-        {/* Form 1: LOGIN */}
         {activeForm === 'login' && (
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1">
@@ -373,7 +426,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 <User className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
               </div>
             </div>
-
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-300">كلمة المرور</label>
               <div className="relative">
@@ -388,7 +440,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
               </div>
             </div>
-
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-300">الرتبة / الصفة المهنية</label>
               <select
@@ -401,7 +452,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 <option value="admin">مشرف المنظومة الرقمية</option>
               </select>
             </div>
-
             <button
               type="submit"
               disabled={isSubmitting}
@@ -410,17 +460,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               <LogIn className="w-4 h-4" />
               <span>{isSubmitting ? 'جارٍ التحقق...' : 'الدخول للمنصة البيداغوجية'}</span>
             </button>
-
-            {/* Secure Login Footer Notice */}
             <div className="pt-2 text-center">
-              <p className="text-[10px] text-slate-400 font-medium">
-                🔒 دخول محمي. يرجى إدخال البريد الإلكتروني وكلمة المرور المسلمة لك من طرف مشرف المنظومة.
-              </p>
+              <p className="text-[10px] text-slate-400 font-medium">🔒 دخول محمي. يرجى إدخال البريد الإلكتروني وكلمة المرور المسلمة لك من طرف مشرف المنظومة.</p>
             </div>
           </form>
         )}
 
-        {/* Google Sign-In — إنشاء حساب فوري بوضع المشاهدة أو دخول مباشر لحساب مفعّل */}
         {activeForm === 'login' && (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
@@ -435,189 +480,156 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
           </div>
         )}
 
-        {/* Form 2: PUBLIC REGISTER FORM */}
         {activeForm === 'register' && (
           <form onSubmit={handleRegister} className="space-y-3.5">
             <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-300 text-[11px] leading-relaxed">
-              <span className="font-extrabold text-white">📌 تلميح التسجيل:</span> عند إنشاء الحساب، يمكنك الدخول مباشرة في <strong className="text-amber-300">وضع المشاهدة والاطلاع على مزايا المنظومة</strong>، وتفعيل الوصول الكامل يتم عبر <strong className="text-emerald-300">مشرف المنظومة الرقمية</strong>.
+              <span className="font-extrabold text-white">📌 تلميح التسجيل:</span> اختر مديريتك ثم مقاطعتك (اختيارية) ثم بلديتك ثم مدرستك — أو اكتبها يدوياً عند فراغ القوائم.
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-300">الاسم الأول *</label>
-                <input
-                  type="text"
-                  required
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="مثال: عبد القادر"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
-                />
+                <input type="text" required value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="مثال: عبد القادر" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500" />
               </div>
-
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-300">اللقب *</label>
-                <input
-                  type="text"
-                  required
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  placeholder="مثال: بومدين"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
-                />
+                <input type="text" required value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="مثال: بومدين" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500" />
               </div>
             </div>
 
             <div className="space-y-1">
               <label className="text-[11px] font-bold text-slate-300">البريد الإلكتروني *</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@domain.dz"
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right"
-              />
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@domain.dz" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right" />
             </div>
 
             <div className="space-y-1">
               <label className="text-[11px] font-bold text-slate-300">كلمة المرور * (6 أحرف على الأقل)</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right"
-              />
+              <input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right" />
+            </div>
+
+            {/* Geo dependent selects */}
+            <div className="space-y-3 pt-2 border-t border-slate-700/50">
+              <p className="text-[11px] font-bold text-slate-300">الهيكلية الجغرافية الوطنية (قوائم متراكبة حية):</p>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">مديرية التربية *</label>
+                <select value={eduDirectorateId} onChange={(e) => setEduDirectorateId(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500">
+                  <option value="">اختر مديرية التربية...</option>
+                  {geoDirectorates.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">المقاطعة التفتيشية (اختيارية — الزر معطل عند فراغ القائمة)</label>
+                <select value={eduDistrictId} onChange={(e) => setEduDistrictId(e.target.value)} disabled={geoDistricts.length === 0 || geoLoading} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 disabled:opacity-40">
+                  <option value="">— بلا مقاطعة (لم أطلب الإسناد بعد) —</option>
+                  {geoDistricts.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">بلدية العمل *</label>
+                <select value={selectedMunicipalityId} onChange={(e) => setSelectedMunicipalityId(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500">
+                  <option value="">اختر البلدية...</option>
+                  {geoMunicipalities.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">المدرسة الابتدائية {geoSchools.length === 0 ? '(كتابة يدوية عند فراغها)' : ''}</label>
+                {geoSchools.length > 0 ? (
+                  <select value={eduSchoolId} onChange={(e) => setEduSchoolId(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500">
+                    <option value="">اختر المدرسة...</option>
+                    {geoSchools.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input type="text" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} placeholder="اكتب اسم المدرسة يدوياً" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500" />
+                )}
+              </div>
+
+              {/* Manual fallback for municipality text if needed */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-400">البلدية (نصي للتوافق)</label>
+                  <input type="text" value={municipality} onChange={(e) => setMunicipality(e.target.value)} placeholder="يُملأ تلقائياً" className="w-full bg-slate-900/60 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-400">المدرسة (نصي للتوافق)</label>
+                  <input type="text" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} placeholder="يُملأ تلقائياً" className="w-full bg-slate-900/60 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none" />
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-300">الرتبة / الصفة المهنية</label>
-                <select
-                  value={selectedRole}
-                  onChange={(e) => setSelectedRole(e.target.value as UserRole)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-[11px] text-white focus:outline-none focus:border-purple-500"
-                >
+                <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as UserRole)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-[11px] text-white focus:outline-none focus:border-purple-500">
                   <option value="teacher">أستاذ التربية البدنية</option>
                   <option value="inspector">مفتش بيداغوجي</option>
                   <option value="director">مدير مدرسة ابتدائية</option>
                 </select>
               </div>
-
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-300">المؤسسة / المدرسة</label>
-                <input
-                  type="text"
-                  value={schoolName}
-                  onChange={(e) => setSchoolName(e.target.value)}
-                  placeholder="مدرسة عبد الحميد بن باديس"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-300">البلدية / المقاطعة</label>
-                <input
-                  type="text"
-                  value={municipality}
-                  onChange={(e) => setMunicipality(e.target.value)}
-                  placeholder="عين أزال - سطيف"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
-                />
-              </div>
-
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-300">رقم الهاتف للتفعيل</label>
-                <input
-                  type="text"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="0661234567"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right"
-                />
+                <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0661234567" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right" />
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs shadow-lg shadow-purple-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
-            >
+            <button type="submit" disabled={isSubmitting || geoLoading} className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs shadow-lg shadow-purple-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer mt-2">
               <UserPlus className="w-4 h-4" />
               <span>{isSubmitting ? 'جارٍ تسجيل الحساب...' : 'تسجيل الحساب والدخول لوضع المشاهدة'}</span>
             </button>
+
+            {/* Google Direct Registration — أي مستخدم يستطيع التسجيل مباشرة عبر Google */}
+            <div className="space-y-3 pt-3 border-t border-slate-700/50">
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-slate-700/70" />
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">أو التسجيل المباشر عبر Google</span>
+                <div className="h-px flex-1 bg-slate-700/70" />
+              </div>
+              <GoogleSignInButton onCredential={handleGoogleCredential} disabled={isSubmitting} text="signup_with" />
+              <p className="text-[10px] text-slate-500 text-center leading-relaxed">
+                يمكنك إنشاء حسابك فوراً باستخدام أي بريد Gmail — سيُنشأ حسابك تلقائياً في وضع المشاهدة بانتظار تفعيل المشرف، نفس سياسة التسجيل العادي. الدور المختار أعلاه (أستاذ/مفتش/مدير) سيُطبّق على حسابك الجديد.
+              </p>
+            </div>
           </form>
         )}
 
-        {/* Form 3: FORGOT PASSWORD */}
         {activeForm === 'forgot' && (
           <form onSubmit={handleForgot} className="space-y-4">
-            <p className="text-xs text-slate-400 leading-relaxed">
-              أدخل بريدك الإلكتروني المهني المسجل بالنظام لاستلام رابط إعادة تعيين كلمة المرور فوراً.
-            </p>
+            <p className="text-xs text-slate-400 leading-relaxed">أدخل بريدك الإلكتروني المهني المسجل بالنظام لاستلام رابط إعادة تعيين كلمة المرور فوراً.</p>
             <div>
               <label className="text-xs font-bold text-slate-300">البريد الإلكتروني المهني</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="teacher@spex.dz"
-                required
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white"
-              />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teacher@spex.dz" required className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white" />
             </div>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs transition-all"
-            >
+            <button type="submit" disabled={isSubmitting} className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs transition-all">
               {isSubmitting ? 'جارٍ الإرسال...' : 'إرسال رابط إعادة الضبط'}
             </button>
           </form>
         )}
 
-        {/* Form 4: RESET PASSWORD (reached via emailed link) */}
         {activeForm === 'reset' && (
           <div className="space-y-4">
             {!resetDone ? (
               <form onSubmit={handleResetPassword} className="space-y-4">
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  أدخل كلمة مرور جديدة لحسابك. يجب أن تكون 8 أحرف على الأقل.
-                </p>
+                <p className="text-xs text-slate-400 leading-relaxed">أدخل كلمة مرور جديدة لحسابك. يجب أن تكون 8 أحرف على الأقل.</p>
                 <div>
                   <label className="text-xs font-bold text-slate-300">كلمة المرور الجديدة</label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    minLength={8}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white"
-                  />
+                  <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••" required minLength={8} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white" />
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-300">تأكيد كلمة المرور الجديدة</label>
-                  <input
-                    type="password"
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    minLength={8}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white"
-                  />
+                  <input type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} placeholder="••••••••" required minLength={8} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white" />
                 </div>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs shadow-lg transition-all"
-                >
+                <button type="submit" disabled={isSubmitting} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs shadow-lg transition-all">
                   {isSubmitting ? 'جارٍ التحديث...' : 'تحديث كلمة المرور'}
                 </button>
               </form>
@@ -638,10 +650,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
           </div>
         )}
 
-        {/* Footer info */}
-        <div className="pt-2 text-center text-[10px] text-slate-500">
-          SPEX v3.5 - المناهج الرسمية للجمهورية الجزائرية الديمقراطية الشعبية
-        </div>
+        <div className="pt-2 text-center text-[10px] text-slate-500">SPEX v3.5 - المناهج الرسمية للجمهورية الجزائرية الديمقراطية الشعبية</div>
       </div>
     </div>
   );

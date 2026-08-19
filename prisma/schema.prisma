@@ -54,6 +54,15 @@ model User {
   // بلدية العمل كسجل مرتبط فعلياً بجدول Municipalities (municipality أعلاه يبقى كاسم نصي مخزَّن للعرض السريع فقط)
   municipalityId    String?
 
+  // الحقول الجغرافية الوطنية الجديدة (PART A) — اختيارية معكوسة للتوافق
+  eduDirectorateId String?
+  eduDirectorate Directorate? @relation("EduDirectorate", fields: [eduDirectorateId], references: [id], onDelete: SetNull)
+  eduDistrictId String?
+  eduDistrict InspectionDistrict? @relation("EduDistrict", fields: [eduDistrictId], references: [id], onDelete: SetNull)
+  eduSchoolId String?
+  eduSchool School? @relation("EduSchool", fields: [eduSchoolId], references: [id], onDelete: SetNull)
+  birthDate DateTime?
+
   resetTokens PasswordResetToken[]
 
   // نظام الإسناد التلقائي للأساتذة إلى المفتشين
@@ -64,6 +73,9 @@ model User {
   @@index([directorateId])
   @@index([districtId])
   @@index([municipalityId])
+  @@index([eduDirectorateId])
+  @@index([eduDistrictId])
+  @@index([eduSchoolId])
 }
 
 // -----------------------------------------------------------------------
@@ -82,6 +94,7 @@ model Directorate {
 
   municipalities Municipality[]
   districts      InspectionDistrict[]
+  eduUsers       User[] @relation("EduDirectorate")
 
   @@index([name])
 }
@@ -111,8 +124,15 @@ model School {
 
   suggestions SchoolSuggestion[]
 
+  // PART A additions
+  inspectionDistrictId String?
+  inspectionDistrict InspectionDistrict? @relation("SchoolInspectionDistrict", fields: [inspectionDistrictId], references: [id], onDelete: SetNull)
+  wilayaCode String?
+  eduUsers User[] @relation("EduSchool")
+
   @@unique([municipalityId, name])
   @@index([municipalityId])
+  @@index([inspectionDistrictId])
 }
 
 model InspectionDistrict {
@@ -123,6 +143,10 @@ model InspectionDistrict {
   districtNumber Int?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
+
+  eduUsers User[] @relation("EduDistrict")
+  schools School[] @relation("SchoolInspectionDistrict")
+  schoolSuggestions SchoolSuggestion[]
 
   @@unique([directorateId, name])
   @@index([directorateId])
@@ -159,8 +183,13 @@ model SchoolSuggestion {
   reviewedAt     DateTime?
   createdAt      DateTime @default(now())
 
+  // PART A addition
+  inspectionDistrictId String?
+  inspectionDistrict InspectionDistrict? @relation(fields: [inspectionDistrictId], references: [id], onDelete: SetNull)
+
   @@index([municipalityId])
   @@index([status])
+  @@index([inspectionDistrictId])
 }
 
 // سجل الإسناد: كل أستاذ يملك سجلاً واحداً فقط (@unique على teacherId)، والمفتش

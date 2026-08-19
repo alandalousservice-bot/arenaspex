@@ -12,8 +12,9 @@ async function loadServerRouters() {
   const { apiRouter } = await import('./src/server/apiRouter.ts');
   const { authRouter } = await import('./src/server/authRouter.ts');
   const { assignmentRouter } = await import('./src/server/assignmentRouter.ts');
+  const { geoRouter } = await import('./src/server/geoRouter.ts');
   const { requireAuth } = await import('./src/server/middleware/requireAuth.ts');
-  return { express, cookieParser, apiRouter, authRouter, assignmentRouter, requireAuth };
+  return { express, cookieParser, apiRouter, authRouter, assignmentRouter, geoRouter, requireAuth };
 }
 
 // نفس مسارات الإنتاج بالضبط (مصادقة حقيقية + Postgres عبر Prisma) تعمل أيضاً في وضع التطوير،
@@ -22,10 +23,11 @@ function expressApiPlugin() {
   return {
     name: 'express-api-plugin',
     async configureServer(server: ViteDevServer) {
-      const { express, cookieParser, apiRouter, authRouter, assignmentRouter, requireAuth } = await loadServerRouters();
+      const { express, cookieParser, apiRouter, authRouter, assignmentRouter, geoRouter, requireAuth } = await loadServerRouters();
       const app = express();
       app.use(cookieParser());
       app.use(express.json());
+      app.use('/api/geo', geoRouter);
       app.use('/api/auth', authRouter);
       app.use('/api', apiRouter);
       app.use('/api', requireAuth, assignmentRouter);

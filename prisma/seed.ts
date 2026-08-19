@@ -114,7 +114,9 @@ async function seedReferenceData() {
     { id: 'dist_setif_6', number: 6, name: 'المقاطعة 06 - بوقاعة' },
     { id: 'dist_setif_7', number: 7, name: 'المقاطعة 07 - عين أزال' },
     { id: 'dist_setif_8', number: 8, name: 'المقاطعة 08 - عين الكبيرة' },
-    { id: 'dist_setif_9', number: 9, name: 'المقاطعة 09 - بني ورتيلان' }
+    { id: 'dist_setif_9', number: 9, name: 'المقاطعة 09 - بني ورتيلان' },
+    // المقاطعة 10 — الاسم الرسمي يتطلب تأكيداً من مديرية التربية لولاية سطيف؛ النص الحالي احتياطي لإكمال الهيكلية حتى 10 مقاطعات
+    { id: 'dist_setif_10', number: 10, name: 'المقاطعة 10 - (أكمل الاسم الرسمي)' }
   ];
   for (const d of districts) {
     await prisma.inspectionDistrict.upsert({
