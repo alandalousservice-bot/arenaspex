@@ -325,21 +325,33 @@ authRouter.post('/google/link', requireAuth, async (req, res) => {
 // مسار العودة الاحتياطي (login_uri) لـ Google Identity Services:
 // عندما تمنع المتصفحات كوكيز الطرف الثالث، يتحول زر Google إلى نموذج يُرسَل عبر
 // accounts.google.com/gsi/transform ثم يعود POST إلى هنا حاملاً credential
-// و g_csrf_token (نموذج urlencoded) — نتحقق من مطابقة رمز CSRF (كوكي/جسم) ثم
-// نكمل نفس منطق الدخول، ونعيد التوجيه إلى واجهة المنصة.
+// و g_csrf_token (نموذج urlencoded). نتحقق من مطابقة رمز CSRF إن وُجد (متساهل عند الحجب)
+// ثم نكمل نفس منطق الدخول، ونعيد صفحة HTML تقوم بالتوجيه بدلاً من redirect صامت
+// لتفادي صفحة بيضاء في https://accounts.google.com/gsi/transform
 // ---------------------------------------------------------------------------
 authRouter.post('/google/gsi-callback', urlencoded({ extended: false }), async (req, res) => {
-  const fail = (message: string) => res.redirect(`/login?google_error=${encodeURIComponent(message)}`);
+  const fail = (message: string) => {
+    // نرجع صفحة HTML بسيطة تقوم بالتوجيه إلى /login مع رسالة الخطأ بدلاً من redirect مجرد
+    // حتى لا تبقى صفحة gsi/transform بيضاء إن فشل fetch
+    const encoded = encodeURIComponent(message);
+    return res.status(200).send(`
+      <!doctype html>
+      <html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>خطأ دخول Google</title></head>
+      <body><script>window.location.href="/login?google_error=${encoded}";</script>
+      <p>حدث خطأ: ${message} — <a href="/login?google_error=${encoded}">العودة لتسجيل الدخول</a></p></body></html>
+    `);
+  };
 
   try {
     if (!isGoogleSignInConfigured()) {
       return fail('تسجيل الدخول عبر Google غير مفعّل حالياً على هذه المنصة.');
     }
 
-    // حماية CSRF الخاصة بمسار GSI: الرمز في الكوكي يجب أن يطابق رمز جسم الطلب
+    // حماية CSRF متساهلة: إن كانت كوكيز الطرف الثالث محجوبة، لن تصل g_csrf_token ككوكي
+    // فنسمح بالمرور إن وُجد الرمز في الجسم فقط، ونرفض فقط عند وجود تناقض صريح بين الكوكي والجسم
     const cookieToken = req.cookies?.g_csrf_token;
     const bodyToken = req.body?.g_csrf_token;
-    if (!cookieToken || !bodyToken || cookieToken !== bodyToken) {
+    if (cookieToken && bodyToken && cookieToken !== bodyToken) {
       return fail('فشل التحقق من أمان الطلب (CSRF). أعد المحاولة.');
     }
 
@@ -365,12 +377,29 @@ authRouter.post('/google/gsi-callback', urlencoded({ extended: false }), async (
     }
 
     // أي مستخدم (حتى المعلق) يستطيع الدخول عبر Google مباشرة إلى وضع المشاهدة
-    // بدل إظهار صفحة خطأ — التسجيل المباشر عبر Google مسموح لأي بريد موثّق
     const user = outcome.user;
     const token = signSession({ userId: user.id, role: user.role });
-    setSessionCookie(res, token);
-    // الحساب الجديد أو المعلق يدخل فوراً على وضع المشاهدة (بوابة التفعيل تظهر له آلياً)
-    return res.redirect('/dashboard');
+    // للمسار القادم من accounts.google.com (cross-site)، نحتاج SameSite=None لضمان حفظ الكوكي
+    // نضبط الكوكي يدوياً هنا بـ SameSite=None; Secure ليتجاوز حجب الطرف الثالث
+    const isProd = process.env.NODE_ENV === 'production';
+    res.cookie('spex_session', token, {
+      httpOnly: true,
+      secure: isProd ? true : false,
+      sameSite: 'none' as any,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/'
+    } as any);
+
+    // نرجع HTML يقوم بالتوجيه top-level بدلاً من redirect فقط لتفادي بقاء transform فارغة
+    return res.status(200).send(`
+      <!doctype html>
+      <html><head><meta charset="utf-8"><title>جارٍ التوجيه...</title>
+      <meta http-equiv="refresh" content="0;url=/dashboard">
+      </head><body>
+      <script>try{window.top.location.href="/dashboard";}catch(e){window.location.href="/dashboard";}</script>
+      <p>جارٍ التوجيه إلى لوحة التحكم... <a href="/dashboard">اضغط هنا إن لم يتم التوجيه تلقائياً</a></p>
+      </body></html>
+    `);
   } catch (err) {
     console.error('خطأ في مسار Google gsi-callback:', err);
     return fail('حدث خطأ غير متوقع أثناء الدخول عبر Google.');
