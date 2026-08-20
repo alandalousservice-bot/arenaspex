@@ -498,21 +498,33 @@ export interface PESession {
 // 'plan_components': تخصيص مركبات الكفاءة/الموارد التعلمية/المؤشرات على مستوى الميدان (المخطط السنوي) — المفتاح: fieldId
 // 'section_wording': تخصيص صياغة هدف الحصة وملاحظات الأستاذ على مستوى الحصة (المقاطع التعليمية) — المفتاح: `${fieldId}__${fieldSessionNumber}`
 // 'schedule_dates': تاريخ/حالة تنفيذ كل حصة (التوزيع السنوي والكراس اليومي) — المفتاح: `${fieldId}__${fieldSessionNumber}`
-export type AnnualPlanKind = 'plan' | 'schedule' | 'plan_components' | 'section_wording' | 'schedule_dates';
+// 'annual_plan_new': الهيكلية الجديدة للمخطط السنوي 2025 — 3 ميادين فقط مع الكفاءة الشاملة و 6 حقول لكل ميدان
+export type AnnualPlanKind = 'plan' | 'schedule' | 'plan_components' | 'section_wording' | 'schedule_dates' | 'annual_plan_new';
 export type AnnualPlanStatus = 'draft' | 'proposed' | 'approved';
 export type LessonExecutionStatus = 'مبرمجة' | 'منجزة' | 'مؤجلة' | 'غير منجزة';
 
 // مفتاح كل هدف/حصة هو `${fieldId}__${fieldSessionNumber}` (فريد ضمن المستوى الدراسي)، ما عدا
 // kind='plan_components' حيث المفتاح هو `${fieldId}` فقط (تخصيص على مستوى الميدان/المقطع التعليمي)
+// kind='annual_plan_new' حيث المفاتيح هي: 'comprehensive' للكفاءة الشاملة، و `${fieldId}__final`, `${fieldId}__components`, `${fieldId}__knowledge`, `${fieldId}__transversal`, `${fieldId}__evaluation`, `${fieldId}__time`
 export interface AnnualPlanObjectiveOverride {
   objective?: string; // صياغة الأستاذ لهدف الحصة (kind: plan | schedule | section_wording)
   teacherNote?: string; // ملاحظة الأستاذ على مضمون الحصة (kind: section_wording)
   components?: string[]; // مركبات الكفاءة (kind: plan_components)
-  resources?: string[]; // الموارد التعلمية (kind: plan_components)
-  indicators?: string[]; // مؤشرات الأداء (kind: plan_components)
+  resources?: string[]; // الموارد التعلمية (kind: plan_components) - للتوافق القديم
+  indicators?: string[]; // مؤشرات الأداء (kind: plan_components) - للتوافق القديم
   date?: string; // تاريخ تنفيذ الحصة المعدَّل يدوياً (kind: schedule_dates)
   status?: LessonExecutionStatus; // حالة تنفيذ الحصة (kind: schedule_dates)
   executionNote?: string; // ملاحظة الأستاذ عند تنفيذ الحصة في الكراس اليومي (kind: schedule_dates)
+
+  // ===== الحقول الجديدة للمخطط السنوي 2025 (kind: annual_plan_new) =====
+  comprehensive?: string; // الكفاءة الشاملة للمستوى
+  finalCompetency?: string; // الكفاءة الختامية للميدان
+  knowledgeResources?: string; // الموارد المعرفية
+  transversalResources?: string; // الموارد العرضية
+  evaluationCriteria?: string; // معايير ومؤشرات التقويم
+  time?: string; // الزمن
+  // حقل خاص للتمييز بين تفريغ المخطط (empty customization valid) وعدم وجود تخصيص
+  isCleared?: boolean; // true means teacher intentionally cleared the plan
 }
 
 export interface AnnualPlan {
