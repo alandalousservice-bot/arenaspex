@@ -30,6 +30,10 @@ export function lessonKeyOf(fieldId: string, fieldSessionNumber: number): string
 /**
  * يدمج القائمة الأساسية المحسوبة آلياً مع تخصيصات التاريخ/الحالة (kind: schedule_dates)
  * وتخصيصات الصياغة/الملاحظات (kind: section_wording)، ويعيد القائمة مرتبة زمنياً.
+ * تم تحديثه ليدعم:
+ * - حصتان = هدف واحد للسنوات 1-3 (objectiveGroupId مشترك)
+ * - أسبوع التعارف (isIntro)
+ * - مدة الحصة (durationMinutes)
  */
 export function mergeSchedule(
   base: ScheduledAnnualSession[],
@@ -38,13 +42,21 @@ export function mergeSchedule(
 ): MergedScheduledLesson[] {
   return base
     .map((session) => {
-      const key = lessonKeyOf(session.fieldId, session.fieldSessionNumber);
-      const schedOv = scheduleOverrides[key];
-      const sectionOv = sectionOverrides[key];
+      const physicalKey = lessonKeyOf(session.fieldId, session.fieldSessionNumber);
+      const schedOv = scheduleOverrides[physicalKey];
+      // للصياغة: أولاً جرّب objectiveGroupId (للحصتين بنفس الهدف)، ثم المفتاح الفيزيائي، ثم الأصلي
+      const groupKey = (session as any).objectiveGroupId as string | undefined;
+      const originalKey = (session as any).originalFieldSessionNumber
+        ? lessonKeyOf(session.fieldId, (session as any).originalFieldSessionNumber)
+        : undefined;
+      const sectionOv =
+        (groupKey ? sectionOverrides[groupKey] : undefined) ||
+        sectionOverrides[physicalKey] ||
+        (originalKey ? sectionOverrides[originalKey] : undefined);
 
       return {
         ...session,
-        key,
+        key: physicalKey,
         scheduledDate: schedOv?.date || session.scheduledDate,
         originalScheduledDate: session.scheduledDate,
         isManuallyRescheduled: Boolean(schedOv?.date && schedOv.date !== session.scheduledDate),

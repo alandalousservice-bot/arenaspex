@@ -26,7 +26,6 @@ export const ALGERIAN_DIRECTORATES: Directorate[] = [
   { id: 'dir_blida', name: 'مديرية التربية لولاية البليدة', wilaya: 'البليدة', code: '09' },
 ];
 
-// Inspection Districts for Primary Education (المقاطعات التفتيشية للطور الابتدائي)
 export const INSPECTION_DISTRICTS: InspectionDistrict[] = [
   { id: 'dist_alg_1', directorateId: 'dir_alg_east', name: 'مقاطعة إدارة وابتدائيات التربية البدنية 01 - رويبة والدار البيضاء' },
   { id: 'dist_alg_2', directorateId: 'dir_alg_east', name: 'مقاطعة إدارة وابتدائيات التربية البدنية 02 - الحراش وبرج الكيفان' },
@@ -34,7 +33,6 @@ export const INSPECTION_DISTRICTS: InspectionDistrict[] = [
   { id: 'dist_const_1', directorateId: 'dir_constantine', name: 'مقاطعة التفتيش الابتدائي للتربية البدنية 01 - قسنطينة وسط' },
 ];
 
-// Institutions - Primary Schools Only (المدارس الابتدائية فقط)
 export const INSTITUTIONS: Institution[] = [
   { id: 'inst_1', districtId: 'dist_alg_1', directorateId: 'dir_alg_east', name: 'مدرسة الأمير عبد القادر الابتدائية - رويبة', type: 'ابتدائية', address: 'حي بن زرقة، رويبة، الجزائر' },
   { id: 'inst_2', districtId: 'dist_alg_1', directorateId: 'dir_alg_east', name: 'مدرسة طارق بن زياد الابتدائية - الدار البيضاء', type: 'ابتدائية', address: 'وسط المدينة، الدار البيضاء، الجزائر' },
@@ -42,7 +40,6 @@ export const INSTITUTIONS: Institution[] = [
   { id: 'inst_4', districtId: 'dist_oran_1', directorateId: 'dir_oran', name: 'مدرسة العربي بن مهيدي الابتدائية - وهران', type: 'ابتدائية', address: 'حي السلام، وهران' },
 ];
 
-// PE Levels - Primary Education Only (المستويات المدرسية للطور الابتدائي حصراً)
 export const PE_LEVELS: PELevel[] = [
   { id: 'lvl_p1', name: 'السنة الأولى ابتدائي', cycle: 'ابتدائي', order: 1 },
   { id: 'lvl_p2', name: 'السنة الثانية ابتدائي', cycle: 'ابتدائي', order: 2 },
@@ -51,8 +48,6 @@ export const PE_LEVELS: PELevel[] = [
   { id: 'lvl_p5', name: 'السنة الخامسة ابتدائي', cycle: 'ابتدائي', order: 5 },
 ];
 
-// الكفاءة الختامية الشاملة لكل مستوى دراسي (ملتقى الكفاءات الختامية الثلاث للميادين التعليمية الثلاثة)
-// Grade → Overall Competency (واحدة لكل مستوى وفق الهيكلة البيداغوجية الرسمية)
 export const OVERALL_COMPETENCY_BY_LEVEL: Record<string, string> = {
   lvl_p1: 'التحكم في الوضعيات والتنقلات والحركات القاعدية الأساسية وتوظيفها في وضعيات لعب ونشاطات جماعية بسيطة منظمة، في إطار احترام الذات والآخرين.',
   lvl_p2: 'التحكم في التنقلات والحركات القاعدية المركّبة وتوظيفها في وضعيات حركية ولعب جماعي منظم، مع الالتزام بقواعد النشاط والتعاون مع الزملاء.',
@@ -61,37 +56,16 @@ export const OVERALL_COMPETENCY_BY_LEVEL: Record<string, string> = {
   lvl_p5: 'إدماج مجمل المكتسبات الحركية والمعرفية والاجتماعية في وضعيات تنافسية جماعية مركّبة، وبناء حلول جماعية تُظهر الاستقلالية والمسؤولية والانضباط.'
 };
 
-/** الحجم الساعي المرصود لميدان تعليمي/مقطع تعليمي (كل حصة تعلّمية ≈ ساعة تدريسية واحدة) */
 export function getFieldAllocatedHours(field: { sessionsCount: number }): number {
   return field.sessionsCount;
 }
 
-// PE Fields - Official Algerian Primary PE Curriculum (الميادين التعليمية الثلاثة المعتمدة حصراً وفق المنهاج الوزاري)
 export const PE_FIELDS: PEField[] = [
-  {
-    id: 'f_locomotion',
-    name: 'الميدان الأول: الوضعيات والتنقلات',
-    category: 'بدني',
-    description: '10 حصص تعلّمية - التحكم في وضعيات الجسم الأساسية والتنقلات والتوازن وتغيير الاتجاه والسرعة.'
-  },
-  {
-    id: 'f_fundamentals',
-    name: 'الميدان الثاني: الحركات القاعدية',
-    category: 'جماعي',
-    description: '10 حصص تعلّمية - اكتساب وتوظيف الحركات القاعدية الأساسية (المشي، الجري، القفز، الرمي والاستقبال).'
-  },
-  {
-    id: 'f_structuring',
-    name: 'الميدان الثالث: الهيكلة والبناء',
-    category: 'فردي',
-    description: '10 حصص تعلّمية - بناء وتنظيم الأنشطة الجماعية، احترام القواعد والتنظيم، والتعاون مع الزملاء.'
-  },
+  { id: 'f_locomotion', name: 'الميدان الأول: الوضعيات والتنقلات', category: 'بدني', description: '10 حصص تعلّمية - التحكم في وضعيات الجسم الأساسية والتنقلات والتوازن وتغيير الاتجاه والسرعة.' },
+  { id: 'f_fundamentals', name: 'الميدان الثاني: الحركات القاعدية', category: 'جماعي', description: '10 حصص تعلّمية - اكتساب وتوظيف الحركات القاعدية الأساسية (المشي، الجري، القفز، الرمي والاستقبال).' },
+  { id: 'f_structuring', name: 'الميدان الثالث: الهيكلة والبناء', category: 'فردي', description: '10 حصص تعلّمية - بناء وتنظيم الأنشطة الجماعية، احترام القواعد والتنظيم، والتعاون مع الزملاء.' },
 ];
 
-/**
- * المخطط السنوي الرسمي الشامل لجميع مستويات الطور الابتدائي (س1 إلى س5)
- * يحتوي على الكفاءات الختامية، المعايير، والمؤشرات لجميع الميادين الثلاثة
- */
 export interface CurriculumFieldDetail {
   fieldId: string;
   fieldName: string;
@@ -117,7 +91,6 @@ export interface LevelCurriculumDetail {
 }
 
 export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> = {
-  // ==================== السنة الأولى ابتدائي ====================
   lvl_p1: {
     levelId: 'lvl_p1',
     levelName: 'السنة الأولى ابتدائي',
@@ -128,21 +101,9 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
         fieldName: 'الميدان الأول: الوضعيات والتنقلات',
         sessionsCount: 10,
         finalCompetency: 'التحكم في الوضعيات الأساسية للجسم والتنقلات البسيطة في فضاء محدد.',
-        criteria: [
-          'التعرف على مختلف وضعيات الجسم.',
-          'التحكم في التنقلات الأساسية.',
-          'احترام فضاء النشاط وقواعده.'
-        ],
-        indicators: [
-          'يتخذ وضعيات جسمية مختلفة حسب التعليمات.',
-          'ينتقل من وضعية إلى أخرى.',
-          'يتحرك في اتجاهات مختلفة.',
-          'يحافظ على توازنه أثناء التنقل.'
-        ],
-        pedagogicalNotes: [
-          'تعتمد الحصص على الألعاب شبه الرياضية والتمارين الحركية البسيطة.',
-          'التركيز في هذا المستوى يكون على: اكتشاف الجسم، التحكم في الفضاء، التوازن، والانتقال من الحركة الفردية إلى الحركة المنظمة.'
-        ],
+        criteria: ['التعرف على مختلف وضعيات الجسم.', 'التحكم في التنقلات الأساسية.', 'احترام فضاء النشاط وقواعده.'],
+        indicators: ['يتخذ وضعيات جسمية مختلفة حسب التعليمات.', 'ينتقل من وضعية إلى أخرى.', 'يتحرك في اتجاهات مختلفة.', 'يحافظ على توازنه أثناء التنقل.'],
+        pedagogicalNotes: ['تعتمد الحصص على الألعاب شبه الرياضية والتمارين الحركية البسيطة.', 'التركيز في هذا المستوى يكون على: اكتشاف الجسم، التحكم في الفضاء، التوازن، والانتقال من الحركة الفردية إلى الحركة المنظمة.'],
         suggestedTools: ['أقماع', 'حلقات', 'حبال', 'بساط', 'كرات خفيفة'],
         sessionsList: [
           { sessionNumber: 1, type: 'تقويم تشخيصي', typeLabel: 'تقويم تشخيصي', objective: 'تشخيص مستوى التحكم في وضعيات الجسم الأساسية وقدرة المتعلم على التنقل في فضاء محدد.' },
@@ -162,21 +123,9 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
         fieldName: 'الميدان الثاني: الحركات القاعدية',
         sessionsCount: 10,
         finalCompetency: 'اكتساب التحكم الأولي في الحركات القاعدية الأساسية (المشي، الجري، القفز، الرمي).',
-        criteria: [
-          'إنجاز الحركات الأساسية بطريقة صحيحة.',
-          'التنسيق بين مختلف أجزاء الجسم.',
-          'التكيف مع الوضعيات الحركية.'
-        ],
-        indicators: [
-          'يمشي ويجري وفق تعليمات بسيطة.',
-          'ينجز قفزات بسيطة.',
-          'يرمي أدوات خفيفة.',
-          'ينسق بين حركة الذراعين والرجلين.'
-        ],
-        pedagogicalNotes: [
-          'يركز هذا المقطع على بناء القاعدة الحركية الأولى للطفل.',
-          'يتم الانتقال تدريجياً من: الحركة الفردية إلى الحركة المنظمة، والأداء البسيط إلى الربط بين الحركات.'
-        ],
+        criteria: ['إنجاز الحركات الأساسية بطريقة صحيحة.', 'التنسيق بين مختلف أجزاء الجسم.', 'التكيف مع الوضعيات الحركية.'],
+        indicators: ['يمشي ويجري وفق تعليمات بسيطة.', 'ينجز قفزات بسيطة.', 'يرمي أدوات خفيفة.', 'ينسق بين حركة الذراعين والرجلين.'],
+        pedagogicalNotes: ['يركز هذا المقطع على بناء القاعدة الحركية الأولى للطفل.', 'يتم الانتقال تدريجياً من: الحركة الفردية إلى الحركة المنظمة، والأداء البسيط إلى الربط بين الحركات.'],
         suggestedTools: ['كرات صغيرة', 'أقماع', 'حلقات', 'حواجز منخفضة', 'أكياس رملية خفيفة'],
         sessionsList: [
           { sessionNumber: 1, type: 'تقويم تشخيصي', typeLabel: 'تقويم تشخيصي', objective: 'تشخيص مستوى التحكم في الحركات القاعدية الأساسية (المشي، الجري، القفز، الرمي).' },
@@ -196,21 +145,9 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
         fieldName: 'الميدان الثالث: الهيكلة والبناء',
         sessionsCount: 10,
         finalCompetency: 'المشاركة في أنشطة جماعية بسيطة مع احترام التنظيم والقواعد.',
-        criteria: [
-          'احترام الزملاء والقوانين.',
-          'تنظيم الحركة داخل المجموعة.',
-          'المشاركة في النشاط.'
-        ],
-        indicators: [
-          'يقف في صف أو تشكيل جماعي.',
-          'يحترم دوره.',
-          'يتعاون مع زملائه.',
-          'يطبق تعليمات اللعبة.'
-        ],
-        pedagogicalNotes: [
-          'يركز هذا المقطع على بناء السلوك الجماعي والحركي للطفل.',
-          'الانتقال من التنظيم الفردي إلى الجماعي، ومن احترام التعليمات إلى المشاركة الفعالة.'
-        ],
+        criteria: ['احترام الزملاء والقوانين.', 'تنظيم الحركة داخل المجموعة.', 'المشاركة في النشاط.'],
+        indicators: ['يقف في صف أو تشكيل جماعي.', 'يحترم دوره.', 'يتعاون مع زملائه.', 'يطبق تعليمات اللعبة.'],
+        pedagogicalNotes: ['يركز هذا المقطع على بناء السلوك الجماعي والحركي للطفل.', 'الانتقال من التنظيم الفردي إلى الجماعي، ومن احترام التعليمات إلى المشاركة الفعالة.'],
         suggestedTools: ['ألعاب المطاردة', 'ألعاب نقل الأدوات', 'ألعاب التتابع البسيطة', 'ألعاب التعاون بين الفرق'],
         sessionsList: [
           { sessionNumber: 1, type: 'تقويم تشخيصي', typeLabel: 'تقويم تشخيصي', objective: 'تشخيص قدرة المتعلم على التنظيم داخل المجموعة واحترام التعليمات والقواعد الأساسية.' },
@@ -227,8 +164,6 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
       }
     }
   },
-
-  // ==================== السنة الثانية ابتدائي ====================
   lvl_p2: {
     levelId: 'lvl_p2',
     levelName: 'السنة الثانية ابتدائي',
@@ -239,21 +174,9 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
         fieldName: 'الميدان الأول: الوضعيات والتنقلات',
         sessionsCount: 10,
         finalCompetency: 'تنويع الوضعيات والتنقلات والتحكم في الجسم أثناء الحركة.',
-        criteria: [
-          'تحسين التحكم الجسدي.',
-          'الانتقال السلس بين الوضعيات.',
-          'استعمال الفضاء بشكل منظم.'
-        ],
-        indicators: [
-          'يغير وضعية الجسم حسب المطلوب.',
-          'ينتقل في اتجاهات مختلفة.',
-          'يحافظ على التوازن.',
-          'يتكيف مع تغير المسار.'
-        ],
-        pedagogicalNotes: [
-          'يركز على تطوير التحكم في الجسم والانتقال من الحركات البسيطة إلى الحركات المركبة.',
-          'تعزيز الوعي بالجسم، التوازن، التوجه في الفضاء وسرعة الاستجابة.'
-        ],
+        criteria: ['تحسين التحكم الجسدي.', 'الانتقال السلس بين الوضعيات.', 'استعمال الفضاء بشكل منظم.'],
+        indicators: ['يغير وضعية الجسم حسب المطلوب.', 'ينتقل في اتجاهات مختلفة.', 'يحافظ على التوازن.', 'يتكيف مع تغير المسار.'],
+        pedagogicalNotes: ['يركز على تطوير التحكم في الجسم والانتقال من الحركات البسيطة إلى الحركات المركبة.', 'تعزيز الوعي بالجسم، التوازن، التوجه في الفضاء وسرعة الاستجابة.'],
         suggestedTools: ['أقماع', 'حلقات', 'حبال', 'بساط', 'علامات أرضية'],
         sessionsList: [
           { sessionNumber: 1, type: 'تقويم تشخيصي', typeLabel: 'تقويم تشخيصي', objective: 'تشخيص مستوى التحكم في وضعيات الجسم والتنقلات الأساسية المكتسبة سابقاً.' },
@@ -273,21 +196,9 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
         fieldName: 'الميدان الثاني: الحركات القاعدية',
         sessionsCount: 10,
         finalCompetency: 'توظيف الحركات القاعدية في مواقف حركية متنوعة.',
-        criteria: [
-          'تحسين جودة الأداء.',
-          'التحكم في السرعة والقوة.',
-          'الربط بين الحركات.'
-        ],
-        indicators: [
-          'يجري بسرعات مختلفة.',
-          'ينجز قفزات متنوعة.',
-          'يرمي ويوجه الأدوات.',
-          'يربط بين الجري والقفز.'
-        ],
-        pedagogicalNotes: [
-          'تهدف إلى تطوير المكتسبات الحركية الأساسية للسنة الثانية.',
-          'الانتقال من التحكم في الحركة إلى تحسين الأداء والربط بين عدة مهارات.'
-        ],
+        criteria: ['تحسين جودة الأداء.', 'التحكم في السرعة والقوة.', 'الربط بين الحركات.'],
+        indicators: ['يجري بسرعات مختلفة.', 'ينجز قفزات متنوعة.', 'يرمي ويوجه الأدوات.', 'يربط بين الجري والقفز.'],
+        pedagogicalNotes: ['تهدف إلى تطوير المكتسبات الحركية الأساسية للسنة الثانية.', 'الانتقال من التحكم في الحركة إلى تحسين الأداء والربط بين عدة مهارات.'],
         suggestedTools: ['كرات صغيرة', 'أقماع', 'حلقات', 'حواجز منخفضة', 'أكياس رملية', 'علامات أرضية'],
         sessionsList: [
           { sessionNumber: 1, type: 'تقويم تشخيصي', typeLabel: 'تقويم تشخيصي', objective: 'تشخيص مستوى التحكم في مهارات الجري والقفز والرمي لدى المتعلمين.' },
@@ -307,21 +218,9 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
         fieldName: 'الميدان الثالث: الهيكلة والبناء',
         sessionsCount: 10,
         finalCompetency: 'تنظيم نشاط جماعي بسيط والتكيف مع الأدوار والقواعد.',
-        criteria: [
-          'التعاون مع المجموعة.',
-          'احترام القواعد.',
-          'التنظيم المكاني.'
-        ],
-        indicators: [
-          'يوزع نفسه داخل المجموعة.',
-          'يحترم الدور.',
-          'يشارك في ألعاب جماعية.',
-          'يتكيف مع تغير الوضعيات.'
-        ],
-        pedagogicalNotes: [
-          'تطوير الجانب الاجتماعي والحركي للمتعلم.',
-          'الانتقال من العمل الفردي إلى العمل الجماعي، ومن اللعب الحر إلى اللعب المنظم.'
-        ],
+        criteria: ['التعاون مع المجموعة.', 'احترام القواعد.', 'التنظيم المكاني.'],
+        indicators: ['يوزع نفسه داخل المجموعة.', 'يحترم الدور.', 'يشارك في ألعاب جماعية.', 'يتكيف مع تغير الوضعيات.'],
+        pedagogicalNotes: ['تطوير الجانب الاجتماعي والحركي للمتعلم.', 'الانتقال من العمل الفردي إلى العمل الجماعي، ومن اللعب الحر إلى اللعب المنظم.'],
         suggestedTools: ['أقماع', 'كرات', 'حلقات', 'صدريات ملونة', 'علامات تحديد الفضاء'],
         sessionsList: [
           { sessionNumber: 1, type: 'تقويم تشخيصي', typeLabel: 'تقويم تشخيصي', objective: 'تشخيص قدرة المتعلم على التنظيم داخل المجموعة واحترام قواعد النشاط الجماعي.' },
@@ -338,8 +237,6 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
       }
     }
   },
-
-  // ==================== السنة الثالثة ابتدائي ====================
   lvl_p3: {
     levelId: 'lvl_p3',
     levelName: 'السنة الثالثة ابتدائي',
@@ -350,21 +247,9 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
         fieldName: 'الميدان الأول: الوضعيات والتنقلات',
         sessionsCount: 10,
         finalCompetency: 'التحكم في التنقلات المختلفة واستعمال الفضاء بطريقة فعالة.',
-        criteria: [
-          'تنسيق الحركات.',
-          'التحكم في الاتجاه والسرعة.',
-          'المحافظة على التوازن.'
-        ],
-        indicators: [
-          'ينجز مسارات متنوعة.',
-          'يغير الاتجاه أثناء الحركة.',
-          'يتجاوز عوائق بسيطة.',
-          'يربط بين وضعيات مختلفة.'
-        ],
-        pedagogicalNotes: [
-          'الانتقال من التحكم الأساسي إلى التنويع والتركيب الحركي.',
-          'التركيز على الوعي بالجسم، التوازن، التوجه في الفضاء، والتحكم في المسار الحركي.'
-        ],
+        criteria: ['تنسيق الحركات.', 'التحكم في الاتجاه والسرعة.', 'المحافظة على التوازن.'],
+        indicators: ['ينجز مسارات متنوعة.', 'يغير الاتجاه أثناء الحركة.', 'يتجاوز عوائق بسيطة.', 'يربط بين وضعيات مختلفة.'],
+        pedagogicalNotes: ['الانتقال من التحكم الأساسي إلى التنويع والتركيب الحركي.', 'التركيز على الوعي بالجسم، التوازن، التوجه في الفضاء، والتحكم في المسار الحركي.'],
         suggestedTools: ['أقماع', 'حلقات', 'حواجز منخفضة', 'حبال', 'بساط', 'علامات أرضية'],
         sessionsList: [
           { sessionNumber: 1, type: 'تقويم تشخيصي', typeLabel: 'تقويم تشخيصي', objective: 'تشخيص مستوى التحكم في الوضعيات والتنقلات الأساسية ومدى قدرة المتعلم على التكيف مع الفضاء.' },
@@ -384,21 +269,9 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
         fieldName: 'الميدان الثاني: الحركات القاعدية',
         sessionsCount: 10,
         finalCompetency: 'إتقان الحركات القاعدية وربطها في وضعيات حركية.',
-        criteria: [
-          'دقة الأداء.',
-          'التحكم في القوة والسرعة.',
-          'التنسيق الحركي.'
-        ],
-        indicators: [
-          'يجري بمستويات سرعة مختلفة.',
-          'يقفز ويتجاوز عوائق.',
-          'يرمي بدقة.',
-          'يربط بين مهارات مختلفة.'
-        ],
-        pedagogicalNotes: [
-          'تطوير المهارات الأساسية والانتقال من الأداء المنفصل إلى التركيب الحركي.',
-          'تنمية سرعة الاستجابة، التوازن، الدقة والتحكم في السرعة.'
-        ],
+        criteria: ['دقة الأداء.', 'التحكم في القوة والسرعة.', 'التنسيق الحركي.'],
+        indicators: ['يجري بمستويات سرعة مختلفة.', 'يقفز ويتجاوز عوائق.', 'يرمي بدقة.', 'يربط بين مهارات مختلفة.'],
+        pedagogicalNotes: ['تطوير المهارات الأساسية والانتقال من الأداء المنفصل إلى التركيب الحركي.', 'تنمية سرعة الاستجابة، التوازن، الدقة والتحكم في السرعة.'],
         suggestedTools: ['كرات مختلفة الأحجام', 'أقماع', 'حواجز منخفضة', 'حلقات', 'أكياس رملية', 'عصي'],
         sessionsList: [
           { sessionNumber: 1, type: 'تقويم تشخيصي', typeLabel: 'تقويم تشخيصي', objective: 'تشخيص مستوى التحكم في الجري والقفز والرمي ومدى توظيف الحركات القاعدية المكتسبة.' },
@@ -418,21 +291,9 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
         fieldName: 'الميدان الثالث: الهيكلة والبناء',
         sessionsCount: 10,
         finalCompetency: 'بناء وتنظيم أنشطة جماعية وفق قواعد محددة.',
-        criteria: [
-          'توزيع الأدوار.',
-          'التعاون.',
-          'احترام التنظيم.'
-        ],
-        indicators: [
-          'يطبق قواعد الألعاب.',
-          'يتعاون مع الفريق.',
-          'يشغل مكانه المناسب.',
-          'يتكيف مع المواقف.'
-        ],
-        pedagogicalNotes: [
-          'تنمية الجانب الجماعي والاجتماعي للحركة.',
-          'انتقال المتعلم من تنفيذ التعليمات الفردية إلى التعاون والمساهمة في تنظيم النشاط.'
-        ],
+        criteria: ['توزيع الأدوار.', 'التعاون.', 'احترام التنظيم.'],
+        indicators: ['يطبق قواعد الألعاب.', 'يتعاون مع الفريق.', 'يشغل مكانه المناسب.', 'يتكيف مع المواقف.'],
+        pedagogicalNotes: ['تنمية الجانب الجماعي والاجتماعي للحركة.', 'انتقال المتعلم من تنفيذ التعليمات الفردية إلى التعاون والمساهمة في تنظيم النشاط.'],
         suggestedTools: ['أقماع', 'كرات', 'صدريات', 'حلقات', 'حواجز', 'علامات تحديد الفضاء'],
         sessionsList: [
           { sessionNumber: 1, type: 'تقويم تشخيصي', typeLabel: 'تقويم تشخيصي', objective: 'تشخيص قدرة المتعلم على التنظيم الجماعي واحترام القواعد الأساسية أثناء الأنشطة الحركية.' },
@@ -449,8 +310,6 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
       }
     }
   },
-
-  // ==================== السنة الرابعة ابتدائي ====================
   lvl_p4: {
     levelId: 'lvl_p4',
     levelName: 'السنة الرابعة ابتدائي',
@@ -461,21 +320,9 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
         fieldName: 'الميدان الأول: الوضعيات والتنقلات',
         sessionsCount: 10,
         finalCompetency: 'إتقان التنقلات المركبة والتكيف مع مختلف الوضعيات الحركية.',
-        criteria: [
-          'الدقة في الأداء.',
-          'التحكم في التوازن.',
-          'سرعة الاستجابة.'
-        ],
-        indicators: [
-          'ينجز مسارات مركبة.',
-          'يتحكم في تغيير الاتجاه.',
-          'يربط بين عدة حركات.',
-          'يحافظ على التوازن.'
-        ],
-        pedagogicalNotes: [
-          'الانتقال من اكتساب المهارة إلى تحسين الأداء والدقة.',
-          'التركيز على التوازن الديناميكي، التحكم في الجسم، وسرعة الاستجابة.'
-        ],
+        criteria: ['الدقة في الأداء.', 'التحكم في التوازن.', 'سرعة الاستجابة.'],
+        indicators: ['ينجز مسارات مركبة.', 'يتحكم في تغيير الاتجاه.', 'يربط بين عدة حركات.', 'يحافظ على التوازن.'],
+        pedagogicalNotes: ['الانتقال من اكتساب المهارة إلى تحسين الأداء والدقة.', 'التركيز على التوازن الديناميكي، التحكم في الجسم، وسرعة الاستجابة.'],
         suggestedTools: ['بساط', 'عوارض توازن', 'أقماع', 'حلقات', 'حواجز منخفضة'],
         sessionsList: [
           { sessionNumber: 1, type: 'تقويم تشخيصي', typeLabel: 'تقويم تشخيصي', objective: 'تشخيص مستوى التحكم في الوضعيات والتنقلات ومدى قدرة المتعلم على التكيف مع المسارات الحركية.' },
@@ -495,21 +342,9 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
         fieldName: 'الميدان الثاني: الحركات القاعدية',
         sessionsCount: 10,
         finalCompetency: 'توظيف الحركات القاعدية في مواقف رياضية متنوعة.',
-        criteria: [
-          'تحسين الأداء.',
-          'التحكم في الإيقاع.',
-          'الدقة والفعالية.'
-        ],
-        indicators: [
-          'ينجز الجري السريع.',
-          'يتحكم في القفز.',
-          'يحسن الرمي والاستقبال.',
-          'يربط الحركات.'
-        ],
-        pedagogicalNotes: [
-          'تطوير الأداء الحركي والانتقال من التنفيذ البسيط إلى التحكم والربط بين المهارات.',
-          'تنمية السرعة الحركية، القوة المناسبة، الدقة والتوافق.'
-        ],
+        criteria: ['تحسين الأداء.', 'التحكم في الإيقاع.', 'الدقة والفعالية.'],
+        indicators: ['ينجز الجري السريع.', 'يتحكم في القفز.', 'يحسن الرمي والاستقبال.', 'يربط الحركات.'],
+        pedagogicalNotes: ['تطوير الأداء الحركي والانتقال من التنفيذ البسيط إلى التحكم والربط بين المهارات.', 'تنمية السرعة الحركية، القوة المناسبة، الدقة والتوافق.'],
         suggestedTools: ['كرات مختلفة الأحجام', 'أقماع', 'حواجز منخفضة', 'حلقات', 'عصي', 'أكياس رملية'],
         sessionsList: [
           { sessionNumber: 1, type: 'تقويم تشخيصي', typeLabel: 'تقويم تشخيصي', objective: 'تشخيص مستوى التحكم في الجري والقفز والرمي ومدى توظيف المهارات الحركية الأساسية.' },
@@ -529,21 +364,9 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
         fieldName: 'الميدان الثالث: الهيكلة والبناء',
         sessionsCount: 10,
         finalCompetency: 'تنظيم نشاط جماعي وتحقيق هدف مشترك.',
-        criteria: [
-          'التخطيط الجماعي.',
-          'احترام القواعد.',
-          'التعاون.'
-        ],
-        indicators: [
-          'يطبق استراتيجية بسيطة.',
-          'يتبادل الأدوار.',
-          'يساعد الفريق.',
-          'يحترم المنافس.'
-        ],
-        pedagogicalNotes: [
-          'تطوير قدرة المتعلم على العمل الجماعي وبناء الفعل الحركي المشترك.',
-          'الانتقال من المشاركة في النشاط إلى تنظيمه واتخاذ القرار.'
-        ],
+        criteria: ['التخطيط الجماعي.', 'احترام القواعد.', 'التعاون.'],
+        indicators: ['يطبق استراتيجية بسيطة.', 'يتبادل الأدوار.', 'يساعد الفريق.', 'يحترم المنافس.'],
+        pedagogicalNotes: ['تطوير قدرة المتعلم على العمل الجماعي وبناء الفعل الحركي المشترك.', 'الانتقال من المشاركة في النشاط إلى تنظيمه واتخاذ القرار.'],
         suggestedTools: ['كرات', 'أقماع', 'صدريات فرق', 'حلقات', 'مرامي صغيرة', 'حواجز'],
         sessionsList: [
           { sessionNumber: 1, type: 'تقويم تشخيصي', typeLabel: 'تقويم تشخيصي', objective: 'تشخيص قدرة المتعلم على تنظيم نشاط جماعي واحترام القواعد وتوزيع الأدوار داخل الفريق.' },
@@ -560,8 +383,6 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
       }
     }
   },
-
-  // ==================== السنة الخامسة ابتدائي ====================
   lvl_p5: {
     levelId: 'lvl_p5',
     levelName: 'السنة الخامسة ابتدائي',
@@ -572,21 +393,9 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
         fieldName: 'الميدان الأول: الوضعيات والتنقلات',
         sessionsCount: 10,
         finalCompetency: 'توظيف الوضعيات والتنقلات المركبة في مواقف إدماجية مع التحكم في الجسم.',
-        criteria: [
-          'التحكم المتقدم في الجسم.',
-          'الربط بين المهارات.',
-          'التكيف مع الوضعيات.'
-        ],
-        indicators: [
-          'ينجز مسارات مركبة.',
-          'يتحكم في التوازن.',
-          'يغير السرعة والاتجاه.',
-          'يبدع في بناء حركات.'
-        ],
-        pedagogicalNotes: [
-          'مرحلة متتقدمة في التحكم الحركي، حيث ينتقل المتعلم من تنفيذ الحركات إلى التحكم في تركيبها وتوظيفها.',
-          'التركيز على التوازن الديناميكي، الرشاقة، الربط بين المهارات والاستقلالية.'
-        ],
+        criteria: ['التحكم المتقدم في الجسم.', 'الربط بين المهارات.', 'التكيف مع الوضعيات.'],
+        indicators: ['ينجز مسارات مركبة.', 'يتحكم في التوازن.', 'يغير السرعة والاتجاه.', 'يبدع في بناء حركات.'],
+        pedagogicalNotes: ['مرحلة متتقدمة في التحكم الحركي، حيث ينتقل المتعلم من تنفيذ الحركات إلى التحكم في تركيبها وتوظيفها.', 'التركيز على التوازن الديناميكي، الرشاقة، الربط بين المهارات والاستقلالية.'],
         suggestedTools: ['بساط الجمباز', 'عوارض التوازن', 'أقماع', 'حواجز', 'حلقات', 'حبال'],
         sessionsList: [
           { sessionNumber: 1, type: 'تقويم تشخيصي', typeLabel: 'تقويم تشخيصي', objective: 'تشخيص مستوى التحكم في الوضعيات والتنقلات المركبة ومدى توظيف المكتسبات السابقة.' },
@@ -606,21 +415,9 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
         fieldName: 'الميدان الثاني: الحركات القاعدية',
         sessionsCount: 10,
         finalCompetency: 'توظيف الحركات القاعدية الأساسية في مواقف رياضية متنوعة.',
-        criteria: [
-          'جودة الأداء.',
-          'التحكم التقني.',
-          'الفعالية الحركية.'
-        ],
-        indicators: [
-          'ينجز الجري لمسافات مختلفة.',
-          'يتحكم في القفز والوثب.',
-          'يحسن الرمي.',
-          'يدمج عدة مهارات.'
-        ],
-        pedagogicalNotes: [
-          'الانتقال من اكتساب المهارة إلى تحسين الأداء والفعالية.',
-          'تطوير السرعة الحركية، القوة المناسبة، الدقة، والقدرة على الربط بين المهارات.'
-        ],
+        criteria: ['جودة الأداء.', 'التحكم التقني.', 'الفعالية الحركية.'],
+        indicators: ['ينجز الجري لمسافات مختلفة.', 'يتحكم في القفز والوثب.', 'يحسن الرمي.', 'يدمج عدة مهارات.'],
+        pedagogicalNotes: ['الانتقال من اكتساب المهارة إلى تحسين الأداء والفعالية.', 'تطوير السرعة الحركية، القوة المناسبة، الدقة، والقدرة على الربط بين المهارات.'],
         suggestedTools: ['كرات مختلفة الأوزان', 'أقماع', 'حواجز', 'حلقات', 'عصي', 'مناطق رمي محددة'],
         sessionsList: [
           { sessionNumber: 1, type: 'تقويم تشخيصي', typeLabel: 'تقويم تشخيصي', objective: 'تشخيص مستوى التحكم في الحركات القاعدية (الجري، القفز، الرمي) وتحديد المكتسبات والصعوبات.' },
@@ -640,21 +437,9 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
         fieldName: 'الميدان الثالث: الهيكلة والبناء',
         sessionsCount: 10,
         finalCompetency: 'بناء حلول جماعية وتنظيم النشاطات الرياضية وفق قواعدها.',
-        criteria: [
-          'العمل الجماعي.',
-          'اتخاذ القرار.',
-          'احترام القوانين.'
-        ],
-        indicators: [
-          'يوزع الأدوار.',
-          'يقترح حلولاً جماعية.',
-          'يطبق خططاً بسيطة.',
-          'يقيم أداء الفريق.'
-        ],
-        pedagogicalNotes: [
-          'تطوير بناء حلول جماعية وتنظيم النشاطات وفق القواعد والقوانين.',
-          'تنمية القيادة، توزيع الأدوار، المبادرة وتقييم أداء المجموعة.'
-        ],
+        criteria: ['العمل الجماعي.', 'اتخاذ القرار.', 'احترام القوانين.'],
+        indicators: ['يوزع الأدوار.', 'يقترح حلولاً جماعية.', 'يطبق خططاً بسيطة.', 'يقيم أداء الفريق.'],
+        pedagogicalNotes: ['تطوير بناء حلول جماعية وتنظيم النشاطات وفق القواعد والقوانين.', 'تنمية القيادة، توزيع الأدوار، المبادرة وتقييم أداء المجموعة.'],
         suggestedTools: ['أقماع', 'كرات تكتيكية', 'صدريات الفرق', 'مرامي رياضية', 'صفارة حكّم', 'لوحة تكتيكية'],
         sessionsList: [
           { sessionNumber: 1, type: 'تقويم تشخيصي', typeLabel: 'تقويم تشخيصي', objective: 'تشخيص قدرة المتعلم على تنظيم خطط جماعية وتوزيع الأدوار داخل الفريق.' },
@@ -673,7 +458,6 @@ export const COMPLETE_ANNUAL_CURRICULUM: Record<string, LevelCurriculumDetail> =
   }
 };
 
-// Legacy Export compatibility for Final Competencies array
 export const FINAL_COMPETENCIES: FinalCompetency[] = Object.values(COMPLETE_ANNUAL_CURRICULUM).flatMap((lvl) =>
   Object.values(lvl.fields).map((f, idx) => ({
     id: `fc_${lvl.levelId}_${f.fieldId}`,
@@ -685,7 +469,6 @@ export const FINAL_COMPETENCIES: FinalCompetency[] = Object.values(COMPLETE_ANNU
   }))
 );
 
-// Legacy Learning Segments list for views
 export const LEARNING_SEGMENTS: LearningSegment[] = Object.values(COMPLETE_ANNUAL_CURRICULUM).flatMap((lvl) =>
   Object.values(lvl.fields).map((f, idx) => ({
     id: `seg_${lvl.levelId}_${f.fieldId}`,
@@ -722,13 +505,6 @@ export const SAMPLE_PE_SESSIONS: PESession[] = Object.values(COMPLETE_ANNUAL_CUR
   )
 );
 
-/**
- * =========================================================================
- * نظام التوزيع السنوي للحصص التعليمية (Dynamic Annual Distribution Engine)
- * =========================================================================
- */
-
-// قائمة العطلات والرزنامة المدرسية الرسمية في الجزائر (2025/2026) لتجاوز العطل تلقائياً
 export const ALGERIAN_SCHOOL_HOLIDAYS_2025_2026 = [
   { name: 'عيد الثورة المجيدة', startDate: '2025-11-01', endDate: '2025-11-02' },
   { name: 'عطلة الشتاء', startDate: '2025-12-18', endDate: '2026-01-04' },
@@ -741,97 +517,319 @@ export const ALGERIAN_SCHOOL_HOLIDAYS_2025_2026 = [
 ];
 
 export interface ScheduledAnnualSession {
-  globalSessionNumber: number; // 1 to 30
-  fieldSessionNumber: number; // 1 to 10
+  globalSessionNumber: number;
+  fieldSessionNumber: number;
   fieldId: string;
   fieldName: string;
   levelId: string;
   levelName: string;
-  sessionType: 'تقويم تشخيصي' | 'تعلمية' | 'إدماجية' | 'تقويم تحصيلي';
+  sessionType: 'تقويم تشخيصي' | 'تعلمية' | 'إدماجية' | 'تقويم تحصيلي' | 'تعارف وتنظيم';
   sessionTypeLabel: string;
   targetObjective: string;
-  scheduledDate: string; // YYYY-MM-DD
+  scheduledDate: string;
   isHolidayPostponed: boolean;
   holidayNote?: string;
   status: 'منجزة' | 'مؤجلة' | 'غير منجزة' | 'مبرمجة';
+  durationMinutes: number;
+  isIntro?: boolean;
+  objectiveGroupId?: string;
 }
 
-/**
- * دالة الحساب الآلي للتوزيع السنوي لـ 30 حصة بناءً على تاريخ البداية وتفادي العطل
- */
+function getGradeFromLevelId(levelId: string): number {
+  const map: Record<string, number> = { lvl_p1: 1, lvl_p2: 2, lvl_p3: 3, lvl_p4: 4, lvl_p5: 5 };
+  return map[levelId] || 1;
+}
+
+function parseISODate(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function formatISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function isSchoolDay(date: Date): boolean {
+  const day = date.getDay();
+  return day >= 0 && day <= 4;
+}
+
+function isHoliday(date: Date): { holiday: boolean; name?: string; note?: string } {
+  const ymd = formatISODate(date);
+  for (const hol of ALGERIAN_SCHOOL_HOLIDAYS_2025_2026) {
+    if (ymd >= hol.startDate && ymd <= hol.endDate) {
+      return { holiday: true, name: hol.name, note: `صادف ${hol.name} - تم التأجيل تلقائياً` };
+    }
+  }
+  return { holiday: false };
+}
+
+function isValidSchoolDate(date: Date): boolean {
+  if (!isSchoolDay(date)) return false;
+  if (isHoliday(date).holiday) return false;
+  return true;
+}
+
+function getNextValidSchoolDate(from: Date, inclusive = true): Date {
+  let d = new Date(from);
+  if (!inclusive) {
+    d = addDays(d, 1);
+  }
+  let guard = 0;
+  while (guard < 365) {
+    if (isValidSchoolDate(d)) return d;
+    d = addDays(d, 1);
+    guard++;
+  }
+  return d;
+}
+
+function getNextValidSchoolDateOnWeekday(from: Date, weekday: number): Date {
+  let d = new Date(from);
+  let guard = 0;
+  while (guard < 365) {
+    if (d.getDay() === weekday && isValidSchoolDate(d)) return d;
+    d = addDays(d, 1);
+    guard++;
+  }
+  return getNextValidSchoolDate(d, true);
+}
+
+function getSecondWeekday(firstWeekday: number): number {
+  const second = (firstWeekday + 2) % 5;
+  return second;
+}
+
 export function generateAnnualTimeDistribution(
   levelId: string = 'lvl_p1',
   startDateStr: string = '2025-09-21',
-  teachingDayOfWeek: number = 0, // 0: الأحد, 1: الاثنين, 2: الثلاثاء, 3: الأربعاء, 4: الخميس
+  teachingDayOfWeek: number = 0,
   _className: string = '1 ابتدائي 1'
 ): ScheduledAnnualSession[] {
   const levelData = COMPLETE_ANNUAL_CURRICULUM[levelId] || COMPLETE_ANNUAL_CURRICULUM['lvl_p1'];
-  const scheduledSessions: ScheduledAnnualSession[] = [];
-
-  const currentDate = new Date(startDateStr);
-
-  // Align to first occurrence of the selected teaching day of week
-  while (currentDate.getDay() !== (teachingDayOfWeek === 0 ? 0 : teachingDayOfWeek)) {
-    currentDate.setDate(currentDate.getDate() + 1);
-  }
-
-  const isHoliday = (dateObj: Date): { holiday: boolean; note?: string } => {
-    const yyyymmdd = dateObj.toISOString().split('T')[0];
-    for (const hol of ALGERIAN_SCHOOL_HOLIDAYS_2025_2026) {
-      if (yyyymmdd >= hol.startDate && yyyymmdd <= hol.endDate) {
-        return { holiday: true, note: `صادفت ${hol.name} - تم التأجيل تلقائياً` };
-      }
-    }
-    return { holiday: false };
-  };
-
+  const grade = getGradeFromLevelId(levelId);
+  const scheduled: ScheduledAnnualSession[] = [];
   let globalCounter = 1;
 
-  // Process all 3 fields in sequence: Locomotion (10) -> Fundamentals (10) -> Structuring (10)
+  const gradeConfig = (() => {
+    if (grade === 1 || grade === 2 || grade === 3) {
+      return { sessionsPerWeek: 2, duration: 60, introSessions: 2, introDuration: 60 };
+    } else if (grade === 4) {
+      return { sessionsPerWeek: 1, duration: 90, introSessions: 1, introDuration: 90 };
+    } else {
+      return { sessionsPerWeek: 1, duration: 60, introSessions: 1, introDuration: 60 };
+    }
+  })();
+
+  let currentDate = parseISODate(startDateStr);
+  currentDate = getNextValidSchoolDate(currentDate, true);
+
+  if (currentDate.getDay() !== teachingDayOfWeek) {
+    currentDate = getNextValidSchoolDateOnWeekday(currentDate, teachingDayOfWeek);
+  }
+
+  const firstWeekEnd = addDays(parseISODate(startDateStr), 6);
+
+  const introTitle = 'تعارف، تنظيم واتصال مع التلاميذ';
+
+  if (gradeConfig.introSessions === 2) {
+    let firstIntroDesired = new Date(currentDate);
+    let firstIntroActual = getNextValidSchoolDate(firstIntroDesired, true);
+    let isPostponed1 = formatISODate(firstIntroActual) !== formatISODate(firstIntroDesired);
+    scheduled.push({
+      globalSessionNumber: globalCounter++,
+      fieldSessionNumber: 1,
+      fieldId: 'intro',
+      fieldName: 'أسبوع التعارف والتنظيم',
+      levelId: levelData.levelId,
+      levelName: levelData.levelName,
+      sessionType: 'تعارف وتنظيم',
+      sessionTypeLabel: 'تعارف، تنظيم واتصال',
+      targetObjective: introTitle,
+      scheduledDate: formatISODate(firstIntroActual),
+      isHolidayPostponed: isPostponed1,
+      holidayNote: isPostponed1 ? `تم ترحيل حصة التعارف من ${formatISODate(firstIntroDesired)}` : undefined,
+      status: 'مبرمجة',
+      durationMinutes: gradeConfig.introDuration,
+      isIntro: true,
+      objectiveGroupId: 'intro_group'
+    });
+
+    let secondDesired = addDays(firstIntroActual, 2);
+    if (secondDesired > firstWeekEnd) {
+      secondDesired = firstWeekEnd;
+    }
+    let secondActual = getNextValidSchoolDate(secondDesired, true);
+    let attempts = 0;
+    while (secondActual.getTime() === firstIntroActual.getTime() && attempts < 10) {
+      secondDesired = addDays(secondDesired, 1);
+      secondActual = getNextValidSchoolDate(secondDesired, true);
+      attempts++;
+    }
+    let isPostponed2 = formatISODate(secondActual) !== formatISODate(addDays(firstIntroActual, 2));
+    scheduled.push({
+      globalSessionNumber: globalCounter++,
+      fieldSessionNumber: 2,
+      fieldId: 'intro',
+      fieldName: 'أسبوع التعارف والتنظيم',
+      levelId: levelData.levelId,
+      levelName: levelData.levelName,
+      sessionType: 'تعارف وتنظيم',
+      sessionTypeLabel: 'تعارف، تنظيم واتصال',
+      targetObjective: introTitle,
+      scheduledDate: formatISODate(secondActual),
+      isHolidayPostponed: isPostponed2,
+      holidayNote: isPostponed2 ? `تم ترحيل حصة التعارف الثانية` : undefined,
+      status: 'مبرمجة',
+      durationMinutes: gradeConfig.introDuration,
+      isIntro: true,
+      objectiveGroupId: 'intro_group'
+    });
+
+    currentDate = addDays(parseISODate(startDateStr), 7);
+    currentDate = getNextValidSchoolDateOnWeekday(currentDate, teachingDayOfWeek);
+  } else {
+    let desired = new Date(currentDate);
+    let actual = getNextValidSchoolDate(desired, true);
+    let isPostponed = formatISODate(actual) !== formatISODate(desired);
+    scheduled.push({
+      globalSessionNumber: globalCounter++,
+      fieldSessionNumber: 1,
+      fieldId: 'intro',
+      fieldName: 'أسبوع التعارف والتنظيم',
+      levelId: levelData.levelId,
+      levelName: levelData.levelName,
+      sessionType: 'تعارف وتنظيم',
+      sessionTypeLabel: 'تعارف، تنظيم واتصال',
+      targetObjective: introTitle,
+      scheduledDate: formatISODate(actual),
+      isHolidayPostponed: isPostponed,
+      holidayNote: isPostponed ? `تم ترحيل حصة التعارف` : undefined,
+      status: 'مبرمجة',
+      durationMinutes: gradeConfig.introDuration,
+      isIntro: true,
+      objectiveGroupId: 'intro_group'
+    });
+    currentDate = addDays(parseISODate(startDateStr), 7);
+    currentDate = getNextValidSchoolDateOnWeekday(currentDate, teachingDayOfWeek);
+  }
+
   const fieldsSequence = ['f_locomotion', 'f_fundamentals', 'f_structuring'];
+  const secondWeekday = getSecondWeekday(teachingDayOfWeek);
 
-  fieldsSequence.forEach((fieldKey) => {
+  for (const fieldKey of fieldsSequence) {
     const fieldDetail = levelData.fields[fieldKey];
-    if (!fieldDetail) return;
+    if (!fieldDetail) continue;
 
-    fieldDetail.sessionsList.forEach((sess) => {
-      // Find next valid non-holiday date
-      let holidayCheck = isHoliday(currentDate);
-      let wasPostponed = false;
-      let holidayReason = '';
+    const originalList = fieldDetail.sessionsList;
+    const diagnostic = originalList.find((s) => s.type === 'تقويم تشخيصي');
+    const integration1 = originalList.find((s) => s.typeLabel.includes('إدماجية 1') || (s.type === 'إدماجية' && s.sessionNumber === 5));
+    const summative = originalList.find((s) => s.type === 'تقويم تحصيلي');
+    const learningSessions = originalList.filter((s) => s.type === 'تعلمية');
 
-      while (holidayCheck.holiday) {
-        wasPostponed = true;
-        holidayReason = holidayCheck.note || 'عطلة رسمية';
-        // Add 7 days to jump to next week's same teaching day
-        currentDate.setDate(currentDate.getDate() + 7);
-        holidayCheck = isHoliday(currentDate);
+    const learningBefore = learningSessions.slice(0, 3);
+    const learningAfter = learningSessions.slice(3);
+
+    const integration2 = {
+      sessionNumber: 99,
+      type: 'إدماجية' as const,
+      typeLabel: 'إدماجية 2',
+      objective: 'توظيف المكتسبات في وضعية إدماجية ثانية قبل التقويم التحصيلي'
+    };
+
+    const ordered: Array<{ sessionNumber: number; type: string; typeLabel: string; objective: string }> = [];
+    if (diagnostic) ordered.push(diagnostic as any);
+    ordered.push(...(learningBefore as any));
+    if (integration1) ordered.push(integration1 as any);
+    ordered.push(...(learningAfter as any));
+    ordered.push(integration2 as any);
+    if (summative) ordered.push(summative as any);
+
+    let objectiveCounter = 1;
+    let fieldSessionCounter = 1;
+    for (const obj of ordered) {
+      const isSpecial = obj.type !== 'تعلمية';
+      let sessionsForThisObjective = 1;
+      if (!isSpecial && (grade === 1 || grade === 2 || grade === 3)) {
+        sessionsForThisObjective = 2;
       }
 
-      const dateStr = currentDate.toISOString().split('T')[0];
+      let firstSessionActualDate: Date | null = null;
 
-      scheduledSessions.push({
-        globalSessionNumber: globalCounter,
-        fieldSessionNumber: sess.sessionNumber,
-        fieldId: fieldDetail.fieldId,
-        fieldName: fieldDetail.fieldName,
-        levelId: levelData.levelId,
-        levelName: levelData.levelName,
-        sessionType: sess.type,
-        sessionTypeLabel: sess.typeLabel,
-        targetObjective: sess.objective,
-        scheduledDate: dateStr,
-        isHolidayPostponed: wasPostponed,
-        holidayNote: holidayReason || undefined,
-        status: 'مبرمجة'
-      });
+      for (let sIdx = 0; sIdx < sessionsForThisObjective; sIdx++) {
+        let desiredDate: Date;
+        if (sIdx === 0) {
+          desiredDate = new Date(currentDate);
+        } else {
+          if (!firstSessionActualDate) {
+            desiredDate = addDays(currentDate, 2);
+          } else {
+            desiredDate = addDays(firstSessionActualDate, 2);
+          }
+          const wd = desiredDate.getDay();
+          if (wd === 5 || wd === 6) {
+            desiredDate = getNextValidSchoolDate(desiredDate, true);
+          }
+        }
 
-      globalCounter++;
+        let actualDate = getNextValidSchoolDate(desiredDate, true);
+        let isPostponed = formatISODate(actualDate) !== formatISODate(desiredDate);
+        const holidayCheck = isHoliday(actualDate);
+        let note: string | undefined = undefined;
+        if (isPostponed) {
+          note = `تم ترحيل الحصة من ${formatISODate(desiredDate)} بسبب عطلة`;
+        }
+        if (holidayCheck.holiday) {
+          note = holidayCheck.note;
+        }
 
-      // Move to next week for the next session
-      currentDate.setDate(currentDate.getDate() + 7);
-    });
-  });
+        if (sIdx === 0) {
+          firstSessionActualDate = actualDate;
+        }
 
-  return scheduledSessions;
+        scheduled.push({
+          globalSessionNumber: globalCounter++,
+          fieldSessionNumber: fieldSessionCounter++,
+          fieldId: fieldDetail.fieldId,
+          fieldName: fieldDetail.fieldName,
+          levelId: levelData.levelId,
+          levelName: levelData.levelName,
+          sessionType: obj.type as any,
+          sessionTypeLabel: obj.typeLabel,
+          targetObjective: obj.objective,
+          scheduledDate: formatISODate(actualDate),
+          isHolidayPostponed: isPostponed,
+          holidayNote: note,
+          status: 'مبرمجة',
+          durationMinutes: gradeConfig.duration,
+          isIntro: false,
+          objectiveGroupId: `${fieldDetail.fieldId}__${objectiveCounter}`
+        });
+      }
+
+      if (grade === 1 || grade === 2 || grade === 3) {
+        if (firstSessionActualDate) {
+          const nextWeekDesired = addDays(firstSessionActualDate, 7);
+          currentDate = getNextValidSchoolDateOnWeekday(nextWeekDesired, teachingDayOfWeek);
+        }
+      } else {
+        if (firstSessionActualDate) {
+          const nextDesired = addDays(firstSessionActualDate, 7);
+          currentDate = getNextValidSchoolDateOnWeekday(nextDesired, teachingDayOfWeek);
+        }
+      }
+      objectiveCounter++;
+    }
+  }
+
+  return scheduled;
 }

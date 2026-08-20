@@ -76,6 +76,7 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
 
   const filteredSchedule = useMemo(() => {
     if (filterField === 'all') return mergedSchedule;
+    if (filterField === 'intro') return mergedSchedule.filter((s) => (s as any).isIntro);
     return mergedSchedule.filter((s) => s.fieldId === filterField);
   }, [mergedSchedule, filterField]);
 
@@ -91,7 +92,7 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
         <h3 className="text-sm font-black text-slate-900">الجمهورية الجزائرية الديمقراطية الشعبية</h3>
         <h4 className="text-xs font-bold text-slate-700">وزارة التربية الوطنية - {currentUser.schoolName || 'المدرسة الابتدائية'}</h4>
         <h5 className="text-xs font-extrabold text-blue-900 mt-1">
-          التوزيع الزمني السنوي للحصص التعليمية (30 حصة) - {selectedLevel.name} - قسم: {className}
+          التوزيع الزمني السنوي للحصص التعليمية ({baseSchedule.length} حصة) - {selectedLevel.name} - قسم: {className}
         </h5>
         <div className="flex justify-between text-[11px] font-bold text-slate-600 pt-2 px-2">
           <span>تاريخ أول حصة: {startDate}</span>
@@ -108,7 +109,7 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
               برمجة تواريخ التنفيذ فقط
             </span>
             <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">
-              البرمجة الآلية لـ 30 حصة
+              البرمجة الآلية لـ {baseSchedule.length} حصة (مع أسبوع التعارف والإدماجية 2)
             </span>
           </div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-2 flex items-center gap-2">
@@ -116,7 +117,7 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
             <span>التوزيع السنوي للحصص التعليمية</span>
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            برمجة/تأجيل/إعادة برمجة تاريخ كل حصة، مع التفادي الآلي للعطل — الحصص ونوعها وترتيبها ثابتة من المقاطع التعليمية
+            برمجة/تأجيل/إعادة برمجة تاريخ كل حصة، مع التفادي الآلي للعطل — حصتان = هدف واحد للسنوات 1-3، 90 دقيقة للرابعة
           </p>
         </div>
 
@@ -204,7 +205,7 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
               خصائص التوزيع الزمني والتفادي التلقائي للعطل
             </h3>
             <p className="text-xs text-slate-500">
-              اختر تاريخ بداية الموسم ويوم التدريس لحساب تواريخ الحصص الـ 30 تلقائياً (يمكن لاحقاً تعديل أي حصة يدوياً)
+              اختر تاريخ بداية الموسم ويوم التدريس لحساب تواريخ الحصص ({baseSchedule.length} حصة تشمل أسبوع التعارف والإدماجية 2) تلقائياً (يمكن لاحقاً تعديل أي حصة يدوياً)
             </p>
           </div>
 
@@ -267,19 +268,30 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
               filterField === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
-            جميع الميادين (30 حصة)
+            جميع الميادين ({baseSchedule.filter((s) => !s.isIntro).length} حصة + {baseSchedule.filter((s) => s.isIntro).length} تعارف)
           </button>
-          {PE_FIELDS.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFilterField(f.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                filterField === f.id ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              {f.name} (10 حصص)
-            </button>
-          ))}
+          {PE_FIELDS.map((f) => {
+            const count = baseSchedule.filter((s) => s.fieldId === f.id).length;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setFilterField(f.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  filterField === f.id ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                {f.name} ({count} حصة)
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setFilterField('intro')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              filterField === 'intro' ? 'bg-amber-500 text-white shadow-xs' : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+            }`}
+          >
+            أسبوع التعارف ({baseSchedule.filter((s) => s.isIntro).length})
+          </button>
         </div>
       </div>
 
@@ -300,8 +312,9 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
             <thead className="bg-slate-100 text-slate-800 font-extrabold border-b border-slate-200">
               <tr>
                 <th className="p-3 text-center">رقم الحصة</th>
-                <th className="p-3">المقطع التعليمي (Learning Section)</th>
+                <th className="p-3">المقطع التعليمي</th>
                 <th className="p-3">نوع الحصة</th>
+                <th className="p-3 text-center">المدة</th>
                 <th className="p-3">تاريخ التنفيذ</th>
                 <th className="p-3 text-center">حالة التنفيذ</th>
                 <th className="p-3 text-center">ملاحظات</th>
@@ -311,25 +324,30 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
               {filteredSchedule.map((sess) => (
                 <tr
                   key={sess.key}
-                  className={`hover:bg-slate-50 transition-colors ${
+                  className={`hover:bg-slate-50 transition-colors ${(sess as any).isIntro ? 'bg-amber-50/60 border-l-4 border-l-amber-400' : ''} ${
                     sess.isHolidayPostponed || sess.isManuallyRescheduled ? 'bg-amber-50/40' : ''
                   }`}
                 >
                   <td className="p-3 text-center font-extrabold text-slate-900">
-                    <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 font-black inline-flex items-center justify-center border border-blue-200">
+                    <span className={`w-8 h-8 rounded-xl font-black inline-flex items-center justify-center border ${(sess as any).isIntro ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
                       {sess.globalSessionNumber < 10 ? '0' + sess.globalSessionNumber : sess.globalSessionNumber}
                     </span>
                   </td>
 
                   <td className="p-3 font-extrabold text-slate-900 whitespace-nowrap">
                     {sess.fieldName}
-                    <span className="block text-[10px] font-bold text-slate-400">حصة {sess.fieldSessionNumber}/10</span>
+                    <span className="block text-[10px] font-bold text-slate-400">
+                      {(sess as any).isIntro ? 'تعارف' : `حصة ${sess.fieldSessionNumber}/10`}
+                      {(sess as any).objectiveGroupId ? ` • ${String((sess as any).objectiveGroupId).split('__').pop()}` : ''}
+                    </span>
                   </td>
 
                   <td className="p-3 whitespace-nowrap">
                     <span
                       className={`px-2.5 py-1 rounded-lg font-bold text-[11px] ${
-                        sess.sessionType === 'تقويم تشخيصي'
+                        (sess as any).isIntro
+                          ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                          : sess.sessionType === 'تقويم تشخيصي'
                           ? 'bg-amber-100 text-amber-800 border border-amber-200'
                           : sess.sessionType === 'إدماجية'
                           ? 'bg-purple-100 text-purple-800 border border-purple-200'
@@ -339,6 +357,12 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
                       }`}
                     >
                       {sess.sessionTypeLabel}
+                    </span>
+                  </td>
+
+                  <td className="p-3 text-center">
+                    <span className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-[11px] font-bold text-slate-700">
+                      {(sess as any).durationMinutes || 60} د
                     </span>
                   </td>
 
