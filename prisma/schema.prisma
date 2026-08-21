@@ -240,6 +240,36 @@ model LessonPlan {
   @@index([ownerId])
 }
 
+model EducationalSituation {
+  id                  String   @id
+  externalId          String?  @unique
+  name                String
+  grade               Int
+  fieldId             String
+  fieldName           String
+  objectiveIds        String[]
+  objectiveTexts      String[]
+  sourceGoal          String
+  organization        String
+  equipment           String[]
+  variations          String?
+  origin              String
+  status              String   @default("PRIVATE")
+  ownerId             String?
+  approvedById        String?
+  approvedByRole      String?
+  approvedAt          DateTime?
+  rejectedById        String?
+  rejectedByRole      String?
+  rejectedAt          DateTime?
+  rejectionReason     String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([grade, fieldId, status])
+  @@index([ownerId, status])
+}
+
 model NotebookEntry {
   id        String   @id
   ownerId   String?

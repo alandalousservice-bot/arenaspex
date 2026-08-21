@@ -562,6 +562,34 @@ export interface DailyNotebookEntry {
   lessonPlanId?: string; // linked lesson plan if generated
 }
 
+export type LessonPhaseName = 'المرحلة التحضيرية' | 'المرحلة الرئيسية' | 'المرحلة الختامية';
+
+/** صف ظاهر في جدول مذكرة الحصة الموحد. */
+export interface LessonPlanRow {
+  id: string;
+  phase: LessonPhaseName;
+  learningContent: string;
+  executionContent: string;
+  durationMinutes: number;
+  guidance: string;
+  /** رسم/صورة تنظيمية اختيارية للموقف، عند توفرها من النظام الحالي. */
+  illustrationUrl?: string;
+  situationSnapshot?: EducationalSituationSnapshot;
+}
+
+export type EducationalSituationStatus = 'PRIVATE' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+export interface EducationalSituation {
+  id: string; externalId?: string; name: string; grade: number; fieldId: string; fieldName: string;
+  objectiveIds: string[]; objectiveTexts: string[]; sourceGoal: string; organization: string;
+  equipment: string[]; variations?: string; origin: 'REFERENCE_SEED' | 'TEACHER'; status: EducationalSituationStatus;
+  ownerId?: string; approvedById?: string; approvedByRole?: string; approvedAt?: string;
+  rejectedById?: string; rejectedByRole?: string; rejectedAt?: string; rejectionReason?: string;
+  createdAt?: string; updatedAt?: string;
+}
+export interface EducationalSituationSnapshot {
+  situationId: string; name: string; organization: string; equipment: string[]; variations?: string;
+}
+
 // Lesson Plan (مذكرة الحصة البيداغوجية الرسمية)
 export interface LessonPlan {
   id: string;
@@ -588,6 +616,8 @@ export interface LessonPlan {
   date: string;
   durationMinutes: number; // default 60
   equipmentNeeded: string[]; // الوسائل المستعملة
+  /** القالب الموحد الظاهر للأستاذ. السجلات القديمة تبقى قابلة للقراءة عبر التطبيع. */
+  lessonRows?: LessonPlanRow[];
   equipmentChecklist?: { name: string; available: boolean }[]; // قائمة تحقق التجهيزات (متوفر/يجب توفيره) — تُشتق من equipmentNeeded عند التوليد وتبقى متوافقة مع النسخ القديمة
   generalObjective: string; // هدف الحصة التعلمي الخاص والإجرائي المسطر للمقطع
   proceduralObjectives: {

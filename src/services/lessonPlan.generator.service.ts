@@ -1,14 +1,6 @@
-/**
- * SPEX - Lesson Plan Auto-Generation Engine (deterministic, no AI call)
- * محرك التوليد الآلي الفوري لمذكرة الحصة انطلاقاً من بيانات التوزيع السنوي
- * والمقاطع التعليمية (COMPLETE_ANNUAL_CURRICULUM) مباشرة — دون أي استدعاء شبكي
- * ودون تكرار بيانات المنهاج (قراءة مرجعية فقط).
- *
- * يُستعمل كخطوة أولى فورية؛ يبقى التوليد بالذكاء الاصطناعي والتحسين اليدوي
- * لكل حقل متاحَين لاحقاً لإثراء نفس السجل.
- */
-
-import { LessonPlan, User } from '../types/spex';
+import { LessonPlan, LessonPlanRow, User } from '../types/spex';
+import { EducationalSituation } from '../types/spex';
+import { findSuitableSituations, referenceSituations, snapshotSituation } from './educationalSituation.selector.service';
 
 export interface AutoGenerateSessionSource {
   fieldId: string;
@@ -20,6 +12,7 @@ export interface AutoGenerateSessionSource {
   weekNumber: number;
   type: LessonPlan['sessionType'];
   typeLabel: string;
+  /** الهدف المعتمد في التوزيع السنوي؛ لا يعاد توليده أو استبداله هنا. */
   objective: string;
   tools: string[];
 }
@@ -28,147 +21,125 @@ export interface AutoGenerateContext {
   levelName: string;
   className?: string;
   teacher?: User;
-  inspectorName?: string;
   dailyNotebookEntryId?: string;
   date?: string;
+  previousSituationIds?: string[];
+  situations?: EducationalSituation[];
 }
 
-// قوالب بيداغوجية مرجعية لكل ميدان من الميادين الثلاثة الرسمية — تُستعمل فقط
-// لصياغة المراحل الثلاث تلقائياً، وليست بديلاً عن بيانات المنهاج نفسها.
-const FIELD_TEMPLATES: Record<
-  string,
-  {
-    warmupGame: string;
-    warmupRules: string;
-    situation1: string;
-    situation2: string;
-    coolDown: string;
-  }
-> = {
-  f_locomotion: {
-    warmupGame: 'لعبة الأشكال والتجمد',
-    warmupRules: 'يتنقل التلاميذ داخل الفضاء المحدد وعند إشارة الصفارة يتجمدون في وضعية متوازنة.',
-    situation1: 'مسار حركي بعوائق بسيطة (تنقل، توازن، تغيير اتجاه) يجتازه كل تلميذ بدوره.',
-    situation2: 'سباق تتابع جماعي عبر نفس المسار مع احترام الدور والمسافة الآمنة.',
-    coolDown: 'مشي هادئ مع تمارين تنفس وتمطيط خفيف للأطراف السفلية.'
-  },
-  f_fundamentals: {
-    warmupGame: 'لعبة الرمي والالتقاط السريع',
-    warmupRules: 'يتبادل التلاميذ ثنائياً تمرير كرة خفيفة مع زيادة تدريجية في المسافة.',
-    situation1: 'ورشات دورانية (جري - قفز - رمي) بأفواج صغيرة مع تصحيح فوري للأداء.',
-    situation2: 'منافسة بين الأفواج على تنفيذ نفس الحركة الأساسية بدقة وسرعة.',
-    coolDown: 'استرخاء موجه وحوار جماعي حول أفضل أداء لوحظ خلال الحصة.'
-  },
-  f_structuring: {
-    warmupGame: 'لعبة المطاردة الجماعية',
-    warmupRules: 'يُقسّم القسم إلى فوجين، فوج يطارد وفوج يهرب داخل فضاء محدد، مع التبديل.',
-    situation1: 'لعبة جماعية صغيرة (3 ضد 3) لتطبيق قاعدة تنظيمية أو تكتيكية محددة.',
-    situation2: 'مباراة مصغرة بين فرق القسم مع تحكيم تشاركي واحترام الأدوار.',
-    coolDown: 'دائرة ختامية للحوار حول روح الفريق والتعاون واحترام القوانين.'
-  }
-};
+export const lessonDurationForLevel = (levelName: string): number =>
+  levelName.includes('الرابعة') ? 90 : 60;
 
-const DEFAULT_TEMPLATE = FIELD_TEMPLATES.f_locomotion;
+const hasComplexObjective = (objective: string) => /يربط|يجمع|سلسلة|مركب|توظيف|تطبيق.*ألعاب|عدة/.test(objective);
 
-const SAFETY_RULES_BASE = [
-  'تفقد أرضية النشاط والتأكد من خلوها من العوائق والأجسام الحادة قبل بدء الحصة.',
-  'التأكد من ارتداء التلاميذ للباس واللباس الرياضي المناسب (حذاء رياضي مربوط جيداً).',
-  'احترام التدرج في شدة المجهود البدني وتجنب الإجهاد المفاجئ.',
-  'التذكير المستمر بالمسافات الآمنة بين التلاميذ أثناء الحركة الجماعية.'
-];
-
-function sessionTypeSafetyExtra(type: LessonPlan['sessionType']): string[] {
-  switch (type) {
-    case 'تقويمية':
-    case 'تقويم تحصيلي':
-      return ['التأكد من تكافؤ فرص التقييم بين جميع التلاميذ ومراعاة ذوي الاحتياجات الخاصة.'];
-    case 'إدماجية':
-      return ['متابعة لصيقة للتلاميذ الأقل تحكماً أثناء الوضعية الإدماجية.'];
-    default:
-      return [];
-  }
+function situationEquipment(fieldId: string): string[] {
+  if (fieldId === 'f_fundamentals') return ['أقماع', 'كرات', 'شواخص'];
+  if (fieldId === 'f_structuring') return ['صدريات', 'كرات', 'أقماع'];
+  return ['أقماع', 'شواخص', 'سلم أرضي'];
 }
 
-/**
- * توليد مذكرة حصة كاملة وفورياً من معطيات حصة في التوزيع السنوي، دون أي استدعاء AI.
- */
+function buildMainRows(session: AutoGenerateSessionSource, mainMinutes: number, ctx: AutoGenerateContext): LessonPlanRow[] {
+  const grade = Number((ctx.levelName.match(/(الأولى|الثانية|الثالثة|الرابعة|الخامسة)/)?.[1] || '').replace('الأولى', '1').replace('الثانية', '2').replace('الثالثة', '3').replace('الرابعة', '4').replace('الخامسة', '5')) || 0;
+  const bank = findSuitableSituations(ctx.situations || referenceSituations, { grade, fieldId: session.fieldId, objectiveText: session.objective, previousSituationIds: ctx.previousSituationIds });
+  if (bank.length) {
+    const selected = bank.slice(0, Math.max(1, Math.min(bank.length, Math.floor(mainMinutes / 20))));
+    const minutes = selected.map((_, index) => Math.floor(mainMinutes / selected.length) + (index < mainMinutes % selected.length ? 1 : 0));
+    return selected.map((situation, index) => ({ id: `main-${index + 1}`, phase: 'المرحلة الرئيسية', learningContent: session.objective, executionContent: `${situation.name}: ${situation.organization}`, durationMinutes: minutes[index], guidance: situation.variations || 'احترام التنظيم والتعليمات.', situationSnapshot: snapshotSituation(situation) }));
+  }
+  const count = hasComplexObjective(session.objective) ? 2 : 1;
+  const minutes = Array.from({ length: count }, (_, index) =>
+    Math.floor(mainMinutes / count) + (index < mainMinutes % count ? 1 : 0)
+  );
+  const tools = situationEquipment(session.fieldId);
+
+  return minutes.map((durationMinutes, index) => ({
+    id: `main-${index + 1}`,
+    phase: 'المرحلة الرئيسية',
+    learningContent:
+      count === 1
+        ? session.objective
+        : `${session.objective} — ${index === 0 ? 'اكتساب منظم للمهارة' : 'تطوير وتوظيف التعلم'}`,
+    executionContent:
+      `الموقف ${String(index + 1).padStart(2, '0')}: ينظم الأستاذ المتعلمين في أفواج متوازية عند نقطة البداية. ` +
+      `ينفذ كل متعلم النشاط المرتبط مباشرة بهدف الحصة (${session.objective}) عبر مسار محدد باستعمال ${tools.join('، ')}، ` +
+      `ثم يعود إلى نهاية فوجه لإتاحة التناوب. يلاحظ الأستاذ التنفيذ ويصحح الأداء، مع اعتماد النجاح عند إنجاز الحركة المطلوبة باحترام المسار والتعليمات.`,
+    durationMinutes,
+    guidance: 'احترام نقطة البداية والمسافة الآمنة، الإصغاء للإشارة، والتناوب المنظم بين أفراد الفوج.'
+  }));
+}
+
+/** ينشئ قالباً واحداً مطابقاً لجدول المذكرة المرجعي. */
 export function autoGenerateLessonPlan(session: AutoGenerateSessionSource, ctx: AutoGenerateContext): LessonPlan {
-  const template = FIELD_TEMPLATES[session.fieldId] || DEFAULT_TEMPLATE;
+  const durationMinutes = lessonDurationForLevel(ctx.levelName);
+  const preparationMinutes = durationMinutes === 90 ? 15 : 10;
+  const closingMinutes = 10;
+  const mainMinutes = durationMinutes - preparationMinutes - closingMinutes;
+  const mainRows = buildMainRows(session, mainMinutes, ctx);
+  const equipmentNeeded = [...new Set([...session.tools, ...mainRows.flatMap((row) => row.situationSnapshot?.equipment || situationEquipment(session.fieldId))])];
   const teacher = ctx.teacher;
+  const lessonRows: LessonPlanRow[] = [
+    {
+      id: 'preparation', phase: 'المرحلة التحضيرية',
+      learningContent: 'تهيئة الجسم والاستعداد للنشاط المرتبط بهدف الحصة.',
+      executionContent: 'تنظيم القسم، إحماء تدريجي، تحريك المفاصل، والاستماع لتعليمات الحصة قبل الانطلاق.',
+      durationMinutes: preparationMinutes,
+      guidance: 'تنظيم جيد وهدوء، تسخين تدريجي، احترام المسافة والإنصات للتوجيهات.'
+    },
+    ...mainRows,
+    {
+      id: 'closing', phase: 'المرحلة الختامية',
+      learningContent: 'العودة إلى الحالة الطبيعية وتثبيت التعلم المنجز.',
+      executionContent: 'مشي هادئ وتمارين تنفس واسترخاء، ثم مناقشة قصيرة حول ما أنجزه المتعلمون.',
+      durationMinutes: closingMinutes,
+      guidance: 'مشاركة الجميع في المناقشة واحترام آراء الزملاء.'
+    }
+  ];
 
-  const equipmentNeeded = session.tools.length > 0 ? session.tools : ['أقماع', 'ميقاتي', 'صفارة'];
-
+  // الحقول القديمة محفوظة للتوافق مع قرّاء السجلات والوحدات المشتركة فقط؛ الواجهة الجديدة لا تعرضها.
   return {
     id: `lp_auto_${Date.now()}`,
     dailyNotebookEntryId: ctx.dailyNotebookEntryId,
     teacherId: teacher?.id || '',
     institutionName: teacher?.schoolName || 'المؤسسة التعليمية',
     teacherName: teacher ? `${teacher.firstName} ${teacher.lastName}` : 'أستاذ المادة',
-    inspectorName: ctx.inspectorName,
-    levelName: ctx.levelName,
-    className: ctx.className || '',
-    fieldName: session.fieldName,
-    competencyTitle: session.finalCompetency,
-    segmentTitle: `${session.fieldName.split(':')[1]?.trim() || session.fieldName} — ${session.typeLabel}`,
-    sessionTitle: session.objective,
-    sessionType: session.type,
-    sessionTypeNumber: session.typeLabel,
+    levelName: ctx.levelName, className: ctx.className || '', fieldName: session.fieldName,
+    competencyTitle: session.finalCompetency, segmentTitle: session.fieldName,
+    sessionTitle: session.objective, sessionType: session.type, sessionTypeNumber: session.typeLabel,
     sessionGlobalNumber: session.globalNumber,
-    annualSessionRef: `التوزيع السنوي - الأسبوع ${String(session.weekNumber).padStart(2, '0')} / الحصة ${String(
-      session.globalNumber
-    ).padStart(2, '0')} (${session.typeLabel})`,
-    segmentGoal: session.segmentGoal,
-    date: ctx.date || new Date().toISOString().split('T')[0],
-    durationMinutes: 60,
-    equipmentNeeded,
-    equipmentChecklist: equipmentNeeded.map((name) => ({ name, available: true })),
-    generalObjective: `تحقيق هدف الحصة: ${session.objective}`,
-    proceduralObjectives: {
-      motor: `أن ينفذ التلميذ الحركة/المهارة الخاصة بـ (${session.objective}) بتناسق وتحكم حركي مناسب لسنه.`,
-      cognitive: 'أن يدرك التلميذ القواعد والتعليمات المنظمة للنشاط ويستوعب الهدف من الوضعية.',
-      communication: 'أن يتواصل التلميذ بفاعلية مع زملائه ويستجيب لإشارات الأستاذ والصفارة.',
-      personalSocial: 'أن يُظهر التلميذ الانضباط والروح الرياضية والتعاون مع أفراد فوجه.'
-    },
-    warmupPhase: {
-      duration: '10-12 دقيقة',
-      pedagogicalWarmupGame: {
-        title: template.warmupGame,
-        rules: template.warmupRules,
-        equipment: equipmentNeeded.slice(0, 2).join('، ')
-      },
-      generalWarmup: 'جري خفيف مع تمارين تحريك المفاصل وتغيير الاتجاهات.',
-      specificWarmup: `تمارين تمهيدية خاصة تهيئ التلميذ لمهارة (${session.objective}).`,
-      organization: 'أفواج متوازية ضمن مساحات آمنة تحت إشراف مباشر للأستاذ.'
-    },
-    mainPhase: {
-      duration: '30-35 دقيقة',
-      problemSituation: `كيف يمكن تحقيق هدف الحصة (${session.objective}) بدقة وسرعة مع احترام القواعد؟`,
-      learningSituation1: {
-        title: 'الموقف التعلمي الأول',
-        description: template.situation1,
-        dosing: '3 محاولات/جولات لكل فوج',
-        criteria: 'الدقة في الأداء الحركي واحترام التعليمات.'
-      },
-      learningSituation2: {
-        title: 'الموقف التعلمي الثاني (تنافسي)',
-        description: template.situation2,
-        dosing: 'جولتان بين الأفواج',
-        criteria: 'تحقيق هدف الحصة ضمن روح المنافسة الشريفة.'
-      },
-      guidedApplication: {
-        title: 'التطبيق الموجه والمنافسة الختامية',
-        description: `تطبيق شامل لهدف الحصة (${session.objective}) بين فرق القسم بإشراف الأستاذ.`,
-        rules: 'احترام القوانين والروح الرياضية والتعاون بين الفريق الواحد.'
-      }
-    },
-    coolDownPhase: {
-      duration: '5-8 دقائق',
-      activities: template.coolDown,
-      assessmentAndDialogue: 'حوار تقييمي جماعي حول مدى تحقيق هدف الحصة وأبرز الملاحظات.'
-    },
-    safetyRules: [...SAFETY_RULES_BASE, ...sessionTypeSafetyExtra(session.type)],
-    aiGenerated: false,
-    version: 1,
-    createdAt: new Date().toISOString()
+    annualSessionRef: `التوزيع السنوي - الأسبوع ${String(session.weekNumber).padStart(2, '0')} / الحصة ${String(session.globalNumber).padStart(2, '0')}`,
+    segmentGoal: session.segmentGoal, date: ctx.date || new Date().toISOString().split('T')[0],
+    durationMinutes, equipmentNeeded, equipmentChecklist: equipmentNeeded.map((name) => ({ name, available: true })), lessonRows,
+    generalObjective: session.objective, proceduralObjectives: { motor: '', cognitive: '' },
+    warmupPhase: { duration: `${preparationMinutes} دقيقة`, generalWarmup: '', specificWarmup: '', organization: '' },
+    mainPhase: { duration: `${mainMinutes} دقيقة`, problemSituation: '', learningSituation1: { title: '', description: '', dosing: '', criteria: '' }, learningSituation2: { title: '', description: '', dosing: '', criteria: '' }, guidedApplication: { title: '', description: '', rules: '' } },
+    coolDownPhase: { duration: `${closingMinutes} دقائق`, activities: '', assessmentAndDialogue: '' },
+    safetyRules: [], aiGenerated: false, version: 2, createdAt: new Date().toISOString()
   };
+}
+
+/** يعرض السجلات المنشأة قبل القالب الموحد دون تعديلها في قاعدة البيانات. */
+export function getUnifiedLessonRows(plan: LessonPlan): LessonPlanRow[] {
+  if (plan.lessonRows?.length) return plan.lessonRows;
+  return [
+    {
+      id: 'preparation', phase: 'المرحلة التحضيرية',
+      learningContent: plan.warmupPhase.generalWarmup || 'تهيئة الجسم والاستعداد للنشاط.',
+      executionContent: [plan.warmupPhase.pedagogicalWarmupGame?.rules, plan.warmupPhase.specificWarmup].filter(Boolean).join(' '),
+      durationMinutes: Math.round(plan.durationMinutes * 0.17), guidance: plan.warmupPhase.organization || 'الإنصات للتوجيهات والتنظيم الجيد.'
+    },
+    ...[plan.mainPhase.learningSituation1, plan.mainPhase.learningSituation2]
+      .filter((s) => s?.description)
+      .map((s, index) => ({
+        id: `main-${index + 1}`, phase: 'المرحلة الرئيسية' as const,
+        learningContent: plan.generalObjective || plan.sessionTitle,
+        executionContent: s.description, durationMinutes: Math.round(plan.durationMinutes * 0.66 / Math.max(1, [plan.mainPhase.learningSituation1, plan.mainPhase.learningSituation2].filter((x) => x?.description).length)),
+        guidance: s.criteria || 'احترام التعليمات وقواعد السلامة.'
+      })),
+    {
+      id: 'closing', phase: 'المرحلة الختامية',
+      learningContent: 'العودة إلى الحالة الطبيعية.', executionContent: plan.coolDownPhase.activities || 'مشي هادئ وتمارين تنفس.',
+      durationMinutes: plan.durationMinutes - Math.round(plan.durationMinutes * 0.17) - Math.round(plan.durationMinutes * 0.66),
+      guidance: plan.coolDownPhase.assessmentAndDialogue || 'مشاركة الجميع واحترام الآراء.'
+    }
+  ];
 }

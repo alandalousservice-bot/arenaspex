@@ -13,6 +13,8 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import { hashPassword } from '../src/server/auth.js';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 const prisma = new PrismaClient();
 
@@ -148,9 +150,25 @@ async function seedReferenceData() {
   console.log('✅ تم التأكد من وجود البيانات المرجعية الأساسية (مديرية سطيف، المقاطعات، بلدية عين أزال ومؤسساتها).');
 }
 
+async function seedEducationalSituations() {
+  const source = resolve(process.cwd(), 'arenaspex_situations_mapped_to_objectives (1).json');
+  const situations = JSON.parse(await readFile(source, 'utf8')) as Array<any>;
+  if (situations.length !== 150) throw new Error(`Expected 150 educational situations; found ${situations.length}.`);
+  for (const item of situations) {
+    await prisma.educationalSituation.upsert({
+      where: { id: item.id },
+      create: { id: item.id, externalId: item.id, name: item.name, grade: item.grade, fieldId: item.field_id, fieldName: item.field_name, objectiveIds: item.linked_objective_ids, objectiveTexts: item.linked_objectives, sourceGoal: item.source_goal, organization: item.organization, equipment: String(item.equipment || '').split(/[،,]/).map((v) => v.trim()).filter(Boolean), variations: item.variations || null, origin: 'REFERENCE_SEED', status: 'APPROVED' },
+      update: { name: item.name, grade: item.grade, fieldId: item.field_id, fieldName: item.field_name, objectiveIds: item.linked_objective_ids, objectiveTexts: item.linked_objectives, sourceGoal: item.source_goal, organization: item.organization, equipment: String(item.equipment || '').split(/[،,]/).map((v) => v.trim()).filter(Boolean), variations: item.variations || null, origin: 'REFERENCE_SEED', status: 'APPROVED' }
+    });
+  }
+  const count = await prisma.educationalSituation.count({ where: { origin: 'REFERENCE_SEED' } });
+  if (count !== 150) throw new Error(`Reference educational situation count is ${count}, expected 150.`);
+}
+
 async function main() {
   await seedSuperAdmin();
   await seedReferenceData();
+  await seedEducationalSituations();
 }
 
 main()
