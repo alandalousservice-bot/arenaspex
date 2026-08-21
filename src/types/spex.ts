@@ -20,16 +20,16 @@ export interface GenerationProfile {
 // Lesson Command Center Session Timing Settings
 export interface LessonSessionTiming {
   preparationMinutes: number; // default 10
-  situation1Minutes: number;   // default 20
-  situation2Minutes: number;   // default 20
-  finalMinutes: number;        // default 10
+  situation1Minutes: number; // default 20
+  situation2Minutes: number; // default 20
+  finalMinutes: number; // default 10
   alertBeforeStart10Min: boolean; // default true
-  alertBeforeStart5Min: boolean;  // default true
-  alertNoPlan: boolean;           // default true
-  soundEnabled: boolean;          // default true
-  vibrationEnabled: boolean;      // default true
-  voiceAnnouncements: boolean;    // default true — إعلانات صوتية بالعربية عند تغيير المراحل
-  autoLogToNotebook: boolean;     // default true
+  alertBeforeStart5Min: boolean; // default true
+  alertNoPlan: boolean; // default true
+  soundEnabled: boolean; // default true
+  vibrationEnabled: boolean; // default true
+  voiceAnnouncements: boolean; // default true — إعلانات صوتية بالعربية عند تغيير المراحل
+  autoLogToNotebook: boolean; // default true
 }
 
 // Ongoing / Scheduled Lesson Session for Command Center & Floating Overlay
@@ -119,11 +119,11 @@ export interface PersonalObjective {
 
 // Evaluation Weights Scheme out of 10 Points (Configurable by Teacher or Institution)
 export interface EvaluationWeights {
-  competencyWeight: number;    // default 5.0 (تملك الكفاءة الختامية)
+  competencyWeight: number; // default 5.0 (تملك الكفاءة الختامية)
   participationWeight: number; // default 2.0 (المشاركة الفعالة)
-  behaviorWeight: number;      // default 2.0 (السلوك والانضباط)
-  attendanceWeight: number;    // default 1.0 (المواظبة والحضور)
-  unexcusedDeduction: number;  // deduction per unexcused absence (e.g. 0.25)
+  behaviorWeight: number; // default 2.0 (السلوك والانضباط)
+  attendanceWeight: number; // default 1.0 (المواظبة والحضور)
+  unexcusedDeduction: number; // deduction per unexcused absence (e.g. 0.25)
 }
 
 // Revision History Audit Log for Grade Overrides and Transparency
@@ -148,17 +148,17 @@ export interface GradeRecord {
   classId: string;
   term: 'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث';
   behaviorRating: 'ممتاز' | 'جيد' | 'متوسط' | 'ضعيف';
-  behaviorScore: number;       // derived from behaviorRating & behaviorWeight
+  behaviorScore: number; // derived from behaviorRating & behaviorWeight
   behaviorNotes?: string;
   participationRating: 'ممتاز' | 'جيد' | 'متوسط' | 'ضعيف';
-  participationScore: number;  // derived from participationRating & participationWeight
-  attendanceScore: number;     // derived from attendance records & attendanceWeight
+  participationScore: number; // derived from participationRating & participationWeight
+  attendanceScore: number; // derived from attendance records & attendanceWeight
   unexcusedAbsencesCount?: number;
   excusedAbsencesCount?: number;
   competencyRating: 'تمكن ممتاز' | 'تمكن جيد' | 'تمكن متوسط' | 'تمكن جزئي';
-  competencyScore: number;     // derived from assessment session indicators & competencyWeight
-  suggestedMark: number;       // calculated out of 10
-  finalMark: number;           // out of 10 (Teacher Final Decision)
+  competencyScore: number; // derived from assessment session indicators & competencyWeight
+  suggestedMark: number; // calculated out of 10
+  finalMark: number; // out of 10 (Teacher Final Decision)
   isApprovedByTeacher: boolean;
   adjustmentReason?: string;
   updatedAt: string;
@@ -190,36 +190,36 @@ export interface UserPrivacySettings {
 
 export interface User {
   id: string;
-  username: string;        // المعرّف الفريد للبحث الحصري (@username)
-  spexId: string;          // معرف ثابت لا يتغير مثل SPX-8K31H2
+  username: string; // المعرّف الفريد للبحث الحصري (@username)
+  spexId: string; // معرف ثابت لا يتغير مثل SPX-8K31H2
   firstName: string;
   lastName: string;
   email: string;
   role: UserRole;
   avatar?: string;
   phone?: string;
-  directorateId: string;   // مديرية التربية
-  districtId: string;      // المقاطعة التفتيشية
-  institutionId?: string;  // المؤسسة التعليمية
-  schoolName?: string;     // اسم المدرسة الابتدائية
-  municipality?: string;   // بلدية العمل
+  directorateId: string; // مديرية التربية
+  districtId: string; // المقاطعة التفتيشية
+  institutionId?: string; // المؤسسة التعليمية
+  schoolName?: string; // اسم المدرسة الابتدائية
+  municipality?: string; // بلدية العمل
   specialization?: string;
   cycle?: 'ابتدائي';
   yearsExperience?: number;
   teachingExperienceYears?: number;
   wilaya?: string;
-  bio?: string;            // النبذة الشخصية
+  bio?: string; // النبذة الشخصية
   status: 'active' | 'inactive' | 'pending_approval';
   isApprovedByAdmin?: boolean; // تفعيل الحساب من طرف المشرف
   password?: string;
-  followingIds?: string[];  // معرّفات المستخدمين المتابَعين
-  followersIds?: string[];  // معرّفات المتابعين
+  followingIds?: string[]; // معرّفات المستخدمين المتابَعين
+  followersIds?: string[]; // معرّفات المتابعين
   followingCount?: number;
   followersCount?: number;
   publishedResourcesCount?: number; // عدد الموارد المنشورة
-  approvedResourcesCount?: number;  // عدد الموارد المعتمدة
+  approvedResourcesCount?: number; // عدد الموارد المعتمدة
   privacySettings?: UserPrivacySettings; // إعدادات الخصوصية
-  customApiKey?: string;   // مفتاح الاستعلام المباشر المخصص للحساب (Gemini API Key)
+  customApiKey?: string; // مفتاح الاستعلام المباشر المخصص للحساب (Gemini API Key)
   apiKeyStatus?: 'active' | 'quota_exceeded' | 'not_set';
   googleId?: string | null; // معرّف حساب Google المرتبط (إن وُجد) لتسجيل الدخول السريع
 }
@@ -227,7 +227,7 @@ export interface User {
 // Community Shared Pedagogical Resource
 export interface CommunityResource {
   id: string;
-  spexId: string;         // معرّف صاحب المورد الثابت
+  spexId: string; // معرّف صاحب المورد الثابت
   authorName: string;
   authorUsername: string;
   authorRole: UserRole;
@@ -272,12 +272,13 @@ export interface CommunityChatMessage {
 // Community Notification Item
 export interface CommunityNotification {
   id: string;
-  userId: string;          // المستلم
+  userId: string; // المستلم
   senderId: string;
   senderUsername: string;
   senderName: string;
   senderAvatar?: string;
-  type: 'new_message' | 'new_follower' | 'resource_shared' | 'comment' | 'like' | 'resource_approved';
+  type:
+    'new_message' | 'new_follower' | 'resource_shared' | 'comment' | 'like' | 'resource_approved';
   title: string;
   message: string;
   resourceId?: string;
@@ -499,7 +500,13 @@ export interface PESession {
 // 'section_wording': تخصيص صياغة هدف الحصة وملاحظات الأستاذ على مستوى الحصة (المقاطع التعليمية) — المفتاح: `${fieldId}__${fieldSessionNumber}`
 // 'schedule_dates': تاريخ/حالة تنفيذ كل حصة (التوزيع السنوي والكراس اليومي) — المفتاح: `${fieldId}__${fieldSessionNumber}`
 // 'annual_plan_new': الهيكلية الجديدة للمخطط السنوي 2025 — 3 ميادين فقط مع الكفاءة الشاملة و 6 حقول لكل ميدان
-export type AnnualPlanKind = 'plan' | 'schedule' | 'plan_components' | 'section_wording' | 'schedule_dates' | 'annual_plan_new';
+export type AnnualPlanKind =
+  | 'plan'
+  | 'schedule'
+  | 'plan_components'
+  | 'section_wording'
+  | 'schedule_dates'
+  | 'annual_plan_new';
 export type AnnualPlanStatus = 'draft' | 'proposed' | 'approved';
 export type LessonExecutionStatus = 'مبرمجة' | 'منجزة' | 'مؤجلة' | 'غير منجزة';
 
@@ -579,15 +586,37 @@ export interface LessonPlanRow {
 
 export type EducationalSituationStatus = 'PRIVATE' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
 export interface EducationalSituation {
-  id: string; externalId?: string; name: string; grade: number; fieldId: string; fieldName: string;
-  objectiveIds: string[]; objectiveTexts: string[]; sourceGoal: string; organization: string;
-  equipment: string[]; variations?: string; origin: 'REFERENCE_SEED' | 'TEACHER'; status: EducationalSituationStatus;
-  ownerId?: string; approvedById?: string; approvedByRole?: string; approvedAt?: string;
-  rejectedById?: string; rejectedByRole?: string; rejectedAt?: string; rejectionReason?: string;
-  createdAt?: string; updatedAt?: string;
+  id: string;
+  externalId?: string;
+  name: string;
+  grade: number;
+  fieldId: string;
+  fieldName: string;
+  objectiveIds: string[];
+  objectiveTexts: string[];
+  sourceGoal: string;
+  organization: string;
+  equipment: string[];
+  variations?: string;
+  origin: 'REFERENCE_SEED' | 'TEACHER';
+  status: EducationalSituationStatus;
+  ownerId?: string;
+  approvedById?: string;
+  approvedByRole?: string;
+  approvedAt?: string;
+  rejectedById?: string;
+  rejectedByRole?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 export interface EducationalSituationSnapshot {
-  situationId: string; name: string; organization: string; equipment: string[]; variations?: string;
+  situationId: string;
+  name: string;
+  organization: string;
+  equipment: string[];
+  variations?: string;
 }
 
 // Lesson Plan (مذكرة الحصة البيداغوجية الرسمية)
@@ -596,20 +625,21 @@ export interface LessonPlan {
   dailyNotebookEntryId?: string;
   teacherId: string;
   institutionName: string; // اسم المدرسة الابتدائية
-  teacherName: string;     // اسم الأستاذ
-  inspectorName?: string;  // اسم الأستاذ المفتش
-  levelName: string;       // المستوى الدراسي
+  teacherName: string; // اسم الأستاذ
+  inspectorName?: string; // اسم الأستاذ المفتش
+  levelName: string; // المستوى الدراسي
   level?: string;
-  className: string;       // اسم القسم
-  fieldName: string;       // الميدان التعليمي
+  className: string; // اسم القسم
+  fieldName: string; // الميدان التعليمي
   competencyTitle: string; // الكفاءة الختامية للميدان
-  segmentTitle: string;    // المقطع التعليمي
-  sessionTitle: string;    // عنوان الحصة
-  sessionType: 'تشخيصية' | 'تعلمية' | 'إدماجية' | 'تقويمية' | 'علاجية' | 'تقويم تشخيصي' | 'تقويم تحصيلي';
+  segmentTitle: string; // المقطع التعليمي
+  sessionTitle: string; // عنوان الحصة
+  sessionType:
+    'تشخيصية' | 'تعلمية' | 'إدماجية' | 'تقويمية' | 'علاجية' | 'تقويم تشخيصي' | 'تقويم تحصيلي';
   sessionTypeNumber?: string; // نوع الحصة ورقمها (مثال: حصة تعلمية رقم 03، أو إدماجية، أو تقويم تشخيصي، أو تقويم تحصيلي)
   sessionGlobalNumber?: number; // رقم الحصة في التوزيع السنوي (1 إلى 30)
-  annualSessionRef?: string;   // مرجع الحصة بالتوزيع السنوي (مثل: "الأسبوع 02 / الحصة 02")
-  segmentGoal?: string;        // الهدف البيداغوجي / التعلمي للمقطع البيداغوجي
+  annualSessionRef?: string; // مرجع الحصة بالتوزيع السنوي (مثل: "الأسبوع 02 / الحصة 02")
+  segmentGoal?: string; // الهدف البيداغوجي / التعلمي للمقطع البيداغوجي
   learningGoal?: string;
   evaluation?: string;
   duration?: string;
@@ -627,9 +657,11 @@ export interface LessonPlan {
     communication?: string; // الهدف التواصلي
     personalSocial?: string; // الهدف الشخصي والاجتماعي
   };
-  warmupPhase: { // المرحلة التحضيرية (إحماء بلعبة تربوية)
+  warmupPhase: {
+    // المرحلة التحضيرية (إحماء بلعبة تربوية)
     duration: string;
-    pedagogicalWarmupGame?: { // لعبة تربوية تمهيدية إحمائية
+    pedagogicalWarmupGame?: {
+      // لعبة تربوية تمهيدية إحمائية
       title: string;
       rules: string;
       equipment?: string;
@@ -638,28 +670,33 @@ export interface LessonPlan {
     specificWarmup: string; // الإحماء الخاص
     organization: string; // التوجيه والتنظيم
   };
-  mainPhase: { // المرحلة الرئيسية / التعلمية (موقفين للعبتين تربويتين تنافسيتين)
+  mainPhase: {
+    // المرحلة الرئيسية / التعلمية (موقفين للعبتين تربويتين تنافسيتين)
     duration: string;
     problemSituation: string; // الوضعية المشكلة الهدف
-    learningSituation1: { // الموقف الأول: لعبة تربوية تنافسية 1
+    learningSituation1: {
+      // الموقف الأول: لعبة تربوية تنافسية 1
       title: string;
       description: string;
       dosing: string; // التجريد والجرعات التنافسية
       criteria: string; // معيار النجاح وتحقيق الهدف
     };
-    learningSituation2: { // الموقف الثاني: لعبة تربوية تنافسية 2
+    learningSituation2: {
+      // الموقف الثاني: لعبة تربوية تنافسية 2
       title: string;
       description: string;
       dosing: string;
       criteria: string;
     };
-    guidedApplication: { // المنافسة الختامية والتطبيق الموجه
+    guidedApplication: {
+      // المنافسة الختامية والتطبيق الموجه
       title: string;
       description: string;
       rules: string;
     };
   };
-  coolDownPhase: { // المرحلة الختامية / العودة للهواة
+  coolDownPhase: {
+    // المرحلة الختامية / العودة للهواة
     duration: string;
     activities: string; // التمارين الهادئة والاسترخاء
     assessmentAndDialogue: string; // التقييم الذاتي والحوار الهادف
@@ -674,7 +711,8 @@ export interface LessonPlan {
 }
 
 // Educational Knowledge Engine (بنك المعرفة)
-export type KnowledgeCategory = 'objective' | 'game' | 'situation' | 'integration' | 'remedial' | 'assessment';
+export type KnowledgeCategory =
+  'objective' | 'game' | 'situation' | 'integration' | 'remedial' | 'assessment';
 
 export interface KnowledgeItem {
   id: string;
@@ -751,7 +789,14 @@ export interface InspectorNote {
   inspectorName: string;
   teacherId: string;
   teacherName: string;
-  moduleRef: 'annual_plan' | 'daily_notebook' | 'lesson_plan' | 'assessment' | 'general' | 'seminar_invitation' | 'visit_alert';
+  moduleRef:
+    | 'annual_plan'
+    | 'daily_notebook'
+    | 'lesson_plan'
+    | 'assessment'
+    | 'general'
+    | 'seminar_invitation'
+    | 'visit_alert';
   title: string;
   content: string;
   priority: 'عادية' | 'هام' | 'مستعجل';
@@ -854,7 +899,8 @@ export interface ExemptedStudent {
   doctorName: string;
   medicalFacility: string;
   exemptionReason: string; // e.g. الربو الحاد، جراحة بالركبة، أمراض القلب...
-  period: 'كامل السنة الدراسية' | 'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث' | 'محددة بالتواريخ';
+  period:
+    'كامل السنة الدراسية' | 'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث' | 'محددة بالتواريخ';
   startDate?: string;
   endDate?: string;
   roleInSession: 'تحكيم وملاحظة' | 'متابعة نظرية' | 'تنظيم وإدارة الوسائل';

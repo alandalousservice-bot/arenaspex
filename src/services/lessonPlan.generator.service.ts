@@ -1,6 +1,10 @@
 import { LessonPlan, LessonPlanRow, User } from '../types/spex';
 import { EducationalSituation } from '../types/spex';
-import { findSuitableSituations, referenceSituations, snapshotSituation } from './educationalSituation.selector.service';
+import {
+  findSuitableSituations,
+  referenceSituations,
+  snapshotSituation,
+} from './educationalSituation.selector.service';
 
 export interface AutoGenerateSessionSource {
   fieldId: string;
@@ -30,7 +34,8 @@ export interface AutoGenerateContext {
 export const lessonDurationForLevel = (levelName: string): number =>
   levelName.includes('الرابعة') ? 90 : 60;
 
-const hasComplexObjective = (objective: string) => /يربط|يجمع|سلسلة|مركب|توظيف|تطبيق.*ألعاب|عدة/.test(objective);
+const hasComplexObjective = (objective: string) =>
+  /يربط|يجمع|سلسلة|مركب|توظيف|تطبيق.*ألعاب|عدة/.test(objective);
 
 function situationEquipment(fieldId: string): string[] {
   if (fieldId === 'f_fundamentals') return ['أقماع', 'كرات', 'شواخص'];
@@ -38,17 +43,49 @@ function situationEquipment(fieldId: string): string[] {
   return ['أقماع', 'شواخص', 'سلم أرضي'];
 }
 
-function buildMainRows(session: AutoGenerateSessionSource, mainMinutes: number, ctx: AutoGenerateContext): LessonPlanRow[] {
-  const grade = Number((ctx.levelName.match(/(الأولى|الثانية|الثالثة|الرابعة|الخامسة)/)?.[1] || '').replace('الأولى', '1').replace('الثانية', '2').replace('الثالثة', '3').replace('الرابعة', '4').replace('الخامسة', '5')) || 0;
-  const bank = findSuitableSituations(ctx.situations || referenceSituations, { grade, fieldId: session.fieldId, objectiveText: session.objective, previousSituationIds: ctx.previousSituationIds });
+function buildMainRows(
+  session: AutoGenerateSessionSource,
+  mainMinutes: number,
+  ctx: AutoGenerateContext
+): LessonPlanRow[] {
+  const grade =
+    Number(
+      (ctx.levelName.match(/(الأولى|الثانية|الثالثة|الرابعة|الخامسة)/)?.[1] || '')
+        .replace('الأولى', '1')
+        .replace('الثانية', '2')
+        .replace('الثالثة', '3')
+        .replace('الرابعة', '4')
+        .replace('الخامسة', '5')
+    ) || 0;
+  const bank = findSuitableSituations(ctx.situations || referenceSituations, {
+    grade,
+    fieldId: session.fieldId,
+    objectiveText: session.objective,
+    previousSituationIds: ctx.previousSituationIds,
+  });
   if (bank.length) {
-    const selected = bank.slice(0, Math.max(1, Math.min(bank.length, Math.floor(mainMinutes / 20))));
-    const minutes = selected.map((_, index) => Math.floor(mainMinutes / selected.length) + (index < mainMinutes % selected.length ? 1 : 0));
-    return selected.map((situation, index) => ({ id: `main-${index + 1}`, phase: 'المرحلة الرئيسية', learningContent: session.objective, executionContent: `${situation.name}: ${situation.organization}`, durationMinutes: minutes[index], guidance: situation.variations || 'احترام التنظيم والتعليمات.', situationSnapshot: snapshotSituation(situation) }));
+    const selected = bank.slice(
+      0,
+      Math.max(1, Math.min(bank.length, Math.floor(mainMinutes / 20)))
+    );
+    const minutes = selected.map(
+      (_, index) =>
+        Math.floor(mainMinutes / selected.length) + (index < mainMinutes % selected.length ? 1 : 0)
+    );
+    return selected.map((situation, index) => ({
+      id: `main-${index + 1}`,
+      phase: 'المرحلة الرئيسية',
+      learningContent: session.objective,
+      executionContent: `${situation.name}: ${situation.organization}`,
+      durationMinutes: minutes[index],
+      guidance: situation.variations || 'احترام التنظيم والتعليمات.',
+      situationSnapshot: snapshotSituation(situation),
+    }));
   }
   const count = hasComplexObjective(session.objective) ? 2 : 1;
-  const minutes = Array.from({ length: count }, (_, index) =>
-    Math.floor(mainMinutes / count) + (index < mainMinutes % count ? 1 : 0)
+  const minutes = Array.from(
+    { length: count },
+    (_, index) => Math.floor(mainMinutes / count) + (index < mainMinutes % count ? 1 : 0)
   );
   const tools = situationEquipment(session.fieldId);
 
@@ -64,35 +101,49 @@ function buildMainRows(session: AutoGenerateSessionSource, mainMinutes: number, 
       `ينفذ كل متعلم النشاط المرتبط مباشرة بهدف الحصة (${session.objective}) عبر مسار محدد باستعمال ${tools.join('، ')}، ` +
       `ثم يعود إلى نهاية فوجه لإتاحة التناوب. يلاحظ الأستاذ التنفيذ ويصحح الأداء، مع اعتماد النجاح عند إنجاز الحركة المطلوبة باحترام المسار والتعليمات.`,
     durationMinutes,
-    guidance: 'احترام نقطة البداية والمسافة الآمنة، الإصغاء للإشارة، والتناوب المنظم بين أفراد الفوج.'
+    guidance:
+      'احترام نقطة البداية والمسافة الآمنة، الإصغاء للإشارة، والتناوب المنظم بين أفراد الفوج.',
   }));
 }
 
 /** ينشئ قالباً واحداً مطابقاً لجدول المذكرة المرجعي. */
-export function autoGenerateLessonPlan(session: AutoGenerateSessionSource, ctx: AutoGenerateContext): LessonPlan {
+export function autoGenerateLessonPlan(
+  session: AutoGenerateSessionSource,
+  ctx: AutoGenerateContext
+): LessonPlan {
   const durationMinutes = lessonDurationForLevel(ctx.levelName);
   const preparationMinutes = durationMinutes === 90 ? 15 : 10;
   const closingMinutes = 10;
   const mainMinutes = durationMinutes - preparationMinutes - closingMinutes;
   const mainRows = buildMainRows(session, mainMinutes, ctx);
-  const equipmentNeeded = [...new Set([...session.tools, ...mainRows.flatMap((row) => row.situationSnapshot?.equipment || situationEquipment(session.fieldId))])];
+  const equipmentNeeded = [
+    ...new Set([
+      ...session.tools,
+      ...mainRows.flatMap(
+        (row) => row.situationSnapshot?.equipment || situationEquipment(session.fieldId)
+      ),
+    ]),
+  ];
   const teacher = ctx.teacher;
   const lessonRows: LessonPlanRow[] = [
     {
-      id: 'preparation', phase: 'المرحلة التحضيرية',
+      id: 'preparation',
+      phase: 'المرحلة التحضيرية',
       learningContent: 'تهيئة الجسم والاستعداد للنشاط المرتبط بهدف الحصة.',
-      executionContent: 'تنظيم القسم، إحماء تدريجي، تحريك المفاصل، والاستماع لتعليمات الحصة قبل الانطلاق.',
+      executionContent:
+        'تنظيم القسم، إحماء تدريجي، تحريك المفاصل، والاستماع لتعليمات الحصة قبل الانطلاق.',
       durationMinutes: preparationMinutes,
-      guidance: 'تنظيم جيد وهدوء، تسخين تدريجي، احترام المسافة والإنصات للتوجيهات.'
+      guidance: 'تنظيم جيد وهدوء، تسخين تدريجي، احترام المسافة والإنصات للتوجيهات.',
     },
     ...mainRows,
     {
-      id: 'closing', phase: 'المرحلة الختامية',
+      id: 'closing',
+      phase: 'المرحلة الختامية',
       learningContent: 'العودة إلى الحالة الطبيعية وتثبيت التعلم المنجز.',
       executionContent: 'مشي هادئ وتمارين تنفس واسترخاء، ثم مناقشة قصيرة حول ما أنجزه المتعلمون.',
       durationMinutes: closingMinutes,
-      guidance: 'مشاركة الجميع في المناقشة واحترام آراء الزملاء.'
-    }
+      guidance: 'مشاركة الجميع في المناقشة واحترام آراء الزملاء.',
+    },
   ];
 
   // الحقول القديمة محفوظة للتوافق مع قرّاء السجلات والوحدات المشتركة فقط؛ الواجهة الجديدة لا تعرضها.
@@ -102,18 +153,46 @@ export function autoGenerateLessonPlan(session: AutoGenerateSessionSource, ctx: 
     teacherId: teacher?.id || '',
     institutionName: teacher?.schoolName || 'المؤسسة التعليمية',
     teacherName: teacher ? `${teacher.firstName} ${teacher.lastName}` : 'أستاذ المادة',
-    levelName: ctx.levelName, className: ctx.className || '', fieldName: session.fieldName,
-    competencyTitle: session.finalCompetency, segmentTitle: session.fieldName,
-    sessionTitle: session.objective, sessionType: session.type, sessionTypeNumber: session.typeLabel,
+    levelName: ctx.levelName,
+    className: ctx.className || '',
+    fieldName: session.fieldName,
+    competencyTitle: session.finalCompetency,
+    segmentTitle: session.fieldName,
+    sessionTitle: session.objective,
+    sessionType: session.type,
+    sessionTypeNumber: session.typeLabel,
     sessionGlobalNumber: session.globalNumber,
     annualSessionRef: `التوزيع السنوي - الأسبوع ${String(session.weekNumber).padStart(2, '0')} / الحصة ${String(session.globalNumber).padStart(2, '0')}`,
-    segmentGoal: session.segmentGoal, date: ctx.date || new Date().toISOString().split('T')[0],
-    durationMinutes, equipmentNeeded, equipmentChecklist: equipmentNeeded.map((name) => ({ name, available: true })), lessonRows,
-    generalObjective: session.objective, proceduralObjectives: { motor: '', cognitive: '' },
-    warmupPhase: { duration: `${preparationMinutes} دقيقة`, generalWarmup: '', specificWarmup: '', organization: '' },
-    mainPhase: { duration: `${mainMinutes} دقيقة`, problemSituation: '', learningSituation1: { title: '', description: '', dosing: '', criteria: '' }, learningSituation2: { title: '', description: '', dosing: '', criteria: '' }, guidedApplication: { title: '', description: '', rules: '' } },
-    coolDownPhase: { duration: `${closingMinutes} دقائق`, activities: '', assessmentAndDialogue: '' },
-    safetyRules: [], aiGenerated: false, version: 2, createdAt: new Date().toISOString()
+    segmentGoal: session.segmentGoal,
+    date: ctx.date || new Date().toISOString().split('T')[0],
+    durationMinutes,
+    equipmentNeeded,
+    equipmentChecklist: equipmentNeeded.map((name) => ({ name, available: true })),
+    lessonRows,
+    generalObjective: session.objective,
+    proceduralObjectives: { motor: '', cognitive: '' },
+    warmupPhase: {
+      duration: `${preparationMinutes} دقيقة`,
+      generalWarmup: '',
+      specificWarmup: '',
+      organization: '',
+    },
+    mainPhase: {
+      duration: `${mainMinutes} دقيقة`,
+      problemSituation: '',
+      learningSituation1: { title: '', description: '', dosing: '', criteria: '' },
+      learningSituation2: { title: '', description: '', dosing: '', criteria: '' },
+      guidedApplication: { title: '', description: '', rules: '' },
+    },
+    coolDownPhase: {
+      duration: `${closingMinutes} دقائق`,
+      activities: '',
+      assessmentAndDialogue: '',
+    },
+    safetyRules: [],
+    aiGenerated: false,
+    version: 2,
+    createdAt: new Date().toISOString(),
   };
 }
 
@@ -122,24 +201,46 @@ export function getUnifiedLessonRows(plan: LessonPlan): LessonPlanRow[] {
   if (plan.lessonRows?.length) return plan.lessonRows;
   return [
     {
-      id: 'preparation', phase: 'المرحلة التحضيرية',
+      id: 'preparation',
+      phase: 'المرحلة التحضيرية',
       learningContent: plan.warmupPhase.generalWarmup || 'تهيئة الجسم والاستعداد للنشاط.',
-      executionContent: [plan.warmupPhase.pedagogicalWarmupGame?.rules, plan.warmupPhase.specificWarmup].filter(Boolean).join(' '),
-      durationMinutes: Math.round(plan.durationMinutes * 0.17), guidance: plan.warmupPhase.organization || 'الإنصات للتوجيهات والتنظيم الجيد.'
+      executionContent: [
+        plan.warmupPhase.pedagogicalWarmupGame?.rules,
+        plan.warmupPhase.specificWarmup,
+      ]
+        .filter(Boolean)
+        .join(' '),
+      durationMinutes: Math.round(plan.durationMinutes * 0.17),
+      guidance: plan.warmupPhase.organization || 'الإنصات للتوجيهات والتنظيم الجيد.',
     },
     ...[plan.mainPhase.learningSituation1, plan.mainPhase.learningSituation2]
       .filter((s) => s?.description)
       .map((s, index) => ({
-        id: `main-${index + 1}`, phase: 'المرحلة الرئيسية' as const,
+        id: `main-${index + 1}`,
+        phase: 'المرحلة الرئيسية' as const,
         learningContent: plan.generalObjective || plan.sessionTitle,
-        executionContent: s.description, durationMinutes: Math.round(plan.durationMinutes * 0.66 / Math.max(1, [plan.mainPhase.learningSituation1, plan.mainPhase.learningSituation2].filter((x) => x?.description).length)),
-        guidance: s.criteria || 'احترام التعليمات وقواعد السلامة.'
+        executionContent: s.description,
+        durationMinutes: Math.round(
+          (plan.durationMinutes * 0.66) /
+            Math.max(
+              1,
+              [plan.mainPhase.learningSituation1, plan.mainPhase.learningSituation2].filter(
+                (x) => x?.description
+              ).length
+            )
+        ),
+        guidance: s.criteria || 'احترام التعليمات وقواعد السلامة.',
       })),
     {
-      id: 'closing', phase: 'المرحلة الختامية',
-      learningContent: 'العودة إلى الحالة الطبيعية.', executionContent: plan.coolDownPhase.activities || 'مشي هادئ وتمارين تنفس.',
-      durationMinutes: plan.durationMinutes - Math.round(plan.durationMinutes * 0.17) - Math.round(plan.durationMinutes * 0.66),
-      guidance: plan.coolDownPhase.assessmentAndDialogue || 'مشاركة الجميع واحترام الآراء.'
-    }
+      id: 'closing',
+      phase: 'المرحلة الختامية',
+      learningContent: 'العودة إلى الحالة الطبيعية.',
+      executionContent: plan.coolDownPhase.activities || 'مشي هادئ وتمارين تنفس.',
+      durationMinutes:
+        plan.durationMinutes -
+        Math.round(plan.durationMinutes * 0.17) -
+        Math.round(plan.durationMinutes * 0.66),
+      guidance: plan.coolDownPhase.assessmentAndDialogue || 'مشاركة الجميع واحترام الآراء.',
+    },
   ];
 }

@@ -5,8 +5,19 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import { generatePELessonPlan, improvePELessonWording, suggestPEGames, generateAIChatResponse, getConfiguredAIProviders, testConfiguredAIProvider } from './aiService.js';
-import { allAIProviderRecords, invalidateAIProviderCache, type AIProviderType } from './aiGateway.js';
+import {
+  generatePELessonPlan,
+  improvePELessonWording,
+  suggestPEGames,
+  generateAIChatResponse,
+  getConfiguredAIProviders,
+  testConfiguredAIProvider,
+} from './aiService.js';
+import {
+  allAIProviderRecords,
+  invalidateAIProviderCache,
+  type AIProviderType,
+} from './aiGateway.js';
 import { prisma } from './prismaClient.js';
 import { hashPassword, sanitizeUser, sanitizeOwnUser, encryptApiKey } from './auth.js';
 import { requireAuth, requireRole } from './middleware/requireAuth.js';
@@ -36,26 +47,143 @@ apiRouter.get('/health', (req, res) => {
     status: 'ok',
     platform: 'SPEX Platform',
     version: '2.0.0',
-    aiProvidersConfigured: Boolean(process.env.NVIDIA_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY'))
+    aiProvidersConfigured: Boolean(
+      process.env.NVIDIA_API_KEY ||
+      process.env.OPENAI_API_KEY ||
+      process.env.ANTHROPIC_API_KEY ||
+      (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY')
+    ),
   });
 });
 
 // كل ما يلي يتطلب تسجيل دخول صالح
 apiRouter.use(requireAuth);
 
-const educationalSituationInput = z.object({ name: z.string().trim().min(1), grade: z.number().int().min(1).max(5), fieldId: z.string().min(1), fieldName: z.string().min(1), objectiveIds: z.array(z.string()).min(1), objectiveTexts: z.array(z.string()).min(1), sourceGoal: z.string().optional().default(''), organization: z.string().trim().min(1), equipment: z.array(z.string()).default([]), variations: z.string().optional() });
+const educationalSituationInput = z.object({
+  name: z.string().trim().min(1),
+  grade: z.number().int().min(1).max(5),
+  fieldId: z.string().min(1),
+  fieldName: z.string().min(1),
+  objectiveIds: z.array(z.string()).min(1),
+  objectiveTexts: z.array(z.string()).min(1),
+  sourceGoal: z.string().optional().default(''),
+  organization: z.string().trim().min(1),
+  equipment: z.array(z.string()).default([]),
+  variations: z.string().optional(),
+});
 const canReviewSituation = (role: string) => role === 'admin' || role === 'inspector';
 
 apiRouter.get('/educational-situations', async (req, res) => {
-  const user = req.user!; const grade = req.query.grade ? Number(req.query.grade) : undefined; const fieldId = typeof req.query.fieldId === 'string' ? req.query.fieldId : undefined; const objective = typeof req.query.objective === 'string' ? req.query.objective : undefined; const search = typeof req.query.q === 'string' ? req.query.q : undefined;
-  const rows = await prisma.educationalSituation.findMany({ where: { ...(grade ? { grade } : {}), ...(fieldId ? { fieldId } : {}), ...(objective ? { objectiveTexts: { has: objective } } : {}), ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}) }, orderBy: { name: 'asc' } });
-  res.json({ situations: rows.filter((row) => row.status === 'APPROVED' || row.ownerId === user.id || canReviewSituation(user.role)) });
+  const user = req.user!;
+  const grade = req.query.grade ? Number(req.query.grade) : undefined;
+  const fieldId = typeof req.query.fieldId === 'string' ? req.query.fieldId : undefined;
+  const objective = typeof req.query.objective === 'string' ? req.query.objective : undefined;
+  const search = typeof req.query.q === 'string' ? req.query.q : undefined;
+  const rows = await prisma.educationalSituation.findMany({
+    where: {
+      ...(grade ? { grade } : {}),
+      ...(fieldId ? { fieldId } : {}),
+      ...(objective ? { objectiveTexts: { has: objective } } : {}),
+      ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
+    },
+    orderBy: { name: 'asc' },
+  });
+  res.json({
+    situations: rows.filter(
+      (row) => row.status === 'APPROVED' || row.ownerId === user.id || canReviewSituation(user.role)
+    ),
+  });
 });
-apiRouter.post('/educational-situations', async (req, res) => { const input = educationalSituationInput.parse(req.body); const user = req.user!; if (user.role !== 'teacher') return res.status(403).json({ error: 'إنشاء الموقف الخاص متاح للأستاذ فقط.' }); const row = await prisma.educationalSituation.create({ data: { id: `sit_${Date.now()}`, ...input, origin: 'TEACHER', status: 'PRIVATE', ownerId: user.id } }); res.status(201).json({ situation: row }); });
-apiRouter.put('/educational-situations/:id', async (req, res) => { const existing = await prisma.educationalSituation.findUnique({ where: { id: req.params.id } }); if (!existing || existing.origin === 'REFERENCE_SEED' || existing.ownerId !== req.user!.id || !['PRIVATE', 'REJECTED'].includes(existing.status)) return res.status(403).json({ error: 'لا تملك صلاحية تعديل هذا الموقف.' }); const input = educationalSituationInput.parse(req.body); res.json({ situation: await prisma.educationalSituation.update({ where: { id: existing.id }, data: { ...input, status: 'PRIVATE', rejectionReason: null } }) }); });
-apiRouter.delete('/educational-situations/:id', async (req, res) => { const existing = await prisma.educationalSituation.findUnique({ where: { id: req.params.id } }); if (!existing || existing.origin === 'REFERENCE_SEED' || existing.ownerId !== req.user!.id || !['PRIVATE', 'REJECTED'].includes(existing.status)) return res.status(403).json({ error: 'لا تملك صلاحية حذف هذا الموقف.' }); await prisma.educationalSituation.delete({ where: { id: existing.id } }); res.json({ success: true }); });
-apiRouter.post('/educational-situations/:id/submit', async (req, res) => { const existing = await prisma.educationalSituation.findUnique({ where: { id: req.params.id } }); if (!existing || existing.ownerId !== req.user!.id || !['PRIVATE', 'REJECTED'].includes(existing.status)) return res.status(403).json({ error: 'لا تملك صلاحية الإرسال.' }); res.json({ situation: await prisma.educationalSituation.update({ where: { id: existing.id }, data: { status: 'PENDING_APPROVAL', rejectionReason: null } }) }); });
-apiRouter.post('/educational-situations/:id/review', async (req, res) => { if (!canReviewSituation(req.user!.role)) return res.status(403).json({ error: 'الاعتماد والرفض من صلاحيات الإدارة أو المفتش فقط.' }); const action = req.body.action; const existing = await prisma.educationalSituation.findUnique({ where: { id: req.params.id } }); if (!existing || existing.status !== 'PENDING_APPROVAL') return res.status(400).json({ error: 'الموقف ليس بانتظار الاعتماد.' }); if (action === 'reject' && !String(req.body.rejectionReason || '').trim()) return res.status(400).json({ error: 'سبب الرفض إلزامي.' }); const approved = action === 'approve'; res.json({ situation: await prisma.educationalSituation.update({ where: { id: existing.id }, data: approved ? { status: 'APPROVED', approvedById: req.user!.id, approvedByRole: req.user!.role, approvedAt: new Date() } : { status: 'REJECTED', rejectedById: req.user!.id, rejectedByRole: req.user!.role, rejectedAt: new Date(), rejectionReason: String(req.body.rejectionReason) } }) }); });
+apiRouter.post('/educational-situations', async (req, res) => {
+  const input = educationalSituationInput.parse(req.body);
+  const user = req.user!;
+  if (user.role !== 'teacher')
+    return res.status(403).json({ error: 'إنشاء الموقف الخاص متاح للأستاذ فقط.' });
+  const row = await prisma.educationalSituation.create({
+    data: {
+      id: `sit_${Date.now()}`,
+      ...(input as any),
+      origin: 'TEACHER',
+      status: 'PRIVATE',
+      ownerId: user.id,
+    },
+  });
+  res.status(201).json({ situation: row });
+});
+apiRouter.put('/educational-situations/:id', async (req, res) => {
+  const existing = await prisma.educationalSituation.findUnique({ where: { id: req.params.id } });
+  if (
+    !existing ||
+    existing.origin === 'REFERENCE_SEED' ||
+    existing.ownerId !== req.user!.id ||
+    !['PRIVATE', 'REJECTED'].includes(existing.status)
+  )
+    return res.status(403).json({ error: 'لا تملك صلاحية تعديل هذا الموقف.' });
+  const input = educationalSituationInput.parse(req.body);
+  res.json({
+    situation: await prisma.educationalSituation.update({
+      where: { id: existing.id },
+      data: { ...input, status: 'PRIVATE', rejectionReason: null },
+    }),
+  });
+});
+apiRouter.delete('/educational-situations/:id', async (req, res) => {
+  const existing = await prisma.educationalSituation.findUnique({ where: { id: req.params.id } });
+  if (
+    !existing ||
+    existing.origin === 'REFERENCE_SEED' ||
+    existing.ownerId !== req.user!.id ||
+    !['PRIVATE', 'REJECTED'].includes(existing.status)
+  )
+    return res.status(403).json({ error: 'لا تملك صلاحية حذف هذا الموقف.' });
+  await prisma.educationalSituation.delete({ where: { id: existing.id } });
+  res.json({ success: true });
+});
+apiRouter.post('/educational-situations/:id/submit', async (req, res) => {
+  const existing = await prisma.educationalSituation.findUnique({ where: { id: req.params.id } });
+  if (
+    !existing ||
+    existing.ownerId !== req.user!.id ||
+    !['PRIVATE', 'REJECTED'].includes(existing.status)
+  )
+    return res.status(403).json({ error: 'لا تملك صلاحية الإرسال.' });
+  res.json({
+    situation: await prisma.educationalSituation.update({
+      where: { id: existing.id },
+      data: { status: 'PENDING_APPROVAL', rejectionReason: null },
+    }),
+  });
+});
+apiRouter.post('/educational-situations/:id/review', async (req, res) => {
+  if (!canReviewSituation(req.user!.role))
+    return res.status(403).json({ error: 'الاعتماد والرفض من صلاحيات الإدارة أو المفتش فقط.' });
+  const action = req.body.action;
+  const existing = await prisma.educationalSituation.findUnique({ where: { id: req.params.id } });
+  if (!existing || existing.status !== 'PENDING_APPROVAL')
+    return res.status(400).json({ error: 'الموقف ليس بانتظار الاعتماد.' });
+  if (action === 'reject' && !String(req.body.rejectionReason || '').trim())
+    return res.status(400).json({ error: 'سبب الرفض إلزامي.' });
+  const approved = action === 'approve';
+  res.json({
+    situation: await prisma.educationalSituation.update({
+      where: { id: existing.id },
+      data: approved
+        ? {
+            status: 'APPROVED',
+            approvedById: req.user!.id,
+            approvedByRole: req.user!.role,
+            approvedAt: new Date(),
+          }
+        : {
+            status: 'REJECTED',
+            rejectedById: req.user!.id,
+            rejectedByRole: req.user!.role,
+            rejectedAt: new Date(),
+            rejectionReason: String(req.body.rejectionReason),
+          },
+    }),
+  });
+});
 
 // -----------------------------------------------------------------------
 // 1. Users Collection — القراءة لأي مستخدم مسجّل دخول (بدون كلمات المرور)،
@@ -65,7 +193,7 @@ apiRouter.get('/db/users', async (req, res) => {
   const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
   res.json({
     success: true,
-    users: users.map((u) => (u.id === req.user!.id ? sanitizeOwnUser(u) : sanitizeUser(u)))
+    users: users.map((u) => (u.id === req.user!.id ? sanitizeOwnUser(u) : sanitizeUser(u))),
   });
 });
 
@@ -101,10 +229,14 @@ const USER_WRITEABLE_FIELDS = [
   'privacySettings',
   'encryptedApiKey',
   'apiKeyStatus',
-  'municipalityId'
+  'municipalityId',
 ] as const;
 
-async function buildUserWriteData(input: Record<string, unknown>, allowRoleChanges = false, allowApiKeyChanges = false) {
+async function buildUserWriteData(
+  input: Record<string, unknown>,
+  allowRoleChanges = false,
+  allowApiKeyChanges = false
+) {
   const data: Record<string, unknown> = {};
   for (const field of USER_WRITEABLE_FIELDS) {
     if (field in input && input[field] !== undefined) {
@@ -158,7 +290,9 @@ apiRouter.post('/db/users', async (req, res) => {
   try {
     const existing = await prisma.user.findUnique({ where: { id: user.id } });
     if (!existing && !isManager) {
-      return res.status(403).json({ error: 'لا يمكن إنشاء حسابات جديدة إلا من طرف مشرف المنظومة أو المفتش.' });
+      return res
+        .status(403)
+        .json({ error: 'لا يمكن إنشاء حسابات جديدة إلا من طرف مشرف المنظومة أو المفتش.' });
     }
 
     // المفتش (على خلاف المشرف admin) لا يملك صلاحية منح الأدوار العليا، ولا صلاحية
@@ -169,11 +303,19 @@ apiRouter.post('/db/users', async (req, res) => {
       const requestedRole = typeof user.role === 'string' ? user.role : undefined;
       const existingRole = existing?.role;
 
-      if (requestedRole && elevatedRoles.includes(requestedRole) && requestedRole !== existingRole) {
+      if (
+        requestedRole &&
+        elevatedRoles.includes(requestedRole) &&
+        requestedRole !== existingRole
+      ) {
         return res.status(403).json({ error: 'منح هذا الدور يتطلب صلاحية مشرف المنظومة (admin).' });
       }
       if (existing && existingRole && elevatedRoles.includes(existingRole) && !isSelf) {
-        return res.status(403).json({ error: 'لا تملك الصلاحية لتعديل حساب بهذا الدور. هذا الإجراء مقتصر على مشرف المنظومة.' });
+        return res
+          .status(403)
+          .json({
+            error: 'لا تملك الصلاحية لتعديل حساب بهذا الدور. هذا الإجراء مقتصر على مشرف المنظومة.',
+          });
       }
     }
 
@@ -195,7 +337,10 @@ apiRouter.post('/db/users', async (req, res) => {
 
     await triggerAutoAssignment(saved);
 
-    res.json({ success: true, user: isSelf || isAdmin ? sanitizeOwnUser(saved) : sanitizeUser(saved) });
+    res.json({
+      success: true,
+      user: isSelf || isAdmin ? sanitizeOwnUser(saved) : sanitizeUser(saved),
+    });
   } catch (err: any) {
     if (err.code === 'P2002') {
       return res.status(409).json({ error: 'البريد الإلكتروني أو اسم المستخدم مستخدم بالفعل.' });
@@ -240,7 +385,10 @@ apiRouter.delete('/db/users/:id', requireRole('admin'), async (req, res) => {
     const affectedTeacherIds =
       existing?.role === 'inspector'
         ? (
-            await prisma.inspectorAssignment.findMany({ where: { inspectorId: id }, select: { teacherId: true } })
+            await prisma.inspectorAssignment.findMany({
+              where: { inspectorId: id },
+              select: { teacherId: true },
+            })
           ).map((a) => a.teacherId)
         : [];
 
@@ -277,10 +425,24 @@ function jsonCollectionRoutes(opts: {
   ownerField?: 'ownerId' | 'authorId' | 'userId' | 'senderId';
   visibleTo?: (row: DbRecord, user: { id: string; role: string; districtId: string }) => boolean;
   ownerAssignedByServer?: boolean;
-  transformCreate?: (item: Record<string, unknown>, user: { id: string; role: string; districtId: string }) => Record<string, unknown>;
+  transformCreate?: (
+    item: Record<string, unknown>,
+    user: { id: string; role: string; districtId: string }
+  ) => Record<string, unknown>;
   allowedCreateRoles?: string[];
 }) {
-  const { path, model, bodyKey, listKey, batchBodyKey, ownerField, visibleTo, ownerAssignedByServer = true, transformCreate, allowedCreateRoles } = opts;
+  const {
+    path,
+    model,
+    bodyKey,
+    listKey,
+    batchBodyKey,
+    ownerField,
+    visibleTo,
+    ownerAssignedByServer = true,
+    transformCreate,
+    allowedCreateRoles,
+  } = opts;
 
   const canWrite = (existing: DbRecord | null, user: { id: string; role: string }) =>
     canWriteRecord(existing, user, ownerField);
@@ -295,7 +457,10 @@ function jsonCollectionRoutes(opts: {
       skip: offset,
     });
     const visible = visibleTo ? rows.filter((r) => visibleTo(r, req.user!)) : rows;
-    res.json({ success: true, [listKey]: visible.map((r) => ({ ...((r.data as Record<string, unknown>) || {}), id: r.id })) });
+    res.json({
+      success: true,
+      [listKey]: visible.map((r) => ({ ...((r.data as Record<string, unknown>) || {}), id: r.id })),
+    });
   });
 
   apiRouter.post(`/db/${path}`, async (req, res) => {
@@ -312,12 +477,20 @@ function jsonCollectionRoutes(opts: {
       return res.status(403).json({ error: 'لا تملك الصلاحية لتعديل هذا العنصر.' });
     }
 
-    const safeItem = transformCreate ? transformCreate({ ...(item as Record<string, unknown>) }, req.user!) : item;
+    const safeItem = transformCreate
+      ? transformCreate({ ...(item as Record<string, unknown>) }, req.user!)
+      : item;
     const data: Record<string, unknown> = { data: safeItem };
     // لا يمكن تغيير مالك السجل عند التعديل (منع انتحال الملكية)؛ عند الإنشاء يُنسب دائماً
     // لصاحب الطلب ما لم يكن الحقل يمثّل طرفاً آخر (مثل مستلم الإشعار)
     if (ownerField) {
-      data[ownerField] = resolveOwnerFieldValue(existing, item, req.user!.id, ownerAssignedByServer, ownerField);
+      data[ownerField] = resolveOwnerFieldValue(
+        existing,
+        item,
+        req.user!.id,
+        ownerAssignedByServer,
+        ownerField
+      );
     }
     if (path === 'direct-messages' && typeof safeItem.receiverId === 'string') {
       data.recipientId = safeItem.receiverId;
@@ -326,7 +499,7 @@ function jsonCollectionRoutes(opts: {
     await model.upsert({
       where: { id: item.id },
       create: { id: item.id, ...data } as unknown,
-      update: data as unknown
+      update: data as unknown,
     });
     res.json({ success: true, [bodyKey]: item });
   });
@@ -345,10 +518,18 @@ function jsonCollectionRoutes(opts: {
         const existing = await model.findUnique({ where: { id: item.id } });
         if (!canWrite(existing, req.user!)) continue; // تجاهل العناصر التي لا يملك المستخدم صلاحية تعديلها
 
-        const safeItem = transformCreate ? transformCreate({ ...(item as Record<string, unknown>) }, req.user!) : item;
+        const safeItem = transformCreate
+          ? transformCreate({ ...(item as Record<string, unknown>) }, req.user!)
+          : item;
         const data: Record<string, unknown> = { data: safeItem };
         if (ownerField) {
-          data[ownerField] = resolveOwnerFieldValue(existing, item, req.user!.id, ownerAssignedByServer, ownerField);
+          data[ownerField] = resolveOwnerFieldValue(
+            existing,
+            item,
+            req.user!.id,
+            ownerAssignedByServer,
+            ownerField
+          );
         }
         if (path === 'direct-messages' && typeof safeItem.receiverId === 'string') {
           data.recipientId = safeItem.receiverId;
@@ -356,7 +537,7 @@ function jsonCollectionRoutes(opts: {
         await model.upsert({
           where: { id: item.id },
           create: { id: item.id, ...data } as unknown,
-          update: data as unknown
+          update: data as unknown,
         });
       }
       res.json({ success: true, count: items.length });
@@ -387,7 +568,7 @@ jsonCollectionRoutes({
   listKey: 'lessonPlans',
   batchBodyKey: 'lessonPlans',
   ownerField: 'ownerId',
-  visibleTo: (row, user) => isStaff(user) || row.ownerId === user.id
+  visibleTo: (row, user) => isStaff(user) || row.ownerId === user.id,
 });
 
 // 3. Daily Notebook — كراس يومي خاص بالأستاذ، لا يُعرض لبقية الأساتذة
@@ -398,7 +579,7 @@ jsonCollectionRoutes({
   listKey: 'dailyNotebook',
   batchBodyKey: 'dailyNotebook',
   ownerField: 'ownerId',
-  visibleTo: (row, user) => isStaff(user) || row.ownerId === user.id
+  visibleTo: (row, user) => isStaff(user) || row.ownerId === user.id,
 });
 
 // 4. Inspector Notes — يراها كاتبها (المفتش) والأستاذ المعنيّ بها فقط، بالإضافة إلى admin
@@ -411,7 +592,9 @@ jsonCollectionRoutes({
   ownerField: 'authorId',
   allowedCreateRoles: ['admin', 'inspector'],
   visibleTo: (row, user) =>
-    user.role === 'admin' || row.authorId === user.id || (row.data as Record<string, unknown>)?.teacherId === user.id
+    user.role === 'admin' ||
+    row.authorId === user.id ||
+    (row.data as Record<string, unknown>)?.teacherId === user.id,
 });
 
 // 5. District Group Chat — تُعرض ضمن نطاق مقاطعة المستخدم (districtId) فقط
@@ -423,7 +606,8 @@ jsonCollectionRoutes({
   batchBodyKey: 'districtMessages',
   ownerField: 'authorId',
   transformCreate: (item, user) => ({ ...item, districtId: user.districtId }),
-  visibleTo: (row, user) => user.role === 'admin' || (row.data as Record<string, unknown>)?.districtId === user.districtId
+  visibleTo: (row, user) =>
+    user.role === 'admin' || (row.data as Record<string, unknown>)?.districtId === user.districtId,
 });
 
 // 6. Direct Messages — خاصة بطرفي المحادثة (المُرسل والمُستقبِل) والمفتش والمسؤول
@@ -436,17 +620,18 @@ jsonCollectionRoutes({
   ownerField: 'senderId',
   ownerAssignedByServer: true,
   transformCreate: (item, user) => {
-    const receiverId = typeof item.receiverId === 'string'
-      ? item.receiverId
-      : (typeof item.recipientId === 'string' ? item.recipientId : undefined);
+    const receiverId =
+      typeof item.receiverId === 'string'
+        ? item.receiverId
+        : typeof item.recipientId === 'string'
+          ? item.recipientId
+          : undefined;
     const safe: Record<string, unknown> = { ...item, senderId: user.id };
     delete safe.recipientId;
     return receiverId ? { ...safe, receiverId } : safe;
   },
   visibleTo: (row, user) =>
-    user.role === 'admin' ||
-    row.senderId === user.id ||
-    row.recipientId === user.id
+    user.role === 'admin' || row.senderId === user.id || row.recipientId === user.id,
 });
 
 // 7. Community Resources — محتوى عام مشترك، يبقى مرئياً للجميع كما هو مصمَّم
@@ -456,7 +641,7 @@ jsonCollectionRoutes({
   bodyKey: 'resource',
   listKey: 'communityResources',
   batchBodyKey: 'communityResources',
-  ownerField: 'authorId'
+  ownerField: 'authorId',
 });
 
 // 8. Community Notifications — تُعرض فقط لمستلمها أو مُرسلها
@@ -476,7 +661,10 @@ jsonCollectionRoutes({
   ownerField: 'userId',
   ownerAssignedByServer: false,
   transformCreate: (item, user) => ({ ...item, senderId: user.id }),
-  visibleTo: (row, user) => user.role === 'admin' || row.userId === user.id || (row.data as Record<string, unknown>)?.senderId === user.id
+  visibleTo: (row, user) =>
+    user.role === 'admin' ||
+    row.userId === user.id ||
+    (row.data as Record<string, unknown>)?.senderId === user.id,
 });
 
 // -----------------------------------------------------------------------
@@ -487,7 +675,11 @@ jsonCollectionRoutes({
 
 async function isInspectorOfTeacher(inspectorId: string, teacherId: string): Promise<boolean> {
   const assignment = await prisma.inspectorAssignment.findUnique({ where: { teacherId } });
-  return !!assignment && assignment.inspectorId === inspectorId && (assignment.status === 'Active' || assignment.status === 'Changed');
+  return (
+    !!assignment &&
+    assignment.inspectorId === inspectorId &&
+    (assignment.status === 'Active' || assignment.status === 'Changed')
+  );
 }
 
 apiRouter.get('/db/annual-plans', async (req, res) => {
@@ -510,7 +702,7 @@ apiRouter.get('/db/annual-plans', async (req, res) => {
       where.teacherId = String(teacherId);
     } else {
       const assignments = await prisma.inspectorAssignment.findMany({
-        where: { inspectorId: user.id, status: { in: ['Active', 'Changed'] } }
+        where: { inspectorId: user.id, status: { in: ['Active', 'Changed'] } },
       });
       where.teacherId = { in: assignments.map((a) => a.teacherId) };
     }
@@ -518,7 +710,10 @@ apiRouter.get('/db/annual-plans', async (req, res) => {
     where.teacherId = String(teacherId);
   }
 
-  const annualPlans = await prisma.annualPlan.findMany({ where: where as any, orderBy: { updatedAt: 'desc' } });
+  const annualPlans = await prisma.annualPlan.findMany({
+    where: where as any,
+    orderBy: { updatedAt: 'desc' },
+  });
   res.json({ success: true, annualPlans });
 });
 
@@ -536,9 +731,11 @@ const annualPlanOverrideValueSchema = z
     indicators: z.array(z.string().trim().max(500)).max(20).optional(),
     date: z.string().trim().max(20).optional(),
     status: z.enum(['مبرمجة', 'منجزة', 'مؤجلة', 'غير منجزة']).optional(),
-    executionNote: z.string().trim().max(1000).optional()
+    executionNote: z.string().trim().max(1000).optional(),
   })
-  .refine((v) => Object.values(v).some((x) => x !== undefined), { message: 'لا يمكن حفظ تخصيص فارغ.' });
+  .refine((v) => Object.values(v).some((x) => x !== undefined), {
+    message: 'لا يمكن حفظ تخصيص فارغ.',
+  });
 
 const annualPlanUpsertSchema = z.object({
   id: z.string().optional(),
@@ -548,8 +745,8 @@ const annualPlanUpsertSchema = z.object({
   kind: z.enum(['plan', 'schedule', 'plan_components', 'section_wording', 'schedule_dates']),
   data: z.object({
     overrides: z.record(annualPlanOverrideValueSchema),
-    note: z.string().trim().max(1000).optional()
-  })
+    note: z.string().trim().max(1000).optional(),
+  }),
 });
 
 // حفظ/تعديل مخطط أو توزيع سنوي: الأستاذ لمسودته الخاصة، أو المفتش كاقتراح لأستاذ
@@ -571,7 +768,9 @@ apiRouter.post('/db/annual-plans', async (req, res) => {
     }
   } else if (user.role === 'inspector') {
     if (!(await isInspectorOfTeacher(user.id, teacherId))) {
-      return res.status(403).json({ error: 'هذا الأستاذ ليس ضمن مقاطعتك، لا يمكنك اقتراح مخطط له.' });
+      return res
+        .status(403)
+        .json({ error: 'هذا الأستاذ ليس ضمن مقاطعتك، لا يمكنك اقتراح مخطط له.' });
     }
     status = 'proposed';
     proposedByInspectorId = user.id;
@@ -580,13 +779,15 @@ apiRouter.post('/db/annual-plans', async (req, res) => {
   }
 
   const existing = await prisma.annualPlan.findUnique({
-    where: { teacherId_academicYearId_levelId_kind: { teacherId, academicYearId, levelId, kind } }
+    where: { teacherId_academicYearId_levelId_kind: { teacherId, academicYearId, levelId, kind } },
   });
 
   // الأستاذ يعدّل مسودته الخاصة فقط؛ إن كان هناك اقتراح من المفتش (معتمد أو قيد الاعتماد)
   // لا يمكنه الكتابة فوقه مباشرة
   if (existing && user.role === 'teacher' && existing.status !== 'draft') {
-    return res.status(409).json({ error: 'يوجد اقتراح من المفتش على هذا المخطط، راجعه أولاً قبل التعديل.' });
+    return res
+      .status(409)
+      .json({ error: 'يوجد اقتراح من المفتش على هذا المخطط، راجعه أولاً قبل التعديل.' });
   }
 
   const saved = await prisma.annualPlan.upsert({
@@ -599,14 +800,14 @@ apiRouter.post('/db/annual-plans', async (req, res) => {
       kind,
       status,
       proposedByInspectorId,
-      data
+      data,
     },
     update: {
       status,
       proposedByInspectorId,
       data,
-      ...(status === 'draft' ? { approvedAt: null } : {})
-    }
+      ...(status === 'draft' ? { approvedAt: null } : {}),
+    },
   });
 
   res.json({ success: true, annualPlan: saved });
@@ -621,7 +822,7 @@ apiRouter.post('/db/annual-plans/:id/approve', requireRole('inspector'), async (
   }
   const saved = await prisma.annualPlan.update({
     where: { id: existing.id },
-    data: { status: 'approved', approvedAt: new Date() }
+    data: { status: 'approved', approvedAt: new Date() },
   });
   res.json({ success: true, annualPlan: saved });
 });
@@ -631,7 +832,10 @@ apiRouter.delete('/db/annual-plans/:id', async (req, res) => {
     const existing = await prisma.annualPlan.findUnique({ where: { id: req.params.id } });
     if (existing) {
       const user = req.user!;
-      const canDelete = user.role === 'admin' || existing.teacherId === user.id || existing.proposedByInspectorId === user.id;
+      const canDelete =
+        user.role === 'admin' ||
+        existing.teacherId === user.id ||
+        existing.proposedByInspectorId === user.id;
       if (!canDelete) return res.status(403).json({ error: 'لا تملك الصلاحية لحذف هذا السجل.' });
       await prisma.annualPlan.delete({ where: { id: existing.id } });
     }
@@ -669,10 +873,36 @@ apiRouter.post('/ai/test-provider', async (req, res) => {
 // إدارة مزودات الذكاء الاصطناعي المخصصة (مقتصرة على مشرف المنظومة)
 // يُخزَّن المفتاح مشفّراً في قاعدة البيانات ولا يُعاد أبداً إلى الواجهة.
 // -----------------------------------------------------------------------
-const AI_PROVIDER_TYPES: AIProviderType[] = ['openai-compatible', 'openai', 'nvidia', 'anthropic', 'gemini', 'ollama'];
-const AI_TYPES_REQUIRING_BASE_URL: AIProviderType[] = ['openai-compatible', 'openai', 'nvidia', 'ollama'];
+const AI_PROVIDER_TYPES: AIProviderType[] = [
+  'openai-compatible',
+  'openai',
+  'nvidia',
+  'anthropic',
+  'gemini',
+  'ollama',
+];
+const AI_TYPES_REQUIRING_BASE_URL: AIProviderType[] = [
+  'openai-compatible',
+  'openai',
+  'nvidia',
+  'ollama',
+];
 
-function validateAIProviderInput(input: Record<string, unknown>): { ok: true; data: { name: string; type: AIProviderType; baseUrl?: string; model?: string; enabled: boolean; sortOrder: number } } | { ok: false; message: string } {
+function validateAIProviderInput(
+  input: Record<string, unknown>
+):
+  | {
+      ok: true;
+      data: {
+        name: string;
+        type: AIProviderType;
+        baseUrl?: string;
+        model?: string;
+        enabled: boolean;
+        sortOrder: number;
+      };
+    }
+  | { ok: false; message: string } {
   const name = typeof input.name === 'string' ? input.name.trim() : '';
   const type = input.type as AIProviderType;
   const baseUrl = typeof input.baseUrl === 'string' ? input.baseUrl.trim() : undefined;
@@ -704,11 +934,24 @@ apiRouter.post('/ai/providers', requireRole('admin'), async (req, res) => {
         model: validated.data.model,
         enabled: validated.data.enabled,
         sortOrder: validated.data.sortOrder,
-        encryptedApiKey: rawKey ? encryptApiKey(rawKey) : null
-      }
+        encryptedApiKey: rawKey ? encryptApiKey(rawKey) : null,
+      },
     });
     invalidateAIProviderCache();
-    res.json({ success: true, provider: { id: created.id, name: created.name, type: created.type, baseUrl: created.baseUrl, model: created.model, enabled: created.enabled, sortOrder: created.sortOrder, source: 'db', keyConfigured: Boolean(rawKey) } });
+    res.json({
+      success: true,
+      provider: {
+        id: created.id,
+        name: created.name,
+        type: created.type,
+        baseUrl: created.baseUrl,
+        model: created.model,
+        enabled: created.enabled,
+        sortOrder: created.sortOrder,
+        source: 'db',
+        keyConfigured: Boolean(rawKey),
+      },
+    });
   } catch (error) {
     console.error('Error creating AI provider:', error);
     res.status(500).json({ error: 'تعذّر حفظ المزود. تأكد من اتصال قاعدة البيانات.' });
@@ -741,11 +984,24 @@ apiRouter.put('/ai/providers/:id', requireRole('admin'), async (req, res) => {
         model: validated.data.model,
         enabled: validated.data.enabled,
         sortOrder: validated.data.sortOrder,
-        encryptedApiKey
-      }
+        encryptedApiKey,
+      },
     });
     invalidateAIProviderCache();
-    res.json({ success: true, provider: { id: updated.id, name: updated.name, type: updated.type, baseUrl: updated.baseUrl, model: updated.model, enabled: updated.enabled, sortOrder: updated.sortOrder, source: 'db', keyConfigured: Boolean(encryptedApiKey) } });
+    res.json({
+      success: true,
+      provider: {
+        id: updated.id,
+        name: updated.name,
+        type: updated.type,
+        baseUrl: updated.baseUrl,
+        model: updated.model,
+        enabled: updated.enabled,
+        sortOrder: updated.sortOrder,
+        source: 'db',
+        keyConfigured: Boolean(encryptedApiKey),
+      },
+    });
   } catch (error) {
     console.error('Error updating AI provider:', error);
     res.status(500).json({ error: 'تعذّر تحديث المزود. تأكد من اتصال قاعدة البيانات.' });
@@ -780,7 +1036,18 @@ apiRouter.post('/ai/providers/:id/test', async (req, res) => {
 
 apiRouter.post('/ai/generate-lesson', async (req, res) => {
   try {
-    const { levelName, fieldName, competencyTitle, segmentTitle, sessionTitle, sessionType, customObjective, customEquipment, preferredProvider, preferredModel } = req.body;
+    const {
+      levelName,
+      fieldName,
+      competencyTitle,
+      segmentTitle,
+      sessionTitle,
+      sessionType,
+      customObjective,
+      customEquipment,
+      preferredProvider,
+      preferredModel,
+    } = req.body;
 
     if (!sessionTitle || !fieldName) {
       return res.status(400).json({ error: 'عناصر الحصة والميدان مطلوبة لتوليد المذكرة' });
@@ -796,7 +1063,7 @@ apiRouter.post('/ai/generate-lesson', async (req, res) => {
       customObjective,
       customEquipment,
       preferredProvider,
-      preferredModel
+      preferredModel,
     });
 
     res.json({ success: true, data: lessonData });
@@ -814,7 +1081,13 @@ apiRouter.post('/ai/improve-wording', async (req, res) => {
       return res.status(400).json({ error: 'النص الحالي واسم الحقل مطلوبان لتحسين الصياغة' });
     }
 
-    const result = await improvePELessonWording({ fieldLabel, currentText, context, preferredProvider, preferredModel });
+    const result = await improvePELessonWording({
+      fieldLabel,
+      currentText,
+      context,
+      preferredProvider,
+      preferredModel,
+    });
     res.json({ success: true, data: result });
   } catch (error: unknown) {
     console.error('Error in /ai/improve-wording:', error);
@@ -825,7 +1098,12 @@ apiRouter.post('/ai/improve-wording', async (req, res) => {
 apiRouter.post('/ai/suggest-games', async (req, res) => {
   try {
     const { fieldName, levelName, preferredProvider, preferredModel } = req.body;
-    const games = await suggestPEGames(fieldName || 'الميدان الجماعي', levelName || 'ابتدائي', preferredProvider, preferredModel);
+    const games = await suggestPEGames(
+      fieldName || 'الميدان الجماعي',
+      levelName || 'ابتدائي',
+      preferredProvider,
+      preferredModel
+    );
     res.json({ success: true, games });
   } catch (error: unknown) {
     console.error('Error in /ai/suggest-games:', error);
@@ -839,7 +1117,12 @@ apiRouter.post('/ai/chat', async (req, res) => {
     if (!message) {
       return res.status(400).json({ error: 'الرسالة مطلوبة' });
     }
-    const responseText = await generateAIChatResponse(message, history || [], preferredProvider, preferredModel);
+    const responseText = await generateAIChatResponse(
+      message,
+      history || [],
+      preferredProvider,
+      preferredModel
+    );
     res.json({ success: true, response: responseText });
   } catch (error: unknown) {
     console.error('Error in /ai/chat:', error);

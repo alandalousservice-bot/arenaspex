@@ -12,7 +12,7 @@ import type { UserRole } from '../types/spex';
 /** روابط أقسام المصادقة */
 export const AUTH_PATHS = {
   landing: '/',
-  login: '/login'
+  login: '/login',
 } as const;
 
 /** NavTab → مسار URL */
@@ -25,6 +25,7 @@ export const TAB_PATHS: Record<NavTab, string> = {
   daily_notebook: '/daily-notebook',
   lesson_plans: '/lesson-plans',
   lesson_command_center: '/lesson-command-center',
+  educational_situations: '/educational-situations',
   knowledge_engine: '/knowledge-engine',
   competency_assessment: '/assessment',
   gradebook: '/gradebook',
@@ -33,7 +34,7 @@ export const TAB_PATHS: Record<NavTab, string> = {
   director_portal: '/director',
   admin_portal: '/admin',
   reports: '/reports',
-  settings: '/settings'
+  settings: '/settings',
 };
 
 /** مسار URL → NavTab (مشتق آلياً من الجدول ليبقى المصدر واحداً) */
@@ -51,7 +52,8 @@ export function tabToPath(tab: NavTab): string {
  */
 export function pathToTab(pathname: string): NavTab | null {
   // تطبيع: تجاهل الشرطة الأخيرة الزائدة
-  const normalized = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  const normalized =
+    pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
   return PATH_TO_TAB[normalized] ?? null;
 }
 
@@ -66,13 +68,39 @@ export function defaultTabForRole(role: UserRole): NavTab {
 /** التبويبات المسموحة لكل دور (مطابقة للقيد السري سابقاً في App.tsx) */
 export const ROLE_TABS: Record<UserRole, NavTab[]> = {
   teacher: [
-    'dashboard', 'professional_hub', 'annual_plan', 'annual_schedule', 'weekly_schedule', 'learning_segments', 'daily_notebook',
-    'lesson_plans', 'lesson_command_center', 'knowledge_engine', 'competency_assessment', 'gradebook',
-    'reports', 'settings'
+    'dashboard',
+    'professional_hub',
+    'annual_plan',
+    'annual_schedule',
+    'weekly_schedule',
+    'learning_segments',
+    'daily_notebook',
+    'lesson_plans',
+    'lesson_command_center',
+    'educational_situations',
+    'knowledge_engine',
+    'competency_assessment',
+    'gradebook',
+    'reports',
+    'settings',
   ],
-  inspector: ['inspector_portal', 'professional_hub', 'knowledge_engine', 'reports', 'settings'],
+  inspector: [
+    'inspector_portal',
+    'professional_hub',
+    'knowledge_engine',
+    'educational_situations',
+    'reports',
+    'settings',
+  ],
   director: ['director_portal', 'professional_hub', 'knowledge_engine', 'reports', 'settings'],
-  admin: ['admin_portal', 'professional_hub', 'knowledge_engine', 'reports', 'settings']
+  admin: [
+    'admin_portal',
+    'professional_hub',
+    'knowledge_engine',
+    'educational_situations',
+    'reports',
+    'settings',
+  ],
 };
 
 /** يرجع التبويب الفعلي المسموح عرضه للدور، مع السقوط إلى الصفحة الرئيسية للدور */

@@ -20,24 +20,79 @@ import { DEMO_USERS, INITIAL_DIRECTORATES } from './data/initialState';
 import { registerOnlineFlush } from './lib/offline';
 import { OfflineBanner } from './components/common/OfflineBanner';
 
-const TeacherDashboard = lazy(() => import('./components/dashboard/TeacherDashboard').then((m) => ({ default: m.TeacherDashboard })));
-const InspectorDashboard = lazy(() => import('./components/dashboard/InspectorDashboard').then((m) => ({ default: m.InspectorDashboard })));
-const DirectorDashboard = lazy(() => import('./components/dashboard/DirectorDashboard').then((m) => ({ default: m.DirectorDashboard })));
-const AdminDashboard = lazy(() => import('./components/dashboard/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
-const AnnualPlanView = lazy(() => import('./components/curriculum/AnnualPlanView').then((m) => ({ default: m.AnnualPlanView })));
-const AnnualScheduleView = lazy(() => import('./components/curriculum/AnnualScheduleView').then((m) => ({ default: m.AnnualScheduleView })));
-const WeeklyScheduleView = lazy(() => import('./components/schedule/WeeklyScheduleView').then((m) => ({ default: m.WeeklyScheduleView })));
-const LearningSegmentsView = lazy(() => import('./components/curriculum/LearningSegmentsView').then((m) => ({ default: m.LearningSegmentsView })));
-const DailyNotebookView = lazy(() => import('./components/notebook/DailyNotebookView').then((m) => ({ default: m.DailyNotebookView })));
-const LessonPlanView = lazy(() => import('./components/lesson/LessonPlanView').then((m) => ({ default: m.LessonPlanView })));
-const KnowledgeEngineView = lazy(() => import('./components/knowledge/KnowledgeEngineView').then((m) => ({ default: m.KnowledgeEngineView })));
-const CompetencyAssessmentView = lazy(() => import('./components/assessment/CompetencyAssessmentView').then((m) => ({ default: m.CompetencyAssessmentView })));
-const GradebookView = lazy(() => import('./components/gradebook/GradebookView').then((m) => ({ default: m.GradebookView })));
-const ReportsView = lazy(() => import('./components/reports/ReportsView').then((m) => ({ default: m.ReportsView })));
-const SettingsView = lazy(() => import('./components/settings/SettingsView').then((m) => ({ default: m.SettingsView })));
-const ProfessionalHub = lazy(() => import('./components/community/ProfessionalHub').then((m) => ({ default: m.ProfessionalHub })));
-const AIAssistantDrawer = lazy(() => import('./components/ai/AIAssistantDrawer').then((m) => ({ default: m.AIAssistantDrawer })));
-const LessonCommandCenterView = lazy(() => import('./components/lesson/LessonCommandCenterView').then((m) => ({ default: m.LessonCommandCenterView })));
+const TeacherDashboard = lazy(() =>
+  import('./components/dashboard/TeacherDashboard').then((m) => ({ default: m.TeacherDashboard }))
+);
+const InspectorDashboard = lazy(() =>
+  import('./components/dashboard/InspectorDashboard').then((m) => ({
+    default: m.InspectorDashboard,
+  }))
+);
+const DirectorDashboard = lazy(() =>
+  import('./components/dashboard/DirectorDashboard').then((m) => ({ default: m.DirectorDashboard }))
+);
+const AdminDashboard = lazy(() =>
+  import('./components/dashboard/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
+);
+const AnnualPlanView = lazy(() =>
+  import('./components/curriculum/AnnualPlanView').then((m) => ({ default: m.AnnualPlanView }))
+);
+const AnnualScheduleView = lazy(() =>
+  import('./components/curriculum/AnnualScheduleView').then((m) => ({
+    default: m.AnnualScheduleView,
+  }))
+);
+const WeeklyScheduleView = lazy(() =>
+  import('./components/schedule/WeeklyScheduleView').then((m) => ({
+    default: m.WeeklyScheduleView,
+  }))
+);
+const LearningSegmentsView = lazy(() =>
+  import('./components/curriculum/LearningSegmentsView').then((m) => ({
+    default: m.LearningSegmentsView,
+  }))
+);
+const DailyNotebookView = lazy(() =>
+  import('./components/notebook/DailyNotebookView').then((m) => ({ default: m.DailyNotebookView }))
+);
+const LessonPlanView = lazy(() =>
+  import('./components/lesson/LessonPlanView').then((m) => ({ default: m.LessonPlanView }))
+);
+const KnowledgeEngineView = lazy(() =>
+  import('./components/knowledge/KnowledgeEngineView').then((m) => ({
+    default: m.KnowledgeEngineView,
+  }))
+);
+const CompetencyAssessmentView = lazy(() =>
+  import('./components/assessment/CompetencyAssessmentView').then((m) => ({
+    default: m.CompetencyAssessmentView,
+  }))
+);
+const GradebookView = lazy(() =>
+  import('./components/gradebook/GradebookView').then((m) => ({ default: m.GradebookView }))
+);
+const ReportsView = lazy(() =>
+  import('./components/reports/ReportsView').then((m) => ({ default: m.ReportsView }))
+);
+const SettingsView = lazy(() =>
+  import('./components/settings/SettingsView').then((m) => ({ default: m.SettingsView }))
+);
+const ProfessionalHub = lazy(() =>
+  import('./components/community/ProfessionalHub').then((m) => ({ default: m.ProfessionalHub }))
+);
+const AIAssistantDrawer = lazy(() =>
+  import('./components/ai/AIAssistantDrawer').then((m) => ({ default: m.AIAssistantDrawer }))
+);
+const LessonCommandCenterView = lazy(() =>
+  import('./components/lesson/LessonCommandCenterView').then((m) => ({
+    default: m.LessonCommandCenterView,
+  }))
+);
+const EducationalSituationsBankView = lazy(() =>
+  import('./components/educationalSituations/EducationalSituationsBankView').then((m) => ({
+    default: m.EducationalSituationsBankView,
+  }))
+);
 
 const ViewFallback = () => (
   <div className="flex flex-col items-center justify-center min-h-[400px] w-full p-8 text-slate-500 space-y-3">
@@ -47,7 +102,16 @@ const ViewFallback = () => (
 );
 
 export default function App() {
-  const { isAuthenticated, setIsAuthenticated, isCheckingSession, isOfflineSession, authView, setAuthView, currentUser, setCurrentUser } = useAuth() as any;
+  const {
+    isAuthenticated,
+    setIsAuthenticated,
+    isCheckingSession,
+    isOfflineSession,
+    authView,
+    setAuthView,
+    currentUser,
+    setCurrentUser,
+  } = useAuth() as any;
 
   // ---------------------------------------------------------------
   // التنقل عبر عناوين URL: التبويب النشط يُشتق من الرابط دائماً، وأي
@@ -73,7 +137,7 @@ export default function App() {
     currentUser,
     setCurrentUser,
     isAuthenticated,
-    setCurrentTab: navigateToTab
+    setCurrentTab: navigateToTab,
   });
 
   const {
@@ -141,7 +205,7 @@ export default function App() {
     handleMarkNotificationRead,
     handleNotifyNewFollower,
     handleOpenLessonPlan,
-    refreshSessionUser
+    refreshSessionUser,
   } = store;
 
   // PART C/C1: صندوق صادر بلا إنترنت — تفريغ عند 'online' + banner
@@ -233,7 +297,12 @@ export default function App() {
   }
 
   // إذا كان الحساب بانتظار تفعيل المشرف أو معطلاً، تظهر واجهة المشاهدة واستكشاف المزايا والتواصل مع المشرف
-  if (currentUser && (!currentUser.isApprovedByAdmin || currentUser.status === 'pending_approval' || currentUser.status === 'inactive')) {
+  if (
+    currentUser &&
+    (!currentUser.isApprovedByAdmin ||
+      currentUser.status === 'pending_approval' ||
+      currentUser.status === 'inactive')
+  ) {
     return (
       <>
         <OfflineBanner isOfflineSession={isOfflineSession} />
@@ -257,7 +326,9 @@ export default function App() {
         onLogout={handleLogout}
         onOpenAIAssistant={() => setIsAIAssistantOpen(true)}
         onSearchQuery={() => {}}
-        notificationsCount={inspectorNotes.length + dailyNotebook.filter((n) => n.status !== 'منجزة').length}
+        notificationsCount={
+          inspectorNotes.length + dailyNotebook.filter((n) => n.status !== 'منجزة').length
+        }
         dailyNotebookEntries={dailyNotebook}
         onUpdateNotebookStatus={handleUpdateNotebookStatus}
         isMobileMenuOpen={isMobileMenuOpen}
@@ -291,190 +362,216 @@ export default function App() {
         {/* View Content Canvas Area */}
         <main className="flex-1 p-3 sm:p-5 lg:p-8 pb-20 md:pb-8 overflow-y-auto max-h-[calc(100vh-60px)]">
           <Suspense fallback={<ViewFallback />}>
-          {activeTab === 'dashboard' && (
-            <TeacherDashboard
-              user={currentUser}
-              dailyNotebook={dailyNotebook}
-              lessonPlans={lessonPlans}
-              inspectorNotes={inspectorNotes}
-              inspectionVisits={inspectionVisits}
-              onNavigateTab={(t) => navigateToTab(t)}
-              onOpenAIGenerator={() => navigateToTab('lesson_plans')}
-              onUpdateNotebookStatus={handleUpdateNotebookStatus}
-            />
-          )}
+            {activeTab === 'dashboard' && (
+              <TeacherDashboard
+                user={currentUser}
+                dailyNotebook={dailyNotebook}
+                lessonPlans={lessonPlans}
+                inspectorNotes={inspectorNotes}
+                inspectionVisits={inspectionVisits}
+                onNavigateTab={(t) => navigateToTab(t)}
+                onOpenAIGenerator={() => navigateToTab('lesson_plans')}
+                onUpdateNotebookStatus={handleUpdateNotebookStatus}
+              />
+            )}
 
-          {activeTab === 'annual_plan' && (
-            <AnnualPlanView currentUser={currentUser} onNavigateToAnnualSchedule={() => navigateToTab('annual_schedule')} />
-          )}
+            {activeTab === 'annual_plan' && (
+              <AnnualPlanView
+                currentUser={currentUser}
+                onNavigateToAnnualSchedule={() => navigateToTab('annual_schedule')}
+              />
+            )}
 
-          {activeTab === 'annual_schedule' && (
-            <AnnualScheduleView currentUser={currentUser} onNavigateToAnnualPlan={() => navigateToTab('annual_plan')} />
-          )}
+            {activeTab === 'annual_schedule' && (
+              <AnnualScheduleView
+                currentUser={currentUser}
+                onNavigateToAnnualPlan={() => navigateToTab('annual_plan')}
+              />
+            )}
 
-          {activeTab === 'weekly_schedule' && (
-            <WeeklyScheduleView
-              scheduleSlots={weeklySchedule}
-              onAddSlot={handleAddWeeklySlot}
-              onDeleteSlot={handleDeleteWeeklySlot}
-              teacherName={`${currentUser.firstName} ${currentUser.lastName}`}
-              schoolName={currentUser.schoolName || 'المدرسة الابتدائية'}
-              teacherClasses={teacherClasses}
-              currentUser={currentUser}
-            />
-          )}
+            {activeTab === 'weekly_schedule' && (
+              <WeeklyScheduleView
+                scheduleSlots={weeklySchedule}
+                onAddSlot={handleAddWeeklySlot}
+                onDeleteSlot={handleDeleteWeeklySlot}
+                teacherName={`${currentUser.firstName} ${currentUser.lastName}`}
+                schoolName={currentUser.schoolName || 'المدرسة الابتدائية'}
+                teacherClasses={teacherClasses}
+                currentUser={currentUser}
+              />
+            )}
 
-          {activeTab === 'learning_segments' && <LearningSegmentsView />}
+            {activeTab === 'learning_segments' && <LearningSegmentsView />}
 
-          {activeTab === 'daily_notebook' && (
-            <DailyNotebookView
-              notebookEntries={dailyNotebook}
-              lessonPlans={lessonPlans}
-              onUpdateStatus={handleUpdateNotebookStatus}
-              onOpenLessonPlan={(id) => handleOpenLessonPlan(id)}
-              onOpenAIGeneratorForSession={() => navigateToTab('lesson_plans')}
-              onDeleteEntry={handleDeleteNotebookEntry}
-            />
-          )}
+            {activeTab === 'daily_notebook' && (
+              <DailyNotebookView
+                notebookEntries={dailyNotebook}
+                lessonPlans={lessonPlans}
+                onUpdateStatus={handleUpdateNotebookStatus}
+                onOpenLessonPlan={(id) => handleOpenLessonPlan(id)}
+                onOpenAIGeneratorForSession={() => navigateToTab('lesson_plans')}
+                onDeleteEntry={handleDeleteNotebookEntry}
+              />
+            )}
 
-          {activeTab === 'lesson_plans' && (
-            <LessonPlanView
-              lessonPlans={lessonPlans}
-              activeLessonId={activeLessonPlanId}
-              onSaveLessonPlan={handleSaveLessonPlan}
-              onDeleteLessonPlan={handleDeleteLessonPlan}
-              onUpdateLessonStatus={handleUpdateLessonStatus}
-              onOpenCommandCenterForPlan={handleLaunchCommandCenterForPlan}
-              currentUser={currentUser}
-            />
-          )}
+            {activeTab === 'lesson_plans' && (
+              <LessonPlanView
+                lessonPlans={lessonPlans}
+                activeLessonId={activeLessonPlanId}
+                onSaveLessonPlan={handleSaveLessonPlan}
+                onDeleteLessonPlan={handleDeleteLessonPlan}
+                onUpdateLessonStatus={handleUpdateLessonStatus}
+                onOpenCommandCenterForPlan={handleLaunchCommandCenterForPlan}
+                currentUser={currentUser}
+              />
+            )}
 
-          {activeTab === 'lesson_command_center' && (
-            <LessonCommandCenterView
-              currentSession={activeLessonSession}
-              timingSettings={lessonTimingSettings}
-              teacherClasses={teacherClasses}
-              lessonPlans={lessonPlans}
-              students={allStudents}
-              weeklySchedule={weeklySchedule}
-              onStartSession={handleStartLessonSession}
-              onUpdateSession={handleUpdateLessonSession}
-              onEndSession={handleEndLessonSession}
-              onUpdateTimingSettings={handleUpdateTimingSettings}
-              onNavigateToLessonPlans={() => navigateToTab('lesson_plans')}
-              onAddNotebookEntry={handleAddNotebookEntry}
-            />
-          )}
+            {activeTab === 'educational_situations' && (
+              <EducationalSituationsBankView currentUser={currentUser} />
+            )}
 
-          {activeTab === 'knowledge_engine' && (
-            <KnowledgeEngineView
-              knowledgeItems={knowledgeItems}
-              onAddKnowledgeItem={handleAddKnowledgeItem}
-            />
-          )}
+            {activeTab === 'lesson_command_center' && (
+              <LessonCommandCenterView
+                currentSession={activeLessonSession}
+                timingSettings={lessonTimingSettings}
+                teacherClasses={teacherClasses}
+                lessonPlans={lessonPlans}
+                students={allStudents}
+                weeklySchedule={weeklySchedule}
+                onStartSession={handleStartLessonSession}
+                onUpdateSession={handleUpdateLessonSession}
+                onEndSession={handleEndLessonSession}
+                onUpdateTimingSettings={handleUpdateTimingSettings}
+                onNavigateToLessonPlans={() => navigateToTab('lesson_plans')}
+                onAddNotebookEntry={handleAddNotebookEntry}
+              />
+            )}
 
-          {activeTab === 'competency_assessment' && (
-            <CompetencyAssessmentView
-              assessmentSessions={assessmentSessions}
-              onSaveAssessmentSession={handleSaveAssessmentSession}
-              currentUser={currentUser}
-              classes={teacherClasses}
-              students={allStudents}
-              onAddClass={handleAddClass}
-            />
-          )}
+            {activeTab === 'knowledge_engine' && (
+              <KnowledgeEngineView
+                knowledgeItems={knowledgeItems}
+                onAddKnowledgeItem={handleAddKnowledgeItem}
+              />
+            )}
 
-          {activeTab === 'gradebook' && (
-            <GradebookView
-              classes={teacherClasses}
-              students={allStudents}
-              onAddClass={handleAddClass}
-              onDeleteClass={handleDeleteClass}
-              onAddStudent={handleAddStudent}
-              onDeleteStudent={handleDeleteStudent}
-              currentUser={currentUser}
-            />
-          )}
+            {activeTab === 'competency_assessment' && (
+              <CompetencyAssessmentView
+                assessmentSessions={assessmentSessions}
+                onSaveAssessmentSession={handleSaveAssessmentSession}
+                currentUser={currentUser}
+                classes={teacherClasses}
+                students={allStudents}
+                onAddClass={handleAddClass}
+              />
+            )}
 
-          {activeTab === 'professional_hub' && (
-            <ProfessionalHub
-              currentUser={currentUser}
-              onUpdateCurrentUser={handleUpdateCurrentUser}
-              allUsersList={allUsersList}
-              onUpdateAllUsers={(users) => setAllUsersList(users)}
-              districts={INITIAL_DIRECTORATES[0].districts || []}
-              groupMessages={districtGroupMessages}
-              directMessages={directMessages}
-              onSendGroupMessage={handleSendDistrictGroupMessage}
-              onSendDirectMessageFromChat={handleSendDirectMessageFromChat}
-              onToggleFollowTeacher={handleToggleFollowTeacher}
-              communityResources={communityResources}
-              onAddCommunityResource={handleAddCommunityResource}
-              onToggleLikeResource={handleToggleLikeResource}
-              onSaveToPersonalLibrary={handleSaveToPersonalLibrary}
-              personalLibraryItems={personalLibraryItems}
-              onSendDirectMessage={handleSendDirectMessage}
-              notifications={communityNotifications}
-              onMarkNotificationRead={handleMarkNotificationRead}
-              onDeleteNotification={handleDeleteCommunityNotification}
-              onNotifyNewFollower={handleNotifyNewFollower}
-              lessonPlans={lessonPlans}
-              knowledgeItems={knowledgeItems}
-            />
-          )}
+            {activeTab === 'gradebook' && (
+              <GradebookView
+                classes={teacherClasses}
+                students={allStudents}
+                onAddClass={handleAddClass}
+                onDeleteClass={handleDeleteClass}
+                onAddStudent={handleAddStudent}
+                onDeleteStudent={handleDeleteStudent}
+                currentUser={currentUser}
+              />
+            )}
 
-          {activeTab === 'inspector_portal' && (
-            <InspectorDashboard
-              inspector={currentUser.role === 'inspector' ? currentUser : allUsersList.find((u) => u.role === 'inspector') || DEMO_USERS.find((u) => u.role === 'inspector') || DEMO_USERS[0]}
-              teachers={allUsersList.filter((u) => u.role === 'teacher')}
-              notes={inspectorNotes}
-              visits={inspectionVisits}
-              broadcasts={broadcasts}
-              directMessages={directMessages}
-              classes={teacherClasses}
-              students={allStudents}
-              weeklySchedule={weeklySchedule}
-              lessonPlans={lessonPlans}
-              dailyNotebook={dailyNotebook}
-              communityResources={communityResources}
-              onToggleApproveResource={handleToggleApproveResource}
-              onAddNote={handleAddInspectorNote}
-              onAddVisit={handleAddInspectionVisit}
-              onAddBroadcast={handleAddBroadcast}
-              onAddDirectMessage={handleAddDirectMessageFromInspector}
-            />
-          )}
+            {activeTab === 'professional_hub' && (
+              <ProfessionalHub
+                currentUser={currentUser}
+                onUpdateCurrentUser={handleUpdateCurrentUser}
+                allUsersList={allUsersList}
+                onUpdateAllUsers={(users) => setAllUsersList(users)}
+                districts={INITIAL_DIRECTORATES[0].districts || []}
+                groupMessages={districtGroupMessages}
+                directMessages={directMessages}
+                onSendGroupMessage={handleSendDistrictGroupMessage}
+                onSendDirectMessageFromChat={handleSendDirectMessageFromChat}
+                onToggleFollowTeacher={handleToggleFollowTeacher}
+                communityResources={communityResources}
+                onAddCommunityResource={handleAddCommunityResource}
+                onToggleLikeResource={handleToggleLikeResource}
+                onSaveToPersonalLibrary={handleSaveToPersonalLibrary}
+                personalLibraryItems={personalLibraryItems}
+                onSendDirectMessage={handleSendDirectMessage}
+                notifications={communityNotifications}
+                onMarkNotificationRead={handleMarkNotificationRead}
+                onDeleteNotification={handleDeleteCommunityNotification}
+                onNotifyNewFollower={handleNotifyNewFollower}
+                lessonPlans={lessonPlans}
+                knowledgeItems={knowledgeItems}
+              />
+            )}
 
-          {activeTab === 'director_portal' && (
-            <DirectorDashboard
-              director={currentUser.role === 'director' ? currentUser : allUsersList.find((u) => u.role === 'director') || currentUser}
-              teachers={allUsersList.filter((u) => u.role === 'teacher' && u.institutionId === currentUser.institutionId)}
-              classes={teacherClasses}
-              notebookEntries={dailyNotebook}
-            />
-          )}
+            {activeTab === 'inspector_portal' && (
+              <InspectorDashboard
+                inspector={
+                  currentUser.role === 'inspector'
+                    ? currentUser
+                    : allUsersList.find((u) => u.role === 'inspector') ||
+                      DEMO_USERS.find((u) => u.role === 'inspector') ||
+                      DEMO_USERS[0]
+                }
+                teachers={allUsersList.filter((u) => u.role === 'teacher')}
+                notes={inspectorNotes}
+                visits={inspectionVisits}
+                broadcasts={broadcasts}
+                directMessages={directMessages}
+                classes={teacherClasses}
+                students={allStudents}
+                weeklySchedule={weeklySchedule}
+                lessonPlans={lessonPlans}
+                dailyNotebook={dailyNotebook}
+                communityResources={communityResources}
+                onToggleApproveResource={handleToggleApproveResource}
+                onAddNote={handleAddInspectorNote}
+                onAddVisit={handleAddInspectionVisit}
+                onAddBroadcast={handleAddBroadcast}
+                onAddDirectMessage={handleAddDirectMessageFromInspector}
+              />
+            )}
 
-          {activeTab === 'admin_portal' && (
-            <AdminDashboard
-              aiSettings={aiSettings}
-              onUpdateAISettings={(s) => setAiSettings(s)}
-              aiLogs={aiLogs}
-              knowledgeItems={knowledgeItems}
-              onApproveKnowledgeItem={handleApproveKnowledgeItem}
-              users={allUsersList}
-              onAddUser={handleAddUser}
-              onUpdateUser={handleUpdateUser}
-              onDeleteUser={handleDeleteUser}
-            />
-          )}
+            {activeTab === 'director_portal' && (
+              <DirectorDashboard
+                director={
+                  currentUser.role === 'director'
+                    ? currentUser
+                    : allUsersList.find((u) => u.role === 'director') || currentUser
+                }
+                teachers={allUsersList.filter(
+                  (u) => u.role === 'teacher' && u.institutionId === currentUser.institutionId
+                )}
+                classes={teacherClasses}
+                notebookEntries={dailyNotebook}
+              />
+            )}
 
-          {activeTab === 'reports' && (
-            <ReportsView user={currentUser} lessonPlans={lessonPlans} inspectorNotes={inspectorNotes} />
-          )}
+            {activeTab === 'admin_portal' && (
+              <AdminDashboard
+                aiSettings={aiSettings}
+                onUpdateAISettings={(s) => setAiSettings(s)}
+                aiLogs={aiLogs}
+                knowledgeItems={knowledgeItems}
+                onApproveKnowledgeItem={handleApproveKnowledgeItem}
+                users={allUsersList}
+                onAddUser={handleAddUser}
+                onUpdateUser={handleUpdateUser}
+                onDeleteUser={handleDeleteUser}
+              />
+            )}
 
-          {activeTab === 'settings' && (
-            <SettingsView currentUser={currentUser} onUpdateUser={handleUpdateUser} />
-          )}
+            {activeTab === 'reports' && (
+              <ReportsView
+                user={currentUser}
+                lessonPlans={lessonPlans}
+                inspectorNotes={inspectorNotes}
+              />
+            )}
+
+            {activeTab === 'settings' && (
+              <SettingsView currentUser={currentUser} onUpdateUser={handleUpdateUser} />
+            )}
           </Suspense>
         </main>
       </div>

@@ -52,13 +52,13 @@ async function seedSuperAdmin() {
       OR: [
         { id: { startsWith: 'usr_teacher_' } },
         { id: 'usr_inspector_1' },
-        { id: 'usr_teacher_out_district' }
-      ]
-    }
+        { id: 'usr_teacher_out_district' },
+      ],
+    },
   });
 
   const existing = await prisma.user.findFirst({
-    where: { OR: [{ email }, { role: 'admin' }] }
+    where: { OR: [{ email }, { role: 'admin' }] },
   });
 
   if (existing) {
@@ -87,11 +87,13 @@ async function seedSuperAdmin() {
       yearsExperience: 15,
       bio: 'إدارة وتأطير المنظومة الرقمية الذكية SPEX وإدارة حسابات الأساتذة والمفتشين.',
       status: 'active',
-      isApprovedByAdmin: true
-    }
+      isApprovedByAdmin: true,
+    },
   });
 
-  console.log(`✅ تم إنشاء حساب المشرف الوحيد للمنصة تلقائياً: ${admin.email} (الدور: ${admin.role})`);
+  console.log(
+    `✅ تم إنشاء حساب المشرف الوحيد للمنصة تلقائياً: ${admin.email} (الدور: ${admin.role})`
+  );
 }
 
 /**
@@ -104,7 +106,7 @@ async function seedReferenceData() {
   const directorate = await prisma.directorate.upsert({
     where: { id: 'setif_de' },
     create: { id: 'setif_de', name: 'مديرية التربية لولاية سطيف', wilayaCode: '19' },
-    update: {}
+    update: {},
   });
 
   const districts: Array<{ id: string; number: number; name: string }> = [
@@ -118,51 +120,89 @@ async function seedReferenceData() {
     { id: 'dist_setif_8', number: 8, name: 'المقاطعة 08 - عين الكبيرة' },
     { id: 'dist_setif_9', number: 9, name: 'المقاطعة 09 - بني ورتيلان' },
     // المقاطعة 10 — الاسم الرسمي يتطلب تأكيداً من مديرية التربية لولاية سطيف؛ النص الحالي احتياطي لإكمال الهيكلية حتى 10 مقاطعات
-    { id: 'dist_setif_10', number: 10, name: 'المقاطعة 10 - (أكمل الاسم الرسمي)' }
+    { id: 'dist_setif_10', number: 10, name: 'المقاطعة 10 - (أكمل الاسم الرسمي)' },
   ];
   for (const d of districts) {
     await prisma.inspectionDistrict.upsert({
       where: { id: d.id },
       create: { id: d.id, name: d.name, directorateId: directorate.id, districtNumber: d.number },
-      update: { name: d.name, districtNumber: d.number }
+      update: { name: d.name, districtNumber: d.number },
     });
   }
 
   const municipality = await prisma.municipality.upsert({
     where: { directorateId_name: { directorateId: directorate.id, name: 'عين أزال' } },
     create: { id: 'muni_ain_azel', name: 'عين أزال', directorateId: directorate.id },
-    update: {}
+    update: {},
   });
 
   const schools = [
     'مدرسة الشهيد بالخيري عبد القادر',
     'مدرسة الشهيد بلعياطي زبير',
-    'مدرسة المجاهد لخضر بوعود'
+    'مدرسة المجاهد لخضر بوعود',
   ];
   for (const name of schools) {
     await prisma.school.upsert({
       where: { municipalityId_name: { municipalityId: municipality.id, name } },
       create: { name, municipalityId: municipality.id },
-      update: {}
+      update: {},
     });
   }
 
-  console.log('✅ تم التأكد من وجود البيانات المرجعية الأساسية (مديرية سطيف، المقاطعات، بلدية عين أزال ومؤسساتها).');
+  console.log(
+    '✅ تم التأكد من وجود البيانات المرجعية الأساسية (مديرية سطيف، المقاطعات، بلدية عين أزال ومؤسساتها).'
+  );
 }
 
 async function seedEducationalSituations() {
   const source = resolve(process.cwd(), 'arenaspex_situations_mapped_to_objectives (1).json');
   const situations = JSON.parse(await readFile(source, 'utf8')) as Array<any>;
-  if (situations.length !== 150) throw new Error(`Expected 150 educational situations; found ${situations.length}.`);
+  if (situations.length !== 150)
+    throw new Error(`Expected 150 educational situations; found ${situations.length}.`);
   for (const item of situations) {
     await prisma.educationalSituation.upsert({
       where: { id: item.id },
-      create: { id: item.id, externalId: item.id, name: item.name, grade: item.grade, fieldId: item.field_id, fieldName: item.field_name, objectiveIds: item.linked_objective_ids, objectiveTexts: item.linked_objectives, sourceGoal: item.source_goal, organization: item.organization, equipment: String(item.equipment || '').split(/[،,]/).map((v) => v.trim()).filter(Boolean), variations: item.variations || null, origin: 'REFERENCE_SEED', status: 'APPROVED' },
-      update: { name: item.name, grade: item.grade, fieldId: item.field_id, fieldName: item.field_name, objectiveIds: item.linked_objective_ids, objectiveTexts: item.linked_objectives, sourceGoal: item.source_goal, organization: item.organization, equipment: String(item.equipment || '').split(/[،,]/).map((v) => v.trim()).filter(Boolean), variations: item.variations || null, origin: 'REFERENCE_SEED', status: 'APPROVED' }
+      create: {
+        id: item.id,
+        externalId: item.id,
+        name: item.name,
+        grade: item.grade,
+        fieldId: item.field_id,
+        fieldName: item.field_name,
+        objectiveIds: item.linked_objective_ids,
+        objectiveTexts: item.linked_objectives,
+        sourceGoal: item.source_goal,
+        organization: item.organization,
+        equipment: String(item.equipment || '')
+          .split(/[،,]/)
+          .map((v) => v.trim())
+          .filter(Boolean),
+        variations: item.variations || null,
+        origin: 'REFERENCE_SEED',
+        status: 'APPROVED',
+      },
+      update: {
+        name: item.name,
+        grade: item.grade,
+        fieldId: item.field_id,
+        fieldName: item.field_name,
+        objectiveIds: item.linked_objective_ids,
+        objectiveTexts: item.linked_objectives,
+        sourceGoal: item.source_goal,
+        organization: item.organization,
+        equipment: String(item.equipment || '')
+          .split(/[،,]/)
+          .map((v) => v.trim())
+          .filter(Boolean),
+        variations: item.variations || null,
+        origin: 'REFERENCE_SEED',
+        status: 'APPROVED',
+      },
     });
   }
   const count = await prisma.educationalSituation.count({ where: { origin: 'REFERENCE_SEED' } });
-  if (count !== 150) throw new Error(`Reference educational situation count is ${count}, expected 150.`);
+  if (count !== 150)
+    throw new Error(`Reference educational situation count is ${count}, expected 150.`);
 }
 
 async function main() {
