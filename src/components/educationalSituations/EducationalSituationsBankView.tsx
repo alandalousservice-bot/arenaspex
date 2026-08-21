@@ -252,7 +252,18 @@ export const EducationalSituationsBankView: React.FC<{ currentUser: User }> = ({
               className="rounded-xl border p-2"
             >
               {[1, 2, 3, 4, 5].map((value) => (
-                <option key={value} value={value}>السنة {value === 1 ? 'الأولى' : value === 2 ? 'الثانية' : value === 3 ? 'الثالثة' : value === 4 ? 'الرابعة' : 'الخامسة'}</option>
+                <option key={value} value={value}>
+                  السنة{' '}
+                  {value === 1
+                    ? 'الأولى'
+                    : value === 2
+                      ? 'الثانية'
+                      : value === 3
+                        ? 'الثالثة'
+                        : value === 4
+                          ? 'الرابعة'
+                          : 'الخامسة'}
+                </option>
               ))}
             </select>
             <select
@@ -270,18 +281,30 @@ export const EducationalSituationsBankView: React.FC<{ currentUser: User }> = ({
               }}
               className="rounded-xl border p-2"
             >
-              {FIELD_OPTIONS.map((field) => <option key={field.id} value={field.id}>{field.name}</option>)}
+              {FIELD_OPTIONS.map((field) => (
+                <option key={field.id} value={field.id}>
+                  {field.name}
+                </option>
+              ))}
             </select>
             <select
               value={draft.objectiveIds[0] || ''}
               onChange={(e) => {
                 const option = objectiveOptions.find((item) => item.id === e.target.value);
-                setDraft({ ...draft, objectiveIds: option ? [option.id] : [], objectiveTexts: option ? [option.text] : [] });
+                setDraft({
+                  ...draft,
+                  objectiveIds: option ? [option.id] : [],
+                  objectiveTexts: option ? [option.text] : [],
+                });
               }}
               className="rounded-xl border p-2 md:col-span-2"
             >
               <option value="">اختر الهدف التعلمي</option>
-              {objectiveOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+              {objectiveOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
             </select>
             {['sourceGoal', 'organization', 'variations'].map((key) => (
               <input

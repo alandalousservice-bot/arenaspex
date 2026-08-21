@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FileText, PenSquare, Plus, Printer, Save, Trash2, X } from 'lucide-react';
 import { EducationalSituation, LessonPlan, LessonPlanRow, User } from '../../types/spex';
-import { COMPLETE_ANNUAL_CURRICULUM, PE_FIELDS, generateAnnualTimeDistribution } from '../../data/algerianCurriculum';
+import {
+  COMPLETE_ANNUAL_CURRICULUM,
+  PE_FIELDS,
+  generateAnnualTimeDistribution,
+} from '../../data/algerianCurriculum';
 import {
   autoGenerateLessonPlan,
   getUnifiedLessonRows,
@@ -91,19 +95,26 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [draft, setDraft] = useState<LessonPlan | null>(null);
   const sessions = useMemo(() => sessionsForLevel(levelName), [levelName]);
   const generatorSessions = useMemo<SourceSession[]>(
-    () => scheduledLessons.map((scheduled) => ({
-      fieldId: scheduled.fieldId,
-      fieldName: scheduled.fieldName,
-      finalCompetency: COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]?.finalCompetency || '',
-      segmentGoal: COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]?.finalCompetency || '',
-      sessionNumber: scheduled.fieldSessionNumber,
-      globalNumber: scheduled.globalSessionNumber,
-      weekNumber: Math.ceil(scheduled.globalSessionNumber / 2),
-      type: scheduled.sessionType as LessonPlan['sessionType'],
-      typeLabel: scheduled.sessionTypeLabel,
-      objective: scheduled.wordingOverride || scheduled.targetObjective,
-      tools: COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]?.suggestedTools || [],
-    })),
+    () =>
+      scheduledLessons.map((scheduled) => ({
+        fieldId: scheduled.fieldId,
+        fieldName: scheduled.fieldName,
+        finalCompetency:
+          COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]
+            ?.finalCompetency || '',
+        segmentGoal:
+          COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]
+            ?.finalCompetency || '',
+        sessionNumber: scheduled.fieldSessionNumber,
+        globalNumber: scheduled.globalSessionNumber,
+        weekNumber: Math.ceil(scheduled.globalSessionNumber / 2),
+        type: scheduled.sessionType as LessonPlan['sessionType'],
+        typeLabel: scheduled.sessionTypeLabel,
+        objective: scheduled.wordingOverride || scheduled.targetObjective,
+        tools:
+          COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]
+            ?.suggestedTools || [],
+      })),
     [scheduledLessons]
   );
   const selected = lessonPlans.find((plan) => plan.id === selectedId) || lessonPlans[0];
@@ -139,11 +150,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           return;
         }
         setScheduledLessons(
-          mergeSchedule(
-            base,
-            schedule.data?.overrides || {},
-            wording?.data?.overrides || {}
-          )
+          mergeSchedule(base, schedule.data?.overrides || {}, wording?.data?.overrides || {})
         );
         setSourceLabel('actual');
       })
@@ -207,8 +214,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const setRows = (lessonRows: LessonPlanRow[]) =>
     setDraft((previous) => previous && { ...previous, lessonRows });
   const grade = LEVELS.indexOf(plan.levelName) + 1;
-  const fieldId = PE_FIELDS.find((field) => field.name === plan.fieldName)?.id ||
-    sessionsForLevel(plan.levelName).find((s) => s.fieldName === plan.fieldName)?.fieldId || '';
+  const fieldId =
+    PE_FIELDS.find((field) => field.name === plan.fieldName)?.id ||
+    sessionsForLevel(plan.levelName).find((s) => s.fieldName === plan.fieldName)?.fieldId ||
+    '';
   const matchingSituations = findSuitableSituations(
     bankSituations.length ? bankSituations : referenceSituations,
     {
@@ -222,8 +231,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       situation.ownerId === currentUser?.id &&
       ['PRIVATE', 'REJECTED'].includes(situation.status) &&
       situation.grade === grade &&
-      situation.fieldId ===
-        fieldId &&
+      situation.fieldId === fieldId &&
       situation.objectiveTexts.includes(plan.sessionTitle)
   );
   const availableSituations = [
@@ -246,7 +254,9 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       ? rows.map((row) => (row.id === replaceRowId ? { ...main, id: replaceRowId } : row))
       : [...rows, main];
     const next = rebalanceLessonRows(candidateRows, plan.durationMinutes);
-    const equipmentNeeded = [...new Set(next.flatMap((row) => row.situationSnapshot?.equipment || []))];
+    const equipmentNeeded = [
+      ...new Set(next.flatMap((row) => row.situationSnapshot?.equipment || [])),
+    ];
     if (editing) {
       setDraft((previous) => previous && { ...previous, lessonRows: next, equipmentNeeded });
     } else {
@@ -260,8 +270,11 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       rows.filter((row) => row.id !== rowId),
       plan.durationMinutes
     );
-    const equipmentNeeded = [...new Set(next.flatMap((row) => row.situationSnapshot?.equipment || []))];
-    if (editing) setDraft((previous) => previous && { ...previous, lessonRows: next, equipmentNeeded });
+    const equipmentNeeded = [
+      ...new Set(next.flatMap((row) => row.situationSnapshot?.equipment || [])),
+    ];
+    if (editing)
+      setDraft((previous) => previous && { ...previous, lessonRows: next, equipmentNeeded });
     else onSaveLessonPlan({ ...plan, lessonRows: next, equipmentNeeded });
   };
 
@@ -575,7 +588,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               ))}
             </select>
             <p className="mt-2 text-xs font-bold text-slate-600">
-              المصدر: {sourceLabel === 'actual' ? 'التوزيع السنوي الفعلي للحصص' : 'احتياطي المنهاج الثابت (لا يوجد سجل توزيع فعلي)'}
+              المصدر:{' '}
+              {sourceLabel === 'actual'
+                ? 'التوزيع السنوي الفعلي للحصص'
+                : 'احتياطي المنهاج الثابت (لا يوجد سجل توزيع فعلي)'}
             </p>
             <p className="mt-3 text-xs text-slate-500">
               يُؤخذ الهدف والكفاءة والميدان والوسائل من الحصة الحالية؛ يمكن تعديل المذكرة بعد
@@ -595,7 +611,9 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6">
             <div className="flex justify-between">
               <h3 className="font-extrabold">
-                {replaceRowId ? 'استبدال الموقف من بنك المواقف' : 'بنك المواقف التربوية المطابقة للهدف'}
+                {replaceRowId
+                  ? 'استبدال الموقف من بنك المواقف'
+                  : 'بنك المواقف التربوية المطابقة للهدف'}
               </h3>
               <button onClick={() => setShowBank(false)}>✕</button>
             </div>

@@ -74,7 +74,10 @@ describe('مولد مذكرة الحصة الموحد', () => {
     const withTwo = rebalanceLessonRows([...first, second], 60);
     expect(withTwo.reduce((total, row) => total + row.durationMinutes, 0)).toBe(60);
     expect(withTwo.filter((row) => row.phase === 'المرحلة الرئيسية')).toHaveLength(2);
-    const withOne = rebalanceLessonRows(withTwo.filter((row) => row.id !== 'main-2'), 60);
+    const withOne = rebalanceLessonRows(
+      withTwo.filter((row) => row.id !== 'main-2'),
+      60
+    );
     expect(withOne.reduce((total, row) => total + row.durationMinutes, 0)).toBe(60);
   });
 

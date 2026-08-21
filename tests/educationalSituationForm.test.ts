@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { FIELD_OPTIONS, objectivesFor } from '../src/components/educationalSituations/EducationalSituationsBankView';
+import {
+  FIELD_OPTIONS,
+  objectivesFor,
+} from '../src/components/educationalSituations/EducationalSituationsBankView';
 
 describe('بيانات نموذج الموقف التربوي', () => {
   it('يربط اختيار الحركات القاعدية بالمعرف الصحيح', () => {
-    expect(FIELD_OPTIONS.find((field) => field.name === 'الحركات القاعدية')?.id).toBe('f_fundamentals');
+    expect(FIELD_OPTIONS.find((field) => field.name === 'الحركات القاعدية')?.id).toBe(
+      'f_fundamentals'
+    );
   });
 
   it('يعيد الهدف الفعلي ومعرف الجلسة المستقر للمستوى والميدان', () => {
