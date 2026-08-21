@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { generateAnnualTimeDistribution } from '../src/data/algerianCurriculum';
+import { mergeSchedule } from '../src/services/schedule/scheduleMerge';
 import {
   autoGenerateLessonPlan,
   lessonDurationForLevel,
+  rebalanceLessonRows,
 } from '../src/services/lessonPlan.generator.service';
 
 const source = (objective: string) => ({
@@ -51,5 +54,38 @@ describe('مولد مذكرة الحصة الموحد', () => {
       levelName: 'السنة الرابعة ابتدائي',
     });
     expect(plan.lessonRows?.reduce((total, row) => total + row.durationMinutes, 0)).toBe(90);
+  });
+
+  it('يعيد توزيع زمن المرحلة الرئيسية عند إضافة أو إزالة موقف', () => {
+    const plan = autoGenerateLessonPlan(source('ينجز تنقلات أمامية.'), {
+      levelName: 'السنة الأولى ابتدائي',
+    });
+    const first = plan.lessonRows!;
+    const second = {
+      ...first.find((row) => row.phase === 'المرحلة الرئيسية')!,
+      id: 'main-2',
+      situationSnapshot: {
+        situationId: 's2',
+        name: 'موقف ثان',
+        organization: 'أفواج',
+        equipment: ['كرات'],
+      },
+    };
+    const withTwo = rebalanceLessonRows([...first, second], 60);
+    expect(withTwo.reduce((total, row) => total + row.durationMinutes, 0)).toBe(60);
+    expect(withTwo.filter((row) => row.phase === 'المرحلة الرئيسية')).toHaveLength(2);
+    const withOne = rebalanceLessonRows(withTwo.filter((row) => row.id !== 'main-2'), 60);
+    expect(withOne.reduce((total, row) => total + row.durationMinutes, 0)).toBe(60);
+  });
+
+  it('يحتفظ بهدف التوزيع السنوي المعدل للحصتين المقترنتين في السنوات 1-3', () => {
+    const base = generateAnnualTimeDistribution('lvl_p1', '2025-09-21', 0, '');
+    const pair = base.find((session) => !session.isIntro && session.objectiveGroupId);
+    expect(pair).toBeTruthy();
+    const override = pair!.objectiveGroupId!;
+    const merged = mergeSchedule(base, {}, { [override]: { objective: 'هدف معدل من التوزيع' } });
+    const paired = merged.filter((session) => session.objectiveGroupId === override);
+    expect(paired.length).toBeGreaterThanOrEqual(1);
+    expect(paired.every((session) => session.wordingOverride === 'هدف معدل من التوزيع')).toBe(true);
   });
 });

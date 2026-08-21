@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FileText, PenSquare, Plus, Printer, Save, Trash2, X } from 'lucide-react';
 import { EducationalSituation, LessonPlan, LessonPlanRow, User } from '../../types/spex';
-import { COMPLETE_ANNUAL_CURRICULUM } from '../../data/algerianCurriculum';
+import { COMPLETE_ANNUAL_CURRICULUM, PE_FIELDS, generateAnnualTimeDistribution } from '../../data/algerianCurriculum';
 import {
   autoGenerateLessonPlan,
   getUnifiedLessonRows,
+  rebalanceLessonRows,
 } from '../../services/lessonPlan.generator.service';
+import { fetchAnnualPlans } from '../../services/api';
+import { mergeSchedule, MergedScheduledLesson } from '../../services/schedule/scheduleMerge';
 import {
   exportLessonPlanToPdf,
   exportLessonPlanToWord,
@@ -81,9 +84,28 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [sessionIndex, setSessionIndex] = useState(0);
   const [editing, setEditing] = useState(false);
   const [showBank, setShowBank] = useState(false);
+  const [replaceRowId, setReplaceRowId] = useState<string | null>(null);
   const [bankSituations, setBankSituations] = useState<EducationalSituation[]>([]);
+  const [scheduledLessons, setScheduledLessons] = useState<MergedScheduledLesson[]>([]);
+  const [sourceLabel, setSourceLabel] = useState<'actual' | 'fallback'>('fallback');
   const [draft, setDraft] = useState<LessonPlan | null>(null);
   const sessions = useMemo(() => sessionsForLevel(levelName), [levelName]);
+  const generatorSessions = useMemo<SourceSession[]>(
+    () => scheduledLessons.map((scheduled) => ({
+      fieldId: scheduled.fieldId,
+      fieldName: scheduled.fieldName,
+      finalCompetency: COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]?.finalCompetency || '',
+      segmentGoal: COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]?.finalCompetency || '',
+      sessionNumber: scheduled.fieldSessionNumber,
+      globalNumber: scheduled.globalSessionNumber,
+      weekNumber: Math.ceil(scheduled.globalSessionNumber / 2),
+      type: scheduled.sessionType as LessonPlan['sessionType'],
+      typeLabel: scheduled.sessionTypeLabel,
+      objective: scheduled.wordingOverride || scheduled.targetObjective,
+      tools: COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]?.suggestedTools || [],
+    })),
+    [scheduledLessons]
+  );
   const selected = lessonPlans.find((plan) => plan.id === selectedId) || lessonPlans[0];
 
   useEffect(() => {
@@ -100,8 +122,39 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       .catch(() => setBankSituations([]));
   }, [showBank]);
 
+  useEffect(() => {
+    if (!showGenerator || !currentUser?.id) return;
+    const levelId = LEVEL_KEYS[levelName];
+    const base = generateAnnualTimeDistribution(levelId, '2025-09-21', 0, '');
+    Promise.all([
+      fetchAnnualPlans({ teacherId: currentUser.id, kind: 'schedule_dates', levelId }),
+      fetchAnnualPlans({ teacherId: currentUser.id, kind: 'section_wording', levelId }),
+    ])
+      .then(([scheduleResponse, wordingResponse]) => {
+        const schedule = scheduleResponse.annualPlans?.[0];
+        const wording = wordingResponse.annualPlans?.[0];
+        if (!schedule) {
+          setScheduledLessons([]);
+          setSourceLabel('fallback');
+          return;
+        }
+        setScheduledLessons(
+          mergeSchedule(
+            base,
+            schedule.data?.overrides || {},
+            wording?.data?.overrides || {}
+          )
+        );
+        setSourceLabel('actual');
+      })
+      .catch(() => {
+        setScheduledLessons([]);
+        setSourceLabel('fallback');
+      });
+  }, [showGenerator, levelName, currentUser?.id]);
+
   const createPlan = () => {
-    const source = sessions[sessionIndex];
+    const source = (generatorSessions.length ? generatorSessions : sessions)[sessionIndex];
     if (!source) return;
     const plan = autoGenerateLessonPlan(source, { levelName, teacher: currentUser, className: '' });
     onSaveLessonPlan(plan);
@@ -120,11 +173,13 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   };
   const saveEdit = () => {
     if (!draft) return;
+    const lessonRows = rebalanceLessonRows(draft.lessonRows || [], draft.durationMinutes);
     const equipmentNeeded = [
       ...new Set(draft.equipmentNeeded.map((item) => item.trim()).filter(Boolean)),
     ];
     onSaveLessonPlan({
       ...draft,
+      lessonRows,
       equipmentNeeded,
       equipmentChecklist: equipmentNeeded.map((name) => ({ name, available: true })),
       version: Math.max(draft.version || 1, 2),
@@ -152,14 +207,13 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const setRows = (lessonRows: LessonPlanRow[]) =>
     setDraft((previous) => previous && { ...previous, lessonRows });
   const grade = LEVELS.indexOf(plan.levelName) + 1;
+  const fieldId = PE_FIELDS.find((field) => field.name === plan.fieldName)?.id ||
+    sessionsForLevel(plan.levelName).find((s) => s.fieldName === plan.fieldName)?.fieldId || '';
   const matchingSituations = findSuitableSituations(
     bankSituations.length ? bankSituations : referenceSituations,
     {
       grade,
-      fieldId: plan.fieldName.includes('')
-        ? sessionsForLevel(plan.levelName).find((s) => s.fieldName === plan.fieldName)?.fieldId ||
-          ''
-        : '',
+      fieldId,
       objectiveText: plan.sessionTitle,
     }
   );
@@ -169,8 +223,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       ['PRIVATE', 'REJECTED'].includes(situation.status) &&
       situation.grade === grade &&
       situation.fieldId ===
-        (sessionsForLevel(plan.levelName).find((s) => s.fieldName === plan.fieldName)?.fieldId ||
-          '') &&
+        fieldId &&
       situation.objectiveTexts.includes(plan.sessionTitle)
   );
   const availableSituations = [
@@ -185,14 +238,31 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       phase: 'المرحلة الرئيسية' as const,
       learningContent: plan.sessionTitle,
       executionContent: `${situation.name}: ${situation.organization}`,
-      durationMinutes: 20,
+      durationMinutes: 1,
       guidance: situation.variations || 'احترام التعليمات.',
       situationSnapshot: snapshotSituation(situation),
     };
-    const next = [...rows.filter((row) => row.phase !== 'المرحلة الرئيسية'), main];
-    const equipmentNeeded = [...new Set([...plan.equipmentNeeded, ...situation.equipment])];
-    onSaveLessonPlan({ ...plan, lessonRows: next, equipmentNeeded });
-    setShowBank(false);
+    const candidateRows = replaceRowId
+      ? rows.map((row) => (row.id === replaceRowId ? { ...main, id: replaceRowId } : row))
+      : [...rows, main];
+    const next = rebalanceLessonRows(candidateRows, plan.durationMinutes);
+    const equipmentNeeded = [...new Set(next.flatMap((row) => row.situationSnapshot?.equipment || []))];
+    if (editing) {
+      setDraft((previous) => previous && { ...previous, lessonRows: next, equipmentNeeded });
+    } else {
+      onSaveLessonPlan({ ...plan, lessonRows: next, equipmentNeeded });
+    }
+    setReplaceRowId(null);
+  };
+
+  const removeSituation = (rowId: string) => {
+    const next = rebalanceLessonRows(
+      rows.filter((row) => row.id !== rowId),
+      plan.durationMinutes
+    );
+    const equipmentNeeded = [...new Set(next.flatMap((row) => row.situationSnapshot?.equipment || []))];
+    if (editing) setDraft((previous) => previous && { ...previous, lessonRows: next, equipmentNeeded });
+    else onSaveLessonPlan({ ...plan, lessonRows: next, equipmentNeeded });
   };
 
   return (
@@ -239,14 +309,12 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               </button>
             </>
           )}
-          {!editing && (
-            <button
-              onClick={() => setShowBank(true)}
-              className="rounded-xl border border-blue-300 px-3 py-2 text-xs font-bold text-blue-800"
-            >
-              اختيار من بنك المواقف
-            </button>
-          )}
+          <button
+            onClick={() => setShowBank(true)}
+            className="rounded-xl border border-blue-300 px-3 py-2 text-xs font-bold text-blue-800"
+          >
+            اختيار من بنك المواقف
+          </button>
           {editing && (
             <>
               <button
@@ -353,7 +421,30 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             <tbody>
               {rows.map((row, index) => (
                 <tr key={row.id} className="align-top">
-                  <th className="border border-slate-300 bg-slate-50 p-3 font-bold">{row.phase}</th>
+                  <th className="border border-slate-300 bg-slate-50 p-3 font-bold">
+                    {row.phase}
+                    {editing && row.phase === 'المرحلة الرئيسية' && row.situationSnapshot && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => removeSituation(row.id)}
+                          className="mr-2 rounded border border-rose-200 px-2 py-1 text-xs text-rose-700"
+                        >
+                          إزالة
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReplaceRowId(row.id);
+                            setShowBank(true);
+                          }}
+                          className="mr-1 rounded border border-blue-200 px-2 py-1 text-xs text-blue-700"
+                        >
+                          استبدال
+                        </button>
+                      </>
+                    )}
+                  </th>
                   {editing ? (
                     <>
                       <td className="border border-slate-300 p-1">
@@ -477,12 +568,15 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               onChange={(event) => setSessionIndex(Number(event.target.value))}
               className="w-full rounded-xl border p-2"
             >
-              {sessions.map((session, index) => (
+              {(generatorSessions.length ? generatorSessions : sessions).map((session, index) => (
                 <option key={`${session.fieldId}-${session.sessionNumber}`} value={index}>
                   الحصة {session.globalNumber}: {session.objective}
                 </option>
               ))}
             </select>
+            <p className="mt-2 text-xs font-bold text-slate-600">
+              المصدر: {sourceLabel === 'actual' ? 'التوزيع السنوي الفعلي للحصص' : 'احتياطي المنهاج الثابت (لا يوجد سجل توزيع فعلي)'}
+            </p>
             <p className="mt-3 text-xs text-slate-500">
               يُؤخذ الهدف والكفاءة والميدان والوسائل من الحصة الحالية؛ يمكن تعديل المذكرة بعد
               توليدها.
@@ -500,7 +594,9 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
           <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6">
             <div className="flex justify-between">
-              <h3 className="font-extrabold">بنك المواقف التربوية المطابقة للهدف</h3>
+              <h3 className="font-extrabold">
+                {replaceRowId ? 'استبدال الموقف من بنك المواقف' : 'بنك المواقف التربوية المطابقة للهدف'}
+              </h3>
               <button onClick={() => setShowBank(false)}>✕</button>
             </div>
             {availableSituations.length ? (

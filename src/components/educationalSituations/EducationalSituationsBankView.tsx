@@ -1,13 +1,36 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { EducationalSituation, User } from '../../types/spex';
+import { COMPLETE_ANNUAL_CURRICULUM } from '../../data/algerianCurriculum';
+
+export const FIELD_OPTIONS = [
+  { id: 'f_locomotion', name: 'الوضعيات والتنقلات' },
+  { id: 'f_fundamentals', name: 'الحركات القاعدية' },
+  { id: 'f_structuring', name: 'الهيكلة والبناء' },
+] as const;
+const STATUS_LABELS: Record<EducationalSituation['status'], string> = {
+  PRIVATE: 'خاص',
+  PENDING_APPROVAL: 'بانتظار الاعتماد',
+  APPROVED: 'معتمد',
+  REJECTED: 'مرفوض',
+};
+
+export function objectivesFor(grade: number, fieldId: string) {
+  const level = COMPLETE_ANNUAL_CURRICULUM[`lvl_p${grade}`];
+  const field = level?.fields[fieldId];
+  return (field?.sessionsList || []).map((session) => ({
+    id: `${fieldId}__${session.sessionNumber}`,
+    text: session.objective,
+    label: `${session.typeLabel} — ${session.objective}`,
+  }));
+}
 
 const empty = {
   name: '',
   grade: 1,
   fieldId: 'f_locomotion',
-  fieldName: 'الميدان الأول: الوضعيات والتنقلات',
-  objectiveIds: ['manual'],
-  objectiveTexts: [''],
+  fieldName: 'الوضعيات والتنقلات',
+  objectiveIds: ['f_locomotion__1'],
+  objectiveTexts: [objectivesFor(1, 'f_locomotion')[0]?.text || ''],
   sourceGoal: '',
   organization: '',
   equipment: [],
@@ -33,6 +56,10 @@ export const EducationalSituationsBankView: React.FC<{ currentUser: User }> = ({
   const [draft, setDraft] = useState<any>(empty);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const objectiveOptions = useMemo(
+    () => objectivesFor(Number(draft.grade) || 1, draft.fieldId),
+    [draft.grade, draft.fieldId]
+  );
   const load = async () => {
     try {
       const params = new URLSearchParams();
@@ -60,8 +87,12 @@ export const EducationalSituationsBankView: React.FC<{ currentUser: User }> = ({
   const reviewer = currentUser.role === 'admin' || currentUser.role === 'inspector';
   const save = async () => {
     try {
+      const selectedField = FIELD_OPTIONS.find((field) => field.id === draft.fieldId);
       const payload = {
         ...draft,
+        grade: Number(draft.grade),
+        fieldName: selectedField?.name || '',
+        objectiveIds: draft.objectiveIds.filter(Boolean),
         objectiveTexts: draft.objectiveTexts.filter(Boolean),
         equipment: String(draft.equipment || '')
           .split(/[،,]/)
@@ -172,7 +203,7 @@ export const EducationalSituationsBankView: React.FC<{ currentUser: User }> = ({
               {item.ownerId === currentUser.id && (
                 <>
                   <span className="mt-2 inline-block text-xs font-bold text-blue-700">
-                    {item.status}
+                    {STATUS_LABELS[item.status]}
                     {item.rejectionReason ? ` — ${item.rejectionReason}` : ''}
                   </span>
                   {['PRIVATE', 'REJECTED'].includes(item.status) && (
@@ -200,7 +231,59 @@ export const EducationalSituationsBankView: React.FC<{ currentUser: User }> = ({
         <section className="rounded-2xl border bg-white p-5">
           <h3 className="font-extrabold">{editingId ? 'تعديل موقف تربوي' : 'إضافة موقف تربوي'}</h3>
           <div className="mt-3 grid gap-2 md:grid-cols-2">
-            {['name', 'fieldName', 'sourceGoal', 'organization', 'variations'].map((key) => (
+            <input
+              placeholder="اسم الموقف"
+              value={draft.name}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              className="rounded-xl border p-2"
+            />
+            <select
+              value={draft.grade}
+              onChange={(e) => {
+                const nextGrade = Number(e.target.value);
+                const options = objectivesFor(nextGrade, draft.fieldId);
+                setDraft({
+                  ...draft,
+                  grade: nextGrade,
+                  objectiveIds: options[0] ? [options[0].id] : [],
+                  objectiveTexts: options[0] ? [options[0].text] : [],
+                });
+              }}
+              className="rounded-xl border p-2"
+            >
+              {[1, 2, 3, 4, 5].map((value) => (
+                <option key={value} value={value}>السنة {value === 1 ? 'الأولى' : value === 2 ? 'الثانية' : value === 3 ? 'الثالثة' : value === 4 ? 'الرابعة' : 'الخامسة'}</option>
+              ))}
+            </select>
+            <select
+              value={draft.fieldId}
+              onChange={(e) => {
+                const nextField = e.target.value;
+                const options = objectivesFor(Number(draft.grade) || 1, nextField);
+                setDraft({
+                  ...draft,
+                  fieldId: nextField,
+                  fieldName: FIELD_OPTIONS.find((field) => field.id === nextField)?.name || '',
+                  objectiveIds: options[0] ? [options[0].id] : [],
+                  objectiveTexts: options[0] ? [options[0].text] : [],
+                });
+              }}
+              className="rounded-xl border p-2"
+            >
+              {FIELD_OPTIONS.map((field) => <option key={field.id} value={field.id}>{field.name}</option>)}
+            </select>
+            <select
+              value={draft.objectiveIds[0] || ''}
+              onChange={(e) => {
+                const option = objectiveOptions.find((item) => item.id === e.target.value);
+                setDraft({ ...draft, objectiveIds: option ? [option.id] : [], objectiveTexts: option ? [option.text] : [] });
+              }}
+              className="rounded-xl border p-2 md:col-span-2"
+            >
+              <option value="">اختر الهدف التعلمي</option>
+              {objectiveOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+            </select>
+            {['sourceGoal', 'organization', 'variations'].map((key) => (
               <input
                 key={key}
                 placeholder={
@@ -211,12 +294,6 @@ export const EducationalSituationsBankView: React.FC<{ currentUser: User }> = ({
                 className="rounded-xl border p-2"
               />
             ))}
-            <input
-              placeholder="الهدف التعليمي"
-              value={draft.objectiveTexts[0]}
-              onChange={(e) => setDraft({ ...draft, objectiveTexts: [e.target.value] })}
-              className="rounded-xl border p-2"
-            />
             <input
               placeholder="الوسائل"
               value={draft.equipment}

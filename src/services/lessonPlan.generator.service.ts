@@ -34,6 +34,25 @@ export interface AutoGenerateContext {
 export const lessonDurationForLevel = (levelName: string): number =>
   levelName.includes('الرابعة') ? 90 : 60;
 
+/** يوزع الزمن المتاح على صفوف المرحلة الرئيسية مع إبقاء التحضيرية والختامية كما هي. */
+export function rebalanceLessonRows(rows: LessonPlanRow[], totalMinutes: number): LessonPlanRow[] {
+  const main = rows.filter((row) => row.phase === 'المرحلة الرئيسية');
+  if (!main.length) return rows;
+  const fixed = rows
+    .filter((row) => row.phase !== 'المرحلة الرئيسية')
+    .reduce((sum, row) => sum + Math.max(0, Number(row.durationMinutes) || 0), 0);
+  const available = Math.max(main.length, totalMinutes - fixed);
+  const base = Math.floor(available / main.length);
+  const remainder = available % main.length;
+  let mainIndex = 0;
+  return rows.map((row) => {
+    if (row.phase !== 'المرحلة الرئيسية') return row;
+    const durationMinutes = base + (mainIndex < remainder ? 1 : 0);
+    mainIndex += 1;
+    return { ...row, durationMinutes };
+  });
+}
+
 const hasComplexObjective = (objective: string) =>
   /يربط|يجمع|سلسلة|مركب|توظيف|تطبيق.*ألعاب|عدة/.test(objective);
 
