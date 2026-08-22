@@ -82,12 +82,14 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
         item.description.includes(debouncedSearchVal) ||
         item.tags.some((t) => t.includes(debouncedSearchVal));
       const matchesGrade =
-        activeTab !== 'objective' ||
+        !['game', 'objective'].includes(activeTab) ||
         objectiveGrade === 'all' ||
         item.levelId === objectiveGrade ||
         item.levelIds?.includes(objectiveGrade);
       const matchesField =
-        activeTab !== 'objective' || objectiveField === 'all' || item.fieldId === objectiveField;
+        !['game', 'objective'].includes(activeTab) ||
+        objectiveField === 'all' ||
+        item.fieldId === objectiveField;
       return item.approved && matchesCategory && matchesSearch && matchesGrade && matchesField;
     }
   );
@@ -339,7 +341,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           </div>
         </section>
       )}
-      {activeTab === 'objective' && (
+      {['game', 'objective'].includes(activeTab) && (
         <div className="flex items-center gap-2 text-xs">
           <select
             value={objectiveGrade}

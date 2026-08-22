@@ -69,4 +69,25 @@ describe('knowledge bank coverage diagnostics', () => {
     expect(canViewCoverageDiagnostics('teacher')).toBe(false);
     expect(canViewCoverageDiagnostics('director')).toBe(false);
   });
+
+  it('covers fundamental-movement games for every supported grade', () => {
+    const games = INITIAL_KNOWLEDGE_BANK.filter(
+      (item) => item.category === 'game' && item.fieldId === 'f_fundamentals'
+    );
+    expect(games).toHaveLength(15);
+    expect(new Set(games.flatMap((item) => item.levelIds || [])).size).toBe(5);
+    expect(games.every((item) => item.fieldName === 'الحركات القاعدية' && item.approved)).toBe(
+      true
+    );
+  });
+
+  it('keeps game titles unique within a grade and field', () => {
+    const games = INITIAL_KNOWLEDGE_BANK.filter((item) => item.category === 'game');
+    const keys = games.flatMap((item) =>
+      (item.levelIds || []).map(
+        (levelId) => `${levelId}|${item.fieldId}|${item.title.trim().replace(/\s+/g, ' ')}`
+      )
+    );
+    expect(new Set(keys).size).toBe(keys.length);
+  });
 });
