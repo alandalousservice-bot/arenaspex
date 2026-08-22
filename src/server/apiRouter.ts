@@ -1276,12 +1276,13 @@ apiRouter.post('/ai/improve-wording', async (req, res) => {
 
 apiRouter.post('/ai/suggest-games', async (req, res) => {
   try {
-    const { fieldName, levelName, preferredProvider, preferredModel } = req.body;
+    const { fieldName, levelName, objective, existingGames, existingSituations, constraints, preferredProvider, preferredModel } = req.body;
     const games = await suggestPEGames(
       fieldName || 'الميدان الجماعي',
       levelName || 'ابتدائي',
       preferredProvider,
-      preferredModel
+      preferredModel,
+      { objective, existingGames, existingSituations, constraints }
     );
     res.json({ success: true, games });
   } catch (error: unknown) {

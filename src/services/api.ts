@@ -489,6 +489,34 @@ export async function requestAIGames(fieldName: string, levelName: string) {
   }
 }
 
+export interface PedagogicalGameSuggestionRequest {
+  grade: number;
+  fieldId: string;
+  fieldName: string;
+  objectiveId?: string;
+  objectiveText: string;
+  existingGames?: string[];
+  existingSituations?: string[];
+  constraints?: { equipment?: string; groupSize?: string; environment?: string; difficulty?: string };
+}
+
+export async function requestPedagogicalGameSuggestion(payload: PedagogicalGameSuggestionRequest) {
+  const response = await fetch('/api/ai/suggest-games', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...payload,
+      levelName: `السنة ${payload.grade} ابتدائي`,
+      objective: payload.objectiveText,
+    }),
+  });
+  const json = await response.json();
+  if (!response.ok || !json.games) throw new Error('suggestion_failed');
+  const candidate = Array.isArray(json.games) ? json.games[0] : json.games;
+  if (!candidate || typeof candidate !== 'object') throw new Error('invalid_suggestion');
+  return candidate as Record<string, unknown>;
+}
+
 export async function sendAIChatMessage(message: string, history: { role: 'user' | 'model'; text: string }[]) {
   try {
     const response = await fetch('/api/ai/chat', {

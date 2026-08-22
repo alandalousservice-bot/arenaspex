@@ -416,6 +416,10 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
   }, [communityResources]);
 
   useEffect(() => {
+    localStorage.setItem('spex_knowledge_items', JSON.stringify(knowledgeItems));
+  }, [knowledgeItems]);
+
+  useEffect(() => {
     localStorage.setItem('spex_community_notifications', JSON.stringify(communityNotifications));
   }, [communityNotifications]);
 
@@ -868,6 +872,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
       description: newItem.description || '',
       origin: newItem.origin || 'TEACHER',
       approvalStatus: newItem.approvalStatus || (newItem.approved ? 'APPROVED' : 'DRAFT'),
+      ownerId: currentUser.id,
       fieldId: newItem.fieldId,
       fieldName: newItem.fieldName,
       levelName: newItem.levelName || 'جميع المستويات',
@@ -884,12 +889,32 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     setKnowledgeItems((prev) => [item, ...prev]);
   };
 
+  const handleUpdateKnowledgeItem = (id: string, patch: Partial<KnowledgeItem>) => {
+    setKnowledgeItems((prev) => prev.map((item) => item.id === id && item.ownerId === currentUser.id && (item.approvalStatus === 'DRAFT' || item.approvalStatus === 'REJECTED')
+      ? { ...item, ...patch, ownerId: item.ownerId, approved: false, approvalStatus: item.approvalStatus }
+      : item));
+  };
+
+  const handleSubmitKnowledgeItem = (id: string) => {
+    setKnowledgeItems((prev) => prev.map((item) => item.id === id && item.ownerId === currentUser.id && (item.approvalStatus === 'DRAFT' || item.approvalStatus === 'REJECTED')
+      ? { ...item, approvalStatus: 'PENDING_APPROVAL' as const, approved: false, submittedAt: new Date().toISOString() }
+      : item));
+  };
+
   const handleApproveKnowledgeItem = (id: string) => {
+    if (currentUser.role !== 'admin' && currentUser.role !== 'inspector') return;
     setKnowledgeItems((prev) =>
       prev.map((k) =>
-        k.id === id ? { ...k, approved: true, approvalStatus: 'APPROVED' as const } : k
+        k.id === id && (k.approvalStatus === 'PENDING_APPROVAL' || k.approvalStatus === 'PENDING_REVIEW') ? { ...k, approved: true, approvalStatus: 'APPROVED' as const, reviewedById: currentUser.id } : k
       )
     );
+  };
+
+  const handleRejectKnowledgeItem = (id: string, rejectionReason: string) => {
+    if ((currentUser.role !== 'admin' && currentUser.role !== 'inspector') || !rejectionReason.trim()) return;
+    setKnowledgeItems((prev) => prev.map((item) => item.id === id && (item.approvalStatus === 'PENDING_APPROVAL' || item.approvalStatus === 'PENDING_REVIEW')
+      ? { ...item, approved: false, approvalStatus: 'REJECTED' as const, rejectionReason: rejectionReason.trim(), reviewedById: currentUser.id }
+      : item));
   };
 
   const handleAddInspectorNote = (notePartial: Partial<InspectorNote>) => {
@@ -1232,7 +1257,10 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     handleSaveAssessmentSession,
     // Knowledge & Inspector handlers
     handleAddKnowledgeItem,
+    handleUpdateKnowledgeItem,
+    handleSubmitKnowledgeItem,
     handleApproveKnowledgeItem,
+    handleRejectKnowledgeItem,
     handleAddInspectorNote,
     handleAddInspectionVisit,
     handleAddBroadcast,

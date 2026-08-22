@@ -89,12 +89,12 @@ export async function improvePELessonWording(req: ImproveWordingRequest) {
   return { improvedText: req.currentText, aiProvider: 'local-fallback', aiModel: null };
 }
 
-export async function suggestPEGames(fieldName: string, levelName: string, preferredProvider?: AIProviderId, preferredModel?: string) {
+export async function suggestPEGames(fieldName: string, levelName: string, preferredProvider?: AIProviderId, preferredModel?: string, context?: { objective?: string; existingGames?: string[]; existingSituations?: string[]; constraints?: Record<string, string> }) {
   try {
     const result = await generateAI({
       preferredProvider,
       preferredModel,
-      messages: [{ role: 'user', content: `اقترح 3 ألعاب تربوية رياضية ممتعة لمادة التربية البدنية والرياضية في الجزائر. الميدان: ${fieldName}. المستوى: ${levelName}. أرجع JSON كقائمة تحتوي على title, description, equipment, rules, duration.` }],
+      messages: [{ role: 'user', content: `اقترح لعبة تربوية واحدة قابلة للتحرير لمادة التربية البدنية والرياضية في الجزائر. الميدان: ${fieldName}. المستوى: ${levelName}. الهدف المستهدف: ${context?.objective || 'غير محدد'}. الألعاب الموجودة لتجنب التكرار: ${(context?.existingGames || []).join('؛ ')}. المواقف المرجعية ذات الصلة: ${(context?.existingSituations || []).join('؛ ')}. القيود الاختيارية: ${JSON.stringify(context?.constraints || {})}. أرجع JSON لكائن واحد يحتوي على title, description, organization, rules, equipment, safety, progression.` }],
       json: true,
       temperature: 0.8,
       maxTokens: 2000
@@ -104,10 +104,7 @@ export async function suggestPEGames(fieldName: string, levelName: string, prefe
   } catch (error) {
     console.warn('[SPEX AI] games generation failed:', error);
   }
-  return [
-    { title: `لعبة التتابع السريع والسيطرة على الكرات (${fieldName})`, description: 'لعبة تنافسية لتنمية اللياقة والتنسيق الحركي.', equipment: ['أقماع', 'كرات', 'صفارات'], rules: 'يتنافس فريقان مع الالتزام بقواعد السلامة.', duration: '10-12 دقيقة' },
-    { title: 'لعبة الرادار والمدافع الخفي', description: 'تنمي سرعة رد الفعل والملاحظة والتموقع.', equipment: ['شواخص', 'صدريات'], rules: 'يتحرك المدافع للقطع دون احتكاك خشن.', duration: '10 دقائق' }
-  ];
+  return [];
 }
 
 export async function generateAIChatResponse(userMessage: string, conversationHistory: { role: 'user' | 'model' | 'assistant'; text: string }[], preferredProvider?: AIProviderId, preferredModel?: string) {

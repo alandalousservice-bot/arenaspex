@@ -179,7 +179,10 @@ export default function App() {
     handleSaveLessonPlan,
     handleSaveAssessmentSession,
     handleAddKnowledgeItem,
+    handleUpdateKnowledgeItem,
+    handleSubmitKnowledgeItem,
     handleApproveKnowledgeItem,
+    handleRejectKnowledgeItem,
     handleAddInspectorNote,
     handleAddInspectionVisit,
     handleAddBroadcast,
@@ -442,6 +445,10 @@ export default function App() {
               <KnowledgeEngineView
                 knowledgeItems={knowledgeItems}
                 onAddKnowledgeItem={handleAddKnowledgeItem}
+                onUpdateKnowledgeItem={handleUpdateKnowledgeItem}
+                onSubmitKnowledgeItem={handleSubmitKnowledgeItem}
+                onApproveKnowledgeItem={handleApproveKnowledgeItem}
+                onRejectKnowledgeItem={handleRejectKnowledgeItem}
                 currentUser={currentUser}
                 communityResources={communityResources}
               />
