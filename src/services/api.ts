@@ -323,6 +323,12 @@ export async function fetchAIProviders(): Promise<AIProviderStatusItem[]> {
   }
 }
 
+export interface GenerationAccessItem { userId: string; enabled: boolean; assistantEnabled: boolean; gameSuggestionsEnabled: boolean; updatedAt?: string; }
+export async function fetchGenerationConfig() { const res = await fetch('/api/admin/generation/config'); const data = await res.json(); if (!res.ok) throw new Error(data.error || 'تعذر تحميل إعدادات الخدمات.'); return data as { generationEnabled: boolean; providerConfigured: boolean; providers: AIProviderStatusItem[] }; }
+export async function updateGenerationConfig(enabled: boolean) { const res = await fetch('/api/admin/generation/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) }); if (!res.ok) throw new Error('تعذر تحديث حالة الخدمة.'); }
+export async function fetchGenerationAccess(): Promise<GenerationAccessItem[]> { const res = await fetch('/api/admin/generation/access'); const data = await res.json(); if (!res.ok) throw new Error(data.error || 'تعذر تحميل صلاحيات الخدمات.'); return data.access || []; }
+export async function updateGenerationAccess(userId: string, access: { enabled: boolean; assistantEnabled: boolean; gameSuggestionsEnabled: boolean }) { const res = await fetch(`/api/admin/generation/access/${encodeURIComponent(userId)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(access) }); if (!res.ok) throw new Error('تعذر تحديث صلاحيات الخدمات.'); }
+
 export async function createAIProvider(input: AIProviderInput): Promise<{ success: boolean; error?: string }> {
   try {
     const res = await fetch('/api/ai/providers', {
@@ -511,7 +517,8 @@ export async function requestPedagogicalGameSuggestion(payload: PedagogicalGameS
     }),
   });
   const json = await response.json();
-  if (!response.ok || !json.games) throw new Error('suggestion_failed');
+  if (!response.ok) throw new Error(json.message || json.error || 'SERVICE_UNAVAILABLE');
+  if (!json.games) throw new Error('SERVICE_UNAVAILABLE');
   const candidate = Array.isArray(json.games) ? json.games[0] : json.games;
   if (!candidate || typeof candidate !== 'object') throw new Error('invalid_suggestion');
   return candidate as Record<string, unknown>;

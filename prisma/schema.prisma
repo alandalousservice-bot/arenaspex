@@ -65,6 +65,7 @@ model User {
 
   resetTokens PasswordResetToken[]
   pedagogicalGames PedagogicalGame[]
+  generationAccess UserGenerationAccess?
 
   // نظام الإسناد التلقائي للأساتذة إلى المفتشين
   teacherAssignment    InspectorAssignment?  @relation("TeacherAssignment")
@@ -424,6 +425,28 @@ model AIProviderConfig {
   sortOrder       Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  @@index([enabled])
+}
+
+model GenerationServiceConfig {
+  id          String   @id
+  enabled     Boolean  @default(true)
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model UserGenerationAccess {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enabled               Boolean  @default(false)
+  assistantEnabled      Boolean  @default(false)
+  gameSuggestionsEnabled Boolean @default(false)
+  updatedById           String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   @@index([enabled])
 }

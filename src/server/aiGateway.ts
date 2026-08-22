@@ -180,7 +180,8 @@ export async function allAIProviderRecords(): Promise<AIProviderRecord[]> {
   if (providerCache && Date.now() - providerCache.at < CACHE_TTL_MS) {
     return providerCache.records;
   }
-  const records = [...envProviderRecords(), ...(await dbProviderRecords())];
+  // Admin-managed database providers take precedence; environment providers remain fallback.
+  const records = [...(await dbProviderRecords()), ...envProviderRecords()];
   providerCache = { at: Date.now(), records };
   return records;
 }

@@ -199,8 +199,9 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
       const normalized = draft.title.trim().replace(/\s+/g, ' ');
       setDuplicateWarning(knowledgeItems.some((item) => item.category === 'game' && item.approved && item.fieldId === suggestionField && item.levelIds?.includes(`lvl_p${suggestionGrade}`) && item.title.trim().replace(/\s+/g, ' ') === normalized));
       setSuggestionDraft(draft);
-    } catch {
-      setSuggestionError('تعذر إنشاء الاقتراح. يرجى المحاولة مرة أخرى.');
+    } catch (error) {
+      const message = error instanceof Error && (error.message === 'خدمة اقتراح الألعاب غير مفعلة لحسابك.' || error.message === 'الخدمة غير متاحة حالياً. يرجى المحاولة لاحقاً.') ? error.message : 'تعذر إنشاء الاقتراح. يرجى المحاولة مرة أخرى.';
+      setSuggestionError(message);
     } finally {
       setIsSuggestingGames(false);
     }
