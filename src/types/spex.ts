@@ -721,6 +721,7 @@ export interface KnowledgeItem {
   description: string;
   origin?: 'REFERENCE' | 'CURRICULUM_REFERENCE' | 'AI_GENERATED' | 'TEACHER' | 'COMMUNITY';
   approvalStatus?: 'DRAFT' | 'PENDING_REVIEW' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  status?: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
   ownerId?: string;
   rejectionReason?: string;
   submittedAt?: string;

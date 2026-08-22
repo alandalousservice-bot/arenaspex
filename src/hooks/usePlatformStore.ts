@@ -29,7 +29,14 @@ import {
   deleteCommunityNotificationFromDB,
   syncDirectMessageToDB,
   fetchDirectMessagesFromDB,
-  fetchCurrentSession
+  fetchCurrentSession,
+  fetchPedagogicalGames,
+  createPedagogicalGame,
+  updatePedagogicalGame,
+  submitPedagogicalGame,
+  deletePedagogicalGame,
+  approvePedagogicalGame,
+  rejectPedagogicalGame
 } from '../services/api';
 import {
   User,
@@ -169,16 +176,25 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
   });
 
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>(() => {
-    const saved = localStorage.getItem('spex_knowledge_items');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        void e;
-      }
-    }
     return INITIAL_KNOWLEDGE_BANK;
   });
+
+  useEffect(() => {
+    let active = true;
+    const loadGames = async () => {
+      try {
+        const scopes: Array<'public' | 'mine' | 'pending'> = currentUser.role === 'teacher' ? ['public', 'mine'] : ['public', 'pending'];
+        const rows = (await Promise.all(scopes.map((scope) => fetchPedagogicalGames(scope)))).flat() as KnowledgeItem[];
+        if (!active) return;
+        const dynamic = rows.map((game) => ({ ...game, category: 'game' as const, approved: game.status === 'APPROVED' && game.approved, approvalStatus: game.status === 'PENDING_APPROVAL' ? 'PENDING_APPROVAL' as const : game.status as KnowledgeItem['approvalStatus'], tags: game.tags || ['اقتراح لعبة تربوية'], usageCount: game.usageCount || 0, rating: game.rating || 0, createdBy: game.createdBy || 'اقتراح' }));
+        setKnowledgeItems((prev) => [...prev.filter((item) => item.origin !== 'AI_GENERATED' && !item.ownerId), ...dynamic]);
+      } catch {
+        // Offline mode keeps static reference content available; dynamic records remain server-authoritative.
+      }
+    };
+    void loadGames();
+    return () => { active = false; };
+  }, [currentUser.id, currentUser.role]);
 
   const [inspectorNotes, setInspectorNotes] = useState<InspectorNote[]>(() => {
     if (!currentUser?.id) return [];
@@ -414,10 +430,6 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
   useEffect(() => {
     localStorage.setItem('spex_community_resources', JSON.stringify(communityResources));
   }, [communityResources]);
-
-  useEffect(() => {
-    localStorage.setItem('spex_knowledge_items', JSON.stringify(knowledgeItems));
-  }, [knowledgeItems]);
 
   useEffect(() => {
     localStorage.setItem('spex_community_notifications', JSON.stringify(communityNotifications));
@@ -887,18 +899,29 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
       rating: newItem.rating || 0
     };
     setKnowledgeItems((prev) => [item, ...prev]);
+    if (item.category === 'game' && item.approvalStatus === 'DRAFT') void createPedagogicalGame({ ...item, id: item.id }).catch(() => undefined);
   };
 
   const handleUpdateKnowledgeItem = (id: string, patch: Partial<KnowledgeItem>) => {
     setKnowledgeItems((prev) => prev.map((item) => item.id === id && item.ownerId === currentUser.id && (item.approvalStatus === 'DRAFT' || item.approvalStatus === 'REJECTED')
       ? { ...item, ...patch, ownerId: item.ownerId, approved: false, approvalStatus: item.approvalStatus }
       : item));
+    const existing = knowledgeItems.find((item) => item.id === id);
+    if (existing) void updatePedagogicalGame(id, { ...existing, ...patch }).catch(() => undefined);
   };
 
   const handleSubmitKnowledgeItem = (id: string) => {
     setKnowledgeItems((prev) => prev.map((item) => item.id === id && item.ownerId === currentUser.id && (item.approvalStatus === 'DRAFT' || item.approvalStatus === 'REJECTED')
       ? { ...item, approvalStatus: 'PENDING_APPROVAL' as const, approved: false, submittedAt: new Date().toISOString() }
       : item));
+    void submitPedagogicalGame(id).catch(() => undefined);
+  };
+
+  const handleDeleteKnowledgeItem = (id: string) => {
+    const existing = knowledgeItems.find((item) => item.id === id);
+    if (!existing || existing.ownerId !== currentUser.id || (existing.approvalStatus !== 'DRAFT' && existing.approvalStatus !== 'REJECTED')) return;
+    setKnowledgeItems((prev) => prev.filter((item) => item.id !== id));
+    void deletePedagogicalGame(id).catch(() => undefined);
   };
 
   const handleApproveKnowledgeItem = (id: string) => {
@@ -908,6 +931,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
         k.id === id && (k.approvalStatus === 'PENDING_APPROVAL' || k.approvalStatus === 'PENDING_REVIEW') ? { ...k, approved: true, approvalStatus: 'APPROVED' as const, reviewedById: currentUser.id } : k
       )
     );
+    void approvePedagogicalGame(id).catch(() => undefined);
   };
 
   const handleRejectKnowledgeItem = (id: string, rejectionReason: string) => {
@@ -915,6 +939,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     setKnowledgeItems((prev) => prev.map((item) => item.id === id && (item.approvalStatus === 'PENDING_APPROVAL' || item.approvalStatus === 'PENDING_REVIEW')
       ? { ...item, approved: false, approvalStatus: 'REJECTED' as const, rejectionReason: rejectionReason.trim(), reviewedById: currentUser.id }
       : item));
+    void rejectPedagogicalGame(id, rejectionReason).catch(() => undefined);
   };
 
   const handleAddInspectorNote = (notePartial: Partial<InspectorNote>) => {
@@ -1259,6 +1284,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     handleAddKnowledgeItem,
     handleUpdateKnowledgeItem,
     handleSubmitKnowledgeItem,
+    handleDeleteKnowledgeItem,
     handleApproveKnowledgeItem,
     handleRejectKnowledgeItem,
     handleAddInspectorNote,

@@ -60,6 +60,96 @@ apiRouter.get('/health', (req, res) => {
 // كل ما يلي يتطلب تسجيل دخول صالح
 apiRouter.use(requireAuth);
 
+const gamePayload = (body: Record<string, unknown>) => ({
+  title: String(body.title || '').trim(),
+  grade: Number(body.grade),
+  fieldId: String(body.fieldId || ''),
+  fieldName: String(body.fieldName || ''),
+  objectiveId: typeof body.objectiveId === 'string' ? body.objectiveId : null,
+  objectiveText: String(body.objectiveText || '').trim(),
+  pedagogicalPurpose: String(body.pedagogicalPurpose || body.description || '').trim(),
+  organization: String(body.organization || '').trim(),
+  description: String(body.description || '').trim(),
+  rules: String(body.rules || '').trim(),
+  equipment: Array.isArray(body.equipment) ? body.equipment.filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter(Boolean) : [],
+  executionGuidance: typeof body.executionGuidance === 'string' ? body.executionGuidance : null,
+  safetyGuidance: typeof body.safetyGuidance === 'string' ? body.safetyGuidance : null,
+  progression: typeof body.progression === 'string' ? body.progression : null,
+});
+
+const publicGameSelect = {
+  id: true, ownerId: true, title: true, grade: true, fieldId: true, fieldName: true,
+  objectiveId: true, objectiveText: true, pedagogicalPurpose: true, organization: true,
+  description: true, rules: true, equipment: true, executionGuidance: true, safetyGuidance: true,
+  progression: true, origin: true, status: true, approved: true, submittedAt: true,
+  approvedAt: true, approvedById: true, rejectedAt: true, rejectedById: true, rejectionReason: true,
+  createdAt: true, updatedAt: true,
+} as const;
+
+apiRouter.get('/pedagogical-games/public', async (_req, res) => {
+  const games = await prisma.pedagogicalGame.findMany({ where: { status: 'APPROVED', approved: true }, orderBy: { createdAt: 'desc' }, select: publicGameSelect });
+  res.json({ success: true, games });
+});
+
+apiRouter.get('/pedagogical-games/mine', async (req, res) => {
+  const games = await prisma.pedagogicalGame.findMany({ where: { ownerId: req.user!.id }, orderBy: { updatedAt: 'desc' }, select: publicGameSelect });
+  res.json({ success: true, games });
+});
+
+apiRouter.get('/pedagogical-games/pending', async (req, res) => {
+  if (req.user!.role !== 'admin' && req.user!.role !== 'inspector') return res.status(403).json({ error: 'لا تملك صلاحية مراجعة الألعاب.' });
+  const games = await prisma.pedagogicalGame.findMany({ where: { status: 'PENDING_APPROVAL' }, orderBy: { submittedAt: 'asc' }, select: publicGameSelect });
+  res.json({ success: true, games });
+});
+
+apiRouter.post('/pedagogical-games', async (req, res) => {
+  if (req.user!.role !== 'teacher') return res.status(403).json({ error: 'إنشاء الألعاب الخاصة متاح للأستاذ فقط.' });
+  const payload = gamePayload(req.body || {});
+  if (!payload.title || !payload.objectiveText || !payload.description || !payload.rules || ![1, 2, 3, 4, 5].includes(payload.grade)) return res.status(400).json({ error: 'بيانات اللعبة غير مكتملة.' });
+  const requestedId = typeof req.body.id === 'string' && /^k_[A-Za-z0-9_-]+$/.test(req.body.id) ? req.body.id : `pg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const game = await prisma.pedagogicalGame.create({ data: { id: requestedId, ownerId: req.user!.id, ...payload, origin: typeof req.body.origin === 'string' ? req.body.origin : 'TEACHER', status: 'DRAFT', approved: false }, select: publicGameSelect });
+  res.status(201).json({ success: true, game });
+});
+
+apiRouter.put('/pedagogical-games/:id', async (req, res) => {
+  const existing = await prisma.pedagogicalGame.findUnique({ where: { id: req.params.id } });
+  if (!existing || existing.ownerId !== req.user!.id || (existing.status !== 'DRAFT' && existing.status !== 'REJECTED')) return res.status(403).json({ error: 'لا تملك صلاحية تعديل هذه اللعبة.' });
+  const payload = gamePayload(req.body || {});
+  if (!payload.title || !payload.description || !payload.rules) return res.status(400).json({ error: 'بيانات اللعبة غير مكتملة.' });
+  const game = await prisma.pedagogicalGame.update({ where: { id: existing.id }, data: payload, select: publicGameSelect });
+  res.json({ success: true, game });
+});
+
+apiRouter.delete('/pedagogical-games/:id', async (req, res) => {
+  const existing = await prisma.pedagogicalGame.findUnique({ where: { id: req.params.id } });
+  if (!existing || existing.ownerId !== req.user!.id || (existing.status !== 'DRAFT' && existing.status !== 'REJECTED')) return res.status(403).json({ error: 'لا تملك صلاحية حذف هذه اللعبة.' });
+  await prisma.pedagogicalGame.delete({ where: { id: existing.id } });
+  res.json({ success: true });
+});
+
+apiRouter.post('/pedagogical-games/:id/submit', async (req, res) => {
+  const existing = await prisma.pedagogicalGame.findUnique({ where: { id: req.params.id } });
+  if (!existing || existing.ownerId !== req.user!.id || (existing.status !== 'DRAFT' && existing.status !== 'REJECTED')) return res.status(403).json({ error: 'لا يمكن إرسال هذه اللعبة للاعتماد.' });
+  const game = await prisma.$transaction((tx) => tx.pedagogicalGame.update({ where: { id: existing.id }, data: { status: 'PENDING_APPROVAL', approved: false, submittedAt: new Date(), rejectedAt: null, rejectedById: null, rejectionReason: null }, select: publicGameSelect }));
+  res.json({ success: true, game });
+});
+
+apiRouter.post('/pedagogical-games/:id/approve', async (req, res) => {
+  if (req.user!.role !== 'admin' && req.user!.role !== 'inspector') return res.status(403).json({ error: 'لا تملك صلاحية اعتماد الألعاب.' });
+  const result = await prisma.$transaction((tx) => tx.pedagogicalGame.updateMany({ where: { id: req.params.id, status: 'PENDING_APPROVAL' }, data: { status: 'APPROVED', approved: true, approvedAt: new Date(), approvedById: req.user!.id } }));
+  if (!result.count) return res.status(409).json({ error: 'اللعبة ليست بانتظار الاعتماد.' });
+  res.json({ success: true });
+});
+
+apiRouter.post('/pedagogical-games/:id/reject', async (req, res) => {
+  if (req.user!.role !== 'admin' && req.user!.role !== 'inspector') return res.status(403).json({ error: 'لا تملك صلاحية رفض الألعاب.' });
+  const reason = String(req.body?.rejectionReason || '').trim();
+  if (!reason) return res.status(400).json({ error: 'سبب الرفض مطلوب.' });
+  const result = await prisma.$transaction((tx) => tx.pedagogicalGame.updateMany({ where: { id: req.params.id, status: 'PENDING_APPROVAL' }, data: { status: 'REJECTED', approved: false, rejectedAt: new Date(), rejectedById: req.user!.id, rejectionReason: reason } }));
+  if (!result.count) return res.status(409).json({ error: 'اللعبة ليست بانتظار الاعتماد.' });
+  res.json({ success: true });
+});
+
 // -----------------------------------------------------------------------
 // التواصل المهني الموثوق: مسارات صريحة للمحادثات والرسائل والإشعارات.
 // هذه المسارات لا تعيد مجموعة الرسائل كاملة للواجهة، وتفرض الخصوصية من الخادم.

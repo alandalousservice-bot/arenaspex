@@ -10,7 +10,7 @@
 // Real Authentication — يستبدل المقارنة المحلية لكلمة المرور في المتصفح
 // الجلسة محفوظة في كوكي httpOnly، لذا لا حاجة لتخزين أي رمز يدوياً هنا
 // -----------------------------------------------------------------------
-import { User } from '../types/spex';
+import { User, KnowledgeItem } from '../types/spex';
 import type { AnnualPlan, AnnualPlanKind, AnnualPlanObjectiveOverride } from '../types/spex';
 import { offlinePost, offlineDelete } from '../lib/offline';
 
@@ -516,6 +516,32 @@ export async function requestPedagogicalGameSuggestion(payload: PedagogicalGameS
   if (!candidate || typeof candidate !== 'object') throw new Error('invalid_suggestion');
   return candidate as Record<string, unknown>;
 }
+
+export async function fetchPedagogicalGames(scope: 'public' | 'mine' | 'pending') {
+  const response = await fetch(`/api/pedagogical-games/${scope}`);
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.error || 'تعذر تحميل الألعاب.');
+  return json.games || [];
+}
+
+export async function createPedagogicalGame(game: Partial<KnowledgeItem>) {
+  const response = await fetch('/api/pedagogical-games', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(game) });
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.error || 'تعذر حفظ اللعبة.');
+  return json.game;
+}
+
+export async function updatePedagogicalGame(id: string, game: Partial<KnowledgeItem>) {
+  const response = await fetch(`/api/pedagogical-games/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(game) });
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.error || 'تعذر تعديل اللعبة.');
+  return json.game;
+}
+
+export async function deletePedagogicalGame(id: string) { await fetch(`/api/pedagogical-games/${id}`, { method: 'DELETE' }); }
+export async function submitPedagogicalGame(id: string) { const response = await fetch(`/api/pedagogical-games/${id}/submit`, { method: 'POST' }); const json = await response.json(); if (!response.ok) throw new Error(json.error || 'تعذر إرسال اللعبة.'); return json.game; }
+export async function approvePedagogicalGame(id: string) { const response = await fetch(`/api/pedagogical-games/${id}/approve`, { method: 'POST' }); if (!response.ok) throw new Error('تعذر اعتماد اللعبة.'); }
+export async function rejectPedagogicalGame(id: string, rejectionReason: string) { const response = await fetch(`/api/pedagogical-games/${id}/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rejectionReason }) }); if (!response.ok) throw new Error('تعذر رفض اللعبة.'); }
 
 export async function sendAIChatMessage(message: string, history: { role: 'user' | 'model'; text: string }[]) {
   try {

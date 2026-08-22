@@ -181,6 +181,7 @@ export default function App() {
     handleAddKnowledgeItem,
     handleUpdateKnowledgeItem,
     handleSubmitKnowledgeItem,
+    handleDeleteKnowledgeItem,
     handleApproveKnowledgeItem,
     handleRejectKnowledgeItem,
     handleAddInspectorNote,
@@ -447,6 +448,7 @@ export default function App() {
                 onAddKnowledgeItem={handleAddKnowledgeItem}
                 onUpdateKnowledgeItem={handleUpdateKnowledgeItem}
                 onSubmitKnowledgeItem={handleSubmitKnowledgeItem}
+                onDeleteKnowledgeItem={handleDeleteKnowledgeItem}
                 onApproveKnowledgeItem={handleApproveKnowledgeItem}
                 onRejectKnowledgeItem={handleRejectKnowledgeItem}
                 currentUser={currentUser}

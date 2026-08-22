@@ -64,6 +64,7 @@ model User {
   birthDate DateTime?
 
   resetTokens PasswordResetToken[]
+  pedagogicalGames PedagogicalGame[]
 
   // نظام الإسناد التلقائي للأساتذة إلى المفتشين
   teacherAssignment    InspectorAssignment?  @relation("TeacherAssignment")
@@ -268,6 +269,44 @@ model EducationalSituation {
 
   @@index([grade, fieldId, status])
   @@index([ownerId, status])
+}
+
+model PedagogicalGame {
+  id                String   @id
+  ownerId           String
+  owner             User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title             String
+  grade             Int
+  fieldId           String
+  fieldName         String
+  objectiveId       String?
+  objectiveText     String
+  pedagogicalPurpose String
+  organization      String
+  description       String
+  rules             String
+  equipment         String[] @default([])
+  executionGuidance String?
+  safetyGuidance    String?
+  progression       String?
+  origin            String   @default("TEACHER")
+  status            String   @default("DRAFT")
+  approved          Boolean  @default(false)
+  submittedAt      DateTime?
+  approvedAt       DateTime?
+  approvedById     String?
+  rejectedAt       DateTime?
+  rejectedById     String?
+  rejectionReason  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([grade])
+  @@index([fieldId])
+  @@index([createdAt])
+  @@index([status, grade, fieldId])
 }
 
 model NotebookEntry {

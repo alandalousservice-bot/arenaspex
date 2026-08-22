@@ -33,6 +33,7 @@ interface KnowledgeEngineViewProps {
   onAddKnowledgeItem: (item: Partial<KnowledgeItem>) => void;
   onUpdateKnowledgeItem?: (id: string, patch: Partial<KnowledgeItem>) => void;
   onSubmitKnowledgeItem?: (id: string) => void;
+  onDeleteKnowledgeItem?: (id: string) => void;
   onApproveKnowledgeItem?: (id: string) => void;
   onRejectKnowledgeItem?: (id: string, reason: string) => void;
   currentUser: User;
@@ -63,6 +64,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
   onAddKnowledgeItem,
   onUpdateKnowledgeItem,
   onSubmitKnowledgeItem,
+  onDeleteKnowledgeItem,
   onApproveKnowledgeItem,
   onRejectKnowledgeItem,
   currentUser,
@@ -426,7 +428,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
         </div>
       )}
 
-      {activeTab === 'game' && ownEditableGames.length > 0 && <section className="bg-white rounded-3xl border border-slate-200/80 p-4 space-y-3"><h3 className="text-sm font-extrabold text-slate-900">اقتراحاتي الخاصة</h3>{ownEditableGames.map((item) => <div key={item.id} className="border border-slate-100 rounded-2xl p-3 space-y-2"><div className="flex justify-between"><span className="text-xs font-bold">{item.title}</span><span className="text-[11px] text-amber-700">{item.approvalStatus === 'REJECTED' ? 'مرفوض' : 'مسودة'}</span></div>{item.rejectionReason && <p className="text-xs text-rose-700 bg-rose-50 rounded-xl p-2">سبب الرفض: {item.rejectionReason}</p>}<textarea value={item.rules || ''} onChange={(e) => onUpdateKnowledgeItem?.(item.id, { rules: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs min-h-16" placeholder="القواعد والتوجيهات" /><div className="flex gap-2"><button onClick={() => onSubmitKnowledgeItem?.(item.id)} className="px-3 py-1.5 bg-indigo-600 text-white rounded-xl text-[11px] font-bold">إرسال للاعتماد</button></div></div>)}</section>}
+      {activeTab === 'game' && ownEditableGames.length > 0 && <section className="bg-white rounded-3xl border border-slate-200/80 p-4 space-y-3"><h3 className="text-sm font-extrabold text-slate-900">اقتراحاتي الخاصة</h3>{ownEditableGames.map((item) => <div key={item.id} className="border border-slate-100 rounded-2xl p-3 space-y-2"><div className="flex justify-between"><span className="text-xs font-bold">{item.title}</span><span className="text-[11px] text-amber-700">{item.approvalStatus === 'REJECTED' ? 'مرفوض' : 'مسودة'}</span></div>{item.rejectionReason && <p className="text-xs text-rose-700 bg-rose-50 rounded-xl p-2">سبب الرفض: {item.rejectionReason}</p>}<textarea value={item.rules || ''} onChange={(e) => onUpdateKnowledgeItem?.(item.id, { rules: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs min-h-16" placeholder="القواعد والتوجيهات" /><div className="flex gap-2"><button onClick={() => onSubmitKnowledgeItem?.(item.id)} className="px-3 py-1.5 bg-indigo-600 text-white rounded-xl text-[11px] font-bold">إرسال للاعتماد</button><button onClick={() => onDeleteKnowledgeItem?.(item.id)} className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold">حذف</button></div></div>)}</section>}
 
       {activeTab === 'game' && pendingGames.length > 0 && <section className="bg-white rounded-3xl border border-amber-200 p-4 space-y-3"><h3 className="text-sm font-extrabold text-slate-900">ألعاب بانتظار الاعتماد</h3>{pendingGames.map((item) => <div key={item.id} className="border border-slate-100 rounded-2xl p-3 space-y-2"><div className="flex justify-between"><span className="text-xs font-bold">{item.title}</span><span className="text-[11px] text-amber-700">بانتظار الاعتماد</span></div><p className="text-xs text-slate-600">السنة {item.levelIds?.[0]?.replace('lvl_p', '')} · {item.fieldName} · {item.description}</p><div className="flex gap-2"><button onClick={() => onApproveKnowledgeItem?.(item.id)} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-[11px] font-bold">اعتماد</button><input value={rejectionDraft[item.id] || ''} onChange={(e) => setRejectionDraft({ ...rejectionDraft, [item.id]: e.target.value })} placeholder="سبب الرفض" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px]" /><button disabled={!rejectionDraft[item.id]?.trim()} onClick={() => onRejectKnowledgeItem?.(item.id, rejectionDraft[item.id])} className="px-3 py-1.5 bg-rose-600 text-white rounded-xl text-[11px] font-bold disabled:opacity-40">رفض</button></div></div>)}</section>}
 
