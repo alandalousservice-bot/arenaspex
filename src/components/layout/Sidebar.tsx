@@ -102,11 +102,6 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
             },
             { id: 'lesson_plans' as NavTab, label: 'مذكرات الحصص', icon: FileText },
             {
-              id: 'educational_situations' as NavTab,
-              label: 'بنك المواقف التربوية',
-              icon: BrainCircuit,
-            },
-            {
               id: 'lesson_command_center' as NavTab,
               label: 'مركز قيادة الحصة',
               icon: Timer,
@@ -147,11 +142,6 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
               label: 'بنك المعرفة والاعتماد',
               icon: BrainCircuit,
             },
-            {
-              id: 'educational_situations' as NavTab,
-              label: 'بنك المواقف والاعتماد',
-              icon: BrainCircuit,
-            },
           ],
         };
       }
@@ -185,11 +175,6 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
             badge: 'فضاء موحّد',
           },
           { id: 'knowledge_engine' as NavTab, label: 'إدارة بنك المعرفة', icon: BrainCircuit },
-          {
-            id: 'educational_situations' as NavTab,
-            label: 'بنك المواقف والاعتماد',
-            icon: BrainCircuit,
-          },
         ],
       };
     };

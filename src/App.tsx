@@ -88,11 +88,6 @@ const LessonCommandCenterView = lazy(() =>
     default: m.LessonCommandCenterView,
   }))
 );
-const EducationalSituationsBankView = lazy(() =>
-  import('./components/educationalSituations/EducationalSituationsBankView').then((m) => ({
-    default: m.EducationalSituationsBankView,
-  }))
-);
 
 const ViewFallback = () => (
   <div className="flex flex-col items-center justify-center min-h-[400px] w-full p-8 text-slate-500 space-y-3">
@@ -426,10 +421,6 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'educational_situations' && (
-              <EducationalSituationsBankView currentUser={currentUser} />
-            )}
-
             {activeTab === 'lesson_command_center' && (
               <LessonCommandCenterView
                 currentSession={activeLessonSession}
@@ -451,6 +442,7 @@ export default function App() {
               <KnowledgeEngineView
                 knowledgeItems={knowledgeItems}
                 onAddKnowledgeItem={handleAddKnowledgeItem}
+                currentUser={currentUser}
               />
             )}
 

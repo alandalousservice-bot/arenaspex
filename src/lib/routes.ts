@@ -54,6 +54,8 @@ export function pathToTab(pathname: string): NavTab | null {
   // تطبيع: تجاهل الشرطة الأخيرة الزائدة
   const normalized =
     pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  // Deep links to the retired standalone bank now open the unified knowledge bank.
+  if (normalized === '/educational-situations') return 'knowledge_engine';
   return PATH_TO_TAB[normalized] ?? null;
 }
 
@@ -77,7 +79,6 @@ export const ROLE_TABS: Record<UserRole, NavTab[]> = {
     'daily_notebook',
     'lesson_plans',
     'lesson_command_center',
-    'educational_situations',
     'knowledge_engine',
     'competency_assessment',
     'gradebook',
@@ -88,7 +89,6 @@ export const ROLE_TABS: Record<UserRole, NavTab[]> = {
     'inspector_portal',
     'professional_hub',
     'knowledge_engine',
-    'educational_situations',
     'reports',
     'settings',
   ],
@@ -97,7 +97,6 @@ export const ROLE_TABS: Record<UserRole, NavTab[]> = {
     'admin_portal',
     'professional_hub',
     'knowledge_engine',
-    'educational_situations',
     'reports',
     'settings',
   ],

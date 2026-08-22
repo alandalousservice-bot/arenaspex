@@ -46,7 +46,7 @@ const request = async (url: string, options?: RequestInit) => {
   return body;
 };
 
-export const EducationalSituationsBankView: React.FC<{ currentUser: User }> = ({ currentUser }) => {
+export const EducationalSituationsBankView: React.FC<{ currentUser: User; embedded?: boolean }> = ({ currentUser, embedded = false }) => {
   const [items, setItems] = useState<EducationalSituation[]>([]);
   const [q, setQ] = useState('');
   const [grade, setGrade] = useState('');
@@ -147,7 +147,7 @@ export const EducationalSituationsBankView: React.FC<{ currentUser: User }> = ({
   return (
     <div className="space-y-5" dir="rtl">
       <div className="rounded-2xl border bg-white p-5">
-        <h2 className="text-lg font-extrabold">بنك المواقف التربوية</h2>
+        <h2 className="text-lg font-extrabold">{embedded ? 'المواقف التربوية' : 'بنك المواقف التربوية'}</h2>
         <p className="text-xs text-slate-500">
           المواقف العامة ومواقفك الخاصة المرتبطة بالأهداف التعليمية.
         </p>

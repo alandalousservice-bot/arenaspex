@@ -20,17 +20,21 @@ import {
 import { KnowledgeItem, KnowledgeCategory } from '../../types/spex';
 import { requestAIGames } from '../../services/api';
 import { useDebounce } from '../../hooks/useDebounce';
+import { EducationalSituationsBankView } from '../educationalSituations/EducationalSituationsBankView';
+import { User } from '../../types/spex';
 
 interface KnowledgeEngineViewProps {
   knowledgeItems: KnowledgeItem[];
   onAddKnowledgeItem: (item: Partial<KnowledgeItem>) => void;
+  currentUser: User;
 }
 
 export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
   knowledgeItems,
-  onAddKnowledgeItem
+  onAddKnowledgeItem,
+  currentUser
 }) => {
-  const [activeTab, setActiveTab] = useState<KnowledgeCategory>('game');
+  const [activeTab, setActiveTab] = useState<KnowledgeCategory | 'educational_situation'>('game');
   const [searchVal, setSearchVal] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isSuggestingGames, setIsSuggestingGames] = useState(false);
@@ -174,6 +178,16 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
             <BookOpen className="w-4 h-4" />
             <span>الأنشطة العلاجية</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('educational_situation')}
+            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'educational_situation' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            <span>المواقف التربوية</span>
+          </button>
         </div>
 
         <div className="relative w-full md:w-64">
@@ -188,8 +202,9 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
         </div>
       </div>
 
-      {/* Content Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {activeTab === 'educational_situation' ? (
+        <EducationalSituationsBankView currentUser={currentUser} embedded />
+      ) : <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredItems.map((item) => (
           <div key={item.id} className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -246,7 +261,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
             </div>
           </div>
         ))}
-      </div>
+      </div>}
     </div>
   );
 };
