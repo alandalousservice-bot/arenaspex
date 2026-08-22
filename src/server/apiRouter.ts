@@ -1131,7 +1131,7 @@ apiRouter.delete('/db/annual-plans/:id', async (req, res) => {
 apiRouter.get('/admin/generation/config', requireRole('admin'), async (_req, res) => {
   const config = await prisma.generationServiceConfig.findUnique({ where: { id: 'default' } });
   const providers = await getConfiguredAIProviders();
-  const configured = providers.some((provider) => provider.enabled && provider.keyConfigured);
+  const configured = providers.some((provider) => provider.enabled && (provider.keyConfigured || provider.type === 'ollama' || (provider.type === 'openai-compatible' && Boolean(provider.baseUrl))));
   res.json({ success: true, generationEnabled: config?.enabled ?? true, providerConfigured: configured, providers: providers.map((provider) => ({ id: provider.id, name: provider.name, type: provider.type, enabled: provider.enabled, keyConfigured: provider.keyConfigured, source: provider.source })) });
 });
 
