@@ -23,6 +23,7 @@ import { hashPassword, sanitizeUser, sanitizeOwnUser, encryptApiKey } from './au
 import { requireAuth, requireRole } from './middleware/requireAuth.js';
 import { reassignTeacher, reassignAllForInspector } from './assignmentService.js';
 import { canWriteRecord, resolveOwnerFieldValue } from './collectionAuth.js';
+import { canReadDistrictMessage, normalizeMessageText } from '../services/communicationRules.js';
 
 // نظام الإسناد التلقائي للأساتذة إلى المفتشين: يُعاد احتساب جهة الإشراف تلقائياً
 // عند تسجيل/تعديل أستاذ (يعاد ربطه بمفتشه) أو تسجيل/تعديل مفتش (يعاد ربط كل الأساتذة
@@ -58,6 +59,184 @@ apiRouter.get('/health', (req, res) => {
 
 // كل ما يلي يتطلب تسجيل دخول صالح
 apiRouter.use(requireAuth);
+
+// -----------------------------------------------------------------------
+// التواصل المهني الموثوق: مسارات صريحة للمحادثات والرسائل والإشعارات.
+// هذه المسارات لا تعيد مجموعة الرسائل كاملة للواجهة، وتفرض الخصوصية من الخادم.
+// -----------------------------------------------------------------------
+const communicationUserSelect = {
+  id: true,
+  username: true,
+  spexId: true,
+  firstName: true,
+  lastName: true,
+  role: true,
+  avatar: true,
+  districtId: true,
+  directorateId: true,
+  status: true,
+} as const;
+
+async function canContactUser(requesterId: string, requesterRole: string, targetId: string) {
+  const [requester, target] = await Promise.all([
+    prisma.user.findUnique({ where: { id: requesterId }, select: communicationUserSelect }),
+    prisma.user.findUnique({ where: { id: targetId }, select: communicationUserSelect }),
+  ]);
+  if (!requester || !target || target.status !== 'active' || requester.id === target.id) return false;
+  if (requesterRole === 'admin' || target.role === 'admin') return true;
+  if (requester.directorateId === target.directorateId) {
+    if (requester.role === 'director' || target.role === 'director') return true;
+    if (requester.districtId === target.districtId) return true;
+  }
+  const assignment = await prisma.inspectorAssignment.findFirst({
+    where: {
+      status: { in: ['Active', 'Changed'] },
+      OR: [
+        { teacherId: requester.id, inspectorId: target.id },
+        { teacherId: target.id, inspectorId: requester.id },
+      ],
+    },
+  });
+  return Boolean(assignment);
+}
+
+function directMessageView(row: { id: string; senderId: string | null; recipientId: string | null; content: string | null; data: unknown; createdAt: Date; readAt: Date | null }) {
+  const data = (row.data && typeof row.data === 'object' ? row.data : {}) as Record<string, unknown>;
+  return {
+    id: row.id,
+    senderId: row.senderId || String(data.senderId || ''),
+    recipientId: row.recipientId || String(data.receiverId || data.recipientId || ''),
+    text: row.content || String(data.message || data.text || ''),
+    createdAt: row.createdAt.toISOString(),
+    readAt: row.readAt?.toISOString() || null,
+  };
+}
+
+apiRouter.get('/communication/contacts', async (req, res) => {
+  const user = req.user!;
+  const candidates = await prisma.user.findMany({
+    where: { status: 'active', id: { not: user.id } },
+    select: communicationUserSelect,
+    orderBy: [{ role: 'asc' }, { firstName: 'asc' }],
+  });
+  const allowed = [];
+  for (const candidate of candidates) {
+    if (await canContactUser(user.id, user.role, candidate.id)) allowed.push(candidate);
+  }
+  res.json({ contacts: allowed });
+});
+
+apiRouter.get('/communication/direct-conversations', async (req, res) => {
+  const user = req.user!;
+  const rows = await prisma.directMessage.findMany({
+    where: { OR: [{ senderId: user.id }, { recipientId: user.id }] },
+    orderBy: { createdAt: 'desc' },
+    take: 500,
+  });
+  const grouped = new Map<string, { lastMessage: ReturnType<typeof directMessageView>; unreadCount: number }>();
+  for (const row of rows) {
+    const view = directMessageView(row);
+    const partnerId = view.senderId === user.id ? view.recipientId : view.senderId;
+    if (!partnerId || grouped.has(partnerId)) continue;
+    grouped.set(partnerId, {
+      lastMessage: view,
+      unreadCount: rows.filter((item) => item.recipientId === user.id && item.senderId === partnerId && !item.readAt).length,
+    });
+  }
+  const contacts = await prisma.user.findMany({
+    where: { id: { in: [...grouped.keys()] }, status: 'active' },
+    select: communicationUserSelect,
+  });
+  res.json({ conversations: contacts.map((contact) => ({ user: contact, ...grouped.get(contact.id)! })) });
+});
+
+apiRouter.get('/communication/direct-messages/:userId', async (req, res) => {
+  const user = req.user!;
+  const targetId = req.params.userId;
+  if (!(await canContactUser(user.id, user.role, targetId))) {
+    return res.status(403).json({ error: 'لا تملك صلاحية فتح هذه المحادثة.' });
+  }
+  const rows = await prisma.directMessage.findMany({
+    where: {
+      OR: [
+        { senderId: user.id, recipientId: targetId },
+        { senderId: targetId, recipientId: user.id },
+      ],
+    },
+    orderBy: { createdAt: 'asc' },
+    take: 500,
+  });
+  res.json({ messages: rows.map(directMessageView) });
+});
+
+apiRouter.post('/communication/direct-messages', async (req, res) => {
+  const user = req.user!;
+  const recipientId = typeof req.body?.recipientId === 'string' ? req.body.recipientId : '';
+  const text = normalizeMessageText(req.body?.text);
+  if (!recipientId || recipientId === user.id) return res.status(400).json({ error: 'جهة الاتصال غير صالحة.' });
+  if (!text) return res.status(400).json({ error: 'الرسالة مطلوبة وبحد أقصى 4000 حرف.' });
+  if (!(await canContactUser(user.id, user.role, recipientId))) {
+    return res.status(403).json({ error: 'لا تملك صلاحية مراسلة هذا المستخدم.' });
+  }
+  const id = `dm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const created = await prisma.$transaction(async (tx) => {
+    const message = await tx.directMessage.create({
+      data: { id, senderId: user.id, recipientId, content: text, data: { text } },
+    });
+    await tx.communityNotification.create({
+      data: {
+        id: `notif_${id}`,
+        userId: recipientId,
+        senderId: user.id,
+        type: 'new_message',
+        title: 'رسالة جديدة',
+        message: text.slice(0, 120),
+        read: false,
+        data: { type: 'new_message', message: text.slice(0, 120), senderId: user.id },
+      },
+    });
+    return message;
+  });
+  res.status(201).json({ message: directMessageView(created) });
+});
+
+apiRouter.post('/communication/direct-messages/:id/read', async (req, res) => {
+  const result = await prisma.directMessage.updateMany({
+    where: { id: req.params.id, recipientId: req.user!.id },
+    data: { readAt: new Date() },
+  });
+  if (!result.count) return res.status(404).json({ error: 'الرسالة غير موجودة.' });
+  res.json({ success: true });
+});
+
+apiRouter.get('/communication/district-messages', async (req, res) => {
+  const rows = await prisma.districtMessage.findMany({
+    orderBy: { createdAt: 'asc' },
+    take: 500,
+  });
+  const visible = rows.filter((row) => canReadDistrictMessage({ districtId: row.districtId, legacyDistrictId: String((row.data as any)?.districtId || '') }, req.user!.districtId, req.user!.role === 'admin'));
+  res.json({ messages: visible.map((row) => ({ id: row.id, authorId: row.authorId, districtId: row.districtId || String((row.data as any)?.districtId || ''), text: row.content || String((row.data as any)?.message || (row.data as any)?.text || ''), createdAt: row.createdAt.toISOString(), data: row.data })) });
+});
+
+apiRouter.post('/communication/district-messages', async (req, res) => {
+  const text = normalizeMessageText(req.body?.text);
+  if (!text) return res.status(400).json({ error: 'الرسالة مطلوبة وبحد أقصى 4000 حرف.' });
+  const created = await prisma.districtMessage.create({
+    data: { id: `district_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, authorId: req.user!.id, districtId: req.user!.districtId, content: text, data: { text } },
+  });
+  res.status(201).json({ message: { id: created.id, authorId: created.authorId, districtId: created.districtId, text, createdAt: created.createdAt.toISOString() } });
+});
+
+apiRouter.get('/communication/notifications', async (req, res) => {
+  const rows = await prisma.communityNotification.findMany({ where: { userId: req.user!.id }, orderBy: { createdAt: 'desc' }, take: 200 });
+  res.json({ notifications: rows.map((row) => ({ id: row.id, userId: row.userId, senderId: row.senderId, type: row.type || String((row.data as any)?.type || 'info'), title: row.title || 'إشعار', message: row.message || String((row.data as any)?.message || ''), read: row.read, createdAt: row.createdAt.toISOString() })) });
+});
+
+apiRouter.post('/communication/notifications/:id/read', async (req, res) => {
+  const result = await prisma.communityNotification.updateMany({ where: { id: req.params.id, userId: req.user!.id }, data: { read: true, readAt: new Date() } });
+  if (!result.count) return res.status(404).json({ error: 'الإشعار غير موجود.' });
+  res.json({ success: true });
+});
 
 const educationalSituationInput = z.object({
   name: z.string().trim().min(1),

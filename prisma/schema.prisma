@@ -293,21 +293,28 @@ model InspectorNote {
 model DistrictMessage {
   id        String   @id
   authorId  String?
+  districtId String?
+  content   String?
   data      Json
   createdAt DateTime @default(now())
 
   @@index([authorId])
+  @@index([districtId, createdAt])
 }
 
 model DirectMessage {
   id           String   @id
   senderId     String?
   recipientId  String?
+  content      String?
+  readAt       DateTime?
   data         Json
   createdAt    DateTime @default(now())
 
   @@index([senderId])
   @@index([recipientId])
+  @@index([senderId, recipientId, createdAt])
+  @@index([recipientId, readAt])
 }
 
 model CommunityResource {
@@ -323,10 +330,17 @@ model CommunityResource {
 model CommunityNotification {
   id         String   @id
   userId     String?
+  senderId   String?
+  type       String?
+  title      String?
+  message    String?
+  read       Boolean  @default(false)
+  readAt     DateTime?
   data       Json
   createdAt  DateTime @default(now())
 
   @@index([userId])
+  @@index([userId, read, createdAt])
 }
 
 // -----------------------------------------------------------------------

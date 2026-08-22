@@ -590,13 +590,10 @@ export async function syncDistrictMessageToDB(message: unknown) {
 }
 
 export async function fetchDistrictMessagesFromDB() {
-  try {
-    const res = await fetch('/api/db/district-messages');
-    const data = await res.json();
-    return data.districtMessages || [];
-  } catch (e) {
-    return [];
-  }
+  const res = await fetch('/api/db/district-messages');
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل رسائل المقاطعة.');
+  return data.districtMessages || [];
 }
 
 export async function syncDirectMessageToDB(message: unknown) {
@@ -604,13 +601,10 @@ export async function syncDirectMessageToDB(message: unknown) {
 }
 
 export async function fetchDirectMessagesFromDB() {
-  try {
-    const res = await fetch('/api/db/direct-messages');
-    const data = await res.json();
-    return data.directMessages || [];
-  } catch (e) {
-    return [];
-  }
+  const res = await fetch('/api/db/direct-messages');
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل الرسائل الخاصة.');
+  return data.directMessages || [];
 }
 
 export async function syncCommunityResourceToDB(resource: unknown) {
@@ -636,13 +630,10 @@ export async function deleteCommunityNotificationFromDB(notificationId: string) 
 }
 
 export async function fetchCommunityNotificationsFromDB() {
-  try {
-    const res = await fetch('/api/db/community-notifications');
-    const data = await res.json();
-    return data.communityNotifications || [];
-  } catch (e) {
-    return [];
-  }
+  const res = await fetch('/api/db/community-notifications');
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل الإشعارات.');
+  return data.communityNotifications || [];
 }
 
 // -----------------------------------------------------------------------
