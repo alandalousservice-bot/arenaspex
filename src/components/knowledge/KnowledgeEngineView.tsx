@@ -14,13 +14,20 @@ import {
   Sparkles,
   Copy,
   Check,
-  BookOpen
+  BookOpen,
 } from 'lucide-react';
 import { CommunityResource, KnowledgeItem, KnowledgeCategory } from '../../types/spex';
 import { requestAIGames } from '../../services/api';
 import { useDebounce } from '../../hooks/useDebounce';
 import { EducationalSituationsBankView } from '../educationalSituations/EducationalSituationsBankView';
 import { User } from '../../types/spex';
+import {
+  buildKnowledgeCoverage,
+  buildObjectiveReadModel,
+  CoverageStatus,
+  CurriculumObjectiveReference,
+  canViewCoverageDiagnostics,
+} from '../../services/knowledgeCoverage.service';
 
 interface KnowledgeEngineViewProps {
   knowledgeItems: KnowledgeItem[];
@@ -29,42 +36,80 @@ interface KnowledgeEngineViewProps {
   communityResources?: CommunityResource[];
 }
 
-export function selectApprovedCommunityResources(resources: CommunityResource[]): CommunityResource[] {
+export function selectApprovedCommunityResources(
+  resources: CommunityResource[]
+): CommunityResource[] {
   return resources.filter(
-    (resource) => resource.isApprovedByInspector || resource.authorRole === 'inspector' || resource.authorRole === 'admin'
+    (resource) =>
+      resource.isApprovedByInspector ||
+      resource.authorRole === 'inspector' ||
+      resource.authorRole === 'admin'
   );
 }
 
-export const KNOWLEDGE_BANK_CATEGORIES = ['game', 'objective', 'remedial', 'educational_situation', 'community_resource'] as const;
+export const KNOWLEDGE_BANK_CATEGORIES = [
+  'game',
+  'objective',
+  'remedial',
+  'educational_situation',
+  'community_resource',
+] as const;
 
 export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
   knowledgeItems,
   onAddKnowledgeItem,
   currentUser,
-  communityResources = []
+  communityResources = [],
 }) => {
-  const [activeTab, setActiveTab] = useState<KnowledgeCategory | 'educational_situation' | 'community_resource'>('game');
+  const [activeTab, setActiveTab] = useState<
+    KnowledgeCategory | 'educational_situation' | 'community_resource'
+  >('game');
   const [searchVal, setSearchVal] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isSuggestingGames, setIsSuggestingGames] = useState(false);
+  const [showCoverage, setShowCoverage] = useState(false);
+  const [objectiveGrade, setObjectiveGrade] = useState('all');
+  const [objectiveField, setObjectiveField] = useState('all');
   // تأخير التصفية عن الطباعة المباشرة لتقليل عمليات إعادة الرسم على القوائم الكبيرة
   const debouncedSearchVal = useDebounce(searchVal, 300);
 
-  const filteredItems = knowledgeItems.filter((item) => {
-    const matchesCategory = item.category === activeTab;
-    const matchesSearch =
-      item.title.includes(debouncedSearchVal) ||
-      item.description.includes(debouncedSearchVal) ||
-      item.tags.some((t) => t.includes(debouncedSearchVal));
-    return item.approved && matchesCategory && matchesSearch;
-  });
+  const objectiveItems = buildObjectiveReadModel(knowledgeItems);
+  const filteredItems = (activeTab === 'objective' ? objectiveItems : knowledgeItems).filter(
+    (item) => {
+      const matchesCategory = item.category === activeTab;
+      const matchesSearch =
+        item.title.includes(debouncedSearchVal) ||
+        item.description.includes(debouncedSearchVal) ||
+        item.tags.some((t) => t.includes(debouncedSearchVal));
+      const matchesGrade =
+        activeTab !== 'objective' ||
+        objectiveGrade === 'all' ||
+        item.levelId === objectiveGrade ||
+        item.levelIds?.includes(objectiveGrade);
+      const matchesField =
+        activeTab !== 'objective' || objectiveField === 'all' || item.fieldId === objectiveField;
+      return item.approved && matchesCategory && matchesSearch && matchesGrade && matchesField;
+    }
+  );
+  const coverage = buildKnowledgeCoverage({ knowledgeItems });
+  const canViewCoverage = canViewCoverageDiagnostics(currentUser.role);
+  const statusLabel: Record<CoverageStatus, string> = {
+    EMPTY: 'فارغة',
+    LOW: 'منخفضة',
+    ADEQUATE: 'كافية',
+  };
   const approvedCommunityResources = selectApprovedCommunityResources(communityResources);
   const filteredCommunityResources = approvedCommunityResources.filter((resource) => {
     const query = debouncedSearchVal.trim();
-    return !query || resource.title.includes(query) || resource.description.includes(query) || resource.authorName.includes(query);
+    return (
+      !query ||
+      resource.title.includes(query) ||
+      resource.description.includes(query) ||
+      resource.authorName.includes(query)
+    );
   });
 
-  const handleCopyText = (item: KnowledgeItem) => {
+  const handleCopyText = (item: KnowledgeItem | CurriculumObjectiveReference) => {
     const textToCopy = `${item.title}\n\n${item.description}\n\nالأدوات: ${item.equipment?.join('، ')}\nالقوانين: ${item.rules}`;
     // clipboard API غير متوفرة في السياقات غير الآمنة (http) أو بعض المتصفحات — بديل آمن
     try {
@@ -98,7 +143,10 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
   const handleRequestAIGames = async () => {
     setIsSuggestingGames(true);
     try {
-      const suggestedGames = await requestAIGames('الميدان العام والألعاب الجماعية', 'الطور الابتدائي');
+      const suggestedGames = await requestAIGames(
+        'الميدان العام والألعاب الجماعية',
+        'الطور الابتدائي'
+      );
       suggestedGames.forEach((g: any, i: number) => {
         onAddKnowledgeItem({
           category: 'game',
@@ -146,7 +194,11 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-2xl text-xs shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
         >
           <Sparkles className="w-4 h-4 text-yellow-300 animate-pulse" />
-          <span>{isSuggestingGames ? 'جاري الاستخراج من بنك المعرفة...' : 'استخراج ألعاب بيداغوجية موصى بها'}</span>
+          <span>
+            {isSuggestingGames
+              ? 'جاري الاستخراج من بنك المعرفة...'
+              : 'استخراج ألعاب بيداغوجية موصى بها'}
+          </span>
         </button>
       </div>
 
@@ -156,7 +208,9 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           <button
             onClick={() => setActiveTab('game')}
             className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'game' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              activeTab === 'game'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
             <Gamepad2 className="w-4 h-4" />
@@ -166,7 +220,9 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           <button
             onClick={() => setActiveTab('objective')}
             className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'objective' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              activeTab === 'objective'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
             <Target className="w-4 h-4" />
@@ -176,7 +232,9 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           <button
             onClick={() => setActiveTab('remedial')}
             className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'remedial' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              activeTab === 'remedial'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
             <BookOpen className="w-4 h-4" />
@@ -186,7 +244,9 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           <button
             onClick={() => setActiveTab('educational_situation')}
             className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'educational_situation' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              activeTab === 'educational_situation'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
             <Layers className="w-4 h-4" />
@@ -197,7 +257,9 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
             <button
               onClick={() => setActiveTab('community_resource')}
               className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                activeTab === 'community_resource' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                activeTab === 'community_resource'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               <BookOpen className="w-4 h-4" />
@@ -218,73 +280,179 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
         </div>
       </div>
 
+      {canViewCoverage && (
+        <button
+          onClick={() => setShowCoverage((value) => !value)}
+          className={`self-start px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${showCoverage ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 border border-slate-200'}`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>تغطية بنك المعرفة</span>
+        </button>
+      )}
+      {showCoverage && canViewCoverage && (
+        <section className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-900">تغطية بنك المعرفة</h3>
+              <p className="text-[11px] text-slate-500">
+                مؤشر تشخيصي داخلي: فارغة = 0، منخفضة = 1–2، كافية = 3 فأكثر.
+              </p>
+            </div>
+            <span className="text-[11px] text-slate-500">
+              15 خلية · موارد مشتركة معتمدة: {approvedCommunityResources.length}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px] text-right">
+              <thead>
+                <tr className="border-b text-slate-500">
+                  <th className="p-2">السنة</th>
+                  <th className="p-2">الميدان</th>
+                  <th className="p-2">الألعاب</th>
+                  <th className="p-2">الأهداف</th>
+                  <th className="p-2">العلاجية</th>
+                  <th className="p-2">المواقف</th>
+                </tr>
+              </thead>
+              <tbody>
+                {coverage.map((cell) => (
+                  <tr key={`${cell.levelId}-${cell.fieldId}`} className="border-b border-slate-50">
+                    <td className="p-2">{cell.grade}</td>
+                    <td className="p-2">{cell.fieldName}</td>
+                    {(['games', 'objectives', 'remedial', 'situations'] as const).map((type) => {
+                      const countKey = `${type}Count` as
+                        'gamesCount' | 'objectivesCount' | 'remedialCount' | 'situationsCount';
+                      return (
+                        <td className="p-2" key={type}>
+                          <span
+                            className={`font-bold ${cell.statuses[type] === 'EMPTY' ? 'text-rose-600' : cell.statuses[type] === 'LOW' ? 'text-amber-600' : 'text-emerald-600'}`}
+                          >
+                            {cell[countKey]} · {statusLabel[cell.statuses[type]]}
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+      {activeTab === 'objective' && (
+        <div className="flex items-center gap-2 text-xs">
+          <select
+            value={objectiveGrade}
+            onChange={(e) => setObjectiveGrade(e.target.value)}
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2"
+          >
+            <option value="all">كل السنوات</option>
+            {[1, 2, 3, 4, 5].map((grade) => (
+              <option key={grade} value={`lvl_p${grade}`}>
+                السنة {grade}
+              </option>
+            ))}
+          </select>
+          <select
+            value={objectiveField}
+            onChange={(e) => setObjectiveField(e.target.value)}
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2"
+          >
+            <option value="all">كل الميادين</option>
+            <option value="f_locomotion">الوضعيات والتنقلات</option>
+            <option value="f_fundamentals">الحركات القاعدية</option>
+            <option value="f_structuring">الهيكلة والبناء</option>
+          </select>
+        </div>
+      )}
+
       {activeTab === 'educational_situation' ? (
         <EducationalSituationsBankView currentUser={currentUser} embedded />
       ) : activeTab === 'community_resource' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filteredCommunityResources.map((resource) => (
-            <article key={resource.id} className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-3">
+            <article
+              key={resource.id}
+              className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-3"
+            >
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">مورد تعليمي مشترك</span>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">
+                  مورد تعليمي مشترك
+                </span>
                 <span className="text-[10px] text-slate-500">{resource.authorName}</span>
               </div>
               <h3 className="text-sm font-extrabold text-slate-900">{resource.title}</h3>
-              <p className="text-xs leading-relaxed text-slate-600 bg-slate-50 p-3 rounded-2xl">{resource.description}</p>
+              <p className="text-xs leading-relaxed text-slate-600 bg-slate-50 p-3 rounded-2xl">
+                {resource.description}
+              </p>
               <p className="text-[11px] text-slate-500">النوع: {resource.type}</p>
             </article>
           ))}
-          {!filteredCommunityResources.length && <p className="md:col-span-2 rounded-2xl border bg-white p-6 text-center text-sm text-slate-500">لا توجد موارد تعليمية مشتركة مطابقة.</p>}
+          {!filteredCommunityResources.length && (
+            <p className="md:col-span-2 rounded-2xl border bg-white p-6 text-center text-sm text-slate-500">
+              لا توجد موارد تعليمية مشتركة مطابقة.
+            </p>
+          )}
         </div>
-      ) : <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {filteredItems.map((item) => (
-          <div key={item.id} className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow space-y-4">
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {filteredItems.map((item) => (
+            <div
+              key={item.id}
+              className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow space-y-4"
+            >
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
                   {item.fieldName || 'الميدان العام'}
                 </span>
               </div>
 
-            <h3 className="text-sm font-extrabold text-slate-900 leading-snug">{item.title}</h3>
-            <p className="text-xs text-slate-600 leading-relaxed bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
-              {item.description}
-            </p>
+              <h3 className="text-sm font-extrabold text-slate-900 leading-snug">{item.title}</h3>
+              <p className="text-xs text-slate-600 leading-relaxed bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+                {item.description}
+              </p>
 
-            {item.rules && (
-              <div className="text-xs space-y-1">
-                <span className="font-bold text-slate-800 block">طريقة التنفيذ والقوانين:</span>
-                <p className="text-slate-600 text-[11px]">{item.rules}</p>
+              {item.rules && (
+                <div className="text-xs space-y-1">
+                  <span className="font-bold text-slate-800 block">طريقة التنفيذ والقوانين:</span>
+                  <p className="text-slate-600 text-[11px]">{item.rules}</p>
+                </div>
+              )}
+
+              {item.equipment && item.equipment.length > 0 && (
+                <div className="text-[11px] text-slate-500 font-medium">
+                  <span className="font-bold text-slate-700">الأدوات المستعملة:</span>{' '}
+                  {item.equipment.join('، ')}
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-[10px] text-slate-400">
+                  المصدر:{' '}
+                  {item.origin === 'AI_GENERATED' ? 'محتوى مولد آلياً — غير معتمد' : item.createdBy}
+                </span>
+
+                <button
+                  onClick={() => handleCopyText(item)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                >
+                  {copiedId === item.id ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>تم النسخ!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>نسخ النص</span>
+                    </>
+                  )}
+                </button>
               </div>
-            )}
-
-            {item.equipment && item.equipment.length > 0 && (
-              <div className="text-[11px] text-slate-500 font-medium">
-                <span className="font-bold text-slate-700">الأدوات المستعملة:</span> {item.equipment.join('، ')}
-              </div>
-            )}
-
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-[10px] text-slate-400">المصدر: {item.origin === 'AI_GENERATED' ? 'محتوى مولد آلياً — غير معتمد' : item.createdBy}</span>
-
-              <button
-                onClick={() => handleCopyText(item)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all cursor-pointer"
-              >
-                {copiedId === item.id ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>تم النسخ!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>نسخ النص</span>
-                  </>
-                )}
-              </button>
             </div>
-          </div>
-        ))}
-      </div>}
+          ))}
+        </div>
+      )}
     </div>
   );
 };

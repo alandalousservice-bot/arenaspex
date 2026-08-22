@@ -719,7 +719,7 @@ export interface KnowledgeItem {
   category: KnowledgeCategory;
   title: string;
   description: string;
-  origin?: 'REFERENCE' | 'AI_GENERATED' | 'TEACHER' | 'COMMUNITY';
+  origin?: 'REFERENCE' | 'CURRICULUM_REFERENCE' | 'AI_GENERATED' | 'TEACHER' | 'COMMUNITY';
   approvalStatus?: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED';
   fieldId?: string;
   fieldName?: string;
