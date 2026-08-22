@@ -1,6 +1,6 @@
 /**
  * SPEX - Educational Knowledge Engine View Component
- * محرك المعرفة التربوية: بنك الأهداف، الألعاب، الوضعيات التعلمية والأنشطة العلاجية
+ * محرك المعرفة التربوية: بنك الأهداف، الألعاب، الأنشطة العلاجية والمواقف التربوية
  */
 
 import React, { useState } from 'react';
@@ -14,7 +14,6 @@ import {
   Sparkles,
   Copy,
   Check,
-  Star,
   BookOpen
 } from 'lucide-react';
 import { CommunityResource, KnowledgeItem, KnowledgeCategory } from '../../types/spex';
@@ -36,6 +35,8 @@ export function selectApprovedCommunityResources(resources: CommunityResource[])
   );
 }
 
+export const KNOWLEDGE_BANK_CATEGORIES = ['game', 'objective', 'remedial', 'educational_situation', 'community_resource'] as const;
+
 export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
   knowledgeItems,
   onAddKnowledgeItem,
@@ -55,7 +56,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
       item.title.includes(debouncedSearchVal) ||
       item.description.includes(debouncedSearchVal) ||
       item.tags.some((t) => t.includes(debouncedSearchVal));
-    return matchesCategory && matchesSearch;
+    return item.approved && matchesCategory && matchesSearch;
   });
   const approvedCommunityResources = selectApprovedCommunityResources(communityResources);
   const filteredCommunityResources = approvedCommunityResources.filter((resource) => {
@@ -103,16 +104,16 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           category: 'game',
           title: g.title,
           description: g.description,
-          fieldName: 'الميدان الجماعي',
+          fieldName: undefined,
           levelName: 'جميع المستويات',
           tags: ['مقترح بيداغوجي', 'لعبة رياضية'],
           equipment: g.equipment || ['أقماع', 'كرات'],
           rules: g.rules,
           duration: g.duration || '10 دقائق',
-          approved: true,
-          createdBy: 'بنك المعرفة البيداغوجية SPEX',
-          usageCount: 1,
-          rating: 4.8
+          approved: false,
+          approvalStatus: 'DRAFT',
+          origin: 'AI_GENERATED',
+          createdBy: 'محتوى مولد آلياً — غير معتمد',
         });
       });
     } catch (e) {
@@ -170,16 +171,6 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           >
             <Target className="w-4 h-4" />
             <span>بنك الأهداف الإجرائية</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('situation')}
-            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'situation' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>الوضعيات التعلمية</span>
           </button>
 
           <button
@@ -247,19 +238,11 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
       ) : <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredItems.map((item) => (
           <div key={item.id} className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
-                {item.fieldName || 'الميدان العام'}
-              </span>
-
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <div className="flex items-center gap-1 text-amber-500 font-bold">
-                  <Star className="w-3.5 h-3.5 fill-amber-400" />
-                  <span>{item.rating}</span>
-                </div>
-                <span>({item.usageCount} استخدام)</span>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                  {item.fieldName || 'الميدان العام'}
+                </span>
               </div>
-            </div>
 
             <h3 className="text-sm font-extrabold text-slate-900 leading-snug">{item.title}</h3>
             <p className="text-xs text-slate-600 leading-relaxed bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
@@ -280,7 +263,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
             )}
 
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-[10px] text-slate-400">بواسطة: {item.createdBy}</span>
+              <span className="text-[10px] text-slate-400">المصدر: {item.origin === 'AI_GENERATED' ? 'محتوى مولد آلياً — غير معتمد' : item.createdBy}</span>
 
               <button
                 onClick={() => handleCopyText(item)}

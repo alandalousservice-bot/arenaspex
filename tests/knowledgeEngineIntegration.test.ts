@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { pathToTab, ROLE_TABS } from '../src/lib/routes';
-import { selectApprovedCommunityResources } from '../src/components/knowledge/KnowledgeEngineView';
+import { KNOWLEDGE_BANK_CATEGORIES, selectApprovedCommunityResources } from '../src/components/knowledge/KnowledgeEngineView';
 
 describe('دمج المواقف التربوية داخل بنك المعرفة', () => {
   it('يوفر الرابط القديم توافقاً آمناً مع بنك المعرفة الموحد', () => {
@@ -8,6 +8,7 @@ describe('دمج المواقف التربوية داخل بنك المعرفة'
   });
 
   it('لا يعرض تبويباً مستقلاً للمواقف في صلاحيات الأدوار', () => {
+    expect(KNOWLEDGE_BANK_CATEGORIES).not.toContain('situation');
     expect(ROLE_TABS.teacher).not.toContain('educational_situations');
     expect(ROLE_TABS.inspector).not.toContain('educational_situations');
     expect(ROLE_TABS.admin).not.toContain('educational_situations');

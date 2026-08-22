@@ -866,23 +866,29 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
       category: newItem.category || 'game',
       title: newItem.title || 'عنوان جديد',
       description: newItem.description || '',
-      fieldName: newItem.fieldName || 'الميدان العام',
+      origin: newItem.origin || 'TEACHER',
+      approvalStatus: newItem.approvalStatus || (newItem.approved ? 'APPROVED' : 'DRAFT'),
+      fieldId: newItem.fieldId,
+      fieldName: newItem.fieldName,
       levelName: newItem.levelName || 'جميع المستويات',
+      levelIds: newItem.levelIds,
       tags: newItem.tags || ['رياضة'],
       equipment: newItem.equipment || [],
       rules: newItem.rules || '',
       duration: newItem.duration || '10 دقائق',
       approved: newItem.approved ?? false,
       createdBy: newItem.createdBy || currentUser.firstName,
-      usageCount: 1,
-      rating: 5.0
+      usageCount: newItem.usageCount || 0,
+      rating: newItem.rating || 0
     };
     setKnowledgeItems((prev) => [item, ...prev]);
   };
 
   const handleApproveKnowledgeItem = (id: string) => {
     setKnowledgeItems((prev) =>
-      prev.map((k) => (k.id === id ? { ...k, approved: true } : k))
+      prev.map((k) =>
+        k.id === id ? { ...k, approved: true, approvalStatus: 'APPROVED' as const } : k
+      )
     );
   };
 
