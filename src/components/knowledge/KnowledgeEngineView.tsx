@@ -17,7 +17,7 @@ import {
   Star,
   BookOpen
 } from 'lucide-react';
-import { KnowledgeItem, KnowledgeCategory } from '../../types/spex';
+import { CommunityResource, KnowledgeItem, KnowledgeCategory } from '../../types/spex';
 import { requestAIGames } from '../../services/api';
 import { useDebounce } from '../../hooks/useDebounce';
 import { EducationalSituationsBankView } from '../educationalSituations/EducationalSituationsBankView';
@@ -27,14 +27,22 @@ interface KnowledgeEngineViewProps {
   knowledgeItems: KnowledgeItem[];
   onAddKnowledgeItem: (item: Partial<KnowledgeItem>) => void;
   currentUser: User;
+  communityResources?: CommunityResource[];
+}
+
+export function selectApprovedCommunityResources(resources: CommunityResource[]): CommunityResource[] {
+  return resources.filter(
+    (resource) => resource.isApprovedByInspector || resource.authorRole === 'inspector' || resource.authorRole === 'admin'
+  );
 }
 
 export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
   knowledgeItems,
   onAddKnowledgeItem,
-  currentUser
+  currentUser,
+  communityResources = []
 }) => {
-  const [activeTab, setActiveTab] = useState<KnowledgeCategory | 'educational_situation'>('game');
+  const [activeTab, setActiveTab] = useState<KnowledgeCategory | 'educational_situation' | 'community_resource'>('game');
   const [searchVal, setSearchVal] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isSuggestingGames, setIsSuggestingGames] = useState(false);
@@ -48,6 +56,11 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
       item.description.includes(debouncedSearchVal) ||
       item.tags.some((t) => t.includes(debouncedSearchVal));
     return matchesCategory && matchesSearch;
+  });
+  const approvedCommunityResources = selectApprovedCommunityResources(communityResources);
+  const filteredCommunityResources = approvedCommunityResources.filter((resource) => {
+    const query = debouncedSearchVal.trim();
+    return !query || resource.title.includes(query) || resource.description.includes(query) || resource.authorName.includes(query);
   });
 
   const handleCopyText = (item: KnowledgeItem) => {
@@ -188,6 +201,18 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
             <Layers className="w-4 h-4" />
             <span>المواقف التربوية</span>
           </button>
+
+          {approvedCommunityResources.length > 0 && (
+            <button
+              onClick={() => setActiveTab('community_resource')}
+              className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'community_resource' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>الموارد التعليمية المشتركة</span>
+            </button>
+          )}
         </div>
 
         <div className="relative w-full md:w-64">
@@ -204,6 +229,21 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
 
       {activeTab === 'educational_situation' ? (
         <EducationalSituationsBankView currentUser={currentUser} embedded />
+      ) : activeTab === 'community_resource' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {filteredCommunityResources.map((resource) => (
+            <article key={resource.id} className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">مورد تعليمي مشترك</span>
+                <span className="text-[10px] text-slate-500">{resource.authorName}</span>
+              </div>
+              <h3 className="text-sm font-extrabold text-slate-900">{resource.title}</h3>
+              <p className="text-xs leading-relaxed text-slate-600 bg-slate-50 p-3 rounded-2xl">{resource.description}</p>
+              <p className="text-[11px] text-slate-500">النوع: {resource.type}</p>
+            </article>
+          ))}
+          {!filteredCommunityResources.length && <p className="md:col-span-2 rounded-2xl border bg-white p-6 text-center text-sm text-slate-500">لا توجد موارد تعليمية مشتركة مطابقة.</p>}
+        </div>
       ) : <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredItems.map((item) => (
           <div key={item.id} className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow space-y-4">

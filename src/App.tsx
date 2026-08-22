@@ -443,6 +443,7 @@ export default function App() {
                 knowledgeItems={knowledgeItems}
                 onAddKnowledgeItem={handleAddKnowledgeItem}
                 currentUser={currentUser}
+                communityResources={communityResources}
               />
             )}
 
