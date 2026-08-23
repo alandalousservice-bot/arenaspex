@@ -45,7 +45,6 @@ import {
   Zap
 } from 'lucide-react';
 import { previewStudentRoster, confirmStudentRosterImport } from '../../services/api';
-import { INITIAL_CLASSES, INITIAL_STUDENTS } from '../../data/initialState';
 import {
   Student,
   ExemptedStudent,
