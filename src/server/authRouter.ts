@@ -34,6 +34,7 @@ const registerSchema = z.object({
   lastName: z.string().trim().min(2, 'اللقب يجب أن يكون حرفين على الأقل'),
   email: z.string().trim().email('يرجى إدخال بريد إلكتروني صحيح'),
   password: z.string().min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
+  role: z.enum(['teacher', 'inspector']).optional().default('teacher'),
   schoolName: z.string().optional(),
   municipality: z.string().optional(),
   phone: z.string().optional(),
@@ -63,6 +64,7 @@ authRouter.post('/register', async (req, res) => {
     lastName,
     email,
     password,
+    role: requestedRole,
     schoolName,
     municipality,
     phone,
@@ -71,7 +73,7 @@ authRouter.post('/register', async (req, res) => {
     eduSchoolId,
     municipalityId,
   } = parsed.data;
-  const role = 'teacher';
+  const role = requestedRole === 'inspector' ? 'inspector' : 'teacher';
   const lowerEmail = email.toLowerCase();
 
   const existingUser = await prisma.user.findUnique({ where: { email: lowerEmail } });
@@ -86,7 +88,7 @@ authRouter.post('/register', async (req, res) => {
   const userId = `usr_${crypto.randomUUID()}`;
 
   // ترمية الأكواد التاريخية de_19→setif_de
-  const normalizedEduDir = remapHistoricDirectorateId(eduDirectorateId || null);
+  const normalizedEduDir = role === 'inspector' ? null : remapHistoricDirectorateId(eduDirectorateId || null);
   const normalizedLegacyDir = normalizedEduDir || '';
 
   try {
@@ -101,16 +103,16 @@ authRouter.post('/register', async (req, res) => {
         passwordHash,
         role,
         phone: phone || null,
-        schoolName: schoolName || null,
-        municipality: municipality || null,
+        schoolName: role === 'inspector' ? null : schoolName || null,
+        municipality: role === 'inspector' ? null : municipality || null,
         directorateId: normalizedLegacyDir,
-        districtId: eduDistrictId || '',
-        institutionId: eduSchoolId || null,
-        municipalityId: municipalityId || null,
+        districtId: role === 'inspector' ? '' : eduDistrictId || '',
+        institutionId: role === 'inspector' ? null : eduSchoolId || null,
+        municipalityId: role === 'inspector' ? null : municipalityId || null,
         eduDirectorateId: normalizedEduDir,
-        eduDistrictId: eduDistrictId || null,
-        eduSchoolId: eduSchoolId || null,
-        specialization: 'أستاذ التربية البدنية والرياضية - الطور الابتدائي',
+        eduDistrictId: null,
+        eduSchoolId: null,
+        specialization: role === 'inspector' ? 'مفتش التربية البدنية والرياضية' : 'أستاذ التربية البدنية والرياضية - الطور الابتدائي',
         yearsExperience: null,
         status: 'pending_approval',
         isApprovedByAdmin: false,

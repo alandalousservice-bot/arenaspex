@@ -76,7 +76,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [resetDone, setResetDone] = useState(false);
-  const canRegister = selectedRole === 'teacher';
+  const canRegister = selectedRole === 'teacher' || selectedRole === 'inspector';
 
   useEffect(() => {
     if (!canRegister && activeForm === 'register') setActiveForm('login');
@@ -201,7 +201,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
       lastName: lastName.trim(),
       email: email.trim(),
       password,
-      role: 'teacher',
+      role: selectedRole === 'inspector' ? 'inspector' : 'teacher',
       schoolName: schoolName.trim() || (eduSchoolId ? geoSchools.find((s) => s.id === eduSchoolId)?.name : '') || '',
       municipality: municipality.trim() || (selectedMunicipalityId ? geoMunicipalities.find((m) => m.id === selectedMunicipalityId)?.name : '') || '',
       phone: phone.trim() || '0661234567',
@@ -573,7 +573,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-2.5">
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-300">نوع الحساب</label>
+                <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as UserRole)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-[11px] text-white focus:outline-none focus:border-purple-500">
+                  <option value="teacher">أستاذ التربية البدنية</option>
+                  <option value="inspector">مفتش بيداغوجي</option>
+                </select>
+              </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-300">رقم الهاتف للتفعيل</label>
                 <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0661234567" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right" />
@@ -585,8 +592,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               <span>{isSubmitting ? 'جارٍ تسجيل الحساب...' : 'تسجيل الحساب والدخول لوضع المشاهدة'}</span>
             </button>
 
-            {/* Google Direct Registration — أي مستخدم يستطيع التسجيل مباشرة عبر Google */}
-            <div className="space-y-3 pt-3 border-t border-slate-700/50">
+            {/* Google registration is limited to the public Teacher flow. */}
+            {selectedRole === 'teacher' && <div className="space-y-3 pt-3 border-t border-slate-700/50">
               <div className="flex items-center gap-3">
                 <div className="h-px flex-1 bg-slate-700/70" />
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">أو المتابعة عبر Google</span>
@@ -596,7 +603,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               <p className="text-[10px] text-slate-500 text-center leading-relaxed">
                 الحسابات الجديدة تُنشأ كحساب أستاذ معلّق بانتظار تفعيل مشرف المنظومة قبل الاستفادة من الخدمات.
               </p>
-            </div>
+            </div>}
           </form>
         )}
 

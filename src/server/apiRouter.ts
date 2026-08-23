@@ -821,7 +821,7 @@ apiRouter.get('/db/users', async (req, res) => {
 // Persistent approval queue: PostgreSQL is the sole source of truth.
 apiRouter.get('/admin/users/pending', requireRole('admin'), async (_req, res) => {
   const users = await prisma.user.findMany({
-    where: { role: 'teacher', OR: [{ status: 'pending_approval' }, { isApprovedByAdmin: false }] },
+    where: { role: { in: ['teacher', 'inspector'] }, OR: [{ status: 'pending_approval' }, { isApprovedByAdmin: false }] },
     orderBy: { createdAt: 'asc' },
   });
   res.json({ success: true, users: users.map((user) => sanitizeUser(user)) });
@@ -836,6 +836,14 @@ apiRouter.post('/admin/users/:id/activate', requireRole('admin'), async (req, re
   const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
   if (!existing) return res.status(404).json({ error: 'الحساب غير موجود.' });
   if (existing.role === 'admin') return res.status(403).json({ error: 'لا يمكن تفعيل حساب مشرف من هذا المسار.' });
+  if (existing.role === 'inspector') {
+    const assignment = { role: existing.role, directorateId: existing.directorateId, districtId: existing.districtId };
+    try {
+      await enforceRoleAssignment(assignment, existing);
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : 'يرجى استكمال مديرية ومقاطعة المفتش.' });
+    }
+  }
   const user = await prisma.user.update({
     where: { id: existing.id },
     data: { status: 'active', isApprovedByAdmin: true },

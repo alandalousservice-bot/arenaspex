@@ -14,7 +14,8 @@ describe('public auth portal policy', () => {
   });
 
   it('forces public registration and unknown Google accounts to pending teachers', () => {
-    expect(authRouter).toContain("const role = 'teacher';");
+    expect(authRouter).toContain("z.enum(['teacher', 'inspector'])");
+    expect(authRouter).toContain("requestedRole === 'inspector' ? 'inspector' : 'teacher'");
     expect(authRouter).toContain("const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher'])");
     expect(authRouter).toContain("status: 'pending_approval'");
     expect(authRouter).toContain("directorateId: ''");
