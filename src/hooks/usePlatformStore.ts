@@ -65,8 +65,6 @@ import {
 } from '../types/spex';
 import {
   DEMO_USERS,
-  INITIAL_CLASSES,
-  INITIAL_STUDENTS,
   INITIAL_DAILY_NOTEBOOK,
   INITIAL_LESSON_PLANS,
   INITIAL_INSPECTOR_NOTES,
@@ -110,7 +108,6 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
   // User-scoped Data Initialization & State Management
   const [teacherClasses, setTeacherClasses] = useState<ClassRoom[]>(() => {
     if (!currentUser?.id) return [];
-    const isDemo = currentUser.id === 'usr_admin_1';
     const saved = localStorage.getItem(`spex_teacher_classes_${currentUser.id}`) || localStorage.getItem('spex_teacher_classes');
     if (saved) {
       try {
@@ -119,12 +116,11 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
         void e;
       }
     }
-    return isDemo ? INITIAL_CLASSES : [];
+    return [];
   });
 
   const [allStudents, setAllStudents] = useState<Student[]>(() => {
     if (!currentUser?.id) return [];
-    const isDemo = currentUser.id === 'usr_admin_1';
     const saved = localStorage.getItem(`spex_all_students_${currentUser.id}`) || localStorage.getItem('spex_all_students');
     if (saved) {
       try {
@@ -133,7 +129,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
         void e;
       }
     }
-    return isDemo ? INITIAL_STUDENTS : [];
+    return [];
   });
 
   const [dailyNotebook, setDailyNotebook] = useState<DailyNotebookEntry[]>(() => {

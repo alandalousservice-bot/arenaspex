@@ -29,7 +29,6 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { CompetencyAssessmentSession, AssessmentGrade, Student, User, ClassRoom } from '../../types/spex';
-import { INITIAL_STUDENTS, INITIAL_CLASSES } from '../../data/initialState';
 
 interface CompetencyAssessmentViewProps {
   assessmentSessions?: CompetencyAssessmentSession[];
@@ -175,8 +174,8 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
   onAddClass
 }) => {
   // Local Classes and Students fallback
-  const [localClasses, setLocalClasses] = useState<ClassRoom[]>(propsClasses !== undefined ? propsClasses : INITIAL_CLASSES);
-  const [localStudents, setLocalStudents] = useState<Student[]>(propsStudents !== undefined ? propsStudents : INITIAL_STUDENTS);
+  const [localClasses, setLocalClasses] = useState<ClassRoom[]>(propsClasses || []);
+  const [localStudents, setLocalStudents] = useState<Student[]>(propsStudents || []);
 
   const allClasses = propsClasses !== undefined ? propsClasses : localClasses;
   const allStudentsList = propsStudents !== undefined ? propsStudents : localStudents;
