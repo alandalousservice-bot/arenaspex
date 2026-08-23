@@ -163,7 +163,7 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 font-medium">المؤسسة / المقاطعة</div>
-                  <div className="font-extrabold text-white">{user.schoolName || 'عين أزال'} - {user.municipality || 'سطيف'}</div>
+                  <div className="font-extrabold text-white">{user.schoolName || 'المؤسسة غير محددة'} - {user.municipality || 'البلدية غير محددة'}</div>
                 </div>
               </div>
             </div>

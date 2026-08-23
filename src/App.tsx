@@ -16,7 +16,7 @@ import { usePlatformStore } from './hooks/usePlatformStore';
 import { logoutRequest } from './services/api';
 import { tabToPath, pathToTab, defaultTabForRole, resolveTabForRole } from './lib/routes';
 import { User } from './types/spex';
-import { DEMO_USERS, INITIAL_DIRECTORATES } from './data/initialState';
+import { INITIAL_DIRECTORATES } from './data/initialState';
 import { registerOnlineFlush } from './lib/offline';
 import { OfflineBanner } from './components/common/OfflineBanner';
 
@@ -513,9 +513,7 @@ export default function App() {
                 inspector={
                   currentUser.role === 'inspector'
                     ? currentUser
-                    : allUsersList.find((u) => u.role === 'inspector') ||
-                      DEMO_USERS.find((u) => u.role === 'inspector') ||
-                      DEMO_USERS[0]
+                    : allUsersList.find((u) => u.role === 'inspector') || currentUser
                 }
                 teachers={allUsersList.filter((u) => u.role === 'teacher')}
                 notes={inspectorNotes}

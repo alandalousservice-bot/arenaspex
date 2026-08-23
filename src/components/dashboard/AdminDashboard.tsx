@@ -364,9 +364,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newUserLastName, setNewUserLastName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
-  const [newUserPhone, setNewUserPhone] = useState('0661234567');
-  const [newUserSchoolName, setNewUserSchoolName] = useState('مدرسة الشهيد بالخيري عبد القادر');
-  const [newUserMunicipality, setNewUserMunicipality] = useState('عين أزال - سطيف');
+  const [newUserPhone, setNewUserPhone] = useState('');
+  const [newUserSchoolName, setNewUserSchoolName] = useState('');
+  const [newUserMunicipality, setNewUserMunicipality] = useState('');
   const [newUserDirectorate, setNewUserDirectorate] = useState('');
   const [newUserDistrict, setNewUserDistrict] = useState('');
   const [newUserStatus, setNewUserStatus] = useState<'active' | 'inactive'>('active');
@@ -906,7 +906,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </td>
 
                           <td className="p-3 font-medium text-slate-700">
-                            {u.schoolName || u.municipality || 'عين أزال (سطيف)'}
+                            {u.schoolName || u.municipality || 'غير محددة'}
                           </td>
 
                           <td className="p-3">
@@ -1122,7 +1122,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </td>
 
                         <td className="p-3 font-medium text-slate-700">
-                          {u.schoolName || u.municipality || 'عين أزال'}
+                          {u.schoolName || u.municipality || 'غير محددة'}
                         </td>
 
                         <td className="p-3 dir-ltr text-left font-mono text-[11px]">

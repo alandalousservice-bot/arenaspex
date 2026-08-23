@@ -214,9 +214,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <div className="p-3 bg-slate-50/90 rounded-2xl border border-slate-200/70 space-y-0.5">
                 <span className="text-[10px] text-slate-400 font-bold block">البلدية والولاية:</span>
                 <span className="font-extrabold text-slate-900 block">
-                  {user.municipality || 'عين أزال'} • سطيف
+                  {user.municipality || 'البلدية غير محددة'}
                 </span>
-                <span className="text-[10px] text-slate-500 font-bold">المديرية: مديرية التربية لولاية سطيف</span>
+                <span className="text-[10px] text-slate-500 font-bold">المديرية: {user.directorateId || 'غير محددة'}</span>
               </div>
 
               <div className="p-3 bg-slate-50/90 rounded-2xl border border-slate-200/70 space-y-0.5">
@@ -229,7 +229,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <div className="p-3 bg-slate-50/90 rounded-2xl border border-slate-200/70 space-y-0.5">
                 <span className="text-[10px] text-slate-400 font-bold block">رقم الهاتف للتواصل المهني:</span>
                 <span className="font-extrabold text-slate-800 dir-ltr text-right block">
-                  {user.phone || '0660 00 11 22'}
+                  {user.phone || 'غير مضاف'}
                 </span>
               </div>
             </div>

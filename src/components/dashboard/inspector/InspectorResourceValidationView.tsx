@@ -54,7 +54,7 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
       (t) => `${t.firstName} ${t.lastName}` === selectedResourceForNote.authorName || t.username === selectedResourceForNote.authorUsername.replace('@', '')
     );
 
-    const teacherId = authorTeacher?.id || 'usr_teacher_1';
+    const teacherId = authorTeacher?.id || '';
 
     onSendNoteToTeacher(
       teacherId,

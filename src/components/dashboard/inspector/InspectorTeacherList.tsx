@@ -70,7 +70,7 @@ export const InspectorTeacherList: React.FC<InspectorTeacherListProps> = ({
                     الأستاذ(ة): {t.firstName} {t.lastName}
                   </h4>
                   <span className={`text-[10px] block ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
-                    {t.schoolName || 'مدرسة إبتدائية بالعين أزال'}
+                    {t.schoolName || 'المؤسسة غير محددة'}
                   </span>
                 </div>
                 <span
@@ -89,11 +89,11 @@ export const InspectorTeacherList: React.FC<InspectorTeacherListProps> = ({
               <div className={`flex items-center justify-between text-[10px] pt-1 border-t ${isSelected ? 'border-emerald-800 text-slate-300' : 'border-slate-100 text-slate-500'}`}>
                 <span className="flex items-center gap-1">
                   <Award className="w-3 h-3 text-amber-400" />
-                  <span>الدرجة / الخبرة: {t.teachingExperienceYears || 5} سنوات</span>
+                  <span>الدرجة / الخبرة: {t.teachingExperienceYears || 0} سنوات</span>
                 </span>
                 <span className="flex items-center gap-1">
                   <FileText className="w-3 h-3 text-blue-400" />
-                  <span>5 أقسام مسندة</span>
+                  <span>الأقسام: غير محملة</span>
                 </span>
               </div>
             </div>

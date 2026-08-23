@@ -204,7 +204,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
       role: selectedRole === 'inspector' ? 'inspector' : 'teacher',
       schoolName: schoolName.trim() || (eduSchoolId ? geoSchools.find((s) => s.id === eduSchoolId)?.name : '') || '',
       municipality: municipality.trim() || (selectedMunicipalityId ? geoMunicipalities.find((m) => m.id === selectedMunicipalityId)?.name : '') || '',
-      phone: phone.trim() || '0661234567',
+      phone: phone.trim() || undefined,
       eduDirectorateId: eduDirectorateId || undefined,
       eduDistrictId: eduDistrictId || undefined,
       eduSchoolId: eduSchoolId || undefined,

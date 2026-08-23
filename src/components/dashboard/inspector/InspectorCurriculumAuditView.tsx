@@ -16,28 +16,18 @@ export const InspectorCurriculumAuditView: React.FC<InspectorCurriculumAuditView
 }) => {
   const [selectedSchool, setSelectedSchool] = useState<string>('all');
 
-  // Mock district schools
-  const districtSchools = [
-    { id: 'sch_1', name: 'مدرسة الشهيد بالخيري عبد القادر الابتدائي', teachersCount: 3, completion: 88, status: 'ممتاز' },
-    { id: 'sch_2', name: 'مدرسة بلعياطي زبير الابتدائي', teachersCount: 2, completion: 82, status: 'جيد جـداً' },
-    { id: 'sch_3', name: 'مدرسة لخضر بوعود الابتدائي', teachersCount: 2, completion: 74, status: 'متوسط' },
-    { id: 'sch_4', name: 'مدرسة أحمد زبانة عين أزال', teachersCount: 2, completion: 91, status: 'ممتاز' },
-  ];
+  const districtSchools = Array.from(new Set(teachers.map((teacher) => teacher.schoolName).filter(Boolean))).map((name) => ({
+    id: String(name), name: String(name), teachersCount: teachers.filter((teacher) => teacher.schoolName === name).length, completion: 0, status: 'لا توجد بيانات'
+  }));
 
   // Level completion stats
-  const levelStats = [
-    { id: 'lvl_p1', name: 'السنة الأولى ابتدائي', completedUnits: 28, totalUnits: 32, rate: 87.5 },
-    { id: 'lvl_p2', name: 'السنة الثانية ابتدائي', completedUnits: 27, totalUnits: 32, rate: 84.3 },
-    { id: 'lvl_p3', name: 'السنة الثالثة ابتدائي', completedUnits: 29, totalUnits: 32, rate: 90.6 },
-    { id: 'lvl_p4', name: 'السنة الرابعة ابتدائي', completedUnits: 26, totalUnits: 32, rate: 81.2 },
-    { id: 'lvl_p5', name: 'السنة الخامسة ابتدائي', completedUnits: 30, totalUnits: 32, rate: 93.7 },
-  ];
+  const levelStats = PE_LEVELS.map((level) => ({ id: level.id, name: level.name, completedUnits: 0, totalUnits: 0, rate: 0 }));
 
   // Domains breakdown
   const domainStats = [
-    { id: 'dom_1', name: 'الميدان البدني (الجري، القفز، الرمي)', rate: 89, color: 'bg-emerald-500' },
-    { id: 'dom_2', name: 'الميدان المورفولوجي والتحكم الحركي', rate: 85, color: 'bg-blue-500' },
-    { id: 'dom_3', name: 'الميدان الجماعي والألعاب التنافسية', rate: 82, color: 'bg-purple-500' },
+    { id: 'dom_1', name: 'الميدان البدني', rate: 0, color: 'bg-emerald-500' },
+    { id: 'dom_2', name: 'الميدان المورفولوجي والتحكم الحركي', rate: 0, color: 'bg-blue-500' },
+    { id: 'dom_3', name: 'الميدان الجماعي والألعاب التنافسية', rate: 0, color: 'bg-purple-500' },
   ];
 
   return (
@@ -48,7 +38,7 @@ export const InspectorCurriculumAuditView: React.FC<InspectorCurriculumAuditView
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
               <BarChart3 className="w-4 h-4 text-emerald-400" />
-              <span>التدقيق والرقابة البيداغوجية للمقاطعة 07 (سطيف)</span>
+              <span>التدقيق والرقابة البيداغوجية للمقاطعة</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white">
               لوحة متابعة تقدم وتغطية المنهاج الوزاري الموحد
@@ -60,8 +50,8 @@ export const InspectorCurriculumAuditView: React.FC<InspectorCurriculumAuditView
 
           <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/15 text-center min-w-[160px]">
             <span className="text-[10px] text-emerald-200 block font-bold">المعدل الإجمالي للمقاطعة</span>
-            <span className="text-2xl font-black text-emerald-300">87.4%</span>
-            <span className="text-[9px] text-slate-300 block">التزام متقدم بالجدول الزمني</span>
+            <span className="text-2xl font-black text-emerald-300">0%</span>
+            <span className="text-[9px] text-slate-300 block">لا توجد بيانات تنفيذ بعد</span>
           </div>
         </div>
       </div>
@@ -75,7 +65,7 @@ export const InspectorCurriculumAuditView: React.FC<InspectorCurriculumAuditView
             </div>
             <div>
               <h3 className="text-sm font-black text-slate-900">نسبة تنفيذ البرنامج بمدارس المقاطعة</h3>
-              <p className="text-[10px] text-slate-500 font-bold">المتابعة المباشرة لمؤسسات عين أزال</p>
+              <p className="text-[10px] text-slate-500 font-bold">المتابعة المباشرة للمؤسسات المرتبطة فعلياً</p>
             </div>
           </div>
         </div>
@@ -175,8 +165,8 @@ export const InspectorCurriculumAuditView: React.FC<InspectorCurriculumAuditView
             <button
               onClick={() =>
                 onSendNoteToTeacher(
-                  teachers[0]?.id || 'usr_teacher_1',
-                  teachers[0] ? `${teachers[0].firstName} ${teachers[0].lastName}` : 'أستاذ المادة',
+                  teachers[0]?.id || '',
+                  teachers[0] ? `${teachers[0].firstName} ${teachers[0].lastName}` : '',
                   'توجيه بخصوص التقديم في الميدان الجماعي',
                   'يرجى الحرص على استكمال كافة الوضعيات التعلمية للميدان الجماعي وفق التوزيع السنوي الرسمي.'
                 )

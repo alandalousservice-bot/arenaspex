@@ -67,11 +67,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
   const [firstName, setFirstName] = useState(currentUser.firstName);
   const [lastName, setLastName] = useState(currentUser.lastName);
   const [email, setEmail] = useState(currentUser.email);
-  const [phone, setPhone] = useState(currentUser.phone || '0661234567');
-  const [specialization, setSpecialization] = useState(
-    currentUser.specialization || (currentUser.role === 'inspector' ? 'مفتش إدارة وابتدائيات التربية البدنية' : 'أستاذ التربية البدنية والرياضية - الطور الابتدائي')
-  );
-  const [yearsExperience, setYearsExperience] = useState(currentUser.yearsExperience || 5);
+  const [phone, setPhone] = useState(currentUser.phone || '');
+  const [specialization, setSpecialization] = useState(currentUser.specialization || '');
+  const [yearsExperience, setYearsExperience] = useState(currentUser.yearsExperience || 0);
 
   // Security Credentials (Password)
   const [newPassword, setNewPassword] = useState('');
@@ -80,11 +78,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
   const [passwordError, setPasswordError] = useState('');
 
   // Administrative / School details
-  const [schoolName, setSchoolName] = useState(currentUser.schoolName || 'مدرسة الشهيد بالخيري عبد القادر');
-  const [municipality, setMunicipality] = useState(currentUser.municipality || 'عين أزال');
-  const [directorateId, setDirectorateId] = useState(currentUser.directorateId || 'setif_de');
+  const [schoolName, setSchoolName] = useState(currentUser.schoolName || '');
+  const [municipality, setMunicipality] = useState(currentUser.municipality || '');
+  const [directorateId, setDirectorateId] = useState(currentUser.directorateId || '');
   const [customDirectorateName, setCustomDirectorateName] = useState('');
-  const [districtId, setDistrictId] = useState(currentUser.districtId || 'dist_setif_7');
+  const [districtId, setDistrictId] = useState(currentUser.districtId || '');
   const [customDistrictName, setCustomDistrictName] = useState('');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -217,7 +215,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
 
   // Find current directorate display name
   const selectedDirObj = ALL_ALGERIAN_DIRECTORATES.find((d) => d.id === directorateId);
-  const directorateDisplayName = selectedDirObj ? selectedDirObj.name : (directorateId || 'مديرية التربية لولاية سطيف');
+  const directorateDisplayName = selectedDirObj ? selectedDirObj.name : (directorateId || 'غير محددة');
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-200">

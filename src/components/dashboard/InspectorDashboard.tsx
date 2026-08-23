@@ -149,10 +149,9 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
 
   const handleSendDirectMessage = (text: string) => {
     const targetTeacher = selectedTeacher || safeTeachers[0];
-    const receiverId = targetTeacher?.id || 'usr_teacher_1';
-    const receiverName = targetTeacher
-      ? `${targetTeacher.firstName} ${targetTeacher.lastName}`
-      : 'أستاذ المادة';
+    if (!targetTeacher) return;
+    const receiverId = targetTeacher.id;
+    const receiverName = `${targetTeacher.firstName} ${targetTeacher.lastName}`;
 
     if (onAddDirectMessage) {
       onAddDirectMessage({

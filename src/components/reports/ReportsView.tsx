@@ -76,7 +76,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ user, lessonPlans, ins
         <div className="text-center border-b-2 border-slate-900 pb-4 space-y-1">
           <h3 className="text-sm font-black text-slate-900">الجمهورية الجزائرية الديمقراطية الشعبية</h3>
           <h4 className="text-xs font-bold text-slate-700">
-            وزارة التربية الوطنية - {user.directorateId === 'setif_de' ? 'مديرية التربية لولاية سطيف (19)' : user.directorateId || 'مديرية التربية والتعليم'}
+            وزارة التربية الوطنية - {user.directorateId || 'المديرية غير محددة'}
           </h4>
           <h5 className="text-xs font-bold text-blue-700 mt-2">
             {reportType === 'session'
@@ -90,8 +90,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ user, lessonPlans, ins
         {/* Info Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs font-bold">
           <div><span className="text-slate-500">{user.role === 'inspector' ? 'المفتش المحرر:' : 'الأستاذ المحرر:'}</span> {user.firstName} {user.lastName}</div>
-          <div><span className="text-slate-500">المؤسسة / المدرسة:</span> {user.schoolName || 'مدرسة بالخيري عبد القادر الابتدائية'}</div>
-          <div><span className="text-slate-500">المقاطعة:</span> {user.districtId === 'dist_setif_7' ? 'المقاطعة 07 - عين أزال' : user.districtId || 'المقاطعة 07'}</div>
+          <div><span className="text-slate-500">المؤسسة / المدرسة:</span> {user.schoolName || 'المؤسسة غير محددة'}</div>
+          <div><span className="text-slate-500">المقاطعة:</span> {user.districtId || 'المقاطعة غير محددة'}</div>
           <div><span className="text-slate-500">تاريخ التقرير:</span> {new Date().toLocaleDateString('ar-DZ')}</div>
         </div>
 

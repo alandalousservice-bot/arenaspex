@@ -64,20 +64,12 @@ import {
   PersonalLibraryItem,
 } from '../types/spex';
 import {
-  DEMO_USERS,
-  INITIAL_DAILY_NOTEBOOK,
-  INITIAL_LESSON_PLANS,
-  INITIAL_INSPECTOR_NOTES,
-  INITIAL_INSPECTION_VISITS,
   INITIAL_AI_SETTINGS,
-  INITIAL_AI_LOGS,
-  INITIAL_ASSESSMENT_SESSIONS,
   INITIAL_BROADCASTS,
-  INITIAL_DIRECT_MESSAGES,
-  INITIAL_WEEKLY_SCHEDULE,
-  INITIAL_DISTRICT_GROUP_MESSAGES,
 } from '../data/initialState';
 import { INITIAL_KNOWLEDGE_BANK } from '../data/knowledgeBankData';
+
+const LEGACY_DEMO_USER_IDS = new Set(['usr_admin_1', 'usr_teacher_1', 'usr_inspector_1']);
 
 interface PlatformStoreParams {
   currentUser: User;
@@ -85,11 +77,6 @@ interface PlatformStoreParams {
   isAuthenticated: boolean;
   setCurrentTab: (tab: NavTab) => void;
 }
-
-// الحسابات التجريبية (DEMO_USERS) معروضة للتقييم فقط وتحمل كلمة المرور العمومية المعروفة
-// '12345678' — مزامنتها تلقائياً إلى قاعدة البيانات كانت تحوّلها إلى حسابات حقيقية
-// قابلة لتسجيل الدخول بكلمة مرور متداولة! لذا تُستبعد من كل مسارات المزامنة الصادرة.
-const DEMO_USER_IDS = new Set(DEMO_USERS.map((u) => u.id));
 
 export function usePlatformStore({
   currentUser,
@@ -102,20 +89,20 @@ export function usePlatformStore({
     const saved = localStorage.getItem('spex_all_users');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed.filter((u) => !LEGACY_DEMO_USER_IDS.has(u.id)) : [];
       } catch (e) {
         void e;
       }
     }
-    return DEMO_USERS;
+    return [];
   });
 
   // User-scoped Data Initialization & State Management
   const [teacherClasses, setTeacherClasses] = useState<ClassRoom[]>(() => {
     if (!currentUser?.id) return [];
     const saved =
-      localStorage.getItem(`spex_teacher_classes_${currentUser.id}`) ||
-      localStorage.getItem('spex_teacher_classes');
+      localStorage.getItem(`spex_teacher_classes_${currentUser.id}`);
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -129,8 +116,7 @@ export function usePlatformStore({
   const [allStudents, setAllStudents] = useState<Student[]>(() => {
     if (!currentUser?.id) return [];
     const saved =
-      localStorage.getItem(`spex_all_students_${currentUser.id}`) ||
-      localStorage.getItem('spex_all_students');
+      localStorage.getItem(`spex_all_students_${currentUser.id}`);
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -143,10 +129,8 @@ export function usePlatformStore({
 
   const [dailyNotebook, setDailyNotebook] = useState<DailyNotebookEntry[]>(() => {
     if (!currentUser?.id) return [];
-    const isDemo = currentUser.id === 'usr_admin_1';
     const saved =
-      localStorage.getItem(`spex_daily_notebook_${currentUser.id}`) ||
-      localStorage.getItem('spex_daily_notebook');
+      localStorage.getItem(`spex_daily_notebook_${currentUser.id}`);
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -154,7 +138,7 @@ export function usePlatformStore({
         void e;
       }
     }
-    return isDemo ? INITIAL_DAILY_NOTEBOOK : [];
+    return [];
   });
 
   const [weeklySchedule, setWeeklySchedule] = useState<WeeklyScheduleSlot[]>(() => {
@@ -166,15 +150,13 @@ export function usePlatformStore({
         void e;
       }
     }
-    return INITIAL_WEEKLY_SCHEDULE;
+    return [];
   });
 
   const [lessonPlans, setLessonPlans] = useState<LessonPlan[]>(() => {
     if (!currentUser?.id) return [];
-    const isDemo = currentUser.id === 'usr_admin_1';
     const saved =
-      localStorage.getItem(`spex_lesson_plans_${currentUser.id}`) ||
-      localStorage.getItem('spex_lesson_plans');
+      localStorage.getItem(`spex_lesson_plans_${currentUser.id}`);
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -182,7 +164,7 @@ export function usePlatformStore({
         void e;
       }
     }
-    return isDemo ? INITIAL_LESSON_PLANS : [];
+    return [];
   });
 
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>(() => {
@@ -235,10 +217,8 @@ export function usePlatformStore({
 
   const [inspectorNotes, setInspectorNotes] = useState<InspectorNote[]>(() => {
     if (!currentUser?.id) return [];
-    const isDemo = currentUser.id === 'usr_admin_1';
     const saved =
-      localStorage.getItem(`spex_inspector_notes_${currentUser.id}`) ||
-      localStorage.getItem('spex_inspector_notes');
+      localStorage.getItem(`spex_inspector_notes_${currentUser.id}`);
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -246,33 +226,23 @@ export function usePlatformStore({
         void e;
       }
     }
-    return isDemo ? INITIAL_INSPECTOR_NOTES : [];
+    return [];
   });
 
   const [inspectionVisits, setInspectionVisits] = useState<InspectionVisit[]>(() => {
     if (!currentUser?.id) return [];
-    const isDemo = currentUser.id === 'usr_admin_1';
-    return isDemo ? INITIAL_INSPECTION_VISITS : [];
+    return [];
   });
 
   const [assessmentSessions, setAssessmentSessions] = useState<CompetencyAssessmentSession[]>(
     () => {
       if (!currentUser?.id) return [];
-      const isDemo = currentUser.id === 'usr_admin_1';
-      return isDemo ? INITIAL_ASSESSMENT_SESSIONS : [];
+      return [];
     }
   );
 
   const [broadcasts, setBroadcasts] = useState<DistrictBroadcast[]>(INITIAL_BROADCASTS);
   const [directMessages, setDirectMessages] = useState<DirectChatMessage[]>(() => {
-    const savedShared = localStorage.getItem('spex_direct_messages_shared');
-    if (savedShared) {
-      try {
-        return JSON.parse(savedShared);
-      } catch (e) {
-        void e;
-      }
-    }
     if (currentUser?.id) {
       const savedUser = localStorage.getItem(`spex_direct_messages_${currentUser.id}`);
       if (savedUser) {
@@ -283,7 +253,7 @@ export function usePlatformStore({
         }
       }
     }
-    return INITIAL_DIRECT_MESSAGES;
+    return [];
   });
 
   const [communityResources, setCommunityResources] = useState<CommunityResource[]>(() => {
@@ -333,11 +303,11 @@ export function usePlatformStore({
         void e;
       }
     }
-    return INITIAL_DISTRICT_GROUP_MESSAGES;
+    return [];
   });
 
   const [aiSettings, setAiSettings] = useState<AISetting>(INITIAL_AI_SETTINGS);
-  const [aiLogs] = useState<AILog[]>(INITIAL_AI_LOGS);
+  const [aiLogs] = useState<AILog[]>([]);
 
   // Lesson Command Center Domain State & Persistent Settings
   const [lessonTimingSettings, setLessonTimingSettings] = useState<LessonSessionTiming>(() => {
@@ -388,9 +358,7 @@ export function usePlatformStore({
     return [];
   });
 
-  const [activeLessonPlanId, setActiveLessonPlanId] = useState<string | undefined>(
-    INITIAL_LESSON_PLANS[0]?.id
-  );
+  const [activeLessonPlanId, setActiveLessonPlanId] = useState<string | undefined>(undefined);
 
   // Ticker Interval effect for live session countdown
   useEffect(() => {
@@ -500,7 +468,7 @@ export function usePlatformStore({
           setAllUsersList((prev) => {
             const map = new Map();
             prev.forEach((u) => map.set(u.id, u));
-            dbUsers.forEach((u: any) => map.set(u.id, u));
+            dbUsers.filter((u: any) => !LEGACY_DEMO_USER_IDS.has(u.id)).forEach((u: any) => map.set(u.id, u));
             return Array.from(map.values());
           });
         }
@@ -588,10 +556,7 @@ export function usePlatformStore({
   useEffect(() => {
     if (currentUser && isAuthenticated) {
       localStorage.setItem('spex_current_user', JSON.stringify(currentUser));
-      // الحسابات التجريبية لا تُزامَن إلى قاعدة البيانات إطلاقاً (كلمة مرورها عمومية معروفة)
-      if (!DEMO_USER_IDS.has(currentUser.id)) {
-        syncUserToDB(currentUser);
-      }
+      syncUserToDB(currentUser);
     }
   }, [currentUser, isAuthenticated]);
 
@@ -650,10 +615,8 @@ export function usePlatformStore({
 
   useEffect(() => {
     localStorage.setItem('spex_all_users', JSON.stringify(allUsersList));
-    // لا نزامن الحسابات التجريبية المعروضة افتراضياً — فقط الحسابات الحقيقية المُدخلة عبر الإدارة
-    const realUsers = allUsersList.filter((u) => !DEMO_USER_IDS.has(u.id));
-    if (realUsers.length > 0) {
-      syncUsersBatchToDB(realUsers);
+    if (allUsersList.length > 0) {
+      syncUsersBatchToDB(allUsersList);
     }
   }, [allUsersList]);
 
@@ -802,44 +765,33 @@ export function usePlatformStore({
 
   // User Management Handlers for Admin
   const handleAddUser = async (userPartial: Partial<User>) => {
+    if (!userPartial.firstName?.trim() || !userPartial.lastName?.trim() || !userPartial.email?.trim() || !userPartial.password) {
+      window.alert('يرجى إدخال الاسم واللقب والبريد وكلمة المرور قبل إنشاء الحساب.');
+      return;
+    }
     const newUser: User = {
       id: `usr_${Date.now()}`,
       username: userPartial.username || `user_${Math.floor(1000 + Math.random() * 9000)}`,
       spexId: userPartial.spexId || `SPX-${Math.floor(1000 + Math.random() * 9000)}`,
-      firstName: userPartial.firstName || 'مستخدم',
-      lastName: userPartial.lastName || 'جديد',
-      email: userPartial.email || `user_${Date.now()}@spex.dz`,
+      firstName: userPartial.firstName.trim(),
+      lastName: userPartial.lastName.trim(),
+      email: userPartial.email.trim(),
       // بدون كلمة مرور ضمنية: الخادم يرفض إنشاء حساب بلا كلمة مرور أولية ويعيد خطأ واضحاً
       // (يظهره التنبيه الموجود في هذا المعالج) بدل ضبط كلمة افتراضية لا يعلمها أحد
       password: userPartial.password || '',
       role: userPartial.role || 'teacher',
-      phone: userPartial.phone || '0661234567',
-      schoolName:
-        userPartial.role === 'inspector'
-          ? undefined
-          : userPartial.schoolName || 'مدرسة الشهيد بالخيري عبد القادر',
-      municipality:
-        userPartial.role === 'inspector'
-          ? undefined
-          : userPartial.municipality || 'عين أزال - سطيف',
+      phone: userPartial.phone?.trim() || undefined,
+      schoolName: userPartial.role === 'inspector' ? undefined : userPartial.schoolName?.trim() || undefined,
+      municipality: userPartial.role === 'inspector' ? undefined : userPartial.municipality?.trim() || undefined,
       directorateId: userPartial.directorateId || '',
       districtId: userPartial.role === 'inspector' ? userPartial.districtId || '' : '',
-      institutionId:
-        userPartial.role === 'inspector' ? undefined : userPartial.institutionId || 'inst_1',
-      specialization:
-        userPartial.specialization ||
-        (userPartial.role === 'teacher'
-          ? 'أستاذ التربية البدنية والرياضية - الطور الابتدائي'
-          : userPartial.role === 'inspector'
-            ? 'مفتش إدارة وابتدائيات للتربية البدنية والرياضية'
-            : 'مدير مدرسة ابتدائية'),
-      yearsExperience: userPartial.yearsExperience || 5,
+      institutionId: userPartial.role === 'inspector' ? undefined : userPartial.institutionId || undefined,
+      specialization: userPartial.specialization?.trim() || undefined,
+      yearsExperience: userPartial.yearsExperience,
       status: userPartial.status || 'active',
       customApiKey: userPartial.customApiKey || '',
       apiKeyStatus: userPartial.customApiKey ? 'active' : 'not_set',
       isApprovedByAdmin: true,
-      avatar:
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
     };
     // نرسل كلمة المرور للخادم ليشفّرها فوراً، ثم نستبدل الحالة المحلية بالنسخة الآمنة
     // المُعادة من الخادم بدل الاحتفاظ بكلمة المرور نص عادي في ذاكرة المتصفح
@@ -853,16 +805,6 @@ export function usePlatformStore({
   };
 
   const handleUpdateUser = async (updatedUser: User) => {
-    // حساب تجريبي: تعديل محلي فقط ولا يُرسل للخادم أبداً (تفادي إنشاء حسابات بكلمة مرور عمومية)
-    if (DEMO_USER_IDS.has(updatedUser.id)) {
-      const { password: _d, ...safeDemo } = updatedUser;
-      setAllUsersList((prev) => prev.map((u) => (u.id === safeDemo.id ? safeDemo : u)));
-      if (currentUser.id === safeDemo.id) {
-        setCurrentUser(safeDemo as User);
-      }
-      return;
-    }
-
     const result = await syncUserToDB(updatedUser);
     if (!result.success || !result.user) {
       // لا نحدّث الحالة المحلية — فالتفعيل/التعديل لم يُحفظ فعلاً على الخادم
@@ -1110,7 +1052,7 @@ export function usePlatformStore({
       id: `visit_${Date.now()}`,
       inspectorId: currentUser.id,
       teacherId: visitPartial.teacherId || '',
-      institutionId: visitPartial.institutionId || 'inst_1',
+      institutionId: visitPartial.institutionId || '',
       visitDate: visitPartial.visitDate || new Date().toISOString().split('T')[0],
       visitType: visitPartial.visitType || 'متابعة دورية',
       lessonObservedTitle: visitPartial.lessonObservedTitle || 'حصة بدنية',

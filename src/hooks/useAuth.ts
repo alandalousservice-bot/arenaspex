@@ -13,9 +13,15 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { User } from '../types/spex';
 import { fetchCurrentSession } from '../services/api';
 import { triggerKillSwitch } from '../lib/killSwitch';
-import { DEMO_USERS } from '../data/initialState';
 
 export type AuthView = 'landing' | 'login';
+
+// Never hydrate an unauthenticated browser with a demo account.  The session
+// is the only source of account data; this placeholder is intentionally empty.
+const EMPTY_SESSION_USER: User = {
+  id: '', username: '', spexId: '', firstName: '', lastName: '', email: '',
+  role: 'teacher', directorateId: '', districtId: '', status: 'inactive',
+};
 
 export function useAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -24,7 +30,7 @@ export function useAuth() {
   const [authView, setAuthView] = useState<AuthView>(() =>
     typeof window !== 'undefined' && window.location.search.includes('reset_token=') ? 'login' : 'landing'
   );
-  const [currentUser, setCurrentUser] = useState<User>(DEMO_USERS[0]);
+  const [currentUser, setCurrentUser] = useState<User>(EMPTY_SESSION_USER);
 
   const pollingRef = useRef<number | null>(null);
 

@@ -87,8 +87,8 @@ export const InspectorPedagogicalProfile: React.FC<InspectorPedagogicalProfilePr
                 الأستاذ(ة): {selectedTeacher.firstName} {selectedTeacher.lastName}
               </h3>
               <p className="text-xs text-slate-400">
-                المؤسسة: {selectedTeacher.schoolName || 'المدرسة الابتدائية بالعين أزال'} • الولاية:{' '}
-                {selectedTeacher.wilaya || 'سطيف'}
+                المؤسسة: {selectedTeacher.schoolName || 'المؤسسة غير محددة'} • الولاية:{' '}
+                {selectedTeacher.wilaya || 'غير محددة'}
               </p>
             </div>
           </div>

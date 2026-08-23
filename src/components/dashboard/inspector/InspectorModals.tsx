@@ -76,7 +76,7 @@ export const InspectorModals: React.FC<InspectorModalsProps> = ({
     onAddVisit({
       id: `v_${Date.now()}`,
       inspectorId: 'insp_1',
-      institutionId: selectedTeacher.institutionId || 'inst_1',
+      institutionId: selectedTeacher.institutionId || '',
       teacherId: selectedTeacher.id,
       visitDate,
       visitType,

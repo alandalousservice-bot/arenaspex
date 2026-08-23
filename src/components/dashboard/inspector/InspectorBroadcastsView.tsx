@@ -26,7 +26,7 @@ export const InspectorBroadcastsView: React.FC<InspectorBroadcastsViewProps> = (
       id: `bc_${Date.now()}`,
       inspectorId: inspector.id,
       inspectorName: `${inspector.firstName} ${inspector.lastName}`,
-      districtId: inspector.districtId || 'dist_setif_7',
+      districtId: inspector.districtId || '',
       title: title.trim(),
       content: content.trim(),
       category,
@@ -71,7 +71,7 @@ export const InspectorBroadcastsView: React.FC<InspectorBroadcastsViewProps> = (
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>سجل المنشورات والتعليمات الموجهة لأساتذة عين أزال</span>
+            <span>سجل المنشورات والتعليمات الموجهة لأساتذة المقاطعة</span>
           </h3>
           <span className="text-xs text-slate-500 font-bold">{broadcasts.length} منشورات سابقة</span>
         </div>

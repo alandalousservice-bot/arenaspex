@@ -53,7 +53,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
       id: `visit_${Date.now()}`,
       inspectorId: inspector.id,
       teacherId: selectedTeacher.id,
-      institutionId: selectedTeacher.institutionId || 'inst_1',
+      institutionId: selectedTeacher.institutionId || '',
       visitDate,
       visitType,
       lessonObservedTitle: lessonTitle.trim() || 'حصة التربية البدنية والرياضية',
@@ -241,7 +241,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                   >
                     {teachers.map((t) => (
                       <option key={t.id} value={t.id}>
-                        {t.firstName} {t.lastName} ({t.schoolName || 'عين أزال'})
+                        {t.firstName} {t.lastName} ({t.schoolName || 'المؤسسة غير محددة'})
                       </option>
                     ))}
                   </select>
@@ -402,7 +402,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
             <div className="text-center space-y-1 border-b-2 border-slate-900 pb-4">
               <h1 className="text-sm font-bold">الجمهورية الجزائرية الديمقراطية الشعبية</h1>
               <h2 className="text-xs font-bold">وزارة التربية الوطنية</h2>
-              <h3 className="text-xs font-bold">مديرية التربية لولاية سطيف — مفتشية التعليم الابتدائي للمقاطعة 07 (عين أزال)</h3>
+              <h3 className="text-xs font-bold">مديرية التربية — مفتشية التعليم الابتدائي</h3>
               <p className="text-base font-black text-emerald-950 mt-2">
                 بطاقة معاينة وتقييم بيداغوجي لمادة التربية البدنية والرياضية
               </p>
@@ -412,7 +412,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
             <div className="grid grid-cols-2 gap-4 text-xs font-bold border-b border-slate-300 pb-4">
               <div>
                 <p>الأستاذ المعايَن: {teachers.find((t) => t.id === printableVisit.teacherId)?.firstName} {teachers.find((t) => t.id === printableVisit.teacherId)?.lastName}</p>
-                <p>المؤسسة التعليمية: {teachers.find((t) => t.id === printableVisit.teacherId)?.schoolName || 'مدرسة إبتدائية'}</p>
+                <p>المؤسسة التعليمية: {teachers.find((t) => t.id === printableVisit.teacherId)?.schoolName || 'المؤسسة غير محددة'}</p>
                 <p>نوع الزيارة: {printableVisit.visitType}</p>
               </div>
               <div>

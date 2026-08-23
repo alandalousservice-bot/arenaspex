@@ -69,44 +69,6 @@ export interface GradebookViewProps {
   currentUser?: User;
 }
 
-// Initial Demo Data for Attendance
-const INITIAL_ATTENDANCE_LOGS: AttendanceEntry[] = [
-  {
-    id: 'att_1',
-    classId: 'cls_1',
-    date: '2026-07-20',
-    sessionTitle: 'حصة الألعاب الحركية والتوافق',
-    records: [
-      { studentId: 'std_1', status: 'حاضر' },
-      { studentId: 'std_2', status: 'حاضر' },
-      { studentId: 'std_3', status: 'غائب بمبرر', note: 'شهادة طبية طارئة' },
-      { studentId: 'std_4', status: 'حاضر' },
-      { studentId: 'std_5', status: 'معفى' },
-      { studentId: 'std_6', status: 'حاضر' },
-      { studentId: 'std_7', status: 'غائب' },
-      { studentId: 'std_8', status: 'حاضر' },
-    ]
-  }
-];
-
-// Initial Demo Data for Medical Exemptions
-const INITIAL_EXEMPTIONS: ExemptedStudent[] = [
-  {
-    id: 'ex_1',
-    classId: 'cls_1',
-    studentId: 'std_5',
-    studentName: 'عمر قادري',
-    certificateNumber: 'MED-2026/089',
-    issueDate: '2026-07-10',
-    doctorName: 'د. طبيب الصحة المدرسية',
-    medicalFacility: 'العيادة المتعددة الخدمات - عين أزال',
-    exemptionReason: 'مرض الربو الحاد وضيق التنفس المجهدي',
-    period: 'كامل السنة الدراسية',
-    roleInSession: 'تحكيم وملاحظة',
-    notes: 'يكلف بالمتابعة النظرية وإعادة جمع الكرات والمشاهدة البيداغوجية.'
-  }
-];
-
 interface ClubAssignmentMap {
   [studentId: string]: 'club_a' | 'club_b';
 }
@@ -121,7 +83,6 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
   onRefreshRoster,
   currentUser
 }) => {
-  const isDemo = currentUser ? currentUser.id === 'usr_admin_1' : false;
 
   const [activeRegister, setActiveRegister] = useState<RegisterTab>('gradebook');
   const [selectedClassId, setSelectedClassId] = useState<string>(classes[0]?.id || '');
@@ -164,28 +125,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     const key = currentUser ? `spex_grade_records_${currentUser.id}` : 'spex_grade_records';
     const saved = localStorage.getItem(key);
     if (saved) { try { return JSON.parse(saved); } catch (e) { void e; } }
-    return isDemo ? {
-      std_1: {
-        id: 'gr_1',
-        studentId: 'std_1',
-        classId: 'cls_1',
-        term: 'الفصل الأول',
-        behaviorRating: 'ممتاز',
-        behaviorScore: 2.0,
-        participationRating: 'ممتاز',
-        participationScore: 2.0,
-        attendanceScore: 1.0,
-        unexcusedAbsencesCount: 0,
-        excusedAbsencesCount: 0,
-        competencyRating: 'تمكن ممتاز',
-        competencyScore: 4.8,
-        suggestedMark: 9.8,
-        finalMark: 10.0,
-        isApprovedByTeacher: true,
-        adjustmentReason: 'أظهر تميزاً استثنائياً وروحاً قيادية في الألعاب الجماعية',
-        updatedAt: '2026-07-24 10:30'
-      }
-    } : {};
+    return {};
   });
 
   // Revision Audit Trail Logs
@@ -193,21 +133,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     const key = currentUser ? `spex_audit_logs_${currentUser.id}` : 'spex_audit_logs';
     const saved = localStorage.getItem(key);
     if (saved) { try { return JSON.parse(saved); } catch (e) { void e; } }
-    return isDemo ? [
-      {
-        id: 'aud_1',
-        studentId: 'std_1',
-        studentName: 'أيوب زياني',
-        classId: 'cls_1',
-        term: 'الفصل الأول',
-        suggestedMark: 9.8,
-        previousFinalMark: 9.8,
-        newFinalMark: 10.0,
-        changedByTeacherName: currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'أستاذ التربية البدنية',
-        changeDate: '2026-07-24 10:30',
-        reason: 'أظهر تميزاً استثنائياً وروحاً قيادية في الألعاب الجماعية'
-      }
-    ] : [];
+    return [];
   });
 
   // Attendance State
@@ -219,13 +145,13 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     const key = currentUser ? `spex_exemptions_${currentUser.id}` : 'spex_exemptions';
     const saved = localStorage.getItem(key);
     if (saved) { try { return JSON.parse(saved); } catch (e) { void e; } }
-    return isDemo ? INITIAL_EXEMPTIONS : [];
+    return [];
   });
   const [showAddExemptionModal, setShowAddExemptionModal] = useState<boolean>(false);
   const [newExemptionStudentId, setNewExemptionStudentId] = useState<string>('');
   const [newCertNo, setNewCertNo] = useState<string>('');
-  const [newDoctor, setNewDoctor] = useState<string>('د. طبيب وحدة الكشف والمتابعة - عين أزال');
-  const [newReason, setNewReason] = useState<string>('كسر أو إصابة عضلية ممتدة');
+  const [newDoctor, setNewDoctor] = useState<string>('');
+  const [newReason, setNewReason] = useState<string>('');
   const [newPeriod, setNewPeriod] = useState<'كامل السنة الدراسية' | 'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث' | 'محددة بالتواريخ'>('الفصل الأول');
 
   // Per-Class Educational Clubs State (البلدية التربوية لكل قسم)
@@ -234,7 +160,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
   // Club assignments map: studentId -> 'club_a' | 'club_b'
   const [clubAssignments, setClubAssignments] = useState<ClubAssignmentMap>({});
 
-  const activeClass = classes.find((c) => c.id === selectedClassId) || classes[0] || { id: 'cls_1', name: '1 ابتدائي 1', studentCount: 25 };
+  const activeClass = classes.find((c) => c.id === selectedClassId) || classes[0] || { id: '', name: '', studentCount: 0 };
   const classStudents = students.filter((s) => s.classId === activeClass.id);
 
   // Active class club names
@@ -417,7 +343,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
         max: 0,
         min: 0,
         competencyRate: 0,
-        attendanceRate: 100,
+        attendanceRate: 0,
         approvedCount: 0,
         distribution: { excellent: 0, good: 0, average: 0, weak: 0 }
       };
@@ -446,7 +372,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
       max,
       min,
       competencyRate,
-      attendanceRate: 96,
+      attendanceRate: 0,
       approvedCount,
       distribution: { excellent, good, average, weak }
     };
@@ -468,9 +394,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
       onAddClass({
         name: newClassName.trim(),
         levelId: newClassLevel,
-        studentCount: newClassStudentCount || 25,
-        municipality: currentUser?.municipality || 'عين أزال',
-        schoolName: currentUser?.schoolName || 'المدرسة الابتدائية'
+        studentCount: newClassStudentCount || 0,
+        municipality: currentUser?.municipality,
+        schoolName: currentUser?.schoolName
       });
     }
 
@@ -501,7 +427,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     e.preventDefault();
     if (!newStudentFirstName.trim() || !newStudentLastName.trim()) return;
 
-    const newReg = newStudentRegNo.trim() || `2026/${Math.floor(100 + Math.random() * 900)}`;
+    const newReg = newStudentRegNo.trim();
 
     if (onAddStudent) {
       onAddStudent({
@@ -612,7 +538,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
       certificateNumber: newCertNo || `MED-2026/${Math.floor(100 + Math.random() * 900)}`,
       issueDate: new Date().toISOString().split('T')[0],
       doctorName: newDoctor,
-      medicalFacility: 'وحدة الكشف والمتابعة عين أزال - سطيف',
+      medicalFacility: '',
       exemptionReason: newReason,
       period: newPeriod,
       roleInSession: 'تحكيم وملاحظة',

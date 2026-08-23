@@ -36,14 +36,10 @@ export const InspectorHeroHeader: React.FC<InspectorHeroHeaderProps> = ({
   onOpenVisitModal,
 }) => {
   const directorateText =
-    inspector.directorateId === 'setif_de'
-      ? 'مديرية التربية لولاية سطيف'
-      : inspector.directorateId || 'مديرية التربية والتعليم';
+    inspector.directorateId || 'المديرية غير محددة';
 
   const districtText =
-    inspector.districtId === 'dist_setif_7'
-      ? 'المقاطعة 07 (عين أزال)'
-      : inspector.districtId || 'المقاطعة التفتيشية';
+    inspector.districtId || 'المقاطعة غير محددة';
 
   return (
     <div className="space-y-4 dir-rtl">

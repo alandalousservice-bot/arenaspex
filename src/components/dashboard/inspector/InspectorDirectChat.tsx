@@ -51,7 +51,7 @@ export const InspectorDirectChat: React.FC<InspectorDirectChatProps> = ({
               </strong>
             </h3>
             <span className="text-[10px] text-slate-400">
-              المؤسسة: {selectedTeacher.schoolName || 'المدرسة الابتدائية بالعين أزال'} • قناة مشفرة رسمية
+              المؤسسة: {selectedTeacher.schoolName || 'المؤسسة غير محددة'} • قناة مشفرة رسمية
             </span>
           </div>
         </div>
