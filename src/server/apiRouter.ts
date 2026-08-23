@@ -75,6 +75,16 @@ apiRouter.post('/students/import/preview', async (req, res) => {
   }
 });
 
+apiRouter.get('/students/roster', async (req, res) => {
+  const [classes, students] = await Promise.all([
+    prisma.studentClass.findMany({ where: { teacherId: req.user!.id }, orderBy: { name: 'asc' } }),
+    prisma.student.findMany({ where: { teacherId: req.user!.id }, orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }] }),
+  ]);
+  const counts = new Map<string, number>();
+  students.forEach((student) => counts.set(student.classId, (counts.get(student.classId) || 0) + 1));
+  res.json({ success: true, classes: classes.map((item) => ({ id: item.id, institutionId: item.institutionId || '', teacherId: item.teacherId, levelId: item.levelId, name: item.name, studentCount: counts.get(item.id) || 0 })), students: students.map((item) => ({ id: item.id, classId: item.classId, firstName: item.firstName, lastName: item.lastName, gender: 'ذكر', birthDate: item.birthDate?.toISOString().slice(0, 10), registrationNumber: item.matricule, matricule: item.matricule, grade: item.grade, schoolYear: item.schoolYear })) });
+});
+
 apiRouter.post('/students/import/confirm', async (req, res) => {
   if (req.user!.role !== 'teacher') return res.status(403).json({ error: 'استيراد القوائم متاح للأستاذ فقط.' });
   const rows = Array.isArray(req.body?.rows) ? req.body.rows as ParsedRosterStudent[] : [];
@@ -84,24 +94,34 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
   const grade = Number(req.body?.grade) || null;
   if (!classId || !rows.length) return res.status(400).json({ error: 'اختر قسماً وأرسل صفوفاً صالحة للاستيراد.' });
   const institutionId = (req.user as any).institutionId || null;
-  const assignedClass = await prisma.studentClass.findUnique({ where: { id: classId } });
-  if (assignedClass && assignedClass.teacherId !== req.user!.id) return res.status(403).json({ error: 'لا تملك صلاحية الاستيراد إلى هذا القسم.' });
-  if (!assignedClass) await prisma.studentClass.create({ data: { id: classId, teacherId: req.user!.id, institutionId, levelId, name: className } });
   const validRows = rows.filter((row) => row && typeof row.matricule === 'string' && row.matricule.trim() && row.firstName?.trim() && row.lastName?.trim());
-  let created = 0; let existing = 0; let conflicts = 0;
-  for (const row of validRows) {
-    const matricule = row.matricule.trim();
-    const current = await prisma.student.findFirst({ where: { institutionId, matricule } });
-    if (current) {
-      if (current.firstName !== row.firstName.trim() || current.lastName !== row.lastName.trim()) { conflicts += 1; continue; }
-      existing += 1;
-      if (current.teacherId === req.user!.id && current.classId !== classId) await prisma.student.update({ where: { id: current.id }, data: { classId, grade: grade || row.grade || null, groupName: row.groupName || null } });
-      continue;
-    }
-    await prisma.student.create({ data: { id: `std_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, teacherId: req.user!.id, institutionId, classId, matricule, firstName: row.firstName.trim(), lastName: row.lastName.trim(), birthDate: row.birthDate ? new Date(row.birthDate) : null, grade: grade || row.grade || null, groupName: row.groupName || null } });
-    created += 1;
+  try {
+    const summary = await prisma.$transaction(async (tx) => {
+      const assignedClass = await tx.studentClass.findUnique({ where: { id: classId } });
+      if (assignedClass && assignedClass.teacherId !== req.user!.id) throw new Error('UNAUTHORIZED_CLASS');
+      if (!assignedClass) await tx.studentClass.create({ data: { id: classId, teacherId: req.user!.id, institutionId, levelId, name: className } });
+      let created = 0; let existing = 0; let conflicts = 0; let linkedStudents = 0;
+      for (const row of validRows) {
+        const matricule = row.matricule.trim();
+        const current = await tx.student.findFirst({ where: { institutionId, matricule } });
+        if (current) {
+          if (current.firstName !== row.firstName.trim() || current.lastName !== row.lastName.trim()) { conflicts += 1; continue; }
+          existing += 1;
+          if (current.teacherId === req.user!.id && current.classId !== classId) await tx.student.update({ where: { id: current.id }, data: { classId, grade: grade || row.grade || null, groupName: row.groupName || null } });
+          linkedStudents += 1;
+          continue;
+        }
+        await tx.student.create({ data: { id: `std_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, teacherId: req.user!.id, institutionId, classId, matricule, firstName: row.firstName.trim(), lastName: row.lastName.trim(), birthDate: row.birthDate ? new Date(row.birthDate) : null, grade: grade || row.grade || null, groupName: row.groupName || null } });
+        created += 1; linkedStudents += 1;
+      }
+      return { created, existing, linkedStudents, conflicts, review: rows.length - validRows.length };
+    });
+    res.json({ success: true, classId, summary });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'UNAUTHORIZED_CLASS') return res.status(403).json({ error: 'لا تملك صلاحية الاستيراد إلى هذا القسم.' });
+    console.error('Student roster import persistence failed:', error);
+    res.status(500).json({ error: 'تعذر حفظ قائمة التلاميذ.' });
   }
-  res.json({ success: true, summary: { created, existing, conflicts, review: rows.length - validRows.length } });
 });
 
 async function requireGenerationAccess(req: any, res: any, feature: GenerationFeature) {

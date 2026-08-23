@@ -37,6 +37,7 @@ import {
   deletePedagogicalGame,
   approvePedagogicalGame,
   rejectPedagogicalGame
+  ,fetchStudentRoster
 } from '../services/api';
 import {
   User,
@@ -178,6 +179,13 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>(() => {
     return INITIAL_KNOWLEDGE_BANK;
   });
+
+  const refreshStudentRoster = async () => {
+    const roster = await fetchStudentRoster();
+    setTeacherClasses(roster.classes as ClassRoom[]);
+    setAllStudents(roster.students as Student[]);
+    return roster;
+  };
 
   useEffect(() => {
     let active = true;
@@ -445,6 +453,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
 
     async function loadDBData() {
       try {
+        await refreshStudentRoster();
         const dbUsers = await fetchUsersFromDB();
         if (dbUsers && dbUsers.length > 0) {
           setAllUsersList((prev) => {
@@ -1271,6 +1280,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     handleAddClass,
     handleDeleteClass,
     handleAddStudent,
+    refreshStudentRoster,
     handleDeleteStudent,
     handleDeleteLessonPlan,
     handleDeleteNotebookEntry,

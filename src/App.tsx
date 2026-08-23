@@ -169,6 +169,7 @@ export default function App() {
     handleAddClass,
     handleDeleteClass,
     handleAddStudent,
+    refreshStudentRoster,
     handleDeleteStudent,
     handleDeleteLessonPlan,
     handleDeleteNotebookEntry,
@@ -475,6 +476,7 @@ export default function App() {
                 onDeleteClass={handleDeleteClass}
                 onAddStudent={handleAddStudent}
                 onDeleteStudent={handleDeleteStudent}
+                onRefreshRoster={refreshStudentRoster}
                 currentUser={currentUser}
               />
             )}

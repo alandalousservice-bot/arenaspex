@@ -66,6 +66,7 @@ export interface GradebookViewProps {
   onDeleteClass?: (classId: string) => void;
   onAddStudent?: (studentData: Omit<Student, 'id'>) => void;
   onDeleteStudent?: (studentId: string) => void;
+  onRefreshRoster?: () => Promise<unknown>;
   currentUser?: User;
 }
 
@@ -118,6 +119,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
   onDeleteClass,
   onAddStudent,
   onDeleteStudent,
+  onRefreshRoster,
   currentUser
 }) => {
   const isDemo = currentUser ? currentUser.id === 'usr_admin_1' : false;
@@ -536,12 +538,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     setRosterLoading(true); setRosterError('');
     try {
       const result = await confirmStudentRosterImport(rows, activeClass.id, levelGrade, activeClass.name, 'levelId' in activeClass ? activeClass.levelId : undefined);
-      const existingKeys = new Set(students.filter((student) => student.classId === activeClass.id).map((student) => student.matricule || student.registrationNumber));
-      rows.forEach((row: any) => {
-        if (existingKeys.has(row.matricule)) return;
-        onAddStudent?.({ classId: activeClass.id, firstName: row.firstName, lastName: row.lastName, gender: 'ذكر', birthDate: row.birthDate, registrationNumber: row.matricule, matricule: row.matricule, grade: row.grade });
-        existingKeys.add(row.matricule);
-      });
+      await onRefreshRoster?.();
       window.alert(`تم الاستيراد بنجاح\nالجدد: ${result.summary.created}\nالموجودون مسبقاً: ${result.summary.existing}\nبحاجة إلى مراجعة: ${result.summary.conflicts + result.summary.review}`);
       setRosterPreview(null); setRosterFileName('');
     } catch (error) { setRosterError(error instanceof Error ? error.message : 'تعذر تأكيد الاستيراد.'); }

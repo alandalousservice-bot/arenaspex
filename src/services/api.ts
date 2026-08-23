@@ -438,7 +438,14 @@ export async function confirmStudentRosterImport(rows: unknown[], classId: strin
   const response = await fetch('/api/students/import/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows, classId, grade, className, levelId }) });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'تعذر تأكيد الاستيراد.');
-  return data as { success: boolean; summary: { created: number; existing: number; conflicts: number; review: number } };
+  return data as { success: boolean; classId: string; summary: { created: number; existing: number; linkedStudents: number; conflicts: number; review: number } };
+}
+
+export async function fetchStudentRoster() {
+  const response = await fetch('/api/students/roster');
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'تعذر تحميل قائمة التلاميذ.');
+  return data as { classes: any[]; students: any[] };
 }
 
 function normalizeLessonPlanData(data: any, payload: LessonGeneratorPayload) {
