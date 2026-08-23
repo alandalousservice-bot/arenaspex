@@ -25,6 +25,7 @@ import { reassignTeacher, reassignAllForInspector } from './assignmentService.js
 import { canWriteRecord, resolveOwnerFieldValue } from './collectionAuth.js';
 import { canReadDistrictMessage, normalizeMessageText } from '../services/communicationRules.js';
 import { resolveGenerationCredential, resolvePersonalGenerationCredential, resolvePlatformFallbackCredential, type GenerationFeature } from './generationAccess.js';
+import { parseStudentRosterWorkbook, rosterPreviewSummary, type ParsedRosterStudent } from '../services/studentRosterImport.service.js';
 
 // نظام الإسناد التلقائي للأساتذة إلى المفتشين: يُعاد احتساب جهة الإشراف تلقائياً
 // عند تسجيل/تعديل أستاذ (يعاد ربطه بمفتشه) أو تسجيل/تعديل مفتش (يعاد ربط كل الأساتذة
@@ -60,6 +61,43 @@ apiRouter.get('/health', (req, res) => {
 
 // كل ما يلي يتطلب تسجيل دخول صالح
 apiRouter.use(requireAuth);
+
+apiRouter.post('/students/import/preview', async (req, res) => {
+  try {
+    const filename = String(req.body?.filename || '').toLowerCase();
+    const content = String(req.body?.contentBase64 || '');
+    if (!/\.(xlsx|xls)$/.test(filename) || !content || content.length > 2_000_000) return res.status(400).json({ error: 'تعذر التعرف على بنية الملف.' });
+    const previews = parseStudentRosterWorkbook(Buffer.from(content, 'base64'));
+    if (!previews.length || previews.every((preview) => !preview.students.length && !preview.invalidRows.length)) return res.status(400).json({ error: 'لم يتم العثور على أعمدة قائمة التلاميذ.' });
+    res.json({ success: true, previews, summary: rosterPreviewSummary(previews) });
+  } catch {
+    res.status(400).json({ error: 'تعذر التعرف على بنية الملف.' });
+  }
+});
+
+apiRouter.post('/students/import/confirm', async (req, res) => {
+  if (req.user!.role !== 'teacher') return res.status(403).json({ error: 'استيراد القوائم متاح للأستاذ فقط.' });
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows as ParsedRosterStudent[] : [];
+  const classId = String(req.body?.classId || '').trim();
+  const grade = Number(req.body?.grade) || null;
+  if (!classId || !rows.length) return res.status(400).json({ error: 'اختر قسماً وأرسل صفوفاً صالحة للاستيراد.' });
+  const validRows = rows.filter((row) => row && typeof row.matricule === 'string' && row.matricule.trim() && row.firstName?.trim() && row.lastName?.trim());
+  let created = 0; let existing = 0; let conflicts = 0;
+  for (const row of validRows) {
+    const matricule = row.matricule.trim();
+    const institutionId = (req.user as any).institutionId || null;
+    const current = await prisma.student.findFirst({ where: { institutionId, matricule } });
+    if (current) {
+      if (current.firstName !== row.firstName.trim() || current.lastName !== row.lastName.trim()) { conflicts += 1; continue; }
+      existing += 1;
+      if (current.teacherId === req.user!.id && current.classId !== classId) await prisma.student.update({ where: { id: current.id }, data: { classId, grade: grade || row.grade || null, groupName: row.groupName || null } });
+      continue;
+    }
+    await prisma.student.create({ data: { id: `std_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, teacherId: req.user!.id, institutionId, classId, matricule, firstName: row.firstName.trim(), lastName: row.lastName.trim(), birthDate: row.birthDate ? new Date(row.birthDate) : null, grade: grade || row.grade || null, groupName: row.groupName || null } });
+    created += 1;
+  }
+  res.json({ success: true, summary: { created, existing, conflicts, review: rows.length - validRows.length } });
+});
 
 async function requireGenerationAccess(req: any, res: any, feature: GenerationFeature) {
   const result = await resolveGenerationCredential(req.user!.id, feature);

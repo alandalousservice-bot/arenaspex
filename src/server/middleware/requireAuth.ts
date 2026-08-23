@@ -11,7 +11,7 @@ declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
-      user?: { id: string; role: string; districtId: string };
+      user?: { id: string; role: string; districtId: string; institutionId?: string | null };
     }
   }
 }
@@ -35,7 +35,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return res.status(401).json({ error: 'الحساب معطّل من طرف الإدارة.', code: 'ACCOUNT_DISABLED', disabled: true, user: { id: user.id, status: user.status } });
   }
 
-  req.user = { id: user.id, role: user.role, districtId: user.districtId };
+  req.user = { id: user.id, role: user.role, districtId: user.districtId, institutionId: user.institutionId };
   next();
 }
 

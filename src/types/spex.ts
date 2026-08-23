@@ -758,6 +758,9 @@ export interface Student {
   gender: 'ذكر' | 'أنثى';
   birthDate?: string;
   registrationNumber: string;
+  matricule?: string;
+  grade?: number;
+  schoolYear?: string;
 }
 
 export interface ClassRoom {

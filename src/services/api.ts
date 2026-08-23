@@ -421,6 +421,26 @@ export async function requestAILessonPlan(payload: LessonGeneratorPayload) {
   }
 }
 
+export async function previewStudentRoster(file: File) {
+  const contentBase64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = () => reject(reader.error || new Error('file read failed'));
+    reader.readAsDataURL(file);
+  });
+  const response = await fetch('/api/students/import/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: file.name, contentBase64 }) });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'تعذر التعرف على بنية الملف.');
+  return data as { previews: any[]; summary: { worksheets: number; students: number; invalidRows: number; needsGradeSelection: number } };
+}
+
+export async function confirmStudentRosterImport(rows: unknown[], classId: string, grade?: number) {
+  const response = await fetch('/api/students/import/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows, classId, grade }) });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'تعذر تأكيد الاستيراد.');
+  return data as { success: boolean; summary: { created: number; existing: number; conflicts: number; review: number } };
+}
+
 function normalizeLessonPlanData(data: any, payload: LessonGeneratorPayload) {
   const base = fallbackLessonClientGenerator(payload);
   const warmupGame = data?.warmupPhase?.pedagogicalWarmupGame || base.warmupPhase.pedagogicalWarmupGame;

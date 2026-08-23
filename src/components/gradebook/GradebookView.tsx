@@ -44,6 +44,7 @@ import {
   BarChart2,
   Zap
 } from 'lucide-react';
+import { previewStudentRoster, confirmStudentRosterImport } from '../../services/api';
 import { INITIAL_CLASSES, INITIAL_STUDENTS } from '../../data/initialState';
 import {
   Student,
@@ -148,6 +149,10 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
   const [newStudentLastName, setNewStudentLastName] = useState<string>('');
   const [newStudentGender, setNewStudentGender] = useState<'ذكر' | 'أنثى'>('ذكر');
   const [newStudentRegNo, setNewStudentRegNo] = useState<string>('');
+  const [rosterPreview, setRosterPreview] = useState<any | null>(null);
+  const [rosterFileName, setRosterFileName] = useState('');
+  const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterError, setRosterError] = useState('');
 
   const [showWeightsModal, setShowWeightsModal] = useState<boolean>(false);
   const [showAuditModal, setShowAuditModal] = useState<boolean>(false);
@@ -513,6 +518,36 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     setShowAddStudentModal(false);
   };
 
+  const handleRosterFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setRosterLoading(true); setRosterError(''); setRosterFileName(file.name);
+    try { setRosterPreview(await previewStudentRoster(file)); }
+    catch (error) { setRosterError(error instanceof Error ? error.message : 'تعذر التعرف على بنية الملف.'); }
+    finally { setRosterLoading(false); }
+  };
+
+  const confirmRoster = async () => {
+    if (!rosterPreview || !activeClass) return;
+    const levelGrade = Number(('levelId' in activeClass ? activeClass.levelId : '').replace('lvl_p', '')) || undefined;
+    const rows = rosterPreview.previews.flatMap((preview: any) => preview.students || []).filter((row: any) => !levelGrade || !row.grade || row.grade === levelGrade);
+    if (!rows.length) { setRosterError('لا توجد صفوف مطابقة للقسم المختار.'); return; }
+    setRosterLoading(true); setRosterError('');
+    try {
+      const result = await confirmStudentRosterImport(rows, activeClass.id, levelGrade);
+      const existingKeys = new Set(students.filter((student) => student.classId === activeClass.id).map((student) => student.matricule || student.registrationNumber));
+      rows.forEach((row: any) => {
+        if (existingKeys.has(row.matricule)) return;
+        onAddStudent?.({ classId: activeClass.id, firstName: row.firstName, lastName: row.lastName, gender: 'ذكر', birthDate: row.birthDate, registrationNumber: row.matricule, matricule: row.matricule, grade: row.grade });
+        existingKeys.add(row.matricule);
+      });
+      window.alert(`تم الاستيراد بنجاح\nالجدد: ${result.summary.created}\nالموجودون مسبقاً: ${result.summary.existing}\nبحاجة إلى مراجعة: ${result.summary.conflicts + result.summary.review}`);
+      setRosterPreview(null); setRosterFileName('');
+    } catch (error) { setRosterError(error instanceof Error ? error.message : 'تعذر تأكيد الاستيراد.'); }
+    finally { setRosterLoading(false); }
+  };
+
   // Handle Delete Student
   const handleConfirmDeleteStudent = (studentId: string, studentName: string) => {
     if (window.confirm(`هل أنت تأكد من حذف التلميذ(ة): ${studentName}؟`)) {
@@ -627,6 +662,12 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
             <Plus className="w-4 h-4" />
             <span>إضافة تلميذ للقسم</span>
           </button>
+
+          <label className="flex items-center gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-2xl shadow-md cursor-pointer">
+            <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleRosterFile} />
+            <Users className="w-4 h-4" />
+            <span>استيراد قائمة التلاميذ</span>
+          </label>
 
           <button
             onClick={() => window.print()}
@@ -2026,6 +2067,26 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {rosterPreview && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl p-6 max-w-3xl w-full shadow-2xl border border-slate-200 space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div><h3 className="text-base font-black text-slate-900">معاينة استيراد قائمة التلاميذ</h3><p className="text-xs text-slate-500">{rosterFileName} — القسم المختار: {activeClass.name}</p></div>
+              <button onClick={() => setRosterPreview(null)} className="p-1.5 text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-bold">
+              <div className="rounded-xl bg-blue-50 p-3">الأوراق: {rosterPreview.summary.worksheets}</div>
+              <div className="rounded-xl bg-emerald-50 p-3">الصفوف الصالحة: {rosterPreview.summary.students}</div>
+              <div className="rounded-xl bg-amber-50 p-3">بحاجة لمراجعة: {rosterPreview.summary.invalidRows}</div>
+              <div className="rounded-xl bg-slate-50 p-3">مستوى يدوي: {rosterPreview.summary.needsGradeSelection}</div>
+            </div>
+            {rosterError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-700">{rosterError}</p>}
+            {rosterPreview.previews.map((preview: any) => <div key={preview.worksheet} className="rounded-2xl border border-slate-200 overflow-hidden"><div className="bg-slate-50 p-3 text-xs font-black">{preview.worksheet} — {preview.grade ? `السنة ${preview.grade}` : 'المستوى غير محدد'} {preview.groupName ? `— ${preview.groupName}` : ''}</div><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="border-b"><th className="p-2">رقم التعريف</th><th className="p-2">اللقب</th><th className="p-2">الاسم</th><th className="p-2">تاريخ الميلاد</th></tr></thead><tbody>{preview.students.slice(0, 8).map((row: any) => <tr key={`${preview.worksheet}-${row.rowNumber}`} className="border-b"><td className="p-2 font-mono">{row.matricule}</td><td className="p-2">{row.lastName}</td><td className="p-2">{row.firstName}</td><td className="p-2">{row.birthDate || '—'}</td></tr>)}</tbody></table></div></div>)}
+            <div className="flex justify-end gap-2"><button onClick={() => setRosterPreview(null)} className="px-4 py-2 rounded-xl bg-slate-100 text-xs font-bold">إلغاء</button><button disabled={rosterLoading} onClick={() => void confirmRoster()} className="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">{rosterLoading ? 'جارٍ الاستيراد...' : 'تأكيد الاستيراد'}</button></div>
           </div>
         </div>
       )}

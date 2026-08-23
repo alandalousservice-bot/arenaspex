@@ -66,6 +66,7 @@ model User {
   resetTokens PasswordResetToken[]
   pedagogicalGames PedagogicalGame[]
   generationAccess UserGenerationAccess?
+  students Student[]
 
   // نظام الإسناد التلقائي للأساتذة إلى المفتشين
   teacherAssignment    InspectorAssignment?  @relation("TeacherAssignment")
@@ -78,6 +79,27 @@ model User {
   @@index([eduDirectorateId])
   @@index([eduDistrictId])
   @@index([eduSchoolId])
+}
+
+model Student {
+  id            String   @id
+  teacherId     String
+  institutionId String?
+  classId       String
+  matricule     String
+  firstName     String
+  lastName      String
+  birthDate     DateTime?
+  grade         Int?
+  groupName     String?
+  schoolYear    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  teacher       User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([institutionId, matricule])
+  @@index([teacherId, classId])
+  @@index([institutionId])
 }
 
 // -----------------------------------------------------------------------
