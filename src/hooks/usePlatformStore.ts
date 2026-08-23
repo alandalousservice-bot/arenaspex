@@ -36,8 +36,8 @@ import {
   submitPedagogicalGame,
   deletePedagogicalGame,
   approvePedagogicalGame,
-  rejectPedagogicalGame
-  ,fetchStudentRoster
+  rejectPedagogicalGame,
+  fetchStudentRoster,
 } from '../services/api';
 import {
   User,
@@ -61,7 +61,7 @@ import {
   LessonExecutionLog,
   CommunityResource,
   CommunityNotification,
-  PersonalLibraryItem
+  PersonalLibraryItem,
 } from '../types/spex';
 import {
   DEMO_USERS,
@@ -75,7 +75,7 @@ import {
   INITIAL_BROADCASTS,
   INITIAL_DIRECT_MESSAGES,
   INITIAL_WEEKLY_SCHEDULE,
-  INITIAL_DISTRICT_GROUP_MESSAGES
+  INITIAL_DISTRICT_GROUP_MESSAGES,
 } from '../data/initialState';
 import { INITIAL_KNOWLEDGE_BANK } from '../data/knowledgeBankData';
 
@@ -91,7 +91,12 @@ interface PlatformStoreParams {
 // قابلة لتسجيل الدخول بكلمة مرور متداولة! لذا تُستبعد من كل مسارات المزامنة الصادرة.
 const DEMO_USER_IDS = new Set(DEMO_USERS.map((u) => u.id));
 
-export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated, setCurrentTab }: PlatformStoreParams) {
+export function usePlatformStore({
+  currentUser,
+  setCurrentUser,
+  isAuthenticated,
+  setCurrentTab,
+}: PlatformStoreParams) {
   // App domain state with persistent LocalStorage backup
   const [allUsersList, setAllUsersList] = useState<User[]>(() => {
     const saved = localStorage.getItem('spex_all_users');
@@ -108,7 +113,9 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
   // User-scoped Data Initialization & State Management
   const [teacherClasses, setTeacherClasses] = useState<ClassRoom[]>(() => {
     if (!currentUser?.id) return [];
-    const saved = localStorage.getItem(`spex_teacher_classes_${currentUser.id}`) || localStorage.getItem('spex_teacher_classes');
+    const saved =
+      localStorage.getItem(`spex_teacher_classes_${currentUser.id}`) ||
+      localStorage.getItem('spex_teacher_classes');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -121,7 +128,9 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
 
   const [allStudents, setAllStudents] = useState<Student[]>(() => {
     if (!currentUser?.id) return [];
-    const saved = localStorage.getItem(`spex_all_students_${currentUser.id}`) || localStorage.getItem('spex_all_students');
+    const saved =
+      localStorage.getItem(`spex_all_students_${currentUser.id}`) ||
+      localStorage.getItem('spex_all_students');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -135,7 +144,9 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
   const [dailyNotebook, setDailyNotebook] = useState<DailyNotebookEntry[]>(() => {
     if (!currentUser?.id) return [];
     const isDemo = currentUser.id === 'usr_admin_1';
-    const saved = localStorage.getItem(`spex_daily_notebook_${currentUser.id}`) || localStorage.getItem('spex_daily_notebook');
+    const saved =
+      localStorage.getItem(`spex_daily_notebook_${currentUser.id}`) ||
+      localStorage.getItem('spex_daily_notebook');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -161,7 +172,9 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
   const [lessonPlans, setLessonPlans] = useState<LessonPlan[]>(() => {
     if (!currentUser?.id) return [];
     const isDemo = currentUser.id === 'usr_admin_1';
-    const saved = localStorage.getItem(`spex_lesson_plans_${currentUser.id}`) || localStorage.getItem('spex_lesson_plans');
+    const saved =
+      localStorage.getItem(`spex_lesson_plans_${currentUser.id}`) ||
+      localStorage.getItem('spex_lesson_plans');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -187,23 +200,45 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     let active = true;
     const loadGames = async () => {
       try {
-        const scopes: Array<'public' | 'mine' | 'pending'> = currentUser.role === 'teacher' ? ['public', 'mine'] : ['public', 'pending'];
-        const rows = (await Promise.all(scopes.map((scope) => fetchPedagogicalGames(scope)))).flat() as KnowledgeItem[];
+        const scopes: Array<'public' | 'mine' | 'pending'> =
+          currentUser.role === 'teacher' ? ['public', 'mine'] : ['public', 'pending'];
+        const rows = (
+          await Promise.all(scopes.map((scope) => fetchPedagogicalGames(scope)))
+        ).flat() as KnowledgeItem[];
         if (!active) return;
-        const dynamic = rows.map((game) => ({ ...game, category: 'game' as const, approved: game.status === 'APPROVED' && game.approved, approvalStatus: game.status === 'PENDING_APPROVAL' ? 'PENDING_APPROVAL' as const : game.status as KnowledgeItem['approvalStatus'], tags: game.tags || ['اقتراح لعبة تربوية'], usageCount: game.usageCount || 0, rating: game.rating || 0, createdBy: game.createdBy || 'اقتراح' }));
-        setKnowledgeItems((prev) => [...prev.filter((item) => item.origin !== 'AI_GENERATED' && !item.ownerId), ...dynamic]);
+        const dynamic = rows.map((game) => ({
+          ...game,
+          category: 'game' as const,
+          approved: game.status === 'APPROVED' && game.approved,
+          approvalStatus:
+            game.status === 'PENDING_APPROVAL'
+              ? ('PENDING_APPROVAL' as const)
+              : (game.status as KnowledgeItem['approvalStatus']),
+          tags: game.tags || ['اقتراح لعبة تربوية'],
+          usageCount: game.usageCount || 0,
+          rating: game.rating || 0,
+          createdBy: game.createdBy || 'اقتراح',
+        }));
+        setKnowledgeItems((prev) => [
+          ...prev.filter((item) => item.origin !== 'AI_GENERATED' && !item.ownerId),
+          ...dynamic,
+        ]);
       } catch {
         // Offline mode keeps static reference content available; dynamic records remain server-authoritative.
       }
     };
     void loadGames();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [currentUser.id, currentUser.role]);
 
   const [inspectorNotes, setInspectorNotes] = useState<InspectorNote[]>(() => {
     if (!currentUser?.id) return [];
     const isDemo = currentUser.id === 'usr_admin_1';
-    const saved = localStorage.getItem(`spex_inspector_notes_${currentUser.id}`) || localStorage.getItem('spex_inspector_notes');
+    const saved =
+      localStorage.getItem(`spex_inspector_notes_${currentUser.id}`) ||
+      localStorage.getItem('spex_inspector_notes');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -220,11 +255,13 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     return isDemo ? INITIAL_INSPECTION_VISITS : [];
   });
 
-  const [assessmentSessions, setAssessmentSessions] = useState<CompetencyAssessmentSession[]>(() => {
-    if (!currentUser?.id) return [];
-    const isDemo = currentUser.id === 'usr_admin_1';
-    return isDemo ? INITIAL_ASSESSMENT_SESSIONS : [];
-  });
+  const [assessmentSessions, setAssessmentSessions] = useState<CompetencyAssessmentSession[]>(
+    () => {
+      if (!currentUser?.id) return [];
+      const isDemo = currentUser.id === 'usr_admin_1';
+      return isDemo ? INITIAL_ASSESSMENT_SESSIONS : [];
+    }
+  );
 
   const [broadcasts, setBroadcasts] = useState<DistrictBroadcast[]>(INITIAL_BROADCASTS);
   const [directMessages, setDirectMessages] = useState<DirectChatMessage[]>(() => {
@@ -261,17 +298,19 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     return [];
   });
 
-  const [communityNotifications, setCommunityNotifications] = useState<CommunityNotification[]>(() => {
-    const saved = localStorage.getItem('spex_community_notifications');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        void e;
+  const [communityNotifications, setCommunityNotifications] = useState<CommunityNotification[]>(
+    () => {
+      const saved = localStorage.getItem('spex_community_notifications');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          void e;
+        }
       }
+      return [];
     }
-    return [];
-  });
+  );
 
   const [personalLibraryItems, setPersonalLibraryItems] = useState<PersonalLibraryItem[]>(() => {
     const saved = localStorage.getItem('spex_personal_library');
@@ -321,7 +360,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
       soundEnabled: true,
       vibrationEnabled: true,
       voiceAnnouncements: true,
-      autoLogToNotebook: true
+      autoLogToNotebook: true,
     };
   });
 
@@ -349,11 +388,17 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     return [];
   });
 
-  const [activeLessonPlanId, setActiveLessonPlanId] = useState<string | undefined>(INITIAL_LESSON_PLANS[0]?.id);
+  const [activeLessonPlanId, setActiveLessonPlanId] = useState<string | undefined>(
+    INITIAL_LESSON_PLANS[0]?.id
+  );
 
   // Ticker Interval effect for live session countdown
   useEffect(() => {
-    if (!activeLessonSession || activeLessonSession.status !== 'in_progress' || activeLessonSession.isPaused) {
+    if (
+      !activeLessonSession ||
+      activeLessonSession.status !== 'in_progress' ||
+      activeLessonSession.isPaused
+    ) {
       return;
     }
 
@@ -366,7 +411,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
         const totalElapsed = prev.totalElapsedSeconds + 1;
         const phaseSpent = {
           ...prev.actualPhaseSpent,
-          [currentPhase]: (prev.actualPhaseSpent[currentPhase] || 0) + 1
+          [currentPhase]: (prev.actualPhaseSpent[currentPhase] || 0) + 1,
         };
 
         if (remaining <= 0) {
@@ -375,7 +420,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
             'preparation',
             'situation1',
             'situation2',
-            'final'
+            'final',
           ];
           const currIdx = PHASES_ORDER.indexOf(currentPhase);
 
@@ -387,7 +432,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
               currentPhase: nextPhase,
               phaseRemainingSeconds: nextSecs,
               totalElapsedSeconds: totalElapsed,
-              actualPhaseSpent: phaseSpent
+              actualPhaseSpent: phaseSpent,
             };
           } else {
             // Reached end of final phase
@@ -396,7 +441,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
               status: 'completed',
               phaseRemainingSeconds: 0,
               totalElapsedSeconds: totalElapsed,
-              actualPhaseSpent: phaseSpent
+              actualPhaseSpent: phaseSpent,
             };
           }
         }
@@ -405,7 +450,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
           ...prev,
           phaseRemainingSeconds: remaining,
           totalElapsedSeconds: totalElapsed,
-          actualPhaseSpent: phaseSpent
+          actualPhaseSpent: phaseSpent,
         };
       });
     }, 1000);
@@ -554,7 +599,10 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     if (directMessages.length > 0) {
       localStorage.setItem('spex_direct_messages_shared', JSON.stringify(directMessages));
       if (currentUser?.id) {
-        localStorage.setItem(`spex_direct_messages_${currentUser.id}`, JSON.stringify(directMessages));
+        localStorage.setItem(
+          `spex_direct_messages_${currentUser.id}`,
+          JSON.stringify(directMessages)
+        );
       }
     }
   }, [directMessages, currentUser?.id]);
@@ -587,7 +635,10 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
 
   useEffect(() => {
     if (currentUser?.id) {
-      localStorage.setItem(`spex_teacher_classes_${currentUser.id}`, JSON.stringify(teacherClasses));
+      localStorage.setItem(
+        `spex_teacher_classes_${currentUser.id}`,
+        JSON.stringify(teacherClasses)
+      );
     }
   }, [teacherClasses, currentUser?.id]);
 
@@ -608,7 +659,10 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
 
   useEffect(() => {
     if (currentUser?.id) {
-      localStorage.setItem(`spex_inspector_notes_${currentUser.id}`, JSON.stringify(inspectorNotes));
+      localStorage.setItem(
+        `spex_inspector_notes_${currentUser.id}`,
+        JSON.stringify(inspectorNotes)
+      );
     }
   }, [inspectorNotes, currentUser?.id]);
 
@@ -616,14 +670,15 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
   const handleStartLessonSession = (sessionData: Omit<LessonSession, 'id'>) => {
     const newSession: LessonSession = {
       ...sessionData,
-      id: `sess_${Date.now()}`
+      id: `sess_${Date.now()}`,
     };
     setActiveLessonSession(newSession);
   };
 
   const handleLaunchCommandCenterForPlan = (plan: LessonPlan) => {
     setActiveLessonPlanId(plan.id);
-    const targetClass = teacherClasses.find((c) => c.levelName === plan.levelName) || teacherClasses[0] || { id: 'c1', name: plan.className, levelName: plan.levelName };
+    const targetClass = teacherClasses.find((c) => c.levelName === plan.levelName) ||
+      teacherClasses[0] || { id: 'c1', name: plan.className, levelName: plan.levelName };
 
     const prepSecs = lessonTimingSettings.preparationMinutes * 60;
     const newSession: LessonSession = {
@@ -640,27 +695,37 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
       currentPhase: 'preparation',
       phaseRemainingSeconds: prepSecs,
       totalElapsedSeconds: 0,
-      preparationObjective: plan.warmupPhase?.pedagogicalWarmupGame?.title || 'الإحماء العام والخاص وتجهيز التلاميذ بدﻧياً ونفسياً',
-      educationalObjective: plan.generalObjective || plan.mainPhase?.learningSituation1?.description || 'تطوير المهارات الحركية والتوافق البدني',
-      situation1Description: plan.mainPhase?.learningSituation1?.description || 'بناء التعلمات والتطبيق الحركي الفردي والجماعي',
+      preparationObjective:
+        plan.warmupPhase?.pedagogicalWarmupGame?.title ||
+        'الإحماء العام والخاص وتجهيز التلاميذ بدﻧياً ونفسياً',
+      educationalObjective:
+        plan.generalObjective ||
+        plan.mainPhase?.learningSituation1?.description ||
+        'تطوير المهارات الحركية والتوافق البدني',
+      situation1Description:
+        plan.mainPhase?.learningSituation1?.description ||
+        'بناء التعلمات والتطبيق الحركي الفردي والجماعي',
       situation2Title: plan.mainPhase?.learningSituation2?.title || 'الوضعية المشكلة والتنافس',
-      situation2Description: plan.mainPhase?.learningSituation2?.description || 'المنافسة المصغرة واللعب الموجه وفق القوانين',
-      finalObjective: plan.coolDownPhase?.assessmentAndDialogue || 'العودة للهدوء وتفقد العتاد والتقويم الختامي',
+      situation2Description:
+        plan.mainPhase?.learningSituation2?.description ||
+        'المنافسة المصغرة واللعب الموجه وفق القوانين',
+      finalObjective:
+        plan.coolDownPhase?.assessmentAndDialogue || 'العودة للهدوء وتفقد العتاد والتقويم الختامي',
       phaseDurations: {
         preparation: lessonTimingSettings.preparationMinutes * 60,
         situation1: lessonTimingSettings.situation1Minutes * 60,
         situation2: lessonTimingSettings.situation2Minutes * 60,
-        final: lessonTimingSettings.finalMinutes * 60
+        final: lessonTimingSettings.finalMinutes * 60,
       },
       actualPhaseSpent: {
         preparation: 0,
         situation1: 0,
         situation2: 0,
-        final: 0
+        final: 0,
       },
       startedAt: new Date().toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' }),
       isPaused: false,
-      contingencyMode: 'normal'
+      contingencyMode: 'normal',
     };
 
     setActiveLessonSession(newSession);
@@ -681,13 +746,19 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
   const handleAddNotebookEntry = (entry: Omit<DailyNotebookEntry, 'id'>) => {
     const newEntry: DailyNotebookEntry = {
       ...entry,
-      id: `notebook_${Date.now()}`
+      id: `notebook_${Date.now()}`,
     };
     setDailyNotebook((prev) => [newEntry, ...prev]);
     syncNotebookEntryToDB(newEntry);
   };
 
-  const handleAddClass = (newClassData: { name: string; levelId: string; studentCount: number; municipality?: string; schoolName?: string }) => {
+  const handleAddClass = (newClassData: {
+    name: string;
+    levelId: string;
+    studentCount: number;
+    municipality?: string;
+    schoolName?: string;
+  }) => {
     const newClassId = `cls_${Date.now()}`;
     const newClass: ClassRoom = {
       id: newClassId,
@@ -695,7 +766,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
       teacherId: currentUser?.id || '',
       levelId: newClassData.levelId,
       name: newClassData.name,
-      studentCount: 0
+      studentCount: 0,
     };
 
     setTeacherClasses((prev) => [...prev, newClass]);
@@ -710,7 +781,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
   const handleAddStudent = (studentData: Omit<Student, 'id'>) => {
     const newStudent: Student = {
       ...studentData,
-      id: `std_${Date.now()}_${Math.floor(Math.random() * 1000)}`
+      id: `std_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
     };
     setAllStudents((prev) => [...prev, newStudent]);
   };
@@ -743,24 +814,32 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
       password: userPartial.password || '',
       role: userPartial.role || 'teacher',
       phone: userPartial.phone || '0661234567',
-      schoolName: userPartial.schoolName || 'مدرسة الشهيد بالخيري عبد القادر',
-      municipality: userPartial.municipality || 'عين أزال - سطيف',
-      directorateId: userPartial.directorateId || 'setif_de',
-      districtId: userPartial.districtId || 'dist_setif_7',
-      institutionId: userPartial.institutionId || 'inst_1',
+      schoolName:
+        userPartial.role === 'inspector'
+          ? undefined
+          : userPartial.schoolName || 'مدرسة الشهيد بالخيري عبد القادر',
+      municipality:
+        userPartial.role === 'inspector'
+          ? undefined
+          : userPartial.municipality || 'عين أزال - سطيف',
+      directorateId: userPartial.directorateId || '',
+      districtId: userPartial.role === 'inspector' ? userPartial.districtId || '' : '',
+      institutionId:
+        userPartial.role === 'inspector' ? undefined : userPartial.institutionId || 'inst_1',
       specialization:
         userPartial.specialization ||
         (userPartial.role === 'teacher'
           ? 'أستاذ التربية البدنية والرياضية - الطور الابتدائي'
           : userPartial.role === 'inspector'
-          ? 'مفتش إدارة وابتدائيات للتربية البدنية والرياضية'
-          : 'مدير مدرسة ابتدائية'),
+            ? 'مفتش إدارة وابتدائيات للتربية البدنية والرياضية'
+            : 'مدير مدرسة ابتدائية'),
       yearsExperience: userPartial.yearsExperience || 5,
       status: userPartial.status || 'active',
       customApiKey: userPartial.customApiKey || '',
       apiKeyStatus: userPartial.customApiKey ? 'active' : 'not_set',
       isApprovedByAdmin: true,
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'
+      avatar:
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
     };
     // نرسل كلمة المرور للخادم ليشفّرها فوراً، ثم نستبدل الحالة المحلية بالنسخة الآمنة
     // المُعادة من الخادم بدل الاحتفاظ بكلمة المرور نص عادي في ذاكرة المتصفح
@@ -807,7 +886,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
   const handleAddWeeklySlot = (slotData: Omit<WeeklyScheduleSlot, 'id'>) => {
     const newSlot: WeeklyScheduleSlot = {
       ...slotData,
-      id: `ws_${Date.now()}`
+      id: `ws_${Date.now()}`,
     };
     setWeeklySchedule((prev) => [...prev, newSlot]);
   };
@@ -822,7 +901,9 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     note?: string
   ) => {
     setDailyNotebook((prev) =>
-      prev.map((item) => (item.id === entryId ? { ...item, status, note: note ?? item.note } : item))
+      prev.map((item) =>
+        item.id === entryId ? { ...item, status, note: note ?? item.note } : item
+      )
     );
   };
 
@@ -845,7 +926,10 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     // Automatically record and sync to Daily Notebook (الكراس اليومي)
     setDailyNotebook((prev) => {
       const existingIndex = prev.findIndex(
-        (e) => e.lessonPlanId === lessonId || e.sessionId === targetLP.id || (e.className.includes(targetLP.levelName) && e.segmentId === targetLP.segmentTitle)
+        (e) =>
+          e.lessonPlanId === lessonId ||
+          e.sessionId === targetLP.id ||
+          (e.className.includes(targetLP.levelName) && e.segmentId === targetLP.segmentTitle)
       );
 
       if (existingIndex >= 0) {
@@ -853,7 +937,10 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
         updated[existingIndex] = {
           ...updated[existingIndex],
           status,
-          note: note || updated[existingIndex].note || `حالة الحصة المحدثة تلقائياً من المذكرة: ${status}`
+          note:
+            note ||
+            updated[existingIndex].note ||
+            `حالة الحصة المحدثة تلقائياً من المذكرة: ${status}`,
         };
         return updated;
       } else {
@@ -868,7 +955,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
           timeSlot: '08:00 - 09:00',
           status: status,
           lessonPlanId: targetLP.id,
-          note: note || `تسجيل تلقائي في الكراس اليومي من مذكرة الحصة: ${targetLP.sessionTitle}`
+          note: note || `تسجيل تلقائي في الكراس اليومي من مذكرة الحصة: ${targetLP.sessionTitle}`,
         };
         return [newEntry, ...prev];
       }
@@ -901,30 +988,59 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
       approved: newItem.approved ?? false,
       createdBy: newItem.createdBy || currentUser.firstName,
       usageCount: newItem.usageCount || 0,
-      rating: newItem.rating || 0
+      rating: newItem.rating || 0,
     };
     setKnowledgeItems((prev) => [item, ...prev]);
-    if (item.category === 'game' && item.approvalStatus === 'DRAFT') void createPedagogicalGame({ ...item, id: item.id }).catch(() => undefined);
+    if (item.category === 'game' && item.approvalStatus === 'DRAFT')
+      void createPedagogicalGame({ ...item, id: item.id }).catch(() => undefined);
   };
 
   const handleUpdateKnowledgeItem = (id: string, patch: Partial<KnowledgeItem>) => {
-    setKnowledgeItems((prev) => prev.map((item) => item.id === id && item.ownerId === currentUser.id && (item.approvalStatus === 'DRAFT' || item.approvalStatus === 'REJECTED')
-      ? { ...item, ...patch, ownerId: item.ownerId, approved: false, approvalStatus: item.approvalStatus }
-      : item));
+    setKnowledgeItems((prev) =>
+      prev.map((item) =>
+        item.id === id &&
+        item.ownerId === currentUser.id &&
+        (item.approvalStatus === 'DRAFT' || item.approvalStatus === 'REJECTED')
+          ? {
+              ...item,
+              ...patch,
+              ownerId: item.ownerId,
+              approved: false,
+              approvalStatus: item.approvalStatus,
+            }
+          : item
+      )
+    );
     const existing = knowledgeItems.find((item) => item.id === id);
     if (existing) void updatePedagogicalGame(id, { ...existing, ...patch }).catch(() => undefined);
   };
 
   const handleSubmitKnowledgeItem = (id: string) => {
-    setKnowledgeItems((prev) => prev.map((item) => item.id === id && item.ownerId === currentUser.id && (item.approvalStatus === 'DRAFT' || item.approvalStatus === 'REJECTED')
-      ? { ...item, approvalStatus: 'PENDING_APPROVAL' as const, approved: false, submittedAt: new Date().toISOString() }
-      : item));
+    setKnowledgeItems((prev) =>
+      prev.map((item) =>
+        item.id === id &&
+        item.ownerId === currentUser.id &&
+        (item.approvalStatus === 'DRAFT' || item.approvalStatus === 'REJECTED')
+          ? {
+              ...item,
+              approvalStatus: 'PENDING_APPROVAL' as const,
+              approved: false,
+              submittedAt: new Date().toISOString(),
+            }
+          : item
+      )
+    );
     void submitPedagogicalGame(id).catch(() => undefined);
   };
 
   const handleDeleteKnowledgeItem = (id: string) => {
     const existing = knowledgeItems.find((item) => item.id === id);
-    if (!existing || existing.ownerId !== currentUser.id || (existing.approvalStatus !== 'DRAFT' && existing.approvalStatus !== 'REJECTED')) return;
+    if (
+      !existing ||
+      existing.ownerId !== currentUser.id ||
+      (existing.approvalStatus !== 'DRAFT' && existing.approvalStatus !== 'REJECTED')
+    )
+      return;
     setKnowledgeItems((prev) => prev.filter((item) => item.id !== id));
     void deletePedagogicalGame(id).catch(() => undefined);
   };
@@ -933,17 +1049,40 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     if (currentUser.role !== 'admin' && currentUser.role !== 'inspector') return;
     setKnowledgeItems((prev) =>
       prev.map((k) =>
-        k.id === id && (k.approvalStatus === 'PENDING_APPROVAL' || k.approvalStatus === 'PENDING_REVIEW') ? { ...k, approved: true, approvalStatus: 'APPROVED' as const, reviewedById: currentUser.id } : k
+        k.id === id &&
+        (k.approvalStatus === 'PENDING_APPROVAL' || k.approvalStatus === 'PENDING_REVIEW')
+          ? {
+              ...k,
+              approved: true,
+              approvalStatus: 'APPROVED' as const,
+              reviewedById: currentUser.id,
+            }
+          : k
       )
     );
     void approvePedagogicalGame(id).catch(() => undefined);
   };
 
   const handleRejectKnowledgeItem = (id: string, rejectionReason: string) => {
-    if ((currentUser.role !== 'admin' && currentUser.role !== 'inspector') || !rejectionReason.trim()) return;
-    setKnowledgeItems((prev) => prev.map((item) => item.id === id && (item.approvalStatus === 'PENDING_APPROVAL' || item.approvalStatus === 'PENDING_REVIEW')
-      ? { ...item, approved: false, approvalStatus: 'REJECTED' as const, rejectionReason: rejectionReason.trim(), reviewedById: currentUser.id }
-      : item));
+    if (
+      (currentUser.role !== 'admin' && currentUser.role !== 'inspector') ||
+      !rejectionReason.trim()
+    )
+      return;
+    setKnowledgeItems((prev) =>
+      prev.map((item) =>
+        item.id === id &&
+        (item.approvalStatus === 'PENDING_APPROVAL' || item.approvalStatus === 'PENDING_REVIEW')
+          ? {
+              ...item,
+              approved: false,
+              approvalStatus: 'REJECTED' as const,
+              rejectionReason: rejectionReason.trim(),
+              reviewedById: currentUser.id,
+            }
+          : item
+      )
+    );
     void rejectPedagogicalGame(id, rejectionReason).catch(() => undefined);
   };
 
@@ -960,7 +1099,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
       priority: notePartial.priority || 'هام',
       status: 'جديدة',
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
     setInspectorNotes((prev) => [note, ...prev]);
     syncInspectorNoteToDB(note);
@@ -979,7 +1118,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
       positivePoints: visitPartial.positivePoints || [],
       areasForImprovement: visitPartial.areasForImprovement || [],
       recommendations: visitPartial.recommendations || [],
-      officialReportGenerated: true
+      officialReportGenerated: true,
     };
     setInspectionVisits((prev) => [visit, ...prev]);
   };
@@ -1012,7 +1151,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
       message: params.message,
       resourceId: params.resourceId,
       read: false,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
     setCommunityNotifications((prev) => [notif, ...prev]);
     syncCommunityNotificationToDB(notif);
@@ -1024,10 +1163,12 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
   };
 
   const handleSendDistrictGroupMessage = (msg: { message: string; replyToId?: string }) => {
-    const replyTarget = msg.replyToId ? districtGroupMessages.find((m) => m.id === msg.replyToId) : undefined;
+    const replyTarget = msg.replyToId
+      ? districtGroupMessages.find((m) => m.id === msg.replyToId)
+      : undefined;
     const newMsg: DistrictGroupMessage = {
       id: `dgm_${Date.now()}`,
-      districtId: currentUser.districtId || 'dist_setif_7',
+      districtId: currentUser.districtId || '',
       senderId: currentUser.id,
       senderName: `${currentUser.firstName} ${currentUser.lastName}`,
       senderSchool: currentUser.schoolName,
@@ -1039,15 +1180,19 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
         ? {
             id: replyTarget.id,
             senderName: replyTarget.senderName,
-            message: replyTarget.message
+            message: replyTarget.message,
           }
-        : undefined
+        : undefined,
     };
     setDistrictGroupMessages((prev) => [...prev, newMsg]);
     syncDistrictMessageToDB(newMsg);
   };
 
-  const handleSendDirectMessageFromChat = (receiverId: string, receiverName: string, messageText: string) => {
+  const handleSendDirectMessageFromChat = (
+    receiverId: string,
+    receiverName: string,
+    messageText: string
+  ) => {
     const newMsg = {
       id: `msg_${Date.now()}`,
       senderId: currentUser.id,
@@ -1055,10 +1200,10 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
       senderRole: currentUser.role,
       receiverId: receiverId,
       receiverName: receiverName,
-      districtId: currentUser.districtId || 'dist_setif_7',
+      districtId: currentUser.districtId || '',
       message: messageText,
       createdAt: new Date().toISOString(),
-      read: true
+      read: true,
     };
     setDirectMessages((prev) => [...prev, newMsg]);
   };
@@ -1074,7 +1219,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
           likedByUserIds: alreadyLiked
             ? likedByUserIds.filter((id) => id !== currentUser.id)
             : [...likedByUserIds, currentUser.id],
-          likesCount: Math.max(0, res.likesCount + (alreadyLiked ? -1 : 1))
+          likesCount: Math.max(0, res.likesCount + (alreadyLiked ? -1 : 1)),
         };
         syncCommunityResourceToDB(updated);
 
@@ -1087,7 +1232,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
               type: 'like',
               title: 'إعجاب جديد بمنشورك',
               message: `أعجب ${currentUser.firstName} ${currentUser.lastName} بمنشورك "${res.title}"`,
-              resourceId: res.id
+              resourceId: res.id,
             });
           }
         }
@@ -1102,7 +1247,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
         if (res.id !== resourceId) return res;
         const updated = {
           ...res,
-          isApprovedByInspector: !res.isApprovedByInspector
+          isApprovedByInspector: !res.isApprovedByInspector,
         };
         syncCommunityResourceToDB(updated);
         return updated;
@@ -1115,7 +1260,9 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     if (!targetUser) return;
 
     if (targetUser.districtId !== currentUser.districtId) {
-      alert(`عفواً: الأستاذ ${targetUser.firstName} ${targetUser.lastName} يتبع لمقاطعة أُخرى. يشترط نظام SPEX التواجد بنفس المقاطعة التفتيشية!`);
+      alert(
+        `عفواً: الأستاذ ${targetUser.firstName} ${targetUser.lastName} يتبع لمقاطعة أُخرى. يشترط نظام SPEX التواجد بنفس المقاطعة التفتيشية!`
+      );
       return;
     }
 
@@ -1136,7 +1283,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
         userId: targetTeacherId,
         type: 'new_follower',
         title: 'متابع جديد',
-        message: `بدأ ${currentUser.firstName} ${currentUser.lastName} بمتابعتك`
+        message: `بدأ ${currentUser.firstName} ${currentUser.lastName} بمتابعتك`,
       });
     }
   };
@@ -1159,7 +1306,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
         type: 'resource_shared',
         title: 'منشور جديد ممن تتابعه',
         message: `نشر ${currentUser.firstName} ${currentUser.lastName} مورداً جديداً: "${res.title}"`,
-        resourceId: res.id
+        resourceId: res.id,
       });
     });
   };
@@ -1177,7 +1324,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
       userId: msg.receiverId,
       type: 'new_message',
       title: 'رسالة جديدة',
-      message: `${currentUser.firstName} ${currentUser.lastName}: ${msg.message.slice(0, 80)}`
+      message: `${currentUser.firstName} ${currentUser.lastName}: ${msg.message.slice(0, 80)}`,
     });
   };
 
@@ -1192,7 +1339,7 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
       userId: targetUserId,
       type: 'new_follower',
       title: 'متابع جديد',
-      message: `بدأ ${currentUser.firstName} ${currentUser.lastName} بمتابعتك`
+      message: `بدأ ${currentUser.firstName} ${currentUser.lastName} بمتابعتك`,
     });
   };
 
@@ -1201,7 +1348,11 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     setBroadcasts((prev) => [bc as DistrictBroadcast, ...prev]);
   };
 
-  const handleAddDirectMessageFromInspector = (msg: { receiverId: string; receiverName: string; message: string }) => {
+  const handleAddDirectMessageFromInspector = (msg: {
+    receiverId: string;
+    receiverName: string;
+    message: string;
+  }) => {
     const newMsg = {
       id: `msg_${Date.now()}`,
       senderId: currentUser.id,
@@ -1209,10 +1360,10 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
       senderRole: currentUser.role,
       receiverId: msg.receiverId,
       receiverName: msg.receiverName,
-      districtId: currentUser.districtId || 'dist_setif_7',
+      districtId: currentUser.districtId || '',
       message: msg.message,
       createdAt: new Date().toISOString(),
-      read: true
+      read: true,
     };
     setDirectMessages((prev) => [...prev, newMsg]);
   };
@@ -1317,6 +1468,6 @@ export function usePlatformStore({ currentUser, setCurrentUser, isAuthenticated,
     handleNotifyNewFollower,
     // Navigation-adjacent handlers
     handleOpenLessonPlan,
-    refreshSessionUser
+    refreshSessionUser,
   };
 }

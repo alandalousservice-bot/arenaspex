@@ -24,8 +24,17 @@ import { requireAuth, requireRole } from './middleware/requireAuth.js';
 import { reassignTeacher, reassignAllForInspector } from './assignmentService.js';
 import { canWriteRecord, resolveOwnerFieldValue } from './collectionAuth.js';
 import { canReadDistrictMessage, normalizeMessageText } from '../services/communicationRules.js';
-import { resolveGenerationCredential, resolvePersonalGenerationCredential, resolvePlatformFallbackCredential, type GenerationFeature } from './generationAccess.js';
-import { parseStudentRosterWorkbook, rosterPreviewSummary, type ParsedRosterStudent } from '../services/studentRosterImport.service.js';
+import {
+  resolveGenerationCredential,
+  resolvePersonalGenerationCredential,
+  resolvePlatformFallbackCredential,
+  type GenerationFeature,
+} from './generationAccess.js';
+import {
+  parseStudentRosterWorkbook,
+  rosterPreviewSummary,
+  type ParsedRosterStudent,
+} from '../services/studentRosterImport.service.js';
 
 // نظام الإسناد التلقائي للأساتذة إلى المفتشين: يُعاد احتساب جهة الإشراف تلقائياً
 // عند تسجيل/تعديل أستاذ (يعاد ربطه بمفتشه) أو تسجيل/تعديل مفتش (يعاد ربط كل الأساتذة
@@ -66,9 +75,14 @@ apiRouter.post('/students/import/preview', async (req, res) => {
   try {
     const filename = String(req.body?.filename || '').toLowerCase();
     const content = String(req.body?.contentBase64 || '');
-    if (!/\.(xlsx|xls)$/.test(filename) || !content || content.length > 2_000_000) return res.status(400).json({ error: 'تعذر التعرف على بنية الملف.' });
+    if (!/\.(xlsx|xls)$/.test(filename) || !content || content.length > 2_000_000)
+      return res.status(400).json({ error: 'تعذر التعرف على بنية الملف.' });
     const previews = parseStudentRosterWorkbook(Buffer.from(content, 'base64'));
-    if (!previews.length || previews.every((preview) => !preview.students.length && !preview.invalidRows.length)) return res.status(400).json({ error: 'لم يتم العثور على أعمدة قائمة التلاميذ.' });
+    if (
+      !previews.length ||
+      previews.every((preview) => !preview.students.length && !preview.invalidRows.length)
+    )
+      return res.status(400).json({ error: 'لم يتم العثور على أعمدة قائمة التلاميذ.' });
     res.json({ success: true, previews, summary: rosterPreviewSummary(previews) });
   } catch {
     res.status(400).json({ error: 'تعذر التعرف على بنية الملف.' });
@@ -78,47 +92,125 @@ apiRouter.post('/students/import/preview', async (req, res) => {
 apiRouter.get('/students/roster', async (req, res) => {
   const [classes, students] = await Promise.all([
     prisma.studentClass.findMany({ where: { teacherId: req.user!.id }, orderBy: { name: 'asc' } }),
-    prisma.student.findMany({ where: { teacherId: req.user!.id }, orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }] }),
+    prisma.student.findMany({
+      where: { teacherId: req.user!.id },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+    }),
   ]);
   const counts = new Map<string, number>();
-  students.forEach((student) => counts.set(student.classId, (counts.get(student.classId) || 0) + 1));
-  res.json({ success: true, classes: classes.map((item) => ({ id: item.id, institutionId: item.institutionId || '', teacherId: item.teacherId, levelId: item.levelId, name: item.name, studentCount: counts.get(item.id) || 0 })), students: students.map((item) => ({ id: item.id, classId: item.classId, firstName: item.firstName, lastName: item.lastName, gender: 'ذكر', birthDate: item.birthDate?.toISOString().slice(0, 10), registrationNumber: item.matricule, matricule: item.matricule, grade: item.grade, schoolYear: item.schoolYear })) });
+  students.forEach((student) =>
+    counts.set(student.classId, (counts.get(student.classId) || 0) + 1)
+  );
+  res.json({
+    success: true,
+    classes: classes.map((item) => ({
+      id: item.id,
+      institutionId: item.institutionId || '',
+      teacherId: item.teacherId,
+      levelId: item.levelId,
+      name: item.name,
+      studentCount: counts.get(item.id) || 0,
+    })),
+    students: students.map((item) => ({
+      id: item.id,
+      classId: item.classId,
+      firstName: item.firstName,
+      lastName: item.lastName,
+      gender: 'ذكر',
+      birthDate: item.birthDate?.toISOString().slice(0, 10),
+      registrationNumber: item.matricule,
+      matricule: item.matricule,
+      grade: item.grade,
+      schoolYear: item.schoolYear,
+    })),
+  });
 });
 
 apiRouter.post('/students/import/confirm', async (req, res) => {
-  if (req.user!.role !== 'teacher') return res.status(403).json({ error: 'استيراد القوائم متاح للأستاذ فقط.' });
-  const rows = Array.isArray(req.body?.rows) ? req.body.rows as ParsedRosterStudent[] : [];
+  if (req.user!.role !== 'teacher')
+    return res.status(403).json({ error: 'استيراد القوائم متاح للأستاذ فقط.' });
+  const rows = Array.isArray(req.body?.rows) ? (req.body.rows as ParsedRosterStudent[]) : [];
   const classId = String(req.body?.classId || '').trim();
   const className = String(req.body?.className || classId).trim();
   const levelId = String(req.body?.levelId || '').trim() || `lvl_p${Number(req.body?.grade) || 1}`;
   const grade = Number(req.body?.grade) || null;
-  if (!classId || !rows.length) return res.status(400).json({ error: 'اختر قسماً وأرسل صفوفاً صالحة للاستيراد.' });
+  if (!classId || !rows.length)
+    return res.status(400).json({ error: 'اختر قسماً وأرسل صفوفاً صالحة للاستيراد.' });
   const institutionId = (req.user as any).institutionId || null;
-  const validRows = rows.filter((row) => row && typeof row.matricule === 'string' && row.matricule.trim() && row.firstName?.trim() && row.lastName?.trim());
+  const validRows = rows.filter(
+    (row) =>
+      row &&
+      typeof row.matricule === 'string' &&
+      row.matricule.trim() &&
+      row.firstName?.trim() &&
+      row.lastName?.trim()
+  );
   try {
     const summary = await prisma.$transaction(async (tx) => {
       const assignedClass = await tx.studentClass.findUnique({ where: { id: classId } });
-      if (assignedClass && assignedClass.teacherId !== req.user!.id) throw new Error('UNAUTHORIZED_CLASS');
-      if (!assignedClass) await tx.studentClass.create({ data: { id: classId, teacherId: req.user!.id, institutionId, levelId, name: className } });
-      let created = 0; let existing = 0; let conflicts = 0; let linkedStudents = 0;
+      if (assignedClass && assignedClass.teacherId !== req.user!.id)
+        throw new Error('UNAUTHORIZED_CLASS');
+      if (!assignedClass)
+        await tx.studentClass.create({
+          data: { id: classId, teacherId: req.user!.id, institutionId, levelId, name: className },
+        });
+      let created = 0;
+      let existing = 0;
+      let conflicts = 0;
+      let linkedStudents = 0;
       for (const row of validRows) {
         const matricule = row.matricule.trim();
         const current = await tx.student.findFirst({ where: { institutionId, matricule } });
         if (current) {
-          if (current.firstName !== row.firstName.trim() || current.lastName !== row.lastName.trim()) { conflicts += 1; continue; }
+          if (
+            current.firstName !== row.firstName.trim() ||
+            current.lastName !== row.lastName.trim()
+          ) {
+            conflicts += 1;
+            continue;
+          }
           existing += 1;
-          if (current.teacherId === req.user!.id && current.classId !== classId) await tx.student.update({ where: { id: current.id }, data: { classId, grade: grade || row.grade || null, groupName: row.groupName || null } });
+          if (current.teacherId === req.user!.id && current.classId !== classId)
+            await tx.student.update({
+              where: { id: current.id },
+              data: {
+                classId,
+                grade: grade || row.grade || null,
+                groupName: row.groupName || null,
+              },
+            });
           linkedStudents += 1;
           continue;
         }
-        await tx.student.create({ data: { id: `std_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, teacherId: req.user!.id, institutionId, classId, matricule, firstName: row.firstName.trim(), lastName: row.lastName.trim(), birthDate: row.birthDate ? new Date(row.birthDate) : null, grade: grade || row.grade || null, groupName: row.groupName || null } });
-        created += 1; linkedStudents += 1;
+        await tx.student.create({
+          data: {
+            id: `std_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            teacherId: req.user!.id,
+            institutionId,
+            classId,
+            matricule,
+            firstName: row.firstName.trim(),
+            lastName: row.lastName.trim(),
+            birthDate: row.birthDate ? new Date(row.birthDate) : null,
+            grade: grade || row.grade || null,
+            groupName: row.groupName || null,
+          },
+        });
+        created += 1;
+        linkedStudents += 1;
       }
-      return { created, existing, linkedStudents, conflicts, review: rows.length - validRows.length };
+      return {
+        created,
+        existing,
+        linkedStudents,
+        conflicts,
+        review: rows.length - validRows.length,
+      };
     });
     res.json({ success: true, classId, summary });
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED_CLASS') return res.status(403).json({ error: 'لا تملك صلاحية الاستيراد إلى هذا القسم.' });
+    if (error instanceof Error && error.message === 'UNAUTHORIZED_CLASS')
+      return res.status(403).json({ error: 'لا تملك صلاحية الاستيراد إلى هذا القسم.' });
     console.error('Student roster import persistence failed:', error);
     res.status(500).json({ error: 'تعذر حفظ قائمة التلاميذ.' });
   }
@@ -127,7 +219,13 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
 async function requireGenerationAccess(req: any, res: any, feature: GenerationFeature) {
   const result = await resolveGenerationCredential(req.user!.id, feature);
   if (result.error || !result.credential) {
-    res.status(403).json({ code: result.error?.code || 'SERVICE_UNAVAILABLE', message: result.error?.message || 'الخدمة غير متاحة حالياً.', error: result.error?.message || 'الخدمة غير متاحة حالياً.' });
+    res
+      .status(403)
+      .json({
+        code: result.error?.code || 'SERVICE_UNAVAILABLE',
+        message: result.error?.message || 'الخدمة غير متاحة حالياً.',
+        error: result.error?.message || 'الخدمة غير متاحة حالياً.',
+      });
     return null;
   }
   return result.credential;
@@ -144,81 +242,197 @@ const gamePayload = (body: Record<string, unknown>) => ({
   organization: String(body.organization || '').trim(),
   description: String(body.description || '').trim(),
   rules: String(body.rules || '').trim(),
-  equipment: Array.isArray(body.equipment) ? body.equipment.filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter(Boolean) : [],
+  equipment: Array.isArray(body.equipment)
+    ? body.equipment
+        .filter((x): x is string => typeof x === 'string')
+        .map((x) => x.trim())
+        .filter(Boolean)
+    : [],
   executionGuidance: typeof body.executionGuidance === 'string' ? body.executionGuidance : null,
   safetyGuidance: typeof body.safetyGuidance === 'string' ? body.safetyGuidance : null,
   progression: typeof body.progression === 'string' ? body.progression : null,
 });
 
 const publicGameSelect = {
-  id: true, ownerId: true, title: true, grade: true, fieldId: true, fieldName: true,
-  objectiveId: true, objectiveText: true, pedagogicalPurpose: true, organization: true,
-  description: true, rules: true, equipment: true, executionGuidance: true, safetyGuidance: true,
-  progression: true, origin: true, status: true, approved: true, submittedAt: true,
-  approvedAt: true, approvedById: true, rejectedAt: true, rejectedById: true, rejectionReason: true,
-  createdAt: true, updatedAt: true,
+  id: true,
+  ownerId: true,
+  title: true,
+  grade: true,
+  fieldId: true,
+  fieldName: true,
+  objectiveId: true,
+  objectiveText: true,
+  pedagogicalPurpose: true,
+  organization: true,
+  description: true,
+  rules: true,
+  equipment: true,
+  executionGuidance: true,
+  safetyGuidance: true,
+  progression: true,
+  origin: true,
+  status: true,
+  approved: true,
+  submittedAt: true,
+  approvedAt: true,
+  approvedById: true,
+  rejectedAt: true,
+  rejectedById: true,
+  rejectionReason: true,
+  createdAt: true,
+  updatedAt: true,
 } as const;
 
 apiRouter.get('/pedagogical-games/public', async (_req, res) => {
-  const games = await prisma.pedagogicalGame.findMany({ where: { status: 'APPROVED', approved: true }, orderBy: { createdAt: 'desc' }, select: publicGameSelect });
+  const games = await prisma.pedagogicalGame.findMany({
+    where: { status: 'APPROVED', approved: true },
+    orderBy: { createdAt: 'desc' },
+    select: publicGameSelect,
+  });
   res.json({ success: true, games });
 });
 
 apiRouter.get('/pedagogical-games/mine', async (req, res) => {
-  const games = await prisma.pedagogicalGame.findMany({ where: { ownerId: req.user!.id }, orderBy: { updatedAt: 'desc' }, select: publicGameSelect });
+  const games = await prisma.pedagogicalGame.findMany({
+    where: { ownerId: req.user!.id },
+    orderBy: { updatedAt: 'desc' },
+    select: publicGameSelect,
+  });
   res.json({ success: true, games });
 });
 
 apiRouter.get('/pedagogical-games/pending', async (req, res) => {
-  if (req.user!.role !== 'admin' && req.user!.role !== 'inspector') return res.status(403).json({ error: 'لا تملك صلاحية مراجعة الألعاب.' });
-  const games = await prisma.pedagogicalGame.findMany({ where: { status: 'PENDING_APPROVAL' }, orderBy: { submittedAt: 'asc' }, select: publicGameSelect });
+  if (req.user!.role !== 'admin' && req.user!.role !== 'inspector')
+    return res.status(403).json({ error: 'لا تملك صلاحية مراجعة الألعاب.' });
+  const games = await prisma.pedagogicalGame.findMany({
+    where: { status: 'PENDING_APPROVAL' },
+    orderBy: { submittedAt: 'asc' },
+    select: publicGameSelect,
+  });
   res.json({ success: true, games });
 });
 
 apiRouter.post('/pedagogical-games', async (req, res) => {
-  if (req.user!.role !== 'teacher') return res.status(403).json({ error: 'إنشاء الألعاب الخاصة متاح للأستاذ فقط.' });
+  if (req.user!.role !== 'teacher')
+    return res.status(403).json({ error: 'إنشاء الألعاب الخاصة متاح للأستاذ فقط.' });
   const payload = gamePayload(req.body || {});
-  if (!payload.title || !payload.objectiveText || !payload.description || !payload.rules || ![1, 2, 3, 4, 5].includes(payload.grade)) return res.status(400).json({ error: 'بيانات اللعبة غير مكتملة.' });
-  const requestedId = typeof req.body.id === 'string' && /^k_[A-Za-z0-9_-]+$/.test(req.body.id) ? req.body.id : `pg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const game = await prisma.pedagogicalGame.create({ data: { id: requestedId, ownerId: req.user!.id, ...payload, origin: typeof req.body.origin === 'string' ? req.body.origin : 'TEACHER', status: 'DRAFT', approved: false }, select: publicGameSelect });
+  if (
+    !payload.title ||
+    !payload.objectiveText ||
+    !payload.description ||
+    !payload.rules ||
+    ![1, 2, 3, 4, 5].includes(payload.grade)
+  )
+    return res.status(400).json({ error: 'بيانات اللعبة غير مكتملة.' });
+  const requestedId =
+    typeof req.body.id === 'string' && /^k_[A-Za-z0-9_-]+$/.test(req.body.id)
+      ? req.body.id
+      : `pg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const game = await prisma.pedagogicalGame.create({
+    data: {
+      id: requestedId,
+      ownerId: req.user!.id,
+      ...payload,
+      origin: typeof req.body.origin === 'string' ? req.body.origin : 'TEACHER',
+      status: 'DRAFT',
+      approved: false,
+    },
+    select: publicGameSelect,
+  });
   res.status(201).json({ success: true, game });
 });
 
 apiRouter.put('/pedagogical-games/:id', async (req, res) => {
   const existing = await prisma.pedagogicalGame.findUnique({ where: { id: req.params.id } });
-  if (!existing || existing.ownerId !== req.user!.id || (existing.status !== 'DRAFT' && existing.status !== 'REJECTED')) return res.status(403).json({ error: 'لا تملك صلاحية تعديل هذه اللعبة.' });
+  if (
+    !existing ||
+    existing.ownerId !== req.user!.id ||
+    (existing.status !== 'DRAFT' && existing.status !== 'REJECTED')
+  )
+    return res.status(403).json({ error: 'لا تملك صلاحية تعديل هذه اللعبة.' });
   const payload = gamePayload(req.body || {});
-  if (!payload.title || !payload.description || !payload.rules) return res.status(400).json({ error: 'بيانات اللعبة غير مكتملة.' });
-  const game = await prisma.pedagogicalGame.update({ where: { id: existing.id }, data: payload, select: publicGameSelect });
+  if (!payload.title || !payload.description || !payload.rules)
+    return res.status(400).json({ error: 'بيانات اللعبة غير مكتملة.' });
+  const game = await prisma.pedagogicalGame.update({
+    where: { id: existing.id },
+    data: payload,
+    select: publicGameSelect,
+  });
   res.json({ success: true, game });
 });
 
 apiRouter.delete('/pedagogical-games/:id', async (req, res) => {
   const existing = await prisma.pedagogicalGame.findUnique({ where: { id: req.params.id } });
-  if (!existing || existing.ownerId !== req.user!.id || (existing.status !== 'DRAFT' && existing.status !== 'REJECTED')) return res.status(403).json({ error: 'لا تملك صلاحية حذف هذه اللعبة.' });
+  if (
+    !existing ||
+    existing.ownerId !== req.user!.id ||
+    (existing.status !== 'DRAFT' && existing.status !== 'REJECTED')
+  )
+    return res.status(403).json({ error: 'لا تملك صلاحية حذف هذه اللعبة.' });
   await prisma.pedagogicalGame.delete({ where: { id: existing.id } });
   res.json({ success: true });
 });
 
 apiRouter.post('/pedagogical-games/:id/submit', async (req, res) => {
   const existing = await prisma.pedagogicalGame.findUnique({ where: { id: req.params.id } });
-  if (!existing || existing.ownerId !== req.user!.id || (existing.status !== 'DRAFT' && existing.status !== 'REJECTED')) return res.status(403).json({ error: 'لا يمكن إرسال هذه اللعبة للاعتماد.' });
-  const game = await prisma.$transaction((tx) => tx.pedagogicalGame.update({ where: { id: existing.id }, data: { status: 'PENDING_APPROVAL', approved: false, submittedAt: new Date(), rejectedAt: null, rejectedById: null, rejectionReason: null }, select: publicGameSelect }));
+  if (
+    !existing ||
+    existing.ownerId !== req.user!.id ||
+    (existing.status !== 'DRAFT' && existing.status !== 'REJECTED')
+  )
+    return res.status(403).json({ error: 'لا يمكن إرسال هذه اللعبة للاعتماد.' });
+  const game = await prisma.$transaction((tx) =>
+    tx.pedagogicalGame.update({
+      where: { id: existing.id },
+      data: {
+        status: 'PENDING_APPROVAL',
+        approved: false,
+        submittedAt: new Date(),
+        rejectedAt: null,
+        rejectedById: null,
+        rejectionReason: null,
+      },
+      select: publicGameSelect,
+    })
+  );
   res.json({ success: true, game });
 });
 
 apiRouter.post('/pedagogical-games/:id/approve', async (req, res) => {
-  if (req.user!.role !== 'admin' && req.user!.role !== 'inspector') return res.status(403).json({ error: 'لا تملك صلاحية اعتماد الألعاب.' });
-  const result = await prisma.$transaction((tx) => tx.pedagogicalGame.updateMany({ where: { id: req.params.id, status: 'PENDING_APPROVAL' }, data: { status: 'APPROVED', approved: true, approvedAt: new Date(), approvedById: req.user!.id } }));
+  if (req.user!.role !== 'admin' && req.user!.role !== 'inspector')
+    return res.status(403).json({ error: 'لا تملك صلاحية اعتماد الألعاب.' });
+  const result = await prisma.$transaction((tx) =>
+    tx.pedagogicalGame.updateMany({
+      where: { id: req.params.id, status: 'PENDING_APPROVAL' },
+      data: {
+        status: 'APPROVED',
+        approved: true,
+        approvedAt: new Date(),
+        approvedById: req.user!.id,
+      },
+    })
+  );
   if (!result.count) return res.status(409).json({ error: 'اللعبة ليست بانتظار الاعتماد.' });
   res.json({ success: true });
 });
 
 apiRouter.post('/pedagogical-games/:id/reject', async (req, res) => {
-  if (req.user!.role !== 'admin' && req.user!.role !== 'inspector') return res.status(403).json({ error: 'لا تملك صلاحية رفض الألعاب.' });
+  if (req.user!.role !== 'admin' && req.user!.role !== 'inspector')
+    return res.status(403).json({ error: 'لا تملك صلاحية رفض الألعاب.' });
   const reason = String(req.body?.rejectionReason || '').trim();
   if (!reason) return res.status(400).json({ error: 'سبب الرفض مطلوب.' });
-  const result = await prisma.$transaction((tx) => tx.pedagogicalGame.updateMany({ where: { id: req.params.id, status: 'PENDING_APPROVAL' }, data: { status: 'REJECTED', approved: false, rejectedAt: new Date(), rejectedById: req.user!.id, rejectionReason: reason } }));
+  const result = await prisma.$transaction((tx) =>
+    tx.pedagogicalGame.updateMany({
+      where: { id: req.params.id, status: 'PENDING_APPROVAL' },
+      data: {
+        status: 'REJECTED',
+        approved: false,
+        rejectedAt: new Date(),
+        rejectedById: req.user!.id,
+        rejectionReason: reason,
+      },
+    })
+  );
   if (!result.count) return res.status(409).json({ error: 'اللعبة ليست بانتظار الاعتماد.' });
   res.json({ success: true });
 });
@@ -245,7 +459,8 @@ async function canContactUser(requesterId: string, requesterRole: string, target
     prisma.user.findUnique({ where: { id: requesterId }, select: communicationUserSelect }),
     prisma.user.findUnique({ where: { id: targetId }, select: communicationUserSelect }),
   ]);
-  if (!requester || !target || target.status !== 'active' || requester.id === target.id) return false;
+  if (!requester || !target || target.status !== 'active' || requester.id === target.id)
+    return false;
   if (requesterRole === 'admin' || target.role === 'admin') return true;
   if (requester.directorateId === target.directorateId) {
     if (requester.role === 'director' || target.role === 'director') return true;
@@ -263,8 +478,19 @@ async function canContactUser(requesterId: string, requesterRole: string, target
   return Boolean(assignment);
 }
 
-function directMessageView(row: { id: string; senderId: string | null; recipientId: string | null; content: string | null; data: unknown; createdAt: Date; readAt: Date | null }) {
-  const data = (row.data && typeof row.data === 'object' ? row.data : {}) as Record<string, unknown>;
+function directMessageView(row: {
+  id: string;
+  senderId: string | null;
+  recipientId: string | null;
+  content: string | null;
+  data: unknown;
+  createdAt: Date;
+  readAt: Date | null;
+}) {
+  const data = (row.data && typeof row.data === 'object' ? row.data : {}) as Record<
+    string,
+    unknown
+  >;
   return {
     id: row.id,
     senderId: row.senderId || String(data.senderId || ''),
@@ -296,21 +522,28 @@ apiRouter.get('/communication/direct-conversations', async (req, res) => {
     orderBy: { createdAt: 'desc' },
     take: 500,
   });
-  const grouped = new Map<string, { lastMessage: ReturnType<typeof directMessageView>; unreadCount: number }>();
+  const grouped = new Map<
+    string,
+    { lastMessage: ReturnType<typeof directMessageView>; unreadCount: number }
+  >();
   for (const row of rows) {
     const view = directMessageView(row);
     const partnerId = view.senderId === user.id ? view.recipientId : view.senderId;
     if (!partnerId || grouped.has(partnerId)) continue;
     grouped.set(partnerId, {
       lastMessage: view,
-      unreadCount: rows.filter((item) => item.recipientId === user.id && item.senderId === partnerId && !item.readAt).length,
+      unreadCount: rows.filter(
+        (item) => item.recipientId === user.id && item.senderId === partnerId && !item.readAt
+      ).length,
     });
   }
   const contacts = await prisma.user.findMany({
     where: { id: { in: [...grouped.keys()] }, status: 'active' },
     select: communicationUserSelect,
   });
-  res.json({ conversations: contacts.map((contact) => ({ user: contact, ...grouped.get(contact.id)! })) });
+  res.json({
+    conversations: contacts.map((contact) => ({ user: contact, ...grouped.get(contact.id)! })),
+  });
 });
 
 apiRouter.get('/communication/direct-messages/:userId', async (req, res) => {
@@ -336,7 +569,8 @@ apiRouter.post('/communication/direct-messages', async (req, res) => {
   const user = req.user!;
   const recipientId = typeof req.body?.recipientId === 'string' ? req.body.recipientId : '';
   const text = normalizeMessageText(req.body?.text);
-  if (!recipientId || recipientId === user.id) return res.status(400).json({ error: 'جهة الاتصال غير صالحة.' });
+  if (!recipientId || recipientId === user.id)
+    return res.status(400).json({ error: 'جهة الاتصال غير صالحة.' });
   if (!text) return res.status(400).json({ error: 'الرسالة مطلوبة وبحد أقصى 4000 حرف.' });
   if (!(await canContactUser(user.id, user.role, recipientId))) {
     return res.status(403).json({ error: 'لا تملك صلاحية مراسلة هذا المستخدم.' });
@@ -377,26 +611,75 @@ apiRouter.get('/communication/district-messages', async (req, res) => {
     orderBy: { createdAt: 'asc' },
     take: 500,
   });
-  const visible = rows.filter((row) => canReadDistrictMessage({ districtId: row.districtId, legacyDistrictId: String((row.data as any)?.districtId || '') }, req.user!.districtId, req.user!.role === 'admin'));
-  res.json({ messages: visible.map((row) => ({ id: row.id, authorId: row.authorId, districtId: row.districtId || String((row.data as any)?.districtId || ''), text: row.content || String((row.data as any)?.message || (row.data as any)?.text || ''), createdAt: row.createdAt.toISOString(), data: row.data })) });
+  const visible = rows.filter((row) =>
+    canReadDistrictMessage(
+      { districtId: row.districtId, legacyDistrictId: String((row.data as any)?.districtId || '') },
+      req.user!.districtId,
+      req.user!.role === 'admin'
+    )
+  );
+  res.json({
+    messages: visible.map((row) => ({
+      id: row.id,
+      authorId: row.authorId,
+      districtId: row.districtId || String((row.data as any)?.districtId || ''),
+      text: row.content || String((row.data as any)?.message || (row.data as any)?.text || ''),
+      createdAt: row.createdAt.toISOString(),
+      data: row.data,
+    })),
+  });
 });
 
 apiRouter.post('/communication/district-messages', async (req, res) => {
   const text = normalizeMessageText(req.body?.text);
   if (!text) return res.status(400).json({ error: 'الرسالة مطلوبة وبحد أقصى 4000 حرف.' });
   const created = await prisma.districtMessage.create({
-    data: { id: `district_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, authorId: req.user!.id, districtId: req.user!.districtId, content: text, data: { text } },
+    data: {
+      id: `district_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      authorId: req.user!.id,
+      districtId: req.user!.districtId,
+      content: text,
+      data: { text },
+    },
   });
-  res.status(201).json({ message: { id: created.id, authorId: created.authorId, districtId: created.districtId, text, createdAt: created.createdAt.toISOString() } });
+  res
+    .status(201)
+    .json({
+      message: {
+        id: created.id,
+        authorId: created.authorId,
+        districtId: created.districtId,
+        text,
+        createdAt: created.createdAt.toISOString(),
+      },
+    });
 });
 
 apiRouter.get('/communication/notifications', async (req, res) => {
-  const rows = await prisma.communityNotification.findMany({ where: { userId: req.user!.id }, orderBy: { createdAt: 'desc' }, take: 200 });
-  res.json({ notifications: rows.map((row) => ({ id: row.id, userId: row.userId, senderId: row.senderId, type: row.type || String((row.data as any)?.type || 'info'), title: row.title || 'إشعار', message: row.message || String((row.data as any)?.message || ''), read: row.read, createdAt: row.createdAt.toISOString() })) });
+  const rows = await prisma.communityNotification.findMany({
+    where: { userId: req.user!.id },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  });
+  res.json({
+    notifications: rows.map((row) => ({
+      id: row.id,
+      userId: row.userId,
+      senderId: row.senderId,
+      type: row.type || String((row.data as any)?.type || 'info'),
+      title: row.title || 'إشعار',
+      message: row.message || String((row.data as any)?.message || ''),
+      read: row.read,
+      createdAt: row.createdAt.toISOString(),
+    })),
+  });
 });
 
 apiRouter.post('/communication/notifications/:id/read', async (req, res) => {
-  const result = await prisma.communityNotification.updateMany({ where: { id: req.params.id, userId: req.user!.id }, data: { read: true, readAt: new Date() } });
+  const result = await prisma.communityNotification.updateMany({
+    where: { id: req.params.id, userId: req.user!.id },
+    data: { read: true, readAt: new Date() },
+  });
   if (!result.count) return res.status(404).json({ error: 'الإشعار غير موجود.' });
   res.json({ success: true });
 });
@@ -607,6 +890,55 @@ async function buildUserWriteData(
   return data;
 }
 
+/** Validate and normalize organizational ownership at the server boundary. */
+async function enforceRoleAssignment(
+  data: Record<string, unknown>,
+  existing: {
+    id: string;
+    role: string;
+    status: string;
+    directorateId: string;
+    districtId: string;
+  } | null
+) {
+  const role = String(data.role ?? existing?.role ?? 'teacher');
+  const directorateId = String(data.directorateId ?? existing?.directorateId ?? '').trim();
+  const districtId = String(data.districtId ?? existing?.districtId ?? '').trim();
+
+  if (role === 'inspector') {
+    if (!directorateId) throw new Error('يرجى اختيار مديرية التربية.');
+    if (!districtId) throw new Error('يرجى اختيار المقاطعة التفتيشية.');
+    const district = await prisma.inspectionDistrict.findUnique({
+      where: { id: districtId },
+      select: { directorateId: true },
+    });
+    if (!district || district.directorateId !== directorateId)
+      throw new Error('المقاطعة التفتيشية لا تنتمي إلى المديرية المختارة.');
+    const occupied = await prisma.user.findFirst({
+      where: {
+        role: 'inspector',
+        status: 'active',
+        districtId,
+        ...(existing ? { id: { not: existing.id } } : {}),
+      },
+      select: { id: true },
+    });
+    if (occupied) throw new Error('هذه المقاطعة التفتيشية مرتبطة بالفعل بحساب مفتش.');
+    data.institutionId = null;
+    data.schoolName = null;
+    data.municipality = null;
+  } else if (role === 'admin' || role === 'director') {
+    // These roles have no inspection ownership; never inherit a UI default.
+    data.directorateId = directorateId;
+    data.districtId = '';
+    data.institutionId = null;
+  } else if (role === 'teacher') {
+    // Teacher payloads cannot smuggle inspector-only geographic fields.
+    data.eduDistrictId = undefined;
+  }
+  return data;
+}
+
 apiRouter.post('/db/users', async (req, res) => {
   const { user } = req.body;
   if (!user || !user.id) {
@@ -653,15 +985,14 @@ apiRouter.post('/db/users', async (req, res) => {
         return res.status(403).json({ error: 'منح هذا الدور يتطلب صلاحية مشرف المنظومة (admin).' });
       }
       if (existing && existingRole && elevatedRoles.includes(existingRole) && !isSelf) {
-        return res
-          .status(403)
-          .json({
-            error: 'لا تملك الصلاحية لتعديل حساب بهذا الدور. هذا الإجراء مقتصر على مشرف المنظومة.',
-          });
+        return res.status(403).json({
+          error: 'لا تملك الصلاحية لتعديل حساب بهذا الدور. هذا الإجراء مقتصر على مشرف المنظومة.',
+        });
       }
     }
 
     const data = await buildUserWriteData(user, isAdmin, isAdmin);
+    await enforceRoleAssignment(data, existing);
 
     if (!existing && !data.email) {
       // تسجيل حساب جديد يشترط امتلاك عنوان بريد إلكتروني
@@ -684,7 +1015,18 @@ apiRouter.post('/db/users', async (req, res) => {
       user: isSelf || isAdmin ? sanitizeOwnUser(saved) : sanitizeUser(saved),
     });
   } catch (err: any) {
+    if (
+      err instanceof Error &&
+      (err.message.startsWith('يرجى') ||
+        err.message.includes('المقاطعة التفتيشية') ||
+        err.message.includes('مرتبطة بالفعل'))
+    ) {
+      return res.status(400).json({ error: err.message });
+    }
     if (err.code === 'P2002') {
+      if (Array.isArray(err.meta?.target) && err.meta.target.includes('districtId')) {
+        return res.status(409).json({ error: 'هذه المقاطعة التفتيشية مرتبطة بالفعل بحساب مفتش.' });
+      }
       return res.status(409).json({ error: 'البريد الإلكتروني أو اسم المستخدم مستخدم بالفعل.' });
     }
     console.error('Error saving user:', err);
@@ -702,6 +1044,7 @@ apiRouter.post('/db/users/batch', requireRole('admin'), async (req, res) => {
       if (!u.id) continue;
       const existing = await prisma.user.findUnique({ where: { id: u.id } });
       const data = await buildUserWriteData(u, true, true);
+      await enforceRoleAssignment(data, existing);
       let saved = null;
       if (existing) {
         saved = await prisma.user.update({ where: { id: u.id }, data: data as any });
@@ -1194,24 +1537,66 @@ apiRouter.delete('/db/annual-plans/:id', async (req, res) => {
 apiRouter.get('/admin/generation/config', requireRole('admin'), async (_req, res) => {
   const config = await prisma.generationServiceConfig.findUnique({ where: { id: 'default' } });
   const providers = await getConfiguredAIProviders();
-  const configured = providers.some((provider) => provider.enabled && (provider.keyConfigured || provider.type === 'ollama' || (provider.type === 'openai-compatible' && Boolean(provider.baseUrl))));
-  res.json({ success: true, generationEnabled: config?.enabled ?? true, providerConfigured: configured, platformFallbackConfigured: providers.some((provider) => provider.type === 'gemini' && provider.enabled && provider.keyConfigured), providers: providers.map((provider) => ({ id: provider.id, name: provider.name, type: provider.type, enabled: provider.enabled, keyConfigured: provider.keyConfigured, source: provider.source })) });
+  const configured = providers.some(
+    (provider) =>
+      provider.enabled &&
+      (provider.keyConfigured ||
+        provider.type === 'ollama' ||
+        (provider.type === 'openai-compatible' && Boolean(provider.baseUrl)))
+  );
+  res.json({
+    success: true,
+    generationEnabled: config?.enabled ?? true,
+    providerConfigured: configured,
+    platformFallbackConfigured: providers.some(
+      (provider) => provider.type === 'gemini' && provider.enabled && provider.keyConfigured
+    ),
+    providers: providers.map((provider) => ({
+      id: provider.id,
+      name: provider.name,
+      type: provider.type,
+      enabled: provider.enabled,
+      keyConfigured: provider.keyConfigured,
+      source: provider.source,
+    })),
+  });
 });
 
 apiRouter.put('/admin/generation/config', requireRole('admin'), async (req, res) => {
   const enabled = req.body?.enabled === true;
-  const config = await prisma.generationServiceConfig.upsert({ where: { id: 'default' }, create: { id: 'default', enabled, updatedById: req.user!.id }, update: { enabled, updatedById: req.user!.id } });
+  const config = await prisma.generationServiceConfig.upsert({
+    where: { id: 'default' },
+    create: { id: 'default', enabled, updatedById: req.user!.id },
+    update: { enabled, updatedById: req.user!.id },
+  });
   res.json({ success: true, generationEnabled: config.enabled, updatedAt: config.updatedAt });
 });
 
 apiRouter.get('/admin/generation/access', requireRole('admin'), async (_req, res) => {
-  const rows = await prisma.userGenerationAccess.findMany({ select: { userId: true, enabled: true, assistantEnabled: true, gameSuggestionsEnabled: true, provider: true, credentialEnabled: true, encryptedApiKey: true, updatedAt: true } });
-  const access = rows.map(({ encryptedApiKey, ...row }) => ({ ...row, keyConfigured: Boolean(encryptedApiKey) }));
+  const rows = await prisma.userGenerationAccess.findMany({
+    select: {
+      userId: true,
+      enabled: true,
+      assistantEnabled: true,
+      gameSuggestionsEnabled: true,
+      provider: true,
+      credentialEnabled: true,
+      encryptedApiKey: true,
+      updatedAt: true,
+    },
+  });
+  const access = rows.map(({ encryptedApiKey, ...row }) => ({
+    ...row,
+    keyConfigured: Boolean(encryptedApiKey),
+  }));
   res.json({ success: true, access });
 });
 
 apiRouter.put('/admin/generation/access/:userId', requireRole('admin'), async (req, res) => {
-  const target = await prisma.user.findUnique({ where: { id: req.params.userId }, select: { id: true } });
+  const target = await prisma.user.findUnique({
+    where: { id: req.params.userId },
+    select: { id: true },
+  });
   if (!target) return res.status(404).json({ error: 'الحساب غير موجود.' });
   const enabled = req.body?.enabled === true;
   const assistantEnabled = enabled && req.body?.assistantEnabled === true;
@@ -1224,16 +1609,57 @@ apiRouter.put('/admin/generation/access/:userId', requireRole('admin'), async (r
     encryptedApiKey = raw ? encryptApiKey(raw) : null;
   }
   const credentialEnabled = Boolean(encryptedApiKey) && req.body?.credentialEnabled === true;
-  const access = await prisma.userGenerationAccess.upsert({ where: { userId: target.id }, create: { userId: target.id, enabled, assistantEnabled, gameSuggestionsEnabled, provider: 'gemini', encryptedApiKey, credentialEnabled, updatedById: req.user!.id, updatedByAdminId: req.user!.id }, update: { enabled, assistantEnabled, gameSuggestionsEnabled, encryptedApiKey, credentialEnabled, provider: 'gemini', updatedById: req.user!.id, updatedByAdminId: req.user!.id } });
-  res.json({ success: true, access: { userId: access.userId, enabled: access.enabled, assistantEnabled: access.assistantEnabled, gameSuggestionsEnabled: access.gameSuggestionsEnabled, provider: access.provider, credentialEnabled: access.credentialEnabled, keyConfigured: Boolean(access.encryptedApiKey), updatedAt: access.updatedAt } });
+  const access = await prisma.userGenerationAccess.upsert({
+    where: { userId: target.id },
+    create: {
+      userId: target.id,
+      enabled,
+      assistantEnabled,
+      gameSuggestionsEnabled,
+      provider: 'gemini',
+      encryptedApiKey,
+      credentialEnabled,
+      updatedById: req.user!.id,
+      updatedByAdminId: req.user!.id,
+    },
+    update: {
+      enabled,
+      assistantEnabled,
+      gameSuggestionsEnabled,
+      encryptedApiKey,
+      credentialEnabled,
+      provider: 'gemini',
+      updatedById: req.user!.id,
+      updatedByAdminId: req.user!.id,
+    },
+  });
+  res.json({
+    success: true,
+    access: {
+      userId: access.userId,
+      enabled: access.enabled,
+      assistantEnabled: access.assistantEnabled,
+      gameSuggestionsEnabled: access.gameSuggestionsEnabled,
+      provider: access.provider,
+      credentialEnabled: access.credentialEnabled,
+      keyConfigured: Boolean(access.encryptedApiKey),
+      updatedAt: access.updatedAt,
+    },
+  });
 });
 
 apiRouter.post('/admin/generation/access/:userId/test', requireRole('admin'), async (req, res) => {
   try {
     const personal = await resolvePersonalGenerationCredential(req.params.userId);
-    if (!personal) return res.status(200).json({ success: false, message: 'لا يوجد مفتاح خاص صالح لهذا الحساب.' });
+    if (!personal)
+      return res
+        .status(200)
+        .json({ success: false, message: 'لا يوجد مفتاح خاص صالح لهذا الحساب.' });
     const { generateAIWithUserCredential } = await import('./aiGateway.js');
-    await generateAIWithUserCredential({ messages: [{ role: 'user', content: 'أجب بكلمة: تم' }], maxTokens: 8, temperature: 0 }, personal);
+    await generateAIWithUserCredential(
+      { messages: [{ role: 'user', content: 'أجب بكلمة: تم' }], maxTokens: 8, temperature: 0 },
+      personal
+    );
     res.json({ success: true, message: 'تم التحقق من مفتاح الحساب بنجاح.' });
   } catch {
     res.json({ success: false, message: 'تعذر الاتصال بالخدمة باستخدام بيانات هذا الحساب.' });
@@ -1245,9 +1671,14 @@ apiRouter.post('/admin/generation/fallback/test', requireRole('admin'), async (_
     const fallback = await resolvePlatformFallbackCredential();
     if (!fallback) return res.json({ success: false, message: 'لا يوجد مفتاح احتياطي صالح.' });
     const { generateAIWithUserCredential } = await import('./aiGateway.js');
-    await generateAIWithUserCredential({ messages: [{ role: 'user', content: 'أجب بكلمة: تم' }], maxTokens: 8, temperature: 0 }, fallback);
+    await generateAIWithUserCredential(
+      { messages: [{ role: 'user', content: 'أجب بكلمة: تم' }], maxTokens: 8, temperature: 0 },
+      fallback
+    );
     res.json({ success: true, message: 'تم التحقق من المفتاح الاحتياطي بنجاح.' });
-  } catch { res.json({ success: false, message: 'تعذر الاتصال بالمفتاح الاحتياطي.' }); }
+  } catch {
+    res.json({ success: false, message: 'تعذر الاتصال بالمفتاح الاحتياطي.' });
+  }
 });
 
 apiRouter.get('/ai/providers', requireRole('admin'), async (_req, res) => {
@@ -1289,9 +1720,7 @@ const AI_TYPES_REQUIRING_BASE_URL: AIProviderType[] = [
   'ollama',
 ];
 
-function validateAIProviderInput(
-  input: Record<string, unknown>
-):
+function validateAIProviderInput(input: Record<string, unknown>):
   | {
       ok: true;
       data: {
@@ -1458,20 +1887,23 @@ apiRouter.post('/ai/generate-lesson', async (req, res) => {
       return res.status(400).json({ error: 'عناصر الحصة والميدان مطلوبة لتوليد المذكرة' });
     }
 
-    const lessonData = await generatePELessonPlan({
-      levelName: levelName || 'السنة الأولى ابتدائي',
-      fieldName: fieldName || 'الميدان البدني',
-      competencyTitle: competencyTitle || 'الكفاءة الختامية للميدان',
-      segmentTitle: segmentTitle || 'المقطع التعليمي',
-      sessionTitle,
-      sessionType,
-      customObjective,
-      customEquipment,
-      teacherName,
-      institutionName,
-      preferredProvider,
-      preferredModel,
-    }, credential);
+    const lessonData = await generatePELessonPlan(
+      {
+        levelName: levelName || 'السنة الأولى ابتدائي',
+        fieldName: fieldName || 'الميدان البدني',
+        competencyTitle: competencyTitle || 'الكفاءة الختامية للميدان',
+        segmentTitle: segmentTitle || 'المقطع التعليمي',
+        sessionTitle,
+        sessionType,
+        customObjective,
+        customEquipment,
+        teacherName,
+        institutionName,
+        preferredProvider,
+        preferredModel,
+      },
+      credential
+    );
 
     res.json({ success: true, data: lessonData });
   } catch (error: unknown) {
@@ -1490,13 +1922,16 @@ apiRouter.post('/ai/improve-wording', async (req, res) => {
       return res.status(400).json({ error: 'النص الحالي واسم الحقل مطلوبان لتحسين الصياغة' });
     }
 
-    const result = await improvePELessonWording({
-      fieldLabel,
-      currentText,
-      context,
-      preferredProvider,
-      preferredModel,
-    }, credential);
+    const result = await improvePELessonWording(
+      {
+        fieldLabel,
+        currentText,
+        context,
+        preferredProvider,
+        preferredModel,
+      },
+      credential
+    );
     res.json({ success: true, data: result });
   } catch (error: unknown) {
     console.error('Error in /ai/improve-wording:', error);
@@ -1508,13 +1943,23 @@ apiRouter.post('/ai/suggest-games', async (req, res) => {
   try {
     const credential = await requireGenerationAccess(req, res, 'SUGGEST_GAMES');
     if (!credential) return;
-    const { fieldName, levelName, objective, existingGames, existingSituations, constraints, preferredProvider, preferredModel } = req.body;
+    const {
+      fieldName,
+      levelName,
+      objective,
+      existingGames,
+      existingSituations,
+      constraints,
+      preferredProvider,
+      preferredModel,
+    } = req.body;
     const games = await suggestPEGames(
       fieldName || 'الميدان الجماعي',
       levelName || 'ابتدائي',
       preferredProvider,
       preferredModel,
-      { objective, existingGames, existingSituations, constraints }, credential
+      { objective, existingGames, existingSituations, constraints },
+      credential
     );
     res.json({ success: true, games });
   } catch (error: unknown) {

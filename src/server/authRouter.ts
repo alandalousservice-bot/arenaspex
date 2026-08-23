@@ -16,7 +16,7 @@ import {
   getSessionTokenFromRequest,
   verifySession,
   generateResetToken,
-  hashResetToken
+  hashResetToken,
 } from './auth.js';
 import { sendPasswordResetEmail } from './emailService.js';
 import { requireAuth } from './middleware/requireAuth.js';
@@ -26,7 +26,7 @@ export const authRouter = Router();
 
 const loginSchema = z.object({
   email: z.string().trim().email(),
-  password: z.string().min(1)
+  password: z.string().min(1),
 });
 
 const registerSchema = z.object({
@@ -41,7 +41,7 @@ const registerSchema = z.object({
   eduDirectorateId: z.string().trim().optional(),
   eduDistrictId: z.string().trim().optional(),
   eduSchoolId: z.string().trim().optional(),
-  municipalityId: z.string().trim().optional()
+  municipalityId: z.string().trim().optional(),
 });
 
 function remapHistoricDirectorateId(id?: string | null): string | null {
@@ -58,13 +58,27 @@ authRouter.post('/register', async (req, res) => {
     return res.status(400).json({ error: parsed.error.errors[0]?.message || 'بيانات غير صحيحة.' });
   }
 
-  const { firstName, lastName, email, password, schoolName, municipality, phone, eduDirectorateId, eduDistrictId, eduSchoolId, municipalityId } = parsed.data;
+  const {
+    firstName,
+    lastName,
+    email,
+    password,
+    schoolName,
+    municipality,
+    phone,
+    eduDirectorateId,
+    eduDistrictId,
+    eduSchoolId,
+    municipalityId,
+  } = parsed.data;
   const role = 'teacher';
   const lowerEmail = email.toLowerCase();
 
   const existingUser = await prisma.user.findUnique({ where: { email: lowerEmail } });
   if (existingUser) {
-    return res.status(409).json({ error: 'هذا البريد الإلكتروني مسجل مسبقاً في المنظومة. يمكنك تسجيل الدخول به.' });
+    return res
+      .status(409)
+      .json({ error: 'هذا البريد الإلكتروني مسجل مسبقاً في المنظومة. يمكنك تسجيل الدخول به.' });
   }
 
   const passwordHash = await hashPassword(password);
@@ -101,8 +115,8 @@ authRouter.post('/register', async (req, res) => {
         status: 'pending_approval',
         isApprovedByAdmin: false,
         customApiKey: '',
-        apiKeyStatus: 'not_set'
-      } as any
+        apiKeyStatus: 'not_set',
+      } as any,
     });
 
     const token = signSession({ userId: user.id, role: user.role });
@@ -139,7 +153,7 @@ authRouter.post('/login', async (req, res) => {
     return res.status(403).json({
       error: 'حسابك قيد انتظار موافقة الإدارة أو غير مفعّل حالياً.',
       code: 'ACCOUNT_PENDING_APPROVAL',
-      user: sanitizeOwnUser(user)
+      user: sanitizeOwnUser(user),
     });
   }
 
@@ -163,7 +177,7 @@ authRouter.post('/logout', (req, res) => {
 const googleAuthSchema = z.object({
   credential: z.string().min(10), // Google ID token (JWT) القادم من Google Identity Services
   // دور ذاتي الاختيار عند الإنشاء الأول — أبداً "admin" من هنا (الإدارة للمشرف)
-  role: z.enum(['teacher', 'inspector', 'director']).optional()
+  role: z.enum(['teacher', 'inspector', 'director']).optional(),
 });
 
 const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher', 'inspector', 'director']);
@@ -178,7 +192,14 @@ const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher', 'inspector', 'director'])
  *   لاحقاً من الإعدادات).
  */
 async function findOrCreateGoogleUser(
-  profile: { googleId: string; email: string; emailVerified: boolean; firstName: string; lastName: string; avatar?: string },
+  profile: {
+    googleId: string;
+    email: string;
+    emailVerified: boolean;
+    firstName: string;
+    lastName: string;
+    avatar?: string;
+  },
   requestedRole?: string
 ) {
   let user = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
@@ -190,7 +211,10 @@ async function findOrCreateGoogleUser(
     // ربط Google تلقائياً حتى للحسابات المعلقة — يسمح بالدخول المباشر عبر Google لأي بريد
     if (!user.googleId) {
       try {
-        user = await prisma.user.update({ where: { id: user.id }, data: { googleId: profile.googleId } });
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { googleId: profile.googleId },
+        });
       } catch (err) {
         console.error('تعذر ربط حساب Google تلقائياً:', err);
       }
@@ -202,7 +226,8 @@ async function findOrCreateGoogleUser(
   }
 
   // إنشاء أول للحساب عبر Google — معتمد للأدوار البيداغوجية فقط وبانتظار تفعيل المشرف
-  const role = requestedRole && GOOGLE_SELF_REGISTER_ROLES.has(requestedRole) ? requestedRole : 'teacher';
+  const role =
+    requestedRole && GOOGLE_SELF_REGISTER_ROLES.has(requestedRole) ? requestedRole : 'teacher';
   const passwordHash = await hashPassword(crypto.randomBytes(24).toString('hex')); // غير قابلة للاستعمال إطلاقاً
   const spexId = `SPX-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
@@ -233,8 +258,8 @@ async function findOrCreateGoogleUser(
       status: 'pending_approval',
       isApprovedByAdmin: false,
       customApiKey: '',
-      apiKeyStatus: 'not_set'
-    }
+      apiKeyStatus: 'not_set',
+    },
   });
 
   return { kind: 'ok' as const, user: created, created: true };
@@ -242,7 +267,9 @@ async function findOrCreateGoogleUser(
 
 authRouter.post('/google', async (req, res) => {
   if (!isGoogleSignInConfigured()) {
-    return res.status(503).json({ error: 'تسجيل الدخول عبر Google غير مفعّل حالياً على هذه المنصة.' });
+    return res
+      .status(503)
+      .json({ error: 'تسجيل الدخول عبر Google غير مفعّل حالياً على هذه المنصة.' });
   }
 
   const parsed = googleAuthSchema.safeParse(req.body);
@@ -255,7 +282,9 @@ authRouter.post('/google', async (req, res) => {
     return res.status(401).json({ error: 'تعذر التحقق من حساب Google. يرجى إعادة المحاولة.' });
   }
   if (!profile.emailVerified) {
-    return res.status(401).json({ error: 'يجب أن يكون بريد حساب Google موثّقاً (verified) لاستخدامه في الدخول.' });
+    return res
+      .status(401)
+      .json({ error: 'يجب أن يكون بريد حساب Google موثّقاً (verified) لاستخدامه في الدخول.' });
   }
 
   const outcome = await findOrCreateGoogleUser(profile, parsed.data.role);
@@ -270,7 +299,7 @@ authRouter.post('/google', async (req, res) => {
       success: true,
       pending: true,
       message: 'حسابك قيد انتظار موافقة الإدارة — تم الدخول لوضع المشاهدة.',
-      user: sanitizeOwnUser(user)
+      user: sanitizeOwnUser(user),
     });
   }
 
@@ -282,14 +311,16 @@ authRouter.post('/google', async (req, res) => {
     success: true,
     // created=true تعني: حساب جديد في وضع المشاهدة بانتظار تفعيل المشرف
     created,
-    user: sanitizeOwnUser(user)
+    user: sanitizeOwnUser(user),
   });
 });
 
 // ربط حساب Google بحساب مسجّل الدخول حالياً (من صفحة الإعدادات، بدلاً من شاشة الدخول)
 authRouter.post('/google/link', requireAuth, async (req, res) => {
   if (!isGoogleSignInConfigured()) {
-    return res.status(503).json({ error: 'تسجيل الدخول عبر Google غير مفعّل حالياً على هذه المنصة.' });
+    return res
+      .status(503)
+      .json({ error: 'تسجيل الدخول عبر Google غير مفعّل حالياً على هذه المنصة.' });
   }
 
   const parsed = googleAuthSchema.safeParse(req.body);
@@ -302,7 +333,9 @@ authRouter.post('/google/link', requireAuth, async (req, res) => {
     return res.status(401).json({ error: 'تعذر التحقق من حساب Google. يرجى إعادة المحاولة.' });
   }
   if (!profile.emailVerified) {
-    return res.status(401).json({ error: 'يجب أن يكون بريد حساب Google موثّقاً (verified) لربطه بحسابك.' });
+    return res
+      .status(401)
+      .json({ error: 'يجب أن يكون بريد حساب Google موثّقاً (verified) لربطه بحسابك.' });
   }
 
   const existing = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
@@ -313,11 +346,14 @@ authRouter.post('/google/link', requireAuth, async (req, res) => {
   const me = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (me && me.email.toLowerCase() !== profile.email) {
     return res.status(400).json({
-      error: 'يجب أن يطابق بريد حساب Google بريد حسابك الحالي على SPEX لربطهما.'
+      error: 'يجب أن يطابق بريد حساب Google بريد حسابك الحالي على SPEX لربطهما.',
     });
   }
 
-  const updated = await prisma.user.update({ where: { id: req.user!.id }, data: { googleId: profile.googleId } });
+  const updated = await prisma.user.update({
+    where: { id: req.user!.id },
+    data: { googleId: profile.googleId },
+  });
   res.json({ success: true, user: sanitizeOwnUser(updated) });
 });
 
@@ -387,7 +423,7 @@ authRouter.post('/google/gsi-callback', urlencoded({ extended: false }), async (
       secure: isProd ? true : false,
       sameSite: 'none' as any,
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/'
+      path: '/',
     } as any);
 
     // نرجع HTML يقوم بالتوجيه top-level بدلاً من redirect فقط لتفادي بقاء transform فارغة
@@ -407,7 +443,10 @@ authRouter.post('/google/gsi-callback', urlencoded({ extended: false }), async (
 });
 
 authRouter.post('/google/unlink', requireAuth, async (req, res) => {
-  const updated = await prisma.user.update({ where: { id: req.user!.id }, data: { googleId: null } });
+  const updated = await prisma.user.update({
+    where: { id: req.user!.id },
+    data: { googleId: null },
+  });
   res.json({ success: true, user: sanitizeOwnUser(updated) });
 });
 
@@ -424,14 +463,18 @@ const bootstrapSchema = z.object({
   password: z.string().min(8),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
-  directorateId: z.string().min(1).default('setif_de'),
-  districtId: z.string().min(1).default('dist_setif_7')
+  directorateId: z.string().optional().default(''),
+  districtId: z.string().optional().default(''),
 });
 
 authRouter.post('/bootstrap-admin', async (req, res) => {
   const configuredSecret = process.env.SETUP_SECRET;
   if (!configuredSecret) {
-    return res.status(403).json({ error: 'ميزة الإنشاء الأولي غير مفعّلة (SETUP_SECRET غير معرّف في متغيرات البيئة).' });
+    return res
+      .status(403)
+      .json({
+        error: 'ميزة الإنشاء الأولي غير مفعّلة (SETUP_SECRET غير معرّف في متغيرات البيئة).',
+      });
   }
 
   const parsed = bootstrapSchema.safeParse(req.body);
@@ -445,7 +488,12 @@ authRouter.post('/bootstrap-admin', async (req, res) => {
 
   const existingAdmin = await prisma.user.findFirst({ where: { role: 'admin' } });
   if (existingAdmin) {
-    return res.status(403).json({ error: 'يوجد حساب مشرف بالفعل. هذا المسار يعمل مرة واحدة فقط لأول إنشاء (بما في ذلك حساب SUPER_ADMIN إن كان قد أُنشئ تلقائياً عبر seed).' });
+    return res
+      .status(403)
+      .json({
+        error:
+          'يوجد حساب مشرف بالفعل. هذا المسار يعمل مرة واحدة فقط لأول إنشاء (بما في ذلك حساب SUPER_ADMIN إن كان قد أُنشئ تلقائياً عبر seed).',
+      });
   }
 
   const passwordHash = await hashPassword(parsed.data.password);
@@ -466,13 +514,18 @@ authRouter.post('/bootstrap-admin', async (req, res) => {
         directorateId: parsed.data.directorateId,
         districtId: parsed.data.districtId,
         status: 'active',
-        isApprovedByAdmin: true
-      }
+        isApprovedByAdmin: true,
+      },
     });
 
     res.json({ success: true, message: `تم إنشاء حساب المشرف بنجاح: ${admin.email}` });
   } catch (err: unknown) {
-    if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === 'P2002') {
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code: string }).code === 'P2002'
+    ) {
       return res.status(409).json({ error: 'البريد الإلكتروني أو اسم المستخدم مستخدم بالفعل.' });
     }
     console.error('Error creating bootstrap admin:', err);
@@ -500,7 +553,7 @@ authRouter.get('/me', async (req, res) => {
       error: 'الحساب معطّل من طرف الإدارة.',
       code: 'ACCOUNT_DISABLED',
       disabled: true,
-      user: sanitizeOwnUser(user)
+      user: sanitizeOwnUser(user),
     });
   }
 
@@ -522,7 +575,8 @@ authRouter.post('/forgot-password', async (req, res) => {
   // رسالة واحدة موحدة سواء كان البريد مسجلاً أم لا، لتفادي تسريب معلومة وجود الحساب من عدمه
   const genericResponse = {
     success: true,
-    message: 'إن كان هذا البريد الإلكتروني مسجلاً لدينا، فسيصلك رابط إعادة تعيين كلمة المرور خلال دقائق.'
+    message:
+      'إن كان هذا البريد الإلكتروني مسجلاً لدينا، فسيصلك رابط إعادة تعيين كلمة المرور خلال دقائق.',
   };
 
   const user = await prisma.user.findUnique({ where: { email: parsed.data.email.toLowerCase() } });
@@ -535,7 +589,7 @@ authRouter.post('/forgot-password', async (req, res) => {
   // إبطال أي رموز سابقة غير مستخدمة لهذا المستخدم قبل إنشاء رمز جديد
   await prisma.passwordResetToken.deleteMany({ where: { userId: user.id, usedAt: null } });
   await prisma.passwordResetToken.create({
-    data: { userId: user.id, tokenHash, expiresAt }
+    data: { userId: user.id, tokenHash, expiresAt },
   });
 
   const result = await sendPasswordResetEmail(user.email, user.firstName, rawToken);
@@ -549,7 +603,7 @@ authRouter.post('/forgot-password', async (req, res) => {
 
 const resetSchema = z.object({
   token: z.string().min(10),
-  newPassword: z.string().min(8, 'كلمة المرور يجب أن تكون 8 أحرف على الأقل')
+  newPassword: z.string().min(8, 'كلمة المرور يجب أن تكون 8 أحرف على الأقل'),
 });
 
 authRouter.post('/reset-password', async (req, res) => {
@@ -563,14 +617,19 @@ authRouter.post('/reset-password', async (req, res) => {
   const resetRecord = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
 
   if (!resetRecord || resetRecord.usedAt || resetRecord.expiresAt < new Date()) {
-    return res.status(400).json({ error: 'رابط إعادة التعيين غير صالح أو منتهي الصلاحية. يرجى طلب رابط جديد.' });
+    return res
+      .status(400)
+      .json({ error: 'رابط إعادة التعيين غير صالح أو منتهي الصلاحية. يرجى طلب رابط جديد.' });
   }
 
   const passwordHash = await hashPassword(newPassword);
 
   await prisma.$transaction([
     prisma.user.update({ where: { id: resetRecord.userId }, data: { passwordHash } }),
-    prisma.passwordResetToken.update({ where: { id: resetRecord.id }, data: { usedAt: new Date() } })
+    prisma.passwordResetToken.update({
+      where: { id: resetRecord.id },
+      data: { usedAt: new Date() },
+    }),
   ]);
 
   res.json({ success: true, message: 'تم تحديث كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول بها.' });
