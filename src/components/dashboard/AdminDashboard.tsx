@@ -43,8 +43,8 @@ import {
   updateAIProvider,
   deleteAIProvider,
   testAIProviderById,
-  AIProviderStatusItem
-  ,fetchGenerationConfig, updateGenerationConfig, fetchGenerationAccess, updateGenerationAccess, GenerationAccessItem
+  AIProviderStatusItem,
+  fetchGenerationConfig, updateGenerationConfig, fetchGenerationAccess, updateGenerationAccess, testGenerationAccess, GenerationAccessItem
 } from '../../services/api';
 
 interface AdminDashboardProps {
@@ -106,7 +106,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }, []);
 
   const toggleGeneration = async (enabled: boolean) => { setGenerationEnabled(enabled); try { await updateGenerationConfig(enabled); } catch { setGenerationEnabled(!enabled); } };
-  const toggleAccountGeneration = async (user: User) => { const current = generationAccess[user.id] || { userId: user.id, enabled: false, assistantEnabled: false, gameSuggestionsEnabled: false }; const next = { ...current, enabled: !current.enabled, assistantEnabled: !current.enabled, gameSuggestionsEnabled: !current.enabled }; setGenerationAccess((prev) => ({ ...prev, [user.id]: next })); try { await updateGenerationAccess(user.id, next); } catch { setGenerationAccess((prev) => ({ ...prev, [user.id]: current })); } };
+  const toggleAccountGeneration = async (user: User) => { const current = generationAccess[user.id] || { userId: user.id, enabled: false, assistantEnabled: false, gameSuggestionsEnabled: false }; const next = { ...current, enabled: !current.enabled, assistantEnabled: !current.enabled, gameSuggestionsEnabled: !current.enabled }; setGenerationAccess((prev) => ({ ...prev, [user.id]: next })); try { const saved = await updateGenerationAccess(user.id, next); setGenerationAccess((prev) => ({ ...prev, [user.id]: { ...next, ...saved } })); } catch { setGenerationAccess((prev) => ({ ...prev, [user.id]: current })); } };
+  const setAccountKey = async (user: User) => {
+    const key = window.prompt('أدخل مفتاح Gemini للحساب (لن يتم عرضه أو حفظه في المتصفح):');
+    if (!key?.trim()) return;
+    const current = generationAccess[user.id] || { userId: user.id, enabled: false, assistantEnabled: false, gameSuggestionsEnabled: false };
+    try { const saved = await updateGenerationAccess(user.id, { ...current, enabled: true, assistantEnabled: true, gameSuggestionsEnabled: true, apiKey: key, credentialEnabled: true }); setGenerationAccess((prev) => ({ ...prev, [user.id]: { ...current, ...saved } })); } catch { window.alert('تعذر حفظ مفتاح الحساب.'); }
+  };
+  const clearAccountKey = async (user: User) => {
+    const current = generationAccess[user.id] || { userId: user.id, enabled: false, assistantEnabled: false, gameSuggestionsEnabled: false };
+    try { const saved = await updateGenerationAccess(user.id, { ...current, clearKey: true, credentialEnabled: false }); setGenerationAccess((prev) => ({ ...prev, [user.id]: { ...current, ...saved } })); } catch { window.alert('تعذر إزالة مفتاح الحساب.'); }
+  };
+  const testAccountKey = async (user: User) => { const result = await testGenerationAccess(user.id); window.alert(result.message); };
 
   const openAddProvider = () => {
     setEditingProvider(null);
@@ -443,7 +454,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
             <div className="flex items-center justify-between"><div><h3 className="text-base font-extrabold text-slate-900">إعدادات الخدمات المساعدة</h3><p className="text-xs text-slate-500">التحكم المركزي في تشغيل الخدمات وصلاحيات الحسابات.</p></div><button onClick={() => void toggleGeneration(!generationEnabled)} className={`px-3 py-1.5 rounded-xl text-xs font-bold ${generationEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>{generationEnabled ? 'الخدمات مفعلة' : 'الخدمات متوقفة'}</button></div>
             <div className="text-[11px] text-slate-500">إعداد المزود: <span className={providerConfigured ? 'text-emerald-700 font-bold' : 'text-amber-700 font-bold'}>{providerConfigured ? 'مكتمل' : 'غير مكتمل'}</span> · لا تظهر المفاتيح السرية في هذه الصفحة.</div>
-            <div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50"><th className="p-2">الحساب</th><th className="p-2">الخدمات المساعدة</th><th className="p-2">المساعد</th><th className="p-2">اقتراح الألعاب</th></tr></thead><tbody>{users.filter((user) => user.role === 'teacher').map((user) => { const access = generationAccess[user.id] || { userId: user.id, enabled: false, assistantEnabled: false, gameSuggestionsEnabled: false }; return <tr key={user.id} className="border-b border-slate-100"><td className="p-2 font-bold">{user.firstName} {user.lastName}</td><td className="p-2"><button onClick={() => void toggleAccountGeneration(user)} className={`px-2 py-1 rounded-lg text-[10px] font-bold ${access.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{access.enabled ? 'مفعلة' : 'غير مفعلة'}</button></td><td className="p-2">{access.assistantEnabled ? 'مسموح' : '—'}</td><td className="p-2">{access.gameSuggestionsEnabled ? 'مسموح' : '—'}</td></tr>; })}</tbody></table></div>
+            <div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50"><th className="p-2">الحساب</th><th className="p-2">الخدمات المساعدة</th><th className="p-2">المفتاح</th><th className="p-2">المساعد</th><th className="p-2">اقتراح الألعاب</th><th className="p-2">إجراءات</th></tr></thead><tbody>{users.filter((user) => user.role === 'teacher').map((user) => { const access = generationAccess[user.id] || { userId: user.id, enabled: false, assistantEnabled: false, gameSuggestionsEnabled: false }; return <tr key={user.id} className="border-b border-slate-100"><td className="p-2 font-bold">{user.firstName} {user.lastName}</td><td className="p-2"><button onClick={() => void toggleAccountGeneration(user)} className={`px-2 py-1 rounded-lg text-[10px] font-bold ${access.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{access.enabled ? 'مفعلة' : 'غير مفعلة'}</button></td><td className="p-2"><span className={access.keyConfigured ? 'text-emerald-700 font-bold' : 'text-slate-400'}>{access.keyConfigured ? (access.credentialEnabled ? 'مضبوط ونشط' : 'مضبوط' ) : 'غير مضبوط'}</span></td><td className="p-2">{access.assistantEnabled ? 'مسموح' : '—'}</td><td className="p-2">{access.gameSuggestionsEnabled ? 'مسموح' : '—'}</td><td className="p-2"><div className="flex gap-1"><button onClick={() => void setAccountKey(user)} className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold">مفتاح الخدمة</button>{access.keyConfigured && <><button onClick={() => void testAccountKey(user)} className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 font-bold">اختبار</button><button onClick={() => void clearAccountKey(user)} className="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 font-bold">إزالة</button></>}</div></td></tr>; })}</tbody></table></div>
           </div>
 
           {/* User Management Panel */}

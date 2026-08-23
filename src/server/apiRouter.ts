@@ -24,7 +24,7 @@ import { requireAuth, requireRole } from './middleware/requireAuth.js';
 import { reassignTeacher, reassignAllForInspector } from './assignmentService.js';
 import { canWriteRecord, resolveOwnerFieldValue } from './collectionAuth.js';
 import { canReadDistrictMessage, normalizeMessageText } from '../services/communicationRules.js';
-import { checkGenerationAccess, type GenerationFeature } from './generationAccess.js';
+import { resolveUserGenerationCredential, type GenerationFeature } from './generationAccess.js';
 
 // نظام الإسناد التلقائي للأساتذة إلى المفتشين: يُعاد احتساب جهة الإشراف تلقائياً
 // عند تسجيل/تعديل أستاذ (يعاد ربطه بمفتشه) أو تسجيل/تعديل مفتش (يعاد ربط كل الأساتذة
@@ -62,12 +62,12 @@ apiRouter.get('/health', (req, res) => {
 apiRouter.use(requireAuth);
 
 async function requireGenerationAccess(req: any, res: any, feature: GenerationFeature) {
-  const result = await checkGenerationAccess(req.user!.id, feature);
-  if (!result.allowed) {
-    res.status(403).json({ code: result.code, message: result.message, error: result.message });
-    return false;
+  const result = await resolveUserGenerationCredential(req.user!.id, feature);
+  if (result.error || !result.credential) {
+    res.status(403).json({ code: result.error?.code || 'SERVICE_UNAVAILABLE', message: result.error?.message || 'الخدمة غير متاحة حالياً.', error: result.error?.message || 'الخدمة غير متاحة حالياً.' });
+    return null;
   }
-  return true;
+  return result.credential;
 }
 
 const gamePayload = (body: Record<string, unknown>) => ({
@@ -1142,8 +1142,9 @@ apiRouter.put('/admin/generation/config', requireRole('admin'), async (req, res)
 });
 
 apiRouter.get('/admin/generation/access', requireRole('admin'), async (_req, res) => {
-  const rows = await prisma.userGenerationAccess.findMany({ select: { userId: true, enabled: true, assistantEnabled: true, gameSuggestionsEnabled: true, updatedAt: true } });
-  res.json({ success: true, access: rows });
+  const rows = await prisma.userGenerationAccess.findMany({ select: { userId: true, enabled: true, assistantEnabled: true, gameSuggestionsEnabled: true, provider: true, credentialEnabled: true, encryptedApiKey: true, updatedAt: true } });
+  const access = rows.map(({ encryptedApiKey, ...row }) => ({ ...row, keyConfigured: Boolean(encryptedApiKey) }));
+  res.json({ success: true, access });
 });
 
 apiRouter.put('/admin/generation/access/:userId', requireRole('admin'), async (req, res) => {
@@ -1152,8 +1153,28 @@ apiRouter.put('/admin/generation/access/:userId', requireRole('admin'), async (r
   const enabled = req.body?.enabled === true;
   const assistantEnabled = enabled && req.body?.assistantEnabled === true;
   const gameSuggestionsEnabled = enabled && req.body?.gameSuggestionsEnabled === true;
-  const access = await prisma.userGenerationAccess.upsert({ where: { userId: target.id }, create: { userId: target.id, enabled, assistantEnabled, gameSuggestionsEnabled, updatedById: req.user!.id }, update: { enabled, assistantEnabled, gameSuggestionsEnabled, updatedById: req.user!.id } });
-  res.json({ success: true, access: { userId: access.userId, enabled: access.enabled, assistantEnabled: access.assistantEnabled, gameSuggestionsEnabled: access.gameSuggestionsEnabled, updatedAt: access.updatedAt } });
+  const existing = await prisma.userGenerationAccess.findUnique({ where: { userId: target.id } });
+  let encryptedApiKey = existing?.encryptedApiKey ?? null;
+  if (req.body?.clearKey === true) encryptedApiKey = null;
+  if (typeof req.body?.apiKey === 'string') {
+    const raw = req.body.apiKey.trim();
+    encryptedApiKey = raw ? encryptApiKey(raw) : null;
+  }
+  const credentialEnabled = Boolean(encryptedApiKey) && req.body?.credentialEnabled === true;
+  const access = await prisma.userGenerationAccess.upsert({ where: { userId: target.id }, create: { userId: target.id, enabled, assistantEnabled, gameSuggestionsEnabled, provider: 'gemini', encryptedApiKey, credentialEnabled, updatedById: req.user!.id, updatedByAdminId: req.user!.id }, update: { enabled, assistantEnabled, gameSuggestionsEnabled, encryptedApiKey, credentialEnabled, provider: 'gemini', updatedById: req.user!.id, updatedByAdminId: req.user!.id } });
+  res.json({ success: true, access: { userId: access.userId, enabled: access.enabled, assistantEnabled: access.assistantEnabled, gameSuggestionsEnabled: access.gameSuggestionsEnabled, provider: access.provider, credentialEnabled: access.credentialEnabled, keyConfigured: Boolean(access.encryptedApiKey), updatedAt: access.updatedAt } });
+});
+
+apiRouter.post('/admin/generation/access/:userId/test', requireRole('admin'), async (req, res) => {
+  try {
+    const resolved = await resolveUserGenerationCredential(req.params.userId, 'ASSISTANT');
+    if (!resolved.credential) return res.status(200).json({ success: false, message: 'لا يوجد مفتاح صالح ومفعّل لهذا الحساب.' });
+    const { generateAIWithUserCredential } = await import('./aiGateway.js');
+    await generateAIWithUserCredential({ messages: [{ role: 'user', content: 'أجب بكلمة: تم' }], maxTokens: 8, temperature: 0 }, resolved.credential);
+    res.json({ success: true, message: 'تم التحقق من الخدمة بنجاح.' });
+  } catch {
+    res.json({ success: false, message: 'تعذر الاتصال بالخدمة باستخدام بيانات هذا الحساب.' });
+  }
 });
 
 apiRouter.get('/ai/providers', requireRole('admin'), async (_req, res) => {
@@ -1343,7 +1364,8 @@ apiRouter.post('/ai/providers/:id/test', requireRole('admin'), async (req, res) 
 
 apiRouter.post('/ai/generate-lesson', async (req, res) => {
   try {
-    if (!(await requireGenerationAccess(req, res, 'LESSON_GENERATION'))) return;
+    const credential = await requireGenerationAccess(req, res, 'LESSON_GENERATION');
+    if (!credential) return;
     const {
       levelName,
       fieldName,
@@ -1372,7 +1394,7 @@ apiRouter.post('/ai/generate-lesson', async (req, res) => {
       customEquipment,
       preferredProvider,
       preferredModel,
-    });
+    }, credential);
 
     res.json({ success: true, data: lessonData });
   } catch (error: unknown) {
@@ -1383,7 +1405,8 @@ apiRouter.post('/ai/generate-lesson', async (req, res) => {
 
 apiRouter.post('/ai/improve-wording', async (req, res) => {
   try {
-    if (!(await requireGenerationAccess(req, res, 'IMPROVE_WORDING'))) return;
+    const credential = await requireGenerationAccess(req, res, 'IMPROVE_WORDING');
+    if (!credential) return;
     const { fieldLabel, currentText, context, preferredProvider, preferredModel } = req.body;
 
     if (!fieldLabel || !currentText || typeof currentText !== 'string' || !currentText.trim()) {
@@ -1396,7 +1419,7 @@ apiRouter.post('/ai/improve-wording', async (req, res) => {
       context,
       preferredProvider,
       preferredModel,
-    });
+    }, credential);
     res.json({ success: true, data: result });
   } catch (error: unknown) {
     console.error('Error in /ai/improve-wording:', error);
@@ -1406,14 +1429,15 @@ apiRouter.post('/ai/improve-wording', async (req, res) => {
 
 apiRouter.post('/ai/suggest-games', async (req, res) => {
   try {
-    if (!(await requireGenerationAccess(req, res, 'SUGGEST_GAMES'))) return;
+    const credential = await requireGenerationAccess(req, res, 'SUGGEST_GAMES');
+    if (!credential) return;
     const { fieldName, levelName, objective, existingGames, existingSituations, constraints, preferredProvider, preferredModel } = req.body;
     const games = await suggestPEGames(
       fieldName || 'الميدان الجماعي',
       levelName || 'ابتدائي',
       preferredProvider,
       preferredModel,
-      { objective, existingGames, existingSituations, constraints }
+      { objective, existingGames, existingSituations, constraints }, credential
     );
     res.json({ success: true, games });
   } catch (error: unknown) {
@@ -1424,7 +1448,8 @@ apiRouter.post('/ai/suggest-games', async (req, res) => {
 
 apiRouter.post('/ai/chat', async (req, res) => {
   try {
-    if (!(await requireGenerationAccess(req, res, 'ASSISTANT'))) return;
+    const credential = await requireGenerationAccess(req, res, 'ASSISTANT');
+    if (!credential) return;
     const { message, history, preferredProvider, preferredModel } = req.body;
     if (!message) {
       return res.status(400).json({ error: 'الرسالة مطلوبة' });
@@ -1433,7 +1458,8 @@ apiRouter.post('/ai/chat', async (req, res) => {
       message,
       history || [],
       preferredProvider,
-      preferredModel
+      preferredModel,
+      credential
     );
     res.json({ success: true, response: responseText });
   } catch (error: unknown) {

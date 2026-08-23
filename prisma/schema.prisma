@@ -444,6 +444,10 @@ model UserGenerationAccess {
   enabled               Boolean  @default(false)
   assistantEnabled      Boolean  @default(false)
   gameSuggestionsEnabled Boolean @default(false)
+  provider              String   @default("gemini")
+  encryptedApiKey       String?
+  credentialEnabled     Boolean  @default(false)
+  updatedByAdminId      String?
   updatedById           String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt

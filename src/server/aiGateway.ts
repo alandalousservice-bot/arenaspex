@@ -46,6 +46,13 @@ export interface AIResult {
   model: string;
 }
 
+export interface UserCredentialRuntime {
+  provider: 'gemini';
+  apiKey: string;
+  model?: string;
+  source: 'user-account';
+}
+
 interface ProviderConfig {
   id: AIProviderId;
   type: AIProviderType;
@@ -292,6 +299,10 @@ async function callProvider(config: ProviderConfig, req: AIRequest): Promise<AIR
   if (config.type === 'anthropic') return callAnthropic(config, req);
   if (config.type === 'gemini') return callGemini(config, req);
   return callOpenAICompatible(config, req);
+}
+
+export async function generateAIWithUserCredential(req: AIRequest, credential: UserCredentialRuntime): Promise<AIResult> {
+  return callProvider({ id: 'user-account-gemini', type: 'gemini', apiKey: credential.apiKey, model: credential.model || env('GEMINI_MODEL') || 'gemini-2.5-flash' }, req);
 }
 
 // -----------------------------------------------------------------------
