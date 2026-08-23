@@ -79,13 +79,18 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
   if (req.user!.role !== 'teacher') return res.status(403).json({ error: 'استيراد القوائم متاح للأستاذ فقط.' });
   const rows = Array.isArray(req.body?.rows) ? req.body.rows as ParsedRosterStudent[] : [];
   const classId = String(req.body?.classId || '').trim();
+  const className = String(req.body?.className || classId).trim();
+  const levelId = String(req.body?.levelId || '').trim() || `lvl_p${Number(req.body?.grade) || 1}`;
   const grade = Number(req.body?.grade) || null;
   if (!classId || !rows.length) return res.status(400).json({ error: 'اختر قسماً وأرسل صفوفاً صالحة للاستيراد.' });
+  const institutionId = (req.user as any).institutionId || null;
+  const assignedClass = await prisma.studentClass.findUnique({ where: { id: classId } });
+  if (assignedClass && assignedClass.teacherId !== req.user!.id) return res.status(403).json({ error: 'لا تملك صلاحية الاستيراد إلى هذا القسم.' });
+  if (!assignedClass) await prisma.studentClass.create({ data: { id: classId, teacherId: req.user!.id, institutionId, levelId, name: className } });
   const validRows = rows.filter((row) => row && typeof row.matricule === 'string' && row.matricule.trim() && row.firstName?.trim() && row.lastName?.trim());
   let created = 0; let existing = 0; let conflicts = 0;
   for (const row of validRows) {
     const matricule = row.matricule.trim();
-    const institutionId = (req.user as any).institutionId || null;
     const current = await prisma.student.findFirst({ where: { institutionId, matricule } });
     if (current) {
       if (current.firstName !== row.firstName.trim() || current.lastName !== row.lastName.trim()) { conflicts += 1; continue; }

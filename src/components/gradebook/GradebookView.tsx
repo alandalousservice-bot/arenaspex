@@ -535,7 +535,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     if (!rows.length) { setRosterError('لا توجد صفوف مطابقة للقسم المختار.'); return; }
     setRosterLoading(true); setRosterError('');
     try {
-      const result = await confirmStudentRosterImport(rows, activeClass.id, levelGrade);
+      const result = await confirmStudentRosterImport(rows, activeClass.id, levelGrade, activeClass.name, 'levelId' in activeClass ? activeClass.levelId : undefined);
       const existingKeys = new Set(students.filter((student) => student.classId === activeClass.id).map((student) => student.matricule || student.registrationNumber));
       rows.forEach((row: any) => {
         if (existingKeys.has(row.matricule)) return;

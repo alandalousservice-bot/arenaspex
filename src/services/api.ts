@@ -434,8 +434,8 @@ export async function previewStudentRoster(file: File) {
   return data as { previews: any[]; summary: { worksheets: number; students: number; invalidRows: number; needsGradeSelection: number } };
 }
 
-export async function confirmStudentRosterImport(rows: unknown[], classId: string, grade?: number) {
-  const response = await fetch('/api/students/import/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows, classId, grade }) });
+export async function confirmStudentRosterImport(rows: unknown[], classId: string, grade?: number, className?: string, levelId?: string) {
+  const response = await fetch('/api/students/import/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows, classId, grade, className, levelId }) });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'تعذر تأكيد الاستيراد.');
   return data as { success: boolean; summary: { created: number; existing: number; conflicts: number; review: number } };

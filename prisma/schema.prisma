@@ -67,6 +67,7 @@ model User {
   pedagogicalGames PedagogicalGame[]
   generationAccess UserGenerationAccess?
   students Student[]
+  studentClasses StudentClass[]
 
   // نظام الإسناد التلقائي للأساتذة إلى المفتشين
   teacherAssignment    InspectorAssignment?  @relation("TeacherAssignment")
@@ -99,6 +100,20 @@ model Student {
 
   @@unique([institutionId, matricule])
   @@index([teacherId, classId])
+  @@index([institutionId])
+}
+
+model StudentClass {
+  id            String   @id
+  teacherId     String
+  institutionId String?
+  levelId       String
+  name          String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  teacher       User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId])
   @@index([institutionId])
 }
 
