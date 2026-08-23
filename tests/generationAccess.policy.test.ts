@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasFeatureAccess, providerIsUsable } from '../src/server/generationAccess.policy';
+import { hasFeatureAccess, providerIsUsable, chooseGenerationCredential } from '../src/server/generationAccess.policy';
 
 describe('generation access policy', () => {
   it('requires account and feature permission', () => {
@@ -12,5 +12,11 @@ describe('generation access policy', () => {
     expect(providerIsUsable({ enabled: true, keyConfigured: true, type: 'gemini' })).toBe(true);
     expect(providerIsUsable({ enabled: true, keyConfigured: false, type: 'ollama' })).toBe(true);
     expect(providerIsUsable({ enabled: false, keyConfigured: true, type: 'gemini' })).toBe(false);
+  });
+  it('always prefers a personal credential over the platform fallback', () => {
+    const personal = { provider: 'gemini' as const, apiKey: 'personal', source: 'personal' as const };
+    const fallback = { provider: 'gemini' as const, apiKey: 'fallback', source: 'platform_fallback' as const };
+    expect(chooseGenerationCredential(personal, fallback)).toBe(personal);
+    expect(chooseGenerationCredential(null, fallback)).toBe(fallback);
   });
 });

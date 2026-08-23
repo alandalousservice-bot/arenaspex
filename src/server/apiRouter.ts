@@ -24,7 +24,7 @@ import { requireAuth, requireRole } from './middleware/requireAuth.js';
 import { reassignTeacher, reassignAllForInspector } from './assignmentService.js';
 import { canWriteRecord, resolveOwnerFieldValue } from './collectionAuth.js';
 import { canReadDistrictMessage, normalizeMessageText } from '../services/communicationRules.js';
-import { resolveUserGenerationCredential, type GenerationFeature } from './generationAccess.js';
+import { resolveGenerationCredential, resolvePersonalGenerationCredential, resolvePlatformFallbackCredential, type GenerationFeature } from './generationAccess.js';
 
 // نظام الإسناد التلقائي للأساتذة إلى المفتشين: يُعاد احتساب جهة الإشراف تلقائياً
 // عند تسجيل/تعديل أستاذ (يعاد ربطه بمفتشه) أو تسجيل/تعديل مفتش (يعاد ربط كل الأساتذة
@@ -62,7 +62,7 @@ apiRouter.get('/health', (req, res) => {
 apiRouter.use(requireAuth);
 
 async function requireGenerationAccess(req: any, res: any, feature: GenerationFeature) {
-  const result = await resolveUserGenerationCredential(req.user!.id, feature);
+  const result = await resolveGenerationCredential(req.user!.id, feature);
   if (result.error || !result.credential) {
     res.status(403).json({ code: result.error?.code || 'SERVICE_UNAVAILABLE', message: result.error?.message || 'الخدمة غير متاحة حالياً.', error: result.error?.message || 'الخدمة غير متاحة حالياً.' });
     return null;
@@ -1132,7 +1132,7 @@ apiRouter.get('/admin/generation/config', requireRole('admin'), async (_req, res
   const config = await prisma.generationServiceConfig.findUnique({ where: { id: 'default' } });
   const providers = await getConfiguredAIProviders();
   const configured = providers.some((provider) => provider.enabled && (provider.keyConfigured || provider.type === 'ollama' || (provider.type === 'openai-compatible' && Boolean(provider.baseUrl))));
-  res.json({ success: true, generationEnabled: config?.enabled ?? true, providerConfigured: configured, providers: providers.map((provider) => ({ id: provider.id, name: provider.name, type: provider.type, enabled: provider.enabled, keyConfigured: provider.keyConfigured, source: provider.source })) });
+  res.json({ success: true, generationEnabled: config?.enabled ?? true, providerConfigured: configured, platformFallbackConfigured: providers.some((provider) => provider.type === 'gemini' && provider.enabled && provider.keyConfigured), providers: providers.map((provider) => ({ id: provider.id, name: provider.name, type: provider.type, enabled: provider.enabled, keyConfigured: provider.keyConfigured, source: provider.source })) });
 });
 
 apiRouter.put('/admin/generation/config', requireRole('admin'), async (req, res) => {
@@ -1167,14 +1167,24 @@ apiRouter.put('/admin/generation/access/:userId', requireRole('admin'), async (r
 
 apiRouter.post('/admin/generation/access/:userId/test', requireRole('admin'), async (req, res) => {
   try {
-    const resolved = await resolveUserGenerationCredential(req.params.userId, 'ASSISTANT');
-    if (!resolved.credential) return res.status(200).json({ success: false, message: 'لا يوجد مفتاح صالح ومفعّل لهذا الحساب.' });
+    const personal = await resolvePersonalGenerationCredential(req.params.userId);
+    if (!personal) return res.status(200).json({ success: false, message: 'لا يوجد مفتاح خاص صالح لهذا الحساب.' });
     const { generateAIWithUserCredential } = await import('./aiGateway.js');
-    await generateAIWithUserCredential({ messages: [{ role: 'user', content: 'أجب بكلمة: تم' }], maxTokens: 8, temperature: 0 }, resolved.credential);
-    res.json({ success: true, message: 'تم التحقق من الخدمة بنجاح.' });
+    await generateAIWithUserCredential({ messages: [{ role: 'user', content: 'أجب بكلمة: تم' }], maxTokens: 8, temperature: 0 }, personal);
+    res.json({ success: true, message: 'تم التحقق من مفتاح الحساب بنجاح.' });
   } catch {
     res.json({ success: false, message: 'تعذر الاتصال بالخدمة باستخدام بيانات هذا الحساب.' });
   }
+});
+
+apiRouter.post('/admin/generation/fallback/test', requireRole('admin'), async (_req, res) => {
+  try {
+    const fallback = await resolvePlatformFallbackCredential();
+    if (!fallback) return res.json({ success: false, message: 'لا يوجد مفتاح احتياطي صالح.' });
+    const { generateAIWithUserCredential } = await import('./aiGateway.js');
+    await generateAIWithUserCredential({ messages: [{ role: 'user', content: 'أجب بكلمة: تم' }], maxTokens: 8, temperature: 0 }, fallback);
+    res.json({ success: true, message: 'تم التحقق من المفتاح الاحتياطي بنجاح.' });
+  } catch { res.json({ success: false, message: 'تعذر الاتصال بالمفتاح الاحتياطي.' }); }
 });
 
 apiRouter.get('/ai/providers', requireRole('admin'), async (_req, res) => {

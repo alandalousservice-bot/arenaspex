@@ -50,7 +50,7 @@ export interface UserCredentialRuntime {
   provider: 'gemini';
   apiKey: string;
   model?: string;
-  source: 'user-account';
+  source: 'personal' | 'platform_fallback';
 }
 
 interface ProviderConfig {
@@ -302,7 +302,7 @@ async function callProvider(config: ProviderConfig, req: AIRequest): Promise<AIR
 }
 
 export async function generateAIWithUserCredential(req: AIRequest, credential: UserCredentialRuntime): Promise<AIResult> {
-  return callProvider({ id: 'user-account-gemini', type: 'gemini', apiKey: credential.apiKey, model: credential.model || env('GEMINI_MODEL') || 'gemini-2.5-flash' }, req);
+  return callProvider({ id: credential.source === 'platform_fallback' ? 'platform-fallback-gemini' : 'user-account-gemini', type: 'gemini', apiKey: credential.apiKey, model: credential.model || env('GEMINI_MODEL') || 'gemini-2.5-flash' }, req);
 }
 
 // -----------------------------------------------------------------------

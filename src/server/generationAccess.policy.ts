@@ -10,3 +10,7 @@ export function hasFeatureAccess(access: { enabled: boolean; assistantEnabled: b
 export function providerIsUsable(provider: { enabled: boolean; keyConfigured: boolean; type: string; baseUrl?: string }): boolean {
   return provider.enabled && (provider.keyConfigured || provider.type === 'ollama' || (provider.type === 'openai-compatible' && Boolean(provider.baseUrl)));
 }
+
+export function chooseGenerationCredential<TPersonal, TFallback>(personal: TPersonal | null, fallback: TFallback | null): TPersonal | TFallback | null {
+  return personal || fallback;
+}

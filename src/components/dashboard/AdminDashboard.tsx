@@ -44,7 +44,7 @@ import {
   deleteAIProvider,
   testAIProviderById,
   AIProviderStatusItem,
-  fetchGenerationConfig, updateGenerationConfig, fetchGenerationAccess, updateGenerationAccess, testGenerationAccess, GenerationAccessItem
+  fetchGenerationConfig, updateGenerationConfig, fetchGenerationAccess, updateGenerationAccess, testGenerationAccess, testPlatformFallback, GenerationAccessItem
 } from '../../services/api';
 
 interface AdminDashboardProps {
@@ -91,6 +91,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [providerTestResults, setProviderTestResults] = useState<Record<string, { valid: boolean; message: string }>>({});
   const [generationEnabled, setGenerationEnabled] = useState(true);
   const [providerConfigured, setProviderConfigured] = useState(false);
+  const [platformFallbackConfigured, setPlatformFallbackConfigured] = useState(false);
   const [generationAccess, setGenerationAccess] = useState<Record<string, GenerationAccessItem>>({});
 
   const loadServerProviders = async () => {
@@ -102,7 +103,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   useEffect(() => {
     loadServerProviders();
-    void (async () => { try { const config = await fetchGenerationConfig(); setGenerationEnabled(config.generationEnabled); setProviderConfigured(config.providerConfigured); const access = await fetchGenerationAccess(); setGenerationAccess(Object.fromEntries(access.map((item) => [item.userId, item]))); } catch { /* server unavailable */ } })();
+    void (async () => { try { const config = await fetchGenerationConfig(); setGenerationEnabled(config.generationEnabled); setProviderConfigured(config.providerConfigured); setPlatformFallbackConfigured(Boolean(config.platformFallbackConfigured)); const access = await fetchGenerationAccess(); setGenerationAccess(Object.fromEntries(access.map((item) => [item.userId, item]))); } catch { /* server unavailable */ } })();
   }, []);
 
   const toggleGeneration = async (enabled: boolean) => { setGenerationEnabled(enabled); try { await updateGenerationConfig(enabled); } catch { setGenerationEnabled(!enabled); } };
@@ -118,6 +119,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try { const saved = await updateGenerationAccess(user.id, { ...current, clearKey: true, credentialEnabled: false }); setGenerationAccess((prev) => ({ ...prev, [user.id]: { ...current, ...saved } })); } catch { window.alert('تعذر إزالة مفتاح الحساب.'); }
   };
   const testAccountKey = async (user: User) => { const result = await testGenerationAccess(user.id); window.alert(result.message); };
+  const testFallbackKey = async () => { const result = await testPlatformFallback(); window.alert(result.message); };
 
   const openAddProvider = () => {
     setEditingProvider(null);
@@ -453,8 +455,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
             <div className="flex items-center justify-between"><div><h3 className="text-base font-extrabold text-slate-900">إعدادات الخدمات المساعدة</h3><p className="text-xs text-slate-500">التحكم المركزي في تشغيل الخدمات وصلاحيات الحسابات.</p></div><button onClick={() => void toggleGeneration(!generationEnabled)} className={`px-3 py-1.5 rounded-xl text-xs font-bold ${generationEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>{generationEnabled ? 'الخدمات مفعلة' : 'الخدمات متوقفة'}</button></div>
-            <div className="text-[11px] text-slate-500">إعداد المزود: <span className={providerConfigured ? 'text-emerald-700 font-bold' : 'text-amber-700 font-bold'}>{providerConfigured ? 'مكتمل' : 'غير مكتمل'}</span> · لا تظهر المفاتيح السرية في هذه الصفحة.</div>
-            <div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50"><th className="p-2">الحساب</th><th className="p-2">الخدمات المساعدة</th><th className="p-2">المفتاح</th><th className="p-2">المساعد</th><th className="p-2">اقتراح الألعاب</th><th className="p-2">إجراءات</th></tr></thead><tbody>{users.filter((user) => user.role === 'teacher').map((user) => { const access = generationAccess[user.id] || { userId: user.id, enabled: false, assistantEnabled: false, gameSuggestionsEnabled: false }; return <tr key={user.id} className="border-b border-slate-100"><td className="p-2 font-bold">{user.firstName} {user.lastName}</td><td className="p-2"><button onClick={() => void toggleAccountGeneration(user)} className={`px-2 py-1 rounded-lg text-[10px] font-bold ${access.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{access.enabled ? 'مفعلة' : 'غير مفعلة'}</button></td><td className="p-2"><span className={access.keyConfigured ? 'text-emerald-700 font-bold' : 'text-slate-400'}>{access.keyConfigured ? (access.credentialEnabled ? 'مضبوط ونشط' : 'مضبوط' ) : 'غير مضبوط'}</span></td><td className="p-2">{access.assistantEnabled ? 'مسموح' : '—'}</td><td className="p-2">{access.gameSuggestionsEnabled ? 'مسموح' : '—'}</td><td className="p-2"><div className="flex gap-1"><button onClick={() => void setAccountKey(user)} className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold">مفتاح الخدمة</button>{access.keyConfigured && <><button onClick={() => void testAccountKey(user)} className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 font-bold">اختبار</button><button onClick={() => void clearAccountKey(user)} className="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 font-bold">إزالة</button></>}</div></td></tr>; })}</tbody></table></div>
+            <div className="text-[11px] text-slate-500">إعداد المزود: <span className={providerConfigured ? 'text-emerald-700 font-bold' : 'text-amber-700 font-bold'}>{providerConfigured ? 'مكتمل' : 'غير مكتمل'}</span> · <span className="font-bold">مفتاح احتياطي للمنصة:</span> <span className={platformFallbackConfigured ? 'text-emerald-700 font-bold' : 'text-slate-400'}>{platformFallbackConfigured ? 'متاح' : 'غير متاح'}</span> <button onClick={() => void testFallbackKey()} className="mr-2 px-2 py-1 rounded-lg bg-amber-50 text-amber-700 font-bold">اختبار المفتاح الاحتياطي</button> · لا تظهر المفاتيح السرية في هذه الصفحة.</div>
+            <div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="bg-slate-50"><th className="p-2">الحساب</th><th className="p-2">الخدمات المساعدة</th><th className="p-2">مفتاح الحساب</th><th className="p-2">حالة المصدر</th><th className="p-2">المساعد</th><th className="p-2">اقتراح الألعاب</th><th className="p-2">إجراءات</th></tr></thead><tbody>{users.filter((user) => user.role === 'teacher').map((user) => { const access = generationAccess[user.id] || { userId: user.id, enabled: false, assistantEnabled: false, gameSuggestionsEnabled: false }; const sourceStatus = access.keyConfigured && access.credentialEnabled ? 'مفتاح خاص مضبوط' : access.enabled && platformFallbackConfigured ? 'يستخدم المفتاح الاحتياطي' : 'لا توجد خدمة متاحة'; return <tr key={user.id} className="border-b border-slate-100"><td className="p-2 font-bold">{user.firstName} {user.lastName}</td><td className="p-2"><button onClick={() => void toggleAccountGeneration(user)} className={`px-2 py-1 rounded-lg text-[10px] font-bold ${access.enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{access.enabled ? 'مفعلة' : 'غير مفعلة'}</button></td><td className="p-2"><span className={access.keyConfigured ? 'text-emerald-700 font-bold' : 'text-slate-400'}>{access.keyConfigured ? (access.credentialEnabled ? 'مضبوط ونشط' : 'مضبوط' ) : 'غير مضبوط'}</span></td><td className="p-2 text-[10px]">{sourceStatus}</td><td className="p-2">{access.assistantEnabled ? 'مسموح' : '—'}</td><td className="p-2">{access.gameSuggestionsEnabled ? 'مسموح' : '—'}</td><td className="p-2"><div className="flex gap-1"><button onClick={() => void setAccountKey(user)} className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold">مفتاح الخدمة</button>{access.keyConfigured && <><button onClick={() => void testAccountKey(user)} className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 font-bold">اختبار</button><button onClick={() => void clearAccountKey(user)} className="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 font-bold">إزالة</button></>}</div></td></tr>; })}</tbody></table></div>
           </div>
 
           {/* User Management Panel */}
