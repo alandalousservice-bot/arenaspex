@@ -61,7 +61,7 @@ type RegisterTab = 'gradebook' | 'attendance' | 'exempted' | 'clubs';
 export interface GradebookViewProps {
   classes?: ClassRoom[];
   students?: Student[];
-  onAddClass?: (newClassData: { name: string; levelId: string; studentCount: number; municipality?: string; schoolName?: string }) => void;
+  onAddClass?: (newClassData: { name: string; levelId: string; studentCount: number; municipality?: string; schoolName?: string }) => string;
   onDeleteClass?: (classId: string) => void;
   onAddStudent?: (studentData: Omit<Student, 'id'>) => void;
   onDeleteStudent?: (studentId: string) => void;
@@ -531,14 +531,21 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
 
   const confirmRoster = async () => {
     if (!rosterPreview || !activeClass) return;
-    const levelGrade = Number(('levelId' in activeClass ? activeClass.levelId : '').replace('lvl_p', '')) || undefined;
-    const rows = rosterPreview.previews.flatMap((preview: any) => preview.students || []).filter((row: any) => !levelGrade || !row.grade || row.grade === levelGrade);
-    if (!rows.length) { setRosterError('لا توجد صفوف مطابقة للقسم المختار.'); return; }
+    const previews = rosterPreview.previews.filter((preview: any) => (preview.students || []).length);
+    if (!previews.length) { setRosterError('لا توجد صفوف صالحة للاستيراد.'); return; }
     setRosterLoading(true); setRosterError('');
     try {
-      const result = await confirmStudentRosterImport(rows, activeClass.id, levelGrade, activeClass.name, 'levelId' in activeClass ? activeClass.levelId : undefined);
+      let created = 0; let existing = 0; let conflicts = 0; let review = 0;
+      for (const preview of previews) {
+        const grade = Number(preview.grade) || Number(('levelId' in activeClass ? activeClass.levelId : '').replace('lvl_p', '')) || 1;
+        const levelId = `lvl_p${grade}`;
+        const matched = classes.find((item) => item.levelId === levelId && (!preview.groupName || item.name.includes(preview.groupName))) || (grade === Number(('levelId' in activeClass ? activeClass.levelId : '').replace('lvl_p', '')) ? activeClass : undefined);
+        const destinationId = matched?.id || onAddClass?.({ name: preview.groupName || `السنة ${grade} ابتدائي`, levelId, studentCount: preview.students.length }) || activeClass.id;
+        const result = await confirmStudentRosterImport(preview.students, destinationId, grade, matched?.name || preview.groupName || `السنة ${grade} ابتدائي`, levelId);
+        created += result.summary.created; existing += result.summary.existing; conflicts += result.summary.conflicts; review += result.summary.review;
+      }
       await onRefreshRoster?.();
-      window.alert(`تم الاستيراد بنجاح\nالجدد: ${result.summary.created}\nالموجودون مسبقاً: ${result.summary.existing}\nبحاجة إلى مراجعة: ${result.summary.conflicts + result.summary.review}`);
+      window.alert(`تم الاستيراد بنجاح\nالجدد: ${created}\nالموجودون مسبقاً: ${existing}\nبحاجة إلى مراجعة: ${conflicts + review}`);
       setRosterPreview(null); setRosterFileName('');
     } catch (error) { setRosterError(error instanceof Error ? error.message : 'تعذر تأكيد الاستيراد.'); }
     finally { setRosterLoading(false); }
