@@ -65,6 +65,7 @@ interface AdminDashboardProps {
   onAddUser?: (user: Partial<User>) => void;
   onUpdateUser?: (user: User) => void;
   onDeleteUser?: (userId: string) => void;
+  isPlatformOwner?: boolean;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -77,6 +78,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onAddUser,
   onUpdateUser,
   onDeleteUser,
+  isPlatformOwner = false,
 }) => {
   const [activeAdminTab, setActiveAdminTab] = useState<
     'users' | 'account_api_keys' | 'ai_engine' | 'audit_logs' | 'directorates'
@@ -1750,7 +1752,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <option value="teacher">⚽ أستاذ تربية بدنية ورياضية (ابتدائي)</option>
                   <option value="inspector">🛡️ مفتش بيداغوجي (مقاطعة رويبة/الجزائر)</option>
                   <option value="director">🏫 مدير مدرسة ابتدائية</option>
-                  <option value="admin">🔑 مشرف النظام (أدمن)</option>
+                  {isPlatformOwner && <option value="admin">🔑 مشرف النظام (أدمن)</option>}
                 </select>
               </div>
 
@@ -1990,7 +1992,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <option value="teacher">⚽ أستاذ تربية بدنية ورياضية (ابتدائي)</option>
                   <option value="inspector">🛡️ مفتش بيداغوجي (المقاطعة 07 - عين أزال)</option>
                   <option value="director">🏫 مدير مدرسة ابتدائية</option>
-                  <option value="admin">🔑 مشرف النظام (أدمن)</option>
+                  {isPlatformOwner && <option value="admin">🔑 مشرف النظام (أدمن)</option>}
                 </select>
               </div>
 

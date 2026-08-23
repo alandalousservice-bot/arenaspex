@@ -26,6 +26,7 @@ model User {
   // بدل/بالإضافة إلى كلمة المرور. لا يزال الحساب نفسه يُنشأ حصرياً من طرف المشرف أو المفتش.
   googleId          String?  @unique
   role              String // teacher | inspector | director | admin
+  isPlatformOwner   Boolean  @default(false)
   avatar            String?
   phone             String?
   directorateId     String

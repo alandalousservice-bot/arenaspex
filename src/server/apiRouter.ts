@@ -219,13 +219,11 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
 async function requireGenerationAccess(req: any, res: any, feature: GenerationFeature) {
   const result = await resolveGenerationCredential(req.user!.id, feature);
   if (result.error || !result.credential) {
-    res
-      .status(403)
-      .json({
-        code: result.error?.code || 'SERVICE_UNAVAILABLE',
-        message: result.error?.message || 'الخدمة غير متاحة حالياً.',
-        error: result.error?.message || 'الخدمة غير متاحة حالياً.',
-      });
+    res.status(403).json({
+      code: result.error?.code || 'SERVICE_UNAVAILABLE',
+      message: result.error?.message || 'الخدمة غير متاحة حالياً.',
+      error: result.error?.message || 'الخدمة غير متاحة حالياً.',
+    });
     return null;
   }
   return result.credential;
@@ -642,17 +640,15 @@ apiRouter.post('/communication/district-messages', async (req, res) => {
       data: { text },
     },
   });
-  res
-    .status(201)
-    .json({
-      message: {
-        id: created.id,
-        authorId: created.authorId,
-        districtId: created.districtId,
-        text,
-        createdAt: created.createdAt.toISOString(),
-      },
-    });
+  res.status(201).json({
+    message: {
+      id: created.id,
+      authorId: created.authorId,
+      districtId: created.districtId,
+      text,
+      createdAt: created.createdAt.toISOString(),
+    },
+  });
 });
 
 apiRouter.get('/communication/notifications', async (req, res) => {
@@ -947,6 +943,7 @@ apiRouter.post('/db/users', async (req, res) => {
 
   const isSelf = req.user!.id === user.id;
   const isAdmin = req.user!.role === 'admin';
+  const isSuperAdmin = Boolean(req.user!.isPlatformOwner);
   const isManager = isAdmin || req.user!.role === 'inspector';
 
   // يُسمح لأي مستخدم بتعديل ملفّه الشخصي (الإعدادات، كلمة المرور)، وللمشرف/المفتش بإدارة أي حساب
@@ -963,6 +960,13 @@ apiRouter.post('/db/users', async (req, res) => {
 
   try {
     const existing = await prisma.user.findUnique({ where: { id: user.id } });
+    const requestedRole = typeof user.role === 'string' ? user.role : existing?.role;
+    if (requestedRole === 'admin' && !isSuperAdmin) {
+      return res.status(403).json({ error: 'غير مسموح بإنشاء حساب مشرف.' });
+    }
+    if (existing?.isPlatformOwner && (!isSuperAdmin || (user.role && user.role !== 'admin'))) {
+      return res.status(403).json({ error: 'حساب مالك المنصة محمي ولا يمكن تعديله.' });
+    }
     if (!existing && !isManager) {
       return res
         .status(403)
@@ -992,6 +996,8 @@ apiRouter.post('/db/users', async (req, res) => {
     }
 
     const data = await buildUserWriteData(user, isAdmin, isAdmin);
+    if (requestedRole === 'admin' && isSuperAdmin)
+      data.isPlatformOwner = Boolean(existing?.isPlatformOwner);
     await enforceRoleAssignment(data, existing);
 
     if (!existing && !data.email) {
@@ -1043,6 +1049,12 @@ apiRouter.post('/db/users/batch', requireRole('admin'), async (req, res) => {
     for (const u of users) {
       if (!u.id) continue;
       const existing = await prisma.user.findUnique({ where: { id: u.id } });
+      if ((u.role === 'admin' || existing?.role === 'admin') && !req.user!.isPlatformOwner) {
+        throw new Error('غير مسموح بإنشاء حساب مشرف.');
+      }
+      if (existing?.isPlatformOwner && !req.user!.isPlatformOwner) {
+        throw new Error('حساب مالك المنصة محمي ولا يمكن تعديله.');
+      }
       const data = await buildUserWriteData(u, true, true);
       await enforceRoleAssignment(data, existing);
       let saved = null;
@@ -1065,6 +1077,9 @@ apiRouter.delete('/db/users/:id', requireRole('admin'), async (req, res) => {
   const { id } = req.params;
   try {
     const existing = await prisma.user.findUnique({ where: { id } });
+    if (existing?.isPlatformOwner && !req.user!.isPlatformOwner) {
+      return res.status(403).json({ error: 'حساب مالك المنصة محمي ولا يمكن حذفه.' });
+    }
     // إن كان المحذوف مفتشاً، نحتفظ بقائمة أساتذته قبل الحذف حتى نعيد مطابقتهم
     // (بمفتش آخر مطابق إن وُجد، أو حالة Pending إن لم يوجد) بدل تركهم مرتبطين بمفتش محذوف
     const affectedTeacherIds =

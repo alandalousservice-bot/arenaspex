@@ -196,6 +196,7 @@ export interface User {
   lastName: string;
   email: string;
   role: UserRole;
+  isPlatformOwner?: boolean;
   avatar?: string;
   phone?: string;
   directorateId: string; // مديرية التربية

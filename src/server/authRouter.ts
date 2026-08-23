@@ -470,11 +470,9 @@ const bootstrapSchema = z.object({
 authRouter.post('/bootstrap-admin', async (req, res) => {
   const configuredSecret = process.env.SETUP_SECRET;
   if (!configuredSecret) {
-    return res
-      .status(403)
-      .json({
-        error: 'ميزة الإنشاء الأولي غير مفعّلة (SETUP_SECRET غير معرّف في متغيرات البيئة).',
-      });
+    return res.status(403).json({
+      error: 'ميزة الإنشاء الأولي غير مفعّلة (SETUP_SECRET غير معرّف في متغيرات البيئة).',
+    });
   }
 
   const parsed = bootstrapSchema.safeParse(req.body);
@@ -488,12 +486,10 @@ authRouter.post('/bootstrap-admin', async (req, res) => {
 
   const existingAdmin = await prisma.user.findFirst({ where: { role: 'admin' } });
   if (existingAdmin) {
-    return res
-      .status(403)
-      .json({
-        error:
-          'يوجد حساب مشرف بالفعل. هذا المسار يعمل مرة واحدة فقط لأول إنشاء (بما في ذلك حساب SUPER_ADMIN إن كان قد أُنشئ تلقائياً عبر seed).',
-      });
+    return res.status(403).json({
+      error:
+        'يوجد حساب مشرف بالفعل. هذا المسار يعمل مرة واحدة فقط لأول إنشاء (بما في ذلك حساب SUPER_ADMIN إن كان قد أُنشئ تلقائياً عبر seed).',
+    });
   }
 
   const passwordHash = await hashPassword(parsed.data.password);
@@ -511,6 +507,7 @@ authRouter.post('/bootstrap-admin', async (req, res) => {
         email: parsed.data.email.toLowerCase(),
         passwordHash,
         role: 'admin',
+        isPlatformOwner: true,
         directorateId: parsed.data.directorateId,
         districtId: parsed.data.districtId,
         status: 'active',

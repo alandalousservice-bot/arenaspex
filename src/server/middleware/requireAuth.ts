@@ -11,7 +11,13 @@ declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
-      user?: { id: string; role: string; districtId: string; institutionId?: string | null };
+      user?: {
+        id: string;
+        role: string;
+        districtId: string;
+        institutionId?: string | null;
+        isPlatformOwner: boolean;
+      };
     }
   }
 }
@@ -19,11 +25,15 @@ declare global {
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = getSessionTokenFromRequest(req);
   if (!token) {
-    return res.status(401).json({ error: 'يجب تسجيل الدخول للوصول إلى هذا المورد.', code: 'ACCOUNT_GONE' });
+    return res
+      .status(401)
+      .json({ error: 'يجب تسجيل الدخول للوصول إلى هذا المورد.', code: 'ACCOUNT_GONE' });
   }
   const payload = verifySession(token);
   if (!payload) {
-    return res.status(401).json({ error: 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول من جديد.', code: 'ACCOUNT_GONE' });
+    return res
+      .status(401)
+      .json({ error: 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول من جديد.', code: 'ACCOUNT_GONE' });
   }
 
   // نتحقق من وجود المستخدم فعلاً وأن حسابه ما زال نشطاً (وليس مجرد الثقة بمحتوى التوكن)
@@ -32,10 +42,23 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return res.status(401).json({ error: 'الحساب غير موجود.', code: 'ACCOUNT_GONE' });
   }
   if (user.status === 'inactive') {
-    return res.status(401).json({ error: 'الحساب معطّل من طرف الإدارة.', code: 'ACCOUNT_DISABLED', disabled: true, user: { id: user.id, status: user.status } });
+    return res
+      .status(401)
+      .json({
+        error: 'الحساب معطّل من طرف الإدارة.',
+        code: 'ACCOUNT_DISABLED',
+        disabled: true,
+        user: { id: user.id, status: user.status },
+      });
   }
 
-  req.user = { id: user.id, role: user.role, districtId: user.districtId, institutionId: user.institutionId };
+  req.user = {
+    id: user.id,
+    role: user.role,
+    districtId: user.districtId,
+    institutionId: user.institutionId,
+    isPlatformOwner: user.isPlatformOwner,
+  };
   next();
 }
 

@@ -562,6 +562,7 @@ export default function App() {
                 onAddUser={handleAddUser}
                 onUpdateUser={handleUpdateUser}
                 onDeleteUser={handleDeleteUser}
+                isPlatformOwner={Boolean(currentUser.isPlatformOwner)}
               />
             )}
 

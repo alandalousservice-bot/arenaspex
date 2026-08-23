@@ -62,6 +62,9 @@ async function seedSuperAdmin() {
   });
 
   if (existing) {
+    if (!existing.isPlatformOwner) {
+      await prisma.user.update({ where: { id: existing.id }, data: { isPlatformOwner: true } });
+    }
     console.log(`✅ حساب المشرف موجود بالفعل (${existing.email}) — جاهز للاستخدام.`);
     return;
   }
@@ -79,6 +82,7 @@ async function seedSuperAdmin() {
       email,
       passwordHash,
       role: 'admin',
+      isPlatformOwner: true,
       directorateId,
       districtId,
       schoolName: 'مديرية التربية لولاية سطيف',
