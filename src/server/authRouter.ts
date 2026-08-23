@@ -177,10 +177,10 @@ authRouter.post('/logout', (req, res) => {
 const googleAuthSchema = z.object({
   credential: z.string().min(10), // Google ID token (JWT) القادم من Google Identity Services
   // دور ذاتي الاختيار عند الإنشاء الأول — أبداً "admin" من هنا (الإدارة للمشرف)
-  role: z.enum(['teacher', 'inspector', 'director']).optional(),
+  role: z.enum(['teacher', 'inspector', 'director', 'admin']).optional(),
 });
 
-const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher', 'inspector', 'director']);
+const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher']);
 
 /**
  * منطق Google الموحّد (يخدم مسارَي /google و /google/gsi-callback):
@@ -225,9 +225,14 @@ async function findOrCreateGoogleUser(
     return { kind: 'ok' as const, user, created: false };
   }
 
+  // The admin context is login-only: an unknown Google identity must never
+  // be converted into a new account from that card.
+  if (requestedRole === 'admin') {
+    return { kind: 'forbidden' as const };
+  }
+
   // إنشاء أول للحساب عبر Google — معتمد للأدوار البيداغوجية فقط وبانتظار تفعيل المشرف
-  const role =
-    requestedRole && GOOGLE_SELF_REGISTER_ROLES.has(requestedRole) ? requestedRole : 'teacher';
+  const role = requestedRole && GOOGLE_SELF_REGISTER_ROLES.has(requestedRole) ? requestedRole : 'teacher';
   const passwordHash = await hashPassword(crypto.randomBytes(24).toString('hex')); // غير قابلة للاستعمال إطلاقاً
   const spexId = `SPX-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
@@ -288,6 +293,10 @@ authRouter.post('/google', async (req, res) => {
   }
 
   const outcome = await findOrCreateGoogleUser(profile, parsed.data.role);
+
+  if (outcome.kind === 'forbidden') {
+    return res.status(403).json({ error: 'حساب Google غير مرتبط بحساب مشرف موجود. اطلب إنشاء الحساب من مالك المنصة.' });
+  }
 
   // السماح لأي مستخدم بالتسجيل مباشرة عبر Google — حتى الحساب المعلق يدخل لوضع المشاهدة بدل 403
   // (فرق واضح بين تسجيل الدخول العادي الذي يرفض المعلق، وبين Google الذي يُعتبر تسجيلاً مباشراً)

@@ -106,7 +106,7 @@ export async function logoutRequest(): Promise<void> {
 // ---------------------------------------------------------------------------
 export async function googleLoginRequest(
   credential: string,
-  role?: 'teacher' | 'inspector' | 'director'
+  role?: 'teacher' | 'inspector' | 'director' | 'admin'
 ): Promise<AuthResult> {
   try {
     const res = await fetch('/api/auth/google', {

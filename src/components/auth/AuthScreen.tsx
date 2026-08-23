@@ -76,6 +76,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [resetDone, setResetDone] = useState(false);
+  const canRegister = selectedRole === 'teacher';
+
+  useEffect(() => {
+    if (!canRegister && activeForm === 'register') setActiveForm('login');
+  }, [canRegister, activeForm]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -196,9 +201,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
       lastName: lastName.trim(),
       email: email.trim(),
       password,
-      role: selectedRole,
-      schoolName: schoolName.trim() || (eduSchoolId ? geoSchools.find((s) => s.id === eduSchoolId)?.name : '') || 'مدرسة ابتدائية',
-      municipality: municipality.trim() || (selectedMunicipalityId ? geoMunicipalities.find((m) => m.id === selectedMunicipalityId)?.name : '') || 'عين أزال - سطيف',
+      role: 'teacher',
+      schoolName: schoolName.trim() || (eduSchoolId ? geoSchools.find((s) => s.id === eduSchoolId)?.name : '') || '',
+      municipality: municipality.trim() || (selectedMunicipalityId ? geoMunicipalities.find((m) => m.id === selectedMunicipalityId)?.name : '') || '',
       phone: phone.trim() || '0661234567',
       eduDirectorateId: eduDirectorateId || undefined,
       eduDistrictId: eduDistrictId || undefined,
@@ -216,7 +221,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
   const handleGoogleCredential = async (credential: string) => {
     setErrorMsg('');
     setIsSubmitting(true);
-    const requestedRole = selectedRole === 'admin' ? 'teacher' : selectedRole;
+    const requestedRole = selectedRole === 'admin' ? 'admin' : 'teacher';
     const result = await googleLoginRequest(credential, requestedRole);
     setIsSubmitting(false);
     if (!result.success || !result.user) {
@@ -296,9 +301,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             منصة SPEX <span className="text-blue-400">الابتدائي</span>
           </h1>
           <p className="text-xs text-slate-400 font-medium leading-relaxed">
-            المنظومة الرقمية المعتمدة المستقلة لأساتذة ومفتشي التربية البدنية والرياضية للطور الابتدائي
+            SPEX — منصة رقمية مستقلة لأساتذة ومفتشي التربية البدنية والرياضية للطور الابتدائي
             <br />
-            <span className="text-emerald-400 font-bold">وزارة التربية الوطنية - الجمهورية الجزائرية</span>
+            <span className="text-emerald-400 font-bold">وفق المناهج الرسمية الجزائرية للتعليم الابتدائي</span>
           </p>
         </div>
 
@@ -364,7 +369,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
           </div>
         </div>
 
-        <div className="grid grid-cols-3 p-1 bg-slate-900/80 rounded-xl text-xs font-bold text-slate-400">
+        <div className={`${canRegister ? 'grid-cols-3' : 'grid-cols-2'} grid p-1 bg-slate-900/80 rounded-xl text-xs font-bold text-slate-400`}>
           <button
             onClick={() => {
               setActiveForm('login');
@@ -375,7 +380,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
           >
             <LogIn className="w-3.5 h-3.5" /> تسجيل الدخول
           </button>
-          <button
+          {canRegister && <button
             onClick={() => {
               setActiveForm('register');
               setErrorMsg('');
@@ -384,7 +389,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeForm === 'register' ? 'bg-blue-600 text-white shadow-md' : 'hover:text-slate-200'}`}
           >
             <UserPlus className="w-3.5 h-3.5" /> إنشاء حساب
-          </button>
+          </button>}
           <button
             onClick={() => {
               setActiveForm('forgot');
@@ -448,7 +453,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
               >
                 <option value="teacher">أستاذ التربية البدنية (مرحلة ابتدائية)</option>
-                <option value="inspector">مفتش التربية البدنية والرياضية (مقاطعة 07)</option>
+                <option value="inspector">مفتش التربية البدنية والرياضية</option>
                 <option value="admin">مشرف المنظومة الرقمية</option>
               </select>
             </div>
@@ -466,7 +471,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
           </form>
         )}
 
-        {activeForm === 'login' && (
+        {activeForm === 'login' && selectedRole !== 'admin' && (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               <div className="h-px flex-1 bg-slate-700/70" />
@@ -475,7 +480,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             </div>
             <GoogleSignInButton onCredential={handleGoogleCredential} disabled={isSubmitting} />
             <p className="text-[10px] text-slate-500 text-center leading-relaxed">
-              بدون حساب؟ اضغط الزر بأي بريد Google وسيُنشأ حسابك تلقائياً في وضع المشاهدة بانتظار تفعيل المشرف — ولحساب موجود يُربَط تلقائياً بنفس البريد ويدخلك مباشرة بعد التفعيل.
+              يمكنك الدخول بحساب Google إذا كان البريد مرتبطاً بحساب موجود، أو متابعة إنشاء حساب أستاذ معلّق بانتظار تفعيل مشرف المنظومة.
             </p>
           </div>
         )}
@@ -568,15 +573,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-300">الرتبة / الصفة المهنية</label>
-                <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as UserRole)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-[11px] text-white focus:outline-none focus:border-purple-500">
-                  <option value="teacher">أستاذ التربية البدنية</option>
-                  <option value="inspector">مفتش بيداغوجي</option>
-                  <option value="director">مدير مدرسة ابتدائية</option>
-                </select>
-              </div>
+            <div className="grid grid-cols-1 gap-2.5">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-300">رقم الهاتف للتفعيل</label>
                 <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0661234567" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right" />
@@ -592,12 +589,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             <div className="space-y-3 pt-3 border-t border-slate-700/50">
               <div className="flex items-center gap-3">
                 <div className="h-px flex-1 bg-slate-700/70" />
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">أو التسجيل المباشر عبر Google</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">أو المتابعة عبر Google</span>
                 <div className="h-px flex-1 bg-slate-700/70" />
               </div>
               <GoogleSignInButton onCredential={handleGoogleCredential} disabled={isSubmitting} text="signup_with" />
               <p className="text-[10px] text-slate-500 text-center leading-relaxed">
-                يمكنك إنشاء حسابك فوراً باستخدام أي بريد Gmail — سيُنشأ حسابك تلقائياً في وضع المشاهدة بانتظار تفعيل المشرف، نفس سياسة التسجيل العادي. الدور المختار أعلاه (أستاذ/مفتش/مدير) سيُطبّق على حسابك الجديد.
+                الحسابات الجديدة تُنشأ كحساب أستاذ معلّق بانتظار تفعيل مشرف المنظومة قبل الاستفادة من الخدمات.
               </p>
             </div>
           </form>
@@ -650,7 +647,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
           </div>
         )}
 
-        <div className="pt-2 text-center text-[10px] text-slate-500">SPEX v3.5 - المناهج الرسمية للجمهورية الجزائرية الديمقراطية الشعبية</div>
+        <div className="pt-2 text-center text-[10px] text-slate-500">SPEX v3.5 — وفق المناهج الرسمية الجزائرية للتعليم الابتدائي</div>
       </div>
     </div>
   );
