@@ -148,6 +148,7 @@ export default function App() {
     inspectionVisits,
     teacherInspectorFeed,
     assignedTeachers,
+    refreshAssignedTeachers,
     assessmentSessions,
     broadcasts,
     directMessages,
@@ -534,6 +535,7 @@ export default function App() {
                 onAddVisit={handleAddInspectionVisit}
                 onAddBroadcast={handleAddBroadcast}
                 onAddDirectMessage={handleAddDirectMessageFromInspector}
+                onRefreshTeachers={refreshAssignedTeachers}
               />
             )}
 

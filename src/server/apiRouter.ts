@@ -1253,6 +1253,16 @@ function jsonCollectionRoutes(opts: {
       return res.status(400).json({ error: 'بيانات غير مكتملة' });
     }
 
+    if (path === 'inspector-notes' && req.user!.role === 'inspector') {
+      const targetTeacherId = typeof item.teacherId === 'string' ? item.teacherId : '';
+      const assignment = targetTeacherId
+        ? await prisma.inspectorAssignment.findUnique({ where: { teacherId: targetTeacherId } })
+        : null;
+      if (!assignment || assignment.inspectorId !== req.user!.id || !['Active', 'Changed'].includes(assignment.status)) {
+        return res.status(403).json({ error: 'لا تملك صلاحية توجيه ملاحظة لهذا الأستاذ.' });
+      }
+    }
+
     const existing = await model.findUnique({ where: { id: item.id } });
     if (!canWrite(existing, req.user!)) {
       return res.status(403).json({ error: 'لا تملك الصلاحية لتعديل هذا العنصر.' });
@@ -1296,6 +1306,13 @@ function jsonCollectionRoutes(opts: {
       }
       for (const item of items) {
         if (!item.id) continue;
+        if (path === 'inspector-notes' && req.user!.role === 'inspector') {
+          const targetTeacherId = typeof item.teacherId === 'string' ? item.teacherId : '';
+          const assignment = targetTeacherId
+            ? await prisma.inspectorAssignment.findUnique({ where: { teacherId: targetTeacherId } })
+            : null;
+          if (!assignment || assignment.inspectorId !== req.user!.id || !['Active', 'Changed'].includes(assignment.status)) continue;
+        }
         const existing = await model.findUnique({ where: { id: item.id } });
         if (!canWrite(existing, req.user!)) continue; // تجاهل العناصر التي لا يملك المستخدم صلاحية تعديلها
 

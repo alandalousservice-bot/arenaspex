@@ -244,6 +244,16 @@ export function usePlatformStore({
   }>({ inspector: null, guidance: [], visits: [] });
   const [assignedTeachers, setAssignedTeachers] = useState<User[]>([]);
 
+  const refreshAssignedTeachers = async () => {
+    if (currentUser.role !== 'inspector') return;
+    try {
+      const rows = await fetchMyAssignedTeachers();
+      setAssignedTeachers(rows || []);
+    } catch {
+      setAssignedTeachers([]);
+    }
+  };
+
   useEffect(() => {
     let active = true;
     if (currentUser.role === 'teacher') {
@@ -1376,6 +1386,7 @@ export function usePlatformStore({
     inspectionVisits,
     teacherInspectorFeed,
     assignedTeachers,
+    refreshAssignedTeachers,
     assessmentSessions,
     broadcasts,
     directMessages,

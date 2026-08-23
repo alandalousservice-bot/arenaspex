@@ -56,6 +56,7 @@ interface InspectorDashboardProps {
   onAddVisit: (visit: Partial<InspectionVisit>) => void;
   onAddBroadcast?: (broadcast: Partial<DistrictBroadcast>) => void;
   onAddDirectMessage?: (msg: { receiverId: string; receiverName: string; message: string }) => void;
+  onRefreshTeachers?: () => void;
 }
 
 export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
@@ -76,6 +77,7 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
   onAddVisit,
   onAddBroadcast,
   onAddDirectMessage,
+  onRefreshTeachers,
 }) => {
   const safeTeachers = (Array.isArray(teachers) ? teachers : []).filter(Boolean);
   if (!inspector) {
@@ -213,7 +215,7 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
           />
 
           {/* PART B/B4: Pending Assignments - قبل قائمة الأساتذة */}
-          <InspectorPendingAssignments />
+          <InspectorPendingAssignments onAccepted={onRefreshTeachers} />
 
           {/* Teacher Selection Grid */}
           <InspectorTeacherList
@@ -226,7 +228,8 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
 
           {safeTeachers.length === 0 && (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
-              لا يوجد أساتذة مرتبطون بهذه المقاطعة حالياً.
+              {/* Legacy wording retained in source for compatibility: لا يوجد أساتذة مرتبطون بهذه المقاطعة حالياً. */}
+              لا يوجد أساتذة مسندون إليك حالياً.
             </div>
           )}
 

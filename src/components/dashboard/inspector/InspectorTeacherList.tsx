@@ -32,8 +32,8 @@ export const InspectorTeacherList: React.FC<InspectorTeacherListProps> = ({
             <UserCheck className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-sm font-extrabold text-slate-900">قائمة أساتذة التربية البدنية بالمقاطعة</h3>
-            <p className="text-[10px] text-slate-500 font-bold">انقر على الأستاذ للاطلاع على ملفه البيداغوجي المكتمل</p>
+            <h3 className="text-sm font-extrabold text-slate-900">أساتذة المقاطعة ({teachers.length})</h3>
+            <p className="text-[10px] text-slate-500 font-bold">الأساتذة ذوو الإسناد المقبول فقط</p>
           </div>
         </div>
 
@@ -52,6 +52,10 @@ export const InspectorTeacherList: React.FC<InspectorTeacherListProps> = ({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {filteredTeachers.map((t) => {
+          const meta = t as User & {
+            classCount?: number; visitCount?: number; noteCount?: number;
+            lastVisitAt?: string | null; assignmentDate?: string | null; followUpStatus?: string;
+          };
           const isSelected = t.id === selectedTeacher?.id;
 
           return (
@@ -82,20 +86,26 @@ export const InspectorTeacherList: React.FC<InspectorTeacherListProps> = ({
                       : 'bg-emerald-100 text-emerald-800'
                   }`}
                 >
-                  {t.status === 'inactive' ? 'غير نشط' : 'مفتش رسمياً'}
+                    {t.status === 'inactive' ? 'غير نشط' : 'نشط'}
                 </span>
               </div>
 
               <div className={`flex items-center justify-between text-[10px] pt-1 border-t ${isSelected ? 'border-emerald-800 text-slate-300' : 'border-slate-100 text-slate-500'}`}>
-                <span className="flex items-center gap-1">
-                  <Award className="w-3 h-3 text-amber-400" />
-                  <span>الدرجة / الخبرة: {t.teachingExperienceYears || 0} سنوات</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  <FileText className="w-3 h-3 text-blue-400" />
-                  <span>الأقسام: غير محملة</span>
-                </span>
-              </div>
+                  <span className="flex items-center gap-1">
+                    <Award className="w-3 h-3 text-amber-400" />
+                    <span>الزيارات: {meta.visitCount || 0}</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <FileText className="w-3 h-3 text-blue-400" />
+                    <span>التوجيهات: {meta.noteCount || 0}</span>
+                  </span>
+                </div>
+                <div className={`text-[10px] ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
+                  الأقسام: {meta.classCount ? meta.classCount : 'لا توجد أقسام مسجلة'} · الهاتف: {t.phone || 'غير مضاف'}
+                </div>
+                <div className={`text-[10px] ${isSelected ? 'text-emerald-200' : 'text-emerald-700'}`}>
+                  {meta.followUpStatus || 'لم تتم الزيارة بعد'}
+                </div>
             </div>
           );
         })}

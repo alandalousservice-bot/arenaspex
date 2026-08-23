@@ -325,8 +325,44 @@ assignmentRouter.get('/inspector/teachers', requireRole('inspector'), async (req
     },
     orderBy: { firstName: 'asc' }
   });
-
-  res.json({ success: true, teachers: teachers.map(sanitizeUser) });
+  const acceptedIds = teachers.map((teacher) => teacher.id);
+  const [visits, notes, classes] = await Promise.all([
+    prisma.inspectionVisitRecord.findMany({
+      where: { inspectorId: req.user!.id, teacherId: { in: acceptedIds } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.inspectorNote.findMany({ where: { authorId: req.user!.id } }),
+    prisma.studentClass.findMany({ where: { teacherId: { in: acceptedIds } }, select: { teacherId: true } }),
+  ]);
+  const visitsByTeacher = new Map<string, typeof visits>();
+  for (const visit of visits) {
+    const rows = visitsByTeacher.get(visit.teacherId) || [];
+    rows.push(visit);
+    visitsByTeacher.set(visit.teacherId, rows);
+  }
+  const classCounts = new Map<string, number>();
+  for (const item of classes) classCounts.set(item.teacherId, (classCounts.get(item.teacherId) || 0) + 1);
+  const noteCounts = new Map<string, number>();
+  for (const note of notes) {
+    const teacherId = typeof (note.data as Record<string, unknown>)?.teacherId === 'string'
+      ? String((note.data as Record<string, unknown>).teacherId)
+      : '';
+    if (acceptedIds.includes(teacherId)) noteCounts.set(teacherId, (noteCounts.get(teacherId) || 0) + 1);
+  }
+  res.json({
+    success: true,
+    teachers: teachers.map((teacher) => ({
+      ...sanitizeUser(teacher),
+      assignmentId: assignments.find((assignment) => assignment.teacherId === teacher.id)?.id || null,
+      assignmentStatus: 'ACCEPTED',
+      assignmentDate: assignments.find((assignment) => assignment.teacherId === teacher.id)?.assignedAt || null,
+      classCount: classCounts.get(teacher.id) || 0,
+      visitCount: visitsByTeacher.get(teacher.id)?.length || 0,
+      noteCount: noteCounts.get(teacher.id) || 0,
+      lastVisitAt: visitsByTeacher.get(teacher.id)?.[0]?.createdAt || null,
+      followUpStatus: visitsByTeacher.get(teacher.id)?.length ? 'متابعة مستمرة' : 'لم تتم الزيارة بعد',
+    })),
+  });
 });
 
 // PART B/B2 — قبل بوابة requireRole('admin') مباشرة: مسارات المفتش لقبول/رفض الإسناد

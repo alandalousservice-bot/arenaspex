@@ -27,7 +27,7 @@ interface PendingAssignment {
   } | null;
 }
 
-export const InspectorPendingAssignments: React.FC = () => {
+export const InspectorPendingAssignments: React.FC<{ onAccepted?: () => void }> = ({ onAccepted }) => {
   const [assignments, setAssignments] = useState<PendingAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -67,6 +67,7 @@ export const InspectorPendingAssignments: React.FC = () => {
         alert(data.error || 'تعذر قبول الإسناد.');
       } else {
         setAssignments((prev) => prev.filter((a) => a.teacherId !== teacherId));
+        onAccepted?.();
       }
     } catch {
       alert('تعذر الاتصال بالخادم.');
@@ -120,7 +121,7 @@ export const InspectorPendingAssignments: React.FC = () => {
     return (
       <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-2xl text-center">
         <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-        <p className="text-sm font-bold text-emerald-800">لا توجد طلبات إسناد معلقة حالياً</p>
+        <p className="text-sm font-bold text-emerald-800">لا توجد إسنادات بانتظار القبول.</p>
         <p className="text-xs text-emerald-600 mt-1">سيظهر هنا أي أستاذ طلب الإسناد لمقاطعتك بانتظار موافقتك.</p>
       </div>
     );
