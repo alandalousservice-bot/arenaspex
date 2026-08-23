@@ -827,6 +827,11 @@ apiRouter.get('/admin/users/pending', requireRole('admin'), async (_req, res) =>
   res.json({ success: true, users: users.map((user) => sanitizeUser(user)) });
 });
 
+apiRouter.get('/admin/users', requireRole('admin'), async (_req, res) => {
+  const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
+  res.json({ success: true, users: users.map((user) => sanitizeUser(user)) });
+});
+
 apiRouter.post('/admin/users/:id/activate', requireRole('admin'), async (req, res) => {
   const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
   if (!existing) return res.status(404).json({ error: 'الحساب غير موجود.' });

@@ -648,6 +648,17 @@ export async function fetchPendingUsersFromDB(): Promise<User[]> {
   }
 }
 
+export async function fetchManagedUsersFromDB(): Promise<User[]> {
+  try {
+    const res = await fetch('/api/admin/users');
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.users) ? data.users : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function activateUserAccount(userId: string): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
     const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/activate`, { method: 'POST' });

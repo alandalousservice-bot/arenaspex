@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 
 const authScreen = readFileSync('src/components/auth/AuthScreen.tsx', 'utf8');
 const authRouter = readFileSync('src/server/authRouter.ts', 'utf8');
+const apiRouter = readFileSync('src/server/apiRouter.ts', 'utf8');
+const adminDashboard = readFileSync('src/components/dashboard/AdminDashboard.tsx', 'utf8');
 
 describe('public auth portal policy', () => {
   it('keeps admin login-only and removes district-specific inspector labels', () => {
@@ -17,5 +19,14 @@ describe('public auth portal policy', () => {
     expect(authRouter).toContain("status: 'pending_approval'");
     expect(authRouter).toContain("directorateId: ''");
     expect(authRouter).toContain("districtId: ''");
+  });
+
+  it('keeps the persisted account-management list separate from the pending queue', () => {
+    expect(apiRouter).toContain("apiRouter.get('/admin/users/pending'");
+    expect(apiRouter).toContain("apiRouter.get('/admin/users'");
+    expect(apiRouter).toContain("apiRouter.post('/admin/users/:id/activate'");
+    expect(adminDashboard).toContain('إدارة الحسابات والمستخدمين');
+    expect(adminDashboard).toContain('حسابات بانتظار التفعيل');
+    expect(adminDashboard).toContain('fetchManagedUsersFromDB');
   });
 });

@@ -54,6 +54,7 @@ import {
   fetchGeoDirectorates,
   fetchGeoDistricts,
   fetchPendingUsersFromDB,
+  fetchManagedUsersFromDB,
   activateUserAccount,
 } from '../../services/api';
 
@@ -333,11 +334,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     Record<string, { valid: boolean; message: string; quotaExhausted?: boolean }>
   >({});
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
+  const [managedUsers, setManagedUsers] = useState<User[]>([]);
 
   const refreshPendingUsers = async () => setPendingUsers(await fetchPendingUsersFromDB());
+  const refreshManagedUsers = async () => setManagedUsers(await fetchManagedUsersFromDB());
   useEffect(() => {
     void refreshPendingUsers();
+    void refreshManagedUsers();
   }, []);
+
+  const managementUsers = managedUsers.length > 0 ? managedUsers : users;
 
   const handleActivatePending = async (user: User) => {
     const result = await activateUserAccount(user.id);
@@ -346,6 +352,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return;
     }
     setPendingUsers((prev) => prev.filter((item) => item.id !== user.id));
+    setManagedUsers((prev) => prev.map((item) => (item.id === user.id ? { ...item, ...result.user, status: 'active', isApprovedByAdmin: true } : item)));
     onUpdateUser?.({ ...user, ...result.user, status: 'active', isApprovedByAdmin: true });
   };
 
@@ -479,7 +486,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setEditingUser(null);
   };
 
-  const filteredUsers = users.filter((u) => {
+  const filteredUsers = managementUsers.filter((u) => {
     const matchesSearch =
       u.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -497,9 +504,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     ollama: ['llama3:8b', 'mistral:7b'],
   };
 
-  const teachersCount = users.filter((u) => u.role === 'teacher').length;
-  const inspectorsCount = users.filter((u) => u.role === 'inspector').length;
-  const directorsCount = users.filter((u) => u.role === 'director').length;
+  const teachersCount = managementUsers.filter((u) => u.role === 'teacher').length;
+  const inspectorsCount = managementUsers.filter((u) => u.role === 'inspector').length;
+  const directorsCount = managementUsers.filter((u) => u.role === 'director').length;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -542,7 +549,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>إدارة الحسابات والمستخدمين ({users.length})</span>
+            <span>إدارة الحسابات والمستخدمين ({managementUsers.length})</span>
           </button>
 
           <button
@@ -604,7 +611,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <span className="text-[11px] font-bold text-slate-500 block mb-1">
                 إجمالي الحسابات
               </span>
-              <div className="text-2xl font-extrabold text-slate-900">{users.length}</div>
+              <div className="text-2xl font-extrabold text-slate-900">{managementUsers.length}</div>
               <span className="text-[10px] text-emerald-600 font-bold">جميع الأدوار</span>
             </div>
 
@@ -1040,18 +1047,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-white/10 text-xs">
               <div className="bg-white/5 p-3 rounded-2xl border border-white/10 flex items-center justify-between">
                 <span className="text-slate-300 font-medium">إجمالي حسابات المنصة:</span>
-                <span className="font-extrabold text-white text-sm">{users.length}</span>
+                <span className="font-extrabold text-white text-sm">{managementUsers.length}</span>
               </div>
               <div className="bg-white/5 p-3 rounded-2xl border border-white/10 flex items-center justify-between">
                 <span className="text-slate-300 font-medium">مفاتيح مخصصة نشطة (🟢):</span>
                 <span className="font-extrabold text-emerald-400 text-sm">
-                  {users.filter((u) => u.customApiKey && u.customApiKey.trim().length > 5).length}
+                  {managementUsers.filter((u) => u.customApiKey && u.customApiKey.trim().length > 5).length}
                 </span>
               </div>
               <div className="bg-white/5 p-3 rounded-2xl border border-white/10 flex items-center justify-between">
                 <span className="text-slate-300 font-medium">حسابات بالبنك المدمج (⚪):</span>
                 <span className="font-extrabold text-amber-300 text-sm">
-                  {users.filter((u) => !u.customApiKey || u.customApiKey.trim().length <= 5).length}
+                  {managementUsers.filter((u) => !u.customApiKey || u.customApiKey.trim().length <= 5).length}
                 </span>
               </div>
             </div>
