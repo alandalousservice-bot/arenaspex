@@ -221,7 +221,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
   const handleGoogleCredential = async (credential: string) => {
     setErrorMsg('');
     setIsSubmitting(true);
-    const requestedRole = selectedRole === 'admin' ? 'admin' : 'teacher';
+    const requestedRole = selectedRole === 'admin' ? 'admin' : selectedRole === 'inspector' ? 'inspector' : 'teacher';
     const result = await googleLoginRequest(credential, requestedRole);
     setIsSubmitting(false);
     if (!result.success || !result.user) {
@@ -592,8 +592,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               <span>{isSubmitting ? 'جارٍ تسجيل الحساب...' : 'تسجيل الحساب والدخول لوضع المشاهدة'}</span>
             </button>
 
-            {/* Google registration is limited to the public Teacher flow. */}
-            {selectedRole === 'teacher' && <div className="space-y-3 pt-3 border-t border-slate-700/50">
+            {/* Google registration is limited to Teacher/Inspector pending accounts. */}
+            {(selectedRole === 'teacher' || selectedRole === 'inspector') && <div className="space-y-3 pt-3 border-t border-slate-700/50">
               <div className="flex items-center gap-3">
                 <div className="h-px flex-1 bg-slate-700/70" />
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">أو المتابعة عبر Google</span>
@@ -601,7 +601,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               </div>
               <GoogleSignInButton onCredential={handleGoogleCredential} disabled={isSubmitting} text="signup_with" />
               <p className="text-[10px] text-slate-500 text-center leading-relaxed">
-                الحسابات الجديدة تُنشأ كحساب أستاذ معلّق بانتظار تفعيل مشرف المنظومة قبل الاستفادة من الخدمات.
+                الحسابات الجديدة تُنشأ كحساب {selectedRole === 'inspector' ? 'مفتش' : 'أستاذ'} معلّق بانتظار تفعيل مشرف المنظومة قبل الاستفادة من الخدمات.
               </p>
             </div>}
           </form>

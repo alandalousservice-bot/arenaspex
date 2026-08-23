@@ -171,8 +171,8 @@ authRouter.post('/logout', (req, res) => {
 });
 
 // -----------------------------------------------------------------------
-// Sign in with Google — سياسة المنصة: الإنشاء الذاتي مسموح للأدوار البيداغوجية
-// (أستاذ/مفتش/مدير): أي بريد Google موثّق ينشئ حساباً فورياً بوضع المشاهدة
+// Sign in with Google — سياسة المنصة: الإنشاء الذاتي المعلّق مسموح للأستاذ
+// والمفتش فقط؛ أي بريد Google موثّق ينشئ حساباً بانتظار اعتماد المشرف.
 // (pending_approval) والمشرف يفعّله لاحقاً من بوابته. الحسابات الموجودة بنفس
 // البريد تُربَط تلقائياً وتدخل بصلاحياتها الحقيقية.
 // -----------------------------------------------------------------------
@@ -182,7 +182,7 @@ const googleAuthSchema = z.object({
   role: z.enum(['teacher', 'inspector', 'director', 'admin']).optional(),
 });
 
-const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher']);
+const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher', 'inspector']);
 
 /**
  * منطق Google الموحّد (يخدم مسارَي /google و /google/gsi-callback):
