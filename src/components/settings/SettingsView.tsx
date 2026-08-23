@@ -20,7 +20,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { User } from '../../types/spex';
-import { getStoredApiKey, setStoredApiKey, testApiKeyOnServer, googleLinkRequest, googleUnlinkRequest } from '../../services/api';
+import { getStoredApiKey, setStoredApiKey, testApiKeyOnServer, googleLinkRequest, googleUnlinkRequest, fetchGeoDistricts } from '../../services/api';
 import { GoogleSignInButton } from '../auth/GoogleSignInButton';
 
 interface SettingsViewProps {
@@ -83,9 +83,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
   const [directorateId, setDirectorateId] = useState(currentUser.directorateId || '');
   const [customDirectorateName, setCustomDirectorateName] = useState('');
   const [districtId, setDistrictId] = useState(currentUser.districtId || '');
+  const [districtName, setDistrictName] = useState('');
   const [customDistrictName, setCustomDistrictName] = useState('');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const isInspector = currentUser.role === 'inspector';
+
+  useEffect(() => {
+    if (!isInspector || !directorateId || !districtId) {
+      setDistrictName('');
+      return;
+    }
+    let active = true;
+    void fetchGeoDistricts(directorateId).then((result: any) => {
+      if (!active) return;
+      const district = (result?.districts || result || []).find((item: any) => item.id === districtId);
+      setDistrictName(district?.name || '');
+    }).catch(() => { if (active) setDistrictName(''); });
+    return () => { active = false; };
+  }, [isInspector, directorateId, districtId]);
 
   // Custom API Key per Account (Dedicated AI Agent / Pedagogical Engine Key)
   const [customApiKeyInput, setCustomApiKeyInput] = useState(() => {
@@ -196,10 +212,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
       phone,
       specialization,
       yearsExperience,
-      schoolName,
-      municipality,
-      directorateId: directorateId === 'other_de' && customDirectorateName ? customDirectorateName : directorateId,
-      districtId: districtId === 'custom' && customDistrictName ? customDistrictName : districtId,
+      ...(isInspector ? {} : {
+        schoolName,
+        municipality,
+        directorateId: directorateId === 'other_de' && customDirectorateName ? customDirectorateName : directorateId,
+        districtId: districtId === 'custom' && customDistrictName ? customDistrictName : districtId,
+      }),
       ...(isAdminUser
         ? { customApiKey: trimmedKey, apiKeyStatus: trimmedKey ? 'active' : 'not_set' }
         : {}),
@@ -222,11 +240,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
       {/* Header */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs">
         <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">
-          إعدادات الحساب والأمان والانتساب الإداري
+          {isInspector ? 'إعدادات الحساب والأمان والانتساب الإداري' : 'إعدادات الحساب والأمان والانتساب المهني'}
         </span>
         <h2 className="text-xl font-extrabold text-slate-900 mt-1 flex items-center gap-2">
           <SettingsIcon className="w-5 h-5 text-blue-600" />
-          <span>إدارة حساب الأستاذ والمفتش وتعديل البريد الإلكتروني وكلمة المرور</span>
+          <span>{isInspector ? 'إدارة حساب المفتش وبياناته الشخصية وأمان الحساب' : 'إدارة حساب الأستاذ وتعديل البريد الإلكتروني وكلمة المرور وبيانات المؤسسة'}</span>
         </h2>
         <p className="text-xs text-slate-500 mt-0.5">
           يمكنك تعديل بيانات الاعتماد الرسمية، البريد الإلكتروني، كلمة السر، بيانات المدرسة والمقاطعة. يتم حفظ التغييرات مباشرة في قاعدة بيانات المنصة.
@@ -258,7 +276,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                 </label>
                 <input
                   type="email"
-                  required
+                  required={!isInspector}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full p-2.5 rounded-xl border border-slate-300 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-bold text-slate-900 bg-white"
@@ -471,7 +489,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
             </div>
           </div>
 
+          {isInspector && (
+            <div className="space-y-4 pt-2">
+              <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-emerald-600" />
+                <span>3. الانتساب الإداري والتفتيشي</span>
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                  <span className="font-bold text-slate-600 block mb-1">المديرية</span>
+                  <span className="font-extrabold text-slate-900">{directorateDisplayName}</span>
+                </div>
+                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                  <span className="font-bold text-slate-600 block mb-1">المقاطعة التفتيشية</span>
+                  <span className="font-extrabold text-slate-900">{districtName || districtId || 'غير محددة'}</span>
+                </div>
+              </div>
+              {(!directorateId || !districtId) && (
+                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3 font-bold">
+                  يرجى التواصل مع مشرف المنظومة لاستكمال الانتساب الإداري.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Section 3: Administrative & School Assignment */}
+          {!isInspector && (
           <div className="space-y-4 pt-2">
             <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
               <Building2 className="w-4 h-4 text-emerald-600" />
@@ -580,6 +623,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
               </div>
             </div>
           </div>
+          )}
 
           <div className="pt-4 flex items-center justify-between border-t border-slate-100 flex-wrap gap-3">
             {savedSuccess ? (

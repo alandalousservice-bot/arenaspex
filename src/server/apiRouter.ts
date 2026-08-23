@@ -1030,6 +1030,17 @@ apiRouter.post('/db/users', async (req, res) => {
 
   try {
     const existing = await prisma.user.findUnique({ where: { id: user.id } });
+    // Inspector affiliation is an administrative assignment.  A self-service
+    // profile update may never smuggle changes to directorate, district or
+    // institution fields, even when the HTTP payload is handcrafted.
+    if (isSelf && req.user!.role === 'inspector') {
+      delete user.directorateId;
+      delete user.districtId;
+      delete user.institutionId;
+      delete user.schoolName;
+      delete user.municipality;
+      delete user.municipalityId;
+    }
     const requestedRole = typeof user.role === 'string' ? user.role : existing?.role;
     if (requestedRole === 'admin' && !isSuperAdmin) {
       return res.status(403).json({ error: 'غير مسموح بإنشاء حساب مشرف.' });
