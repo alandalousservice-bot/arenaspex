@@ -1385,6 +1385,8 @@ apiRouter.post('/ai/generate-lesson', async (req, res) => {
       sessionType,
       customObjective,
       customEquipment,
+      teacherName,
+      institutionName,
       preferredProvider,
       preferredModel,
     } = req.body;
@@ -1402,6 +1404,8 @@ apiRouter.post('/ai/generate-lesson', async (req, res) => {
       sessionType,
       customObjective,
       customEquipment,
+      teacherName,
+      institutionName,
       preferredProvider,
       preferredModel,
     }, credential);

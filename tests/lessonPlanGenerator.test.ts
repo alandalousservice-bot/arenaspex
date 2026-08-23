@@ -56,6 +56,19 @@ describe('مولد مذكرة الحصة الموحد', () => {
     expect(plan.lessonRows?.reduce((total, row) => total + row.durationMinutes, 0)).toBe(90);
   });
 
+  it('يحمل اسم الأستاذ والمؤسسة من حسابه داخل المذكرة', () => {
+    const plan = autoGenerateLessonPlan(source('ينجز تنقلات أمامية.'), {
+      levelName: 'السنة الأولى ابتدائي',
+      teacher: {
+        id: 'teacher-1', username: 'teacher', spexId: 'SPX-1', firstName: 'أحمد', lastName: 'بن علي',
+        email: 'teacher@example.com', role: 'teacher', directorateId: 'd', districtId: 'x',
+        schoolName: 'مدرسة الأمل', status: 'active'
+      }
+    });
+    expect(plan.teacherName).toBe('أحمد بن علي');
+    expect(plan.institutionName).toBe('مدرسة الأمل');
+  });
+
   it('يعيد توزيع زمن المرحلة الرئيسية عند إضافة أو إزالة موقف', () => {
     const plan = autoGenerateLessonPlan(source('ينجز تنقلات أمامية.'), {
       levelName: 'السنة الأولى ابتدائي',

@@ -141,6 +141,8 @@ export async function testConfiguredAIProvider(provider: AIProviderId) {
 
 function generateFallbackLessonPlan(req: GenerateLessonRequest) {
   return {
+    teacherName: req.teacherName || 'أستاذ المادة',
+    institutionName: req.institutionName || 'المؤسسة التعليمية',
     generalObjective: req.customObjective || `تحقيق هدف المقطع التعليمي الخاص بـ (${req.sessionTitle}) وفق مؤشرات المنهج الوزاري.`,
     proceduralObjectives: {
       motor: `أن ينفذ التلميذ المهارة الحركية والبدنية لـ (${req.sessionTitle}) بتناسق وتوافق حركي.`,

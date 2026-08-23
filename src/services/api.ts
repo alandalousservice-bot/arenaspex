@@ -858,6 +858,8 @@ function fallbackLessonClientGenerator(payload: LessonGeneratorPayload) {
   const segmentTarget = payload.segmentGoal || payload.competencyTitle || 'التحكم في المهارات الحركية والسلوك البدني والتنظيم الجماعي.';
 
   return {
+    teacherName: payload.teacherName || 'أستاذ المادة',
+    institutionName: payload.institutionName || 'المؤسسة التعليمية',
     generalObjective: customObj,
     segmentGoal: segmentTarget,
     annualSessionRef: payload.annualSessionRef || 'التوزيع السنوي الرسمي',
