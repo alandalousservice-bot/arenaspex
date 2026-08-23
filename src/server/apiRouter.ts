@@ -170,6 +170,14 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
         await tx.studentClass.create({
           data: { id: classId, teacherId: req.user!.id, institutionId, levelId, name: className },
         });
+      else if (
+        assignedClass.name !== className &&
+        new RegExp(`^${className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s+(?:مادة|المادة|الفصل|السنة\\s+الدراسية)\\s*[:：-]?`, 'i').test(assignedClass.name)
+      ) {
+        // Compatibility for classes created by the old parser: only normalize
+        // when the malformed value is deterministically the same class.
+        await tx.studentClass.update({ where: { id: classId }, data: { name: className } });
+      }
       const matricules = importRows.map((row) => row.matricule);
       // One bulk lookup replaces the former findFirst-per-student N+1 pattern.
       const existingStudents = matricules.length

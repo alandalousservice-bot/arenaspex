@@ -37,11 +37,23 @@ function detectGrade(values: unknown[]): number | undefined {
   return gradePatterns.find(([, pattern]) => pattern.test(text))?.[0];
 }
 
+export function extractEducationalGroupName(value: unknown): string | undefined {
+  const text = compact(value).replace(/\s+/g, ' ');
+  if (!text) return undefined;
+  const marker = text.match(/(?:الفوج\s*التربوي|groupe\s*p[ée]dagogique|group[eé])\s*[:：-]?\s*/i);
+  if (!marker || marker.index === undefined) return undefined;
+  const remainder = text.slice(marker.index + marker[0].length);
+  const stop = remainder.search(/\s+(?:مادة|المادة|الفصل|السنة\s*الدراسية)\s*[:：-]?\s*/i);
+  const group = (stop >= 0 ? remainder.slice(0, stop) : remainder).trim();
+  return group || undefined;
+}
+
 function detectGroup(values: unknown[]): string | undefined {
-  const text = values.map(compact).filter(Boolean).join(' ');
-  const match = text.match(/(?:الفوج التربوي|groupe|group[eé])\s*[:：-]?\s*([^\n]+)/i);
-  if (!match) return undefined;
-  return match[1].replace(/\s+/g, ' ').trim();
+  for (const value of values) {
+    const group = extractEducationalGroupName(value);
+    if (group) return group;
+  }
+  return undefined;
 }
 
 function findColumn(headers: string[], names: string[]): number {

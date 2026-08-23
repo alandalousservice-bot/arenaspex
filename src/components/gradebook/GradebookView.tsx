@@ -541,7 +541,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
         const levelId = `lvl_p${grade}`;
         const matched = classes.find((item) => item.levelId === levelId && (!preview.groupName || item.name.includes(preview.groupName))) || (grade === Number(('levelId' in activeClass ? activeClass.levelId : '').replace('lvl_p', '')) ? activeClass : undefined);
         const destinationId = matched?.id || onAddClass?.({ name: preview.groupName || `السنة ${grade} ابتدائي`, levelId, studentCount: preview.students.length }) || activeClass.id;
-        const result = await confirmStudentRosterImport(preview.students, destinationId, grade, matched?.name || preview.groupName || `السنة ${grade} ابتدائي`, levelId);
+        const result = await confirmStudentRosterImport(preview.students, destinationId, grade, preview.groupName || matched?.name || `السنة ${grade} ابتدائي`, levelId);
         created += result.summary.created; existing += result.summary.existing; conflicts += result.summary.conflicts; review += result.summary.review;
       }
       await onRefreshRoster?.();

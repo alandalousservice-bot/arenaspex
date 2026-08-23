@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as XLSX from 'xlsx';
-import { parseStudentRosterWorkbook, rosterPreviewSummary } from '../src/services/studentRosterImport.service';
+import { extractEducationalGroupName, parseStudentRosterWorkbook, rosterPreviewSummary } from '../src/services/studentRosterImport.service';
 
 function workbookBuffer() {
   const rows = [
@@ -22,6 +22,18 @@ function workbookBuffer() {
 }
 
 describe('استيراد قوائم التلاميذ', () => {
+  it('يستخرج اسم الفوج دون المادة أو الرموز اللاحقة', () => {
+    expect(extractEducationalGroupName('الفوج التربوي : رابعة إبتدائي 1 مادة : ت البدنية والرياضية 1400001 20253')).toBe('رابعة إبتدائي 1');
+    expect(extractEducationalGroupName('الفوج التربوي: رابعة ابتدائي 1')).toBe('رابعة ابتدائي 1');
+    expect(extractEducationalGroupName('الفوج التربوي : رابعة ابتدائي 1   مادة:')).toBe('رابعة ابتدائي 1');
+  });
+
+  it('يدعم استخراج أسماء الأقسام للمستويات من الأولى إلى الخامسة', () => {
+    for (const grade of ['أولى', 'ثانية', 'ثالثة', 'رابعة', 'خامسة']) {
+      expect(extractEducationalGroupName(`الفوج التربوي : ${grade} ابتدائي 1 مادة : ت البدنية`)).toBe(`${grade} ابتدائي 1`);
+    }
+  });
+
   it('يتعرف على الرؤوس، المستويات، الأوراق المتعددة ويهمل العلامات والملاحظات', () => {
     const previews = parseStudentRosterWorkbook(workbookBuffer());
     expect(previews).toHaveLength(2);
