@@ -92,6 +92,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [bankSituations, setBankSituations] = useState<EducationalSituation[]>([]);
   const [scheduledLessons, setScheduledLessons] = useState<MergedScheduledLesson[]>([]);
   const [sourceLabel, setSourceLabel] = useState<'actual' | 'fallback'>('fallback');
+  const [generationError, setGenerationError] = useState('');
   const [draft, setDraft] = useState<LessonPlan | null>(null);
   const sessions = useMemo(() => sessionsForLevel(levelName), [levelName]);
   const generatorSessions = useMemo<SourceSession[]>(
@@ -162,11 +163,20 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
 
   const createPlan = () => {
     const source = (generatorSessions.length ? generatorSessions : sessions)[sessionIndex];
-    if (!source) return;
-    const plan = autoGenerateLessonPlan(source, { levelName, teacher: currentUser, className: '' });
-    onSaveLessonPlan(plan);
-    setSelectedId(plan.id);
-    setShowGenerator(false);
+    if (!source) {
+      setGenerationError('تعذر العثور على حصة صالحة من التوزيع السنوي. حاول إعادة فتح الحصة.');
+      return;
+    }
+    try {
+      const plan = autoGenerateLessonPlan(source, { levelName, teacher: currentUser, className: '' });
+      if (!plan.lessonRows?.length) throw new Error('empty memo');
+      onSaveLessonPlan(plan);
+      setSelectedId(plan.id);
+      setGenerationError('');
+      setShowGenerator(false);
+    } catch {
+      setGenerationError('تعذر توليد المذكرة. حاول إعادة فتح الحصة.');
+    }
   };
 
   const beginEdit = () => {
@@ -195,6 +205,31 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     setDraft(null);
   };
 
+  const generatorModal = showGenerator ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+      <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
+        <div className="mb-5 flex items-center justify-between">
+          <h3 className="font-extrabold">توليد مذكرة من التوزيع السنوي</h3>
+          <button onClick={() => setShowGenerator(false)}><X className="h-5 w-5" /></button>
+        </div>
+        <label className="mb-1 block text-sm font-bold">المستوى</label>
+        <select value={levelName} onChange={(event) => setLevelName(event.target.value)} className="mb-4 w-full rounded-xl border p-2">
+          {LEVELS.map((level) => <option key={level}>{level}</option>)}
+        </select>
+        <label className="mb-1 block text-sm font-bold">الحصة</label>
+        <select value={sessionIndex} onChange={(event) => setSessionIndex(Number(event.target.value))} className="w-full rounded-xl border p-2">
+          {(generatorSessions.length ? generatorSessions : sessions).map((session, index) => (
+            <option key={`${session.fieldId}-${session.sessionNumber}`} value={index}>الحصة {session.globalNumber}: {session.objective}</option>
+          ))}
+        </select>
+        <p className="mt-2 text-xs font-bold text-slate-600">المصدر: {sourceLabel === 'actual' ? 'التوزيع السنوي الفعلي للحصص' : 'احتياطي المنهاج الثابت (لا يوجد سجل توزيع فعلي)'}</p>
+        <p className="mt-3 text-xs text-slate-500">يؤخذ الهدف والكفاءة والميدان والوسائل من الحصة الحالية؛ يمكن تعديل المذكرة بعد توليدها.</p>
+        {generationError && <p role="alert" className="mt-3 rounded-lg bg-rose-50 p-2 text-xs font-bold text-rose-700">{generationError}</p>}
+        <button onClick={createPlan} className="mt-5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white">إنشاء المذكرة</button>
+      </div>
+    </div>
+  ) : null;
+
   const plan = editing ? draft : selected;
   if (!plan) {
     return (
@@ -202,11 +237,11 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         <p className="font-bold text-slate-600">لا توجد مذكرات بعد.</p>
         <button
           className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white"
-          onClick={() => setShowGenerator(true)}
+          onClick={() => { setGenerationError(''); setShowGenerator(true); }}
         >
           توليد مذكرة من التوزيع السنوي
         </button>
-        {showGenerator && null}
+        {generatorModal}
       </div>
     );
   }
@@ -292,7 +327,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         </div>
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => setShowGenerator(true)}
+            onClick={() => { setGenerationError(''); setShowGenerator(true); }}
             className="flex items-center gap-1 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
           >
             <Plus className="h-4 w-4" />
@@ -556,56 +591,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         مجموع الزمن: {rows.reduce((sum, row) => sum + Number(row.durationMinutes || 0), 0)} دقيقة.
       </p>
 
-      {showGenerator && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
-            <div className="mb-5 flex items-center justify-between">
-              <h3 className="font-extrabold">توليد مذكرة من التوزيع السنوي</h3>
-              <button onClick={() => setShowGenerator(false)}>
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <label className="mb-1 block text-sm font-bold">المستوى</label>
-            <select
-              value={levelName}
-              onChange={(event) => setLevelName(event.target.value)}
-              className="mb-4 w-full rounded-xl border p-2"
-            >
-              {LEVELS.map((level) => (
-                <option key={level}>{level}</option>
-              ))}
-            </select>
-            <label className="mb-1 block text-sm font-bold">الحصة</label>
-            <select
-              value={sessionIndex}
-              onChange={(event) => setSessionIndex(Number(event.target.value))}
-              className="w-full rounded-xl border p-2"
-            >
-              {(generatorSessions.length ? generatorSessions : sessions).map((session, index) => (
-                <option key={`${session.fieldId}-${session.sessionNumber}`} value={index}>
-                  الحصة {session.globalNumber}: {session.objective}
-                </option>
-              ))}
-            </select>
-            <p className="mt-2 text-xs font-bold text-slate-600">
-              المصدر:{' '}
-              {sourceLabel === 'actual'
-                ? 'التوزيع السنوي الفعلي للحصص'
-                : 'احتياطي المنهاج الثابت (لا يوجد سجل توزيع فعلي)'}
-            </p>
-            <p className="mt-3 text-xs text-slate-500">
-              يُؤخذ الهدف والكفاءة والميدان والوسائل من الحصة الحالية؛ يمكن تعديل المذكرة بعد
-              توليدها.
-            </p>
-            <button
-              onClick={createPlan}
-              className="mt-5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white"
-            >
-              إنشاء المذكرة
-            </button>
-          </div>
-        </div>
-      )}
+      {generatorModal}
       {showBank && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
           <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6">
