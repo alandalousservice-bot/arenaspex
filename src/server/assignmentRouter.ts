@@ -262,6 +262,49 @@ assignmentRouter.get('/teacher/assignment', requireRole('teacher'), async (req, 
   res.json({ success: true, assignment, inspector });
 });
 
+// Read model for the teacher's inspection relationship. The assignment row is
+// authoritative; no client-provided teacherId, districtId or inspectorId is
+// accepted here.
+assignmentRouter.get('/teacher/inspection-feed', requireRole('teacher'), async (req, res) => {
+  const assignment = await prisma.inspectorAssignment.findUnique({
+    where: { teacherId: req.user!.id },
+  });
+  const inspector = assignment?.inspectorId && ['Active', 'Changed'].includes(assignment.status)
+    ? await prisma.user.findFirst({
+        where: { id: assignment.inspectorId, role: 'inspector', status: 'active' },
+      })
+    : null;
+  if (!inspector) {
+    return res.json({ success: true, inspector: null, guidance: [], visits: [], counts: { guidance: 0, visits: 0, interactions: 0 } });
+  }
+
+  const teacher = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { districtId: true } });
+  const [notes, visits] = await Promise.all([
+    prisma.inspectorNote.findMany({
+      where: { authorId: inspector.id },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.inspectionVisitRecord.findMany({
+      where: { teacherId: req.user!.id, inspectorId: inspector.id },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]);
+  const guidance = notes
+    .filter((row) => {
+      const data = (row.data || {}) as Record<string, unknown>;
+      return data.teacherId === req.user!.id || (teacher?.districtId && data.districtId === teacher.districtId);
+    })
+    .map((row) => row.data);
+  const displayName = `${inspector.firstName || ''} ${inspector.lastName || ''}`.trim() || inspector.username || 'المفتش';
+  return res.json({
+    success: true,
+    inspector: { id: inspector.id, displayName },
+    guidance,
+    visits: visits.map((row) => row.data),
+    counts: { guidance: guidance.length, visits: visits.length, interactions: guidance.length + visits.length },
+  });
+});
+
 // -----------------------------------------------------------------------
 // 5. صلاحيات المفتش: قائمة الأساتذة التابعين له فقط + الطلبات المعلقة (PART B)
 // -----------------------------------------------------------------------

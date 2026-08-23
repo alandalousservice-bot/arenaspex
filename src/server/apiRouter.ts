@@ -1378,6 +1378,23 @@ jsonCollectionRoutes({
     (row.data as Record<string, unknown>)?.teacherId === user.id,
 });
 
+// Inspection visits are persisted separately from the UI state and are scoped
+// to the current active teacher↔inspector assignment.
+apiRouter.post('/inspection-visits', requireRole('inspector'), async (req, res) => {
+  const visit = (req.body?.visit && typeof req.body.visit === 'object' ? req.body.visit : req.body) as Record<string, unknown>;
+  const teacherId = typeof visit.teacherId === 'string' ? visit.teacherId : '';
+  if (!teacherId) return res.status(400).json({ error: 'المعلم مطلوب.' });
+  const assignment = await prisma.inspectorAssignment.findUnique({ where: { teacherId } });
+  if (!assignment || assignment.inspectorId !== req.user!.id || !['Active', 'Changed'].includes(assignment.status)) {
+    return res.status(403).json({ error: 'لا تملك صلاحية تسجيل زيارة لهذا الأستاذ.' });
+  }
+  const id = typeof visit.id === 'string' && visit.id.trim() ? visit.id : `visit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const row = await prisma.inspectionVisitRecord.create({
+    data: { id, inspectorId: req.user!.id, teacherId, institutionId: typeof visit.institutionId === 'string' ? visit.institutionId : null, data: visit as any },
+  });
+  res.status(201).json({ success: true, visit: row.data });
+});
+
 // 5. District Group Chat — تُعرض ضمن نطاق مقاطعة المستخدم (districtId) فقط
 jsonCollectionRoutes({
   path: 'district-messages',

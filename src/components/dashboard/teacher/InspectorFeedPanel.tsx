@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { ShieldCheck, Award, MessageSquare, CheckCircle2, Eye, X, ChevronRight, CornerDownLeft } from 'lucide-react';
 import { InspectorNote, InspectionVisit } from '../../../types/spex';
 import {
-  CURRENT_INSPECTOR_NAME,
   INSPECTOR_NOTE_MODULE_REF,
 } from '../../../constants/teacherDashboard.constants';
 
@@ -11,6 +10,7 @@ interface InspectorFeedPanelProps {
   inspectionVisits?: InspectionVisit[];
   onOpenChatWithInspector?: () => void;
   onMarkNoteRead?: (noteId: string) => void;
+  inspectorDisplayName?: string | null;
 }
 
 function getNoteBadge(note: InspectorNote): { className: string; label: string } {
@@ -37,6 +37,7 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
   inspectionVisits = [],
   onOpenChatWithInspector,
   onMarkNoteRead,
+  inspectorDisplayName = null,
 }) => {
   const [activeTab, setActiveTab] = useState<'notes' | 'visits'>('notes');
   const [selectedVisitModal, setSelectedVisitModal] = useState<InspectionVisit | null>(null);
@@ -60,7 +61,7 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
       <div className="flex items-center justify-between border-b border-emerald-800/50 pb-3">
         <span className="text-xs font-extrabold text-emerald-400 flex items-center gap-1.5">
           <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>توجيهات وزيارات المفتش: {CURRENT_INSPECTOR_NAME}</span>
+          <span>{inspectorDisplayName ? `توجيهات وزيارات المفتش: ${inspectorDisplayName}` : 'لم يتم تعيين مفتش للمقاطعة بعد'}</span>
         </span>
         <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-md border border-emerald-500/30">
           {totalItemsCount} رسائل وتفاعلات
@@ -93,7 +94,7 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
           </button>
         </div>
 
-        {onOpenChatWithInspector && (
+        {onOpenChatWithInspector && inspectorDisplayName && (
           <button
             onClick={onOpenChatWithInspector}
             className="flex items-center gap-1 text-[10px] text-emerald-300 hover:text-white font-bold bg-emerald-500/20 hover:bg-emerald-500/30 px-2.5 py-1 rounded-xl border border-emerald-500/30 transition-colors cursor-pointer"
@@ -144,7 +145,7 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
                     </p>
 
                     <div className="flex items-center justify-between text-[10px] text-emerald-300/80 pt-1 border-t border-white/5">
-                      <span>المفتش المحرر: {note.inspectorName || CURRENT_INSPECTOR_NAME}</span>
+                      <span>المفتش المحرر: {note.inspectorName || inspectorDisplayName || 'المفتش'}</span>
                       <span className="dir-ltr">{note.createdAt?.split('T')[0]}</span>
                     </div>
                   </div>
@@ -329,4 +330,3 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
     </div>
   );
 };
-

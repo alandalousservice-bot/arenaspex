@@ -22,6 +22,9 @@ import {
   syncNotebookBatchToDB,
   deleteNotebookEntryFromDB,
   syncInspectorNoteToDB,
+  syncInspectionVisitToDB,
+  fetchTeacherInspectionFeed,
+  fetchMyAssignedTeachers,
   syncDistrictMessageToDB,
   fetchDistrictMessagesFromDB,
   syncCommunityResourceToDB,
@@ -233,6 +236,32 @@ export function usePlatformStore({
     if (!currentUser?.id) return [];
     return [];
   });
+
+  const [teacherInspectorFeed, setTeacherInspectorFeed] = useState<{
+    inspector: { id: string; displayName: string } | null;
+    guidance: InspectorNote[];
+    visits: InspectionVisit[];
+  }>({ inspector: null, guidance: [], visits: [] });
+  const [assignedTeachers, setAssignedTeachers] = useState<User[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    if (currentUser.role === 'teacher') {
+      void fetchTeacherInspectionFeed().then((feed) => {
+        if (active) setTeacherInspectorFeed({ inspector: feed.inspector || null, guidance: feed.guidance || [], visits: feed.visits || [] });
+      }).catch(() => {
+        if (active) setTeacherInspectorFeed({ inspector: null, guidance: [], visits: [] });
+      });
+    } else {
+      setTeacherInspectorFeed({ inspector: null, guidance: [], visits: [] });
+    }
+    if (currentUser.role === 'inspector') {
+      void fetchMyAssignedTeachers().then((rows) => { if (active) setAssignedTeachers(rows || []); }).catch(() => { if (active) setAssignedTeachers([]); });
+    } else {
+      setAssignedTeachers([]);
+    }
+    return () => { active = false; };
+  }, [currentUser.id, currentUser.role]);
 
   const [assessmentSessions, setAssessmentSessions] = useState<CompetencyAssessmentSession[]>(
     () => {
@@ -1063,6 +1092,7 @@ export function usePlatformStore({
       officialReportGenerated: true,
     };
     setInspectionVisits((prev) => [visit, ...prev]);
+    void syncInspectionVisitToDB(visit).catch(() => undefined);
   };
 
   const handleOpenLessonPlan = (lessonId?: string) => {
@@ -1344,6 +1374,8 @@ export function usePlatformStore({
     knowledgeItems,
     inspectorNotes,
     inspectionVisits,
+    teacherInspectorFeed,
+    assignedTeachers,
     assessmentSessions,
     broadcasts,
     directMessages,

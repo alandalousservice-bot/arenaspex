@@ -707,6 +707,17 @@ export async function syncInspectorNoteToDB(note: unknown) {
   await offlinePost('/api/db/inspector-notes', { note }, 'POST');
 }
 
+export async function fetchTeacherInspectionFeed() {
+  const res = await fetch('/api/teacher/inspection-feed');
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل علاقة المفتش.');
+  return data;
+}
+
+export async function syncInspectionVisitToDB(visit: unknown) {
+  await offlinePost('/api/inspection-visits', { visit }, 'POST');
+}
+
 export async function syncDistrictMessageToDB(message: unknown) {
   await offlinePost('/api/db/district-messages', { message }, 'POST');
 }

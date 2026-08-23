@@ -21,6 +21,7 @@ interface TeacherDashboardProps {
   lessonPlans: LessonPlan[];
   inspectorNotes: InspectorNote[];
   inspectionVisits?: InspectionVisit[];
+  inspectorDisplayName?: string | null;
   onNavigateTab: (tab: NavTab) => void;
   onOpenAIGenerator: () => void;
   onUpdateNotebookStatus?: (entryId: string, status: 'منجزة' | 'مؤجلة' | 'غير منجزة') => void;
@@ -32,6 +33,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   lessonPlans,
   inspectorNotes,
   inspectionVisits = [],
+  inspectorDisplayName = null,
   onNavigateTab,
   onOpenAIGenerator,
   onUpdateNotebookStatus,
@@ -78,7 +80,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           <InspectorFeedPanel
             inspectorNotes={inspectorNotes}
             inspectionVisits={inspectionVisits}
-            onOpenChatWithInspector={() => onNavigateTab('inspector_portal')}
+            inspectorDisplayName={inspectorDisplayName}
+            onOpenChatWithInspector={inspectorDisplayName ? () => onNavigateTab('professional_hub') : undefined}
           />
           <QuickAccessPanel onNavigateTab={onNavigateTab} />
         </div>

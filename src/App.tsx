@@ -146,6 +146,8 @@ export default function App() {
     knowledgeItems,
     inspectorNotes,
     inspectionVisits,
+    teacherInspectorFeed,
+    assignedTeachers,
     assessmentSessions,
     broadcasts,
     directMessages,
@@ -367,8 +369,9 @@ export default function App() {
                 user={currentUser}
                 dailyNotebook={dailyNotebook}
                 lessonPlans={lessonPlans}
-                inspectorNotes={inspectorNotes}
-                inspectionVisits={inspectionVisits}
+                inspectorNotes={teacherInspectorFeed.guidance}
+                inspectionVisits={teacherInspectorFeed.visits}
+                inspectorDisplayName={teacherInspectorFeed.inspector?.displayName || null}
                 onNavigateTab={(t) => navigateToTab(t)}
                 onOpenAIGenerator={() => navigateToTab('lesson_plans')}
                 onUpdateNotebookStatus={handleUpdateNotebookStatus}
@@ -515,7 +518,7 @@ export default function App() {
                     ? currentUser
                     : allUsersList.find((u) => u.role === 'inspector') || currentUser
                 }
-                teachers={allUsersList.filter((u) => u.role === 'teacher')}
+                teachers={currentUser.role === 'inspector' ? assignedTeachers : []}
                 notes={inspectorNotes}
                 visits={inspectionVisits}
                 broadcasts={broadcasts}

@@ -23,8 +23,6 @@ export const SESSION_TITLES: Record<string, string> = {
 
 export const DEFAULT_SESSION_TITLE = 'الحصة 01: التمرير الصدري والاستقبال أثناء التنقل';
 
-export const CURRENT_INSPECTOR_NAME = 'مصطفى رواق';
-
 /** بيانات ثابتة مؤقتاً (لا مصدر ديناميكي بعد) - أُبقيت كما كانت لتفادي تغيير السلوك */
 export const LAST_INSPECTION_VISIT_LABEL = 'آخر زيارة تفتيشية: 15 يوليو 2026';
 

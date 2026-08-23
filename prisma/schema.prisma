@@ -368,6 +368,18 @@ model InspectorNote {
   @@index([authorId])
 }
 
+model InspectionVisitRecord {
+  id           String   @id
+  inspectorId  String
+  teacherId    String
+  institutionId String?
+  data         Json
+  createdAt    DateTime @default(now())
+
+  @@index([teacherId, createdAt])
+  @@index([inspectorId, createdAt])
+}
+
 model DistrictMessage {
   id        String   @id
   authorId  String?
