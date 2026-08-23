@@ -77,7 +77,15 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
   onAddBroadcast,
   onAddDirectMessage,
 }) => {
-  const [selectedTeacherId, setSelectedTeacherId] = useState<string>(teachers[0]?.id || '');
+  const safeTeachers = (Array.isArray(teachers) ? teachers : []).filter(Boolean);
+  if (!inspector) {
+    return (
+      <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center text-sm font-bold text-amber-900">
+        بيانات حساب المفتش غير مكتملة. يرجى التواصل مع مشرف المنظومة.
+      </div>
+    );
+  }
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string>(safeTeachers[0]?.id || '');
   const [activeTab, setActiveTab] = useState<InspectorMainTab>('overview');
   const [teacherSubTab, setTeacherSubTab] = useState<
     'annual_plan' | 'schedule' | 'lesson_plans' | 'students' | 'visits'
@@ -96,7 +104,7 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
 
   // 1. Dashboard Global Stats
   const globalStats = useInspectorDashboardStats(
-    teachers,
+    safeTeachers,
     dailyNotebook,
     notes,
     visits,
@@ -112,10 +120,10 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
     maleCount,
     femaleCount,
     weeklyHoursCount,
-  } = useTeacher(teachers, selectedTeacherId, classes, students, weeklySchedule);
+  } = useTeacher(safeTeachers, selectedTeacherId, classes, students, weeklySchedule);
 
   // 3. Lesson Plans for selected teacher
-  const { filteredTeacherPlans } = useLessonPlans(lessonPlans, selectedTeacher, teachers);
+  const { filteredTeacherPlans } = useLessonPlans(lessonPlans, selectedTeacher, safeTeachers);
 
   // 4. Reports for selected teacher
   const { teacherVisits, teacherNotes } = useReports(visits, notes);
@@ -130,7 +138,7 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
       onAddBroadcast({
         id: `bc_${Date.now()}`,
         inspectorId: inspector.id,
-        inspectorName: `${inspector.firstName} ${inspector.lastName}`,
+        inspectorName: `${inspector?.firstName || ''} ${inspector?.lastName || ''}`.trim() || 'المفتش',
         title,
         content,
         category: 'توجيه_بيداغوجي',
@@ -140,7 +148,7 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
   };
 
   const handleSendDirectMessage = (text: string) => {
-    const targetTeacher = selectedTeacher || teachers[0];
+    const targetTeacher = selectedTeacher || safeTeachers[0];
     const receiverId = targetTeacher?.id || 'usr_teacher_1';
     const receiverName = targetTeacher
       ? `${targetTeacher.firstName} ${targetTeacher.lastName}`
@@ -164,7 +172,7 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
     onAddNote({
       id: `note_${Date.now()}`,
       inspectorId: inspector.id,
-      inspectorName: `المفتش ${inspector.firstName} ${inspector.lastName}`,
+      inspectorName: `المفتش ${inspector?.firstName || ''} ${inspector?.lastName || ''}`.trim(),
       teacherId,
       teacherName,
       moduleRef: 'general',
@@ -196,7 +204,7 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
         <div className="space-y-6 animate-in fade-in duration-200">
           {/* KPI Stats Grid */}
           <InspectorKpiGrid
-            teachersCount={teachers.length}
+            teachersCount={safeTeachers.length}
             institutionsCount={globalStats.institutionsCount}
             completionRate={globalStats.completionRate}
             inactiveTeachersCount={globalStats.inactiveTeachers.length}
@@ -210,15 +218,21 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
 
           {/* Teacher Selection Grid */}
           <InspectorTeacherList
-            teachers={teachers}
+            teachers={safeTeachers}
             selectedTeacher={selectedTeacher}
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
             onSelectTeacher={handleSelectTeacher}
           />
 
+          {safeTeachers.length === 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
+              لا يوجد أساتذة مرتبطون بهذه المقاطعة حالياً.
+            </div>
+          )}
+
           {/* Selected Teacher Full Pedagogical Profile */}
-          <InspectorPedagogicalProfile
+          {selectedTeacher && <InspectorPedagogicalProfile
             inspector={inspector}
             selectedTeacher={selectedTeacher}
             teacherClasses={teacherClasses}
@@ -240,7 +254,7 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
             onOpenVisitModal={() => setShowVisitModal(true)}
             onOpenNoteModal={() => setShowNoteModal(true)}
             onSelectLessonPlanModal={setSelectedLessonPlanModal}
-          />
+          />}
 
           {/* Activity Feed & Alerts + District Chart */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -263,7 +277,7 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
       {activeTab === 'resource_validation' && (
         <InspectorResourceValidationView
           resources={communityResources}
-          teachers={teachers}
+          teachers={safeTeachers}
           onToggleApproveResource={
             onToggleApproveResource || ((id) => console.log('Toggle approve:', id))
           }
@@ -275,7 +289,7 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
       {activeTab === 'inspection_reports' && (
         <InspectorReportsView
           visits={visits}
-          teachers={teachers}
+          teachers={safeTeachers}
           inspector={inspector}
           onAddVisit={onAddVisit}
         />
@@ -284,7 +298,7 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
       {/* Curriculum Execution Audit View */}
       {activeTab === 'curriculum_audit' && (
         <InspectorCurriculumAuditView
-          teachers={teachers}
+          teachers={safeTeachers}
           lessonPlans={lessonPlans}
           onSendNoteToTeacher={handleSendNoteToTeacher}
         />
@@ -300,11 +314,11 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
       )}
 
       {/* Chat View */}
-      {activeTab === 'chat' && (
+      {activeTab === 'chat' && selectedTeacher && (
         <div className="animate-in fade-in duration-200">
           <InspectorDirectChat
             inspector={inspector}
-            selectedTeacher={selectedTeacher || teachers[0]}
+            selectedTeacher={selectedTeacher}
             chatMessages={directMessages}
             onSendMessage={handleSendDirectMessage}
           />
@@ -312,7 +326,7 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
       )}
 
       {/* Modals Container */}
-      <InspectorModals
+      {selectedTeacher && <InspectorModals
         selectedLessonPlanModal={selectedLessonPlanModal}
         onCloseLessonPlanModal={() => setSelectedLessonPlanModal(null)}
         showNoteModal={showNoteModal}
@@ -325,7 +339,7 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
         showBroadcastModal={showBroadcastModal}
         onCloseBroadcastModal={() => setShowBroadcastModal(false)}
         onSendBroadcast={handleSendBroadcast}
-      />
+      />}
     </div>
   );
 };

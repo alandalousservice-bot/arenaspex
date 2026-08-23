@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { User, ClassRoom, Student, WeeklyScheduleSlot } from '../types/spex';
 
 export interface UseTeacherDataResult {
-  selectedTeacher: User;
+  selectedTeacher?: User;
   teacherClasses: ClassRoom[];
   teacherStudents: Student[];
   totalStudentsTaught: number;

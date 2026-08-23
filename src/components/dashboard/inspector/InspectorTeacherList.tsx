@@ -4,7 +4,7 @@ import { User } from '../../../types/spex';
 
 interface InspectorTeacherListProps {
   teachers: User[];
-  selectedTeacher: User;
+  selectedTeacher?: User;
   searchTerm: string;
   onSearchChange: (val: string) => void;
   onSelectTeacher: (teacher: User) => void;
@@ -52,7 +52,7 @@ export const InspectorTeacherList: React.FC<InspectorTeacherListProps> = ({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {filteredTeachers.map((t) => {
-          const isSelected = t.id === selectedTeacher.id;
+          const isSelected = t.id === selectedTeacher?.id;
 
           return (
             <div
