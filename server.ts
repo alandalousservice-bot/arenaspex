@@ -189,6 +189,19 @@ async function verifyDatabaseConnection() {
         );
       }
     }
+
+    try {
+      await prisma.$queryRaw`SELECT 1 FROM "Student" LIMIT 1`;
+      await prisma.$queryRaw`SELECT 1 FROM "StudentClass" LIMIT 1`;
+      console.log('✅ SPEX DB: Student roster schema ready.');
+    } catch (rosterErr: unknown) {
+      const rosterCode = (rosterErr as { code?: string })?.code;
+      if (rosterCode === 'P2021' || rosterCode === 'P2022') {
+        console.error('⚠️ SPEX DB: Student roster schema missing — run Prisma migrations.');
+      } else {
+        console.error('⚠️ SPEX DB: Student roster schema diagnostic failed:', rosterErr);
+      }
+    }
   } catch (err) {
     console.error(
       '❌ SPEX DB: تعذّر الاتصال بقاعدة البيانات. تحقق من DATABASE_URL في Render Dashboard → Environment ' +

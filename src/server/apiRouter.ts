@@ -211,6 +211,10 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED_CLASS')
       return res.status(403).json({ error: 'لا تملك صلاحية الاستيراد إلى هذا القسم.' });
+    if ((error as { code?: string })?.code === 'P2021') {
+      console.error('Student roster schema is missing (P2021):', error);
+      return res.status(503).json({ error: 'قاعدة بيانات قوائم التلاميذ غير مهيأة بعد. يرجى تحديث المنصة.' });
+    }
     console.error('Student roster import persistence failed:', error);
     res.status(500).json({ error: 'تعذر حفظ قائمة التلاميذ.' });
   }
