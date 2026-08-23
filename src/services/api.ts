@@ -637,6 +637,27 @@ export async function fetchUsersFromDB() {
   }
 }
 
+export async function fetchPendingUsersFromDB(): Promise<User[]> {
+  try {
+    const res = await fetch('/api/admin/users/pending');
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.users) ? data.users : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function activateUserAccount(userId: string): Promise<{ success: boolean; user?: User; error?: string }> {
+  try {
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/activate`, { method: 'POST' });
+    const data = await res.json();
+    return res.ok ? { success: true, user: data.user } : { success: false, error: data.error };
+  } catch {
+    return { success: false, error: 'تعذر تفعيل الحساب.' };
+  }
+}
+
 export async function syncLessonPlanToDB(lessonPlan: unknown) {
   await offlinePost('/api/db/lesson-plans', { lessonPlan }, 'POST');
 }

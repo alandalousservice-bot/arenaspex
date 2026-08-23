@@ -53,6 +53,8 @@ import {
   GenerationAccessItem,
   fetchGeoDirectorates,
   fetchGeoDistricts,
+  fetchPendingUsersFromDB,
+  activateUserAccount,
 } from '../../services/api';
 
 interface AdminDashboardProps {
@@ -330,6 +332,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [keyTestResults, setKeyTestResults] = useState<
     Record<string, { valid: boolean; message: string; quotaExhausted?: boolean }>
   >({});
+  const [pendingUsers, setPendingUsers] = useState<User[]>([]);
+
+  const refreshPendingUsers = async () => setPendingUsers(await fetchPendingUsersFromDB());
+  useEffect(() => {
+    void refreshPendingUsers();
+  }, []);
+
+  const handleActivatePending = async (user: User) => {
+    const result = await activateUserAccount(user.id);
+    if (!result.success || !result.user) {
+      window.alert(result.error || 'تعذر تفعيل الحساب.');
+      return;
+    }
+    setPendingUsers((prev) => prev.filter((item) => item.id !== user.id));
+    onUpdateUser?.({ ...user, ...result.user, status: 'active', isApprovedByAdmin: true });
+  };
 
   // Form state for new user
   const [newUserRole, setNewUserRole] = useState<'teacher' | 'inspector' | 'director' | 'admin'>(
@@ -787,6 +805,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </select>
               </div>
             </div>
+
+            {pendingUsers.length > 0 && (
+              <section className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-extrabold text-amber-950">حسابات بانتظار التفعيل ({pendingUsers.length})</h3>
+                  <span className="text-[10px] text-amber-800">مصدرها قاعدة البيانات</span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {pendingUsers.map((user) => (
+                    <div key={user.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white p-3">
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 truncate">{user.firstName} {user.lastName}</div>
+                        <div className="text-[10px] text-slate-500 dir-ltr truncate">{user.email}</div>
+                      </div>
+                      <button type="button" onClick={() => void handleActivatePending(user)} className="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 text-[10px] font-bold text-white">تفعيل</button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* Table */}
             <div className="overflow-x-auto">

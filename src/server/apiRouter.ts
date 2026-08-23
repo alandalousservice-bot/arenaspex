@@ -818,6 +818,26 @@ apiRouter.get('/db/users', async (req, res) => {
   });
 });
 
+// Persistent approval queue: PostgreSQL is the sole source of truth.
+apiRouter.get('/admin/users/pending', requireRole('admin'), async (_req, res) => {
+  const users = await prisma.user.findMany({
+    where: { role: 'teacher', OR: [{ status: 'pending_approval' }, { isApprovedByAdmin: false }] },
+    orderBy: { createdAt: 'asc' },
+  });
+  res.json({ success: true, users: users.map((user) => sanitizeUser(user)) });
+});
+
+apiRouter.post('/admin/users/:id/activate', requireRole('admin'), async (req, res) => {
+  const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: 'الحساب غير موجود.' });
+  if (existing.role === 'admin') return res.status(403).json({ error: 'لا يمكن تفعيل حساب مشرف من هذا المسار.' });
+  const user = await prisma.user.update({
+    where: { id: existing.id },
+    data: { status: 'active', isApprovedByAdmin: true },
+  });
+  res.json({ success: true, user: sanitizeUser(user) });
+});
+
 // الحقول الوحيدة المسموح كتابتها في جدول User — قائمة بيضاء صارمة.
 // أي حقل زائد يصله من الواجهة (مثل apiKeyConfigured، wilaya، teachingExperienceYears،
 // followingCount...) يُتجاهل بدل إسقاط عملية التحديث بخطأ Prisma P2009 (Unknown argument)
