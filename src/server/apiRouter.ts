@@ -145,6 +145,22 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
       row.firstName?.trim() &&
       row.lastName?.trim()
   );
+  // Normalize and de-duplicate before opening the transaction.  This keeps all
+  // parsing/validation work outside the database transaction and also prevents
+  // duplicate matricules in one workbook from creating extra writes.
+  const normalizedRows = new Map<string, ParsedRosterStudent>();
+  let inputConflicts = 0;
+  for (const row of validRows) {
+    const matricule = row.matricule.trim();
+    const normalized = { ...row, matricule, firstName: row.firstName.trim(), lastName: row.lastName.trim() };
+    const previous = normalizedRows.get(matricule);
+    if (previous) {
+      if (previous.firstName !== normalized.firstName || previous.lastName !== normalized.lastName) inputConflicts += 1;
+      continue;
+    }
+    normalizedRows.set(matricule, normalized);
+  }
+  const importRows = [...normalizedRows.values()];
   try {
     const summary = await prisma.$transaction(async (tx) => {
       const assignedClass = await tx.studentClass.findUnique({ where: { id: classId } });
@@ -154,51 +170,56 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
         await tx.studentClass.create({
           data: { id: classId, teacherId: req.user!.id, institutionId, levelId, name: className },
         });
-      let created = 0;
+      const matricules = importRows.map((row) => row.matricule);
+      // One bulk lookup replaces the former findFirst-per-student N+1 pattern.
+      const existingStudents = matricules.length
+        ? await tx.student.findMany({ where: { institutionId, matricule: { in: matricules } } })
+        : [];
+      const existingByMatricule = new Map(existingStudents.map((student) => [student.matricule, student]));
+      const missingRows: ParsedRosterStudent[] = [];
       let existing = 0;
-      let conflicts = 0;
+      let conflicts = inputConflicts;
       let linkedStudents = 0;
-      for (const row of validRows) {
-        const matricule = row.matricule.trim();
-        const current = await tx.student.findFirst({ where: { institutionId, matricule } });
-        if (current) {
-          if (
-            current.firstName !== row.firstName.trim() ||
-            current.lastName !== row.lastName.trim()
-          ) {
-            conflicts += 1;
-            continue;
-          }
-          existing += 1;
-          if (current.teacherId === req.user!.id && current.classId !== classId)
-            await tx.student.update({
-              where: { id: current.id },
-              data: {
-                classId,
-                grade: grade || row.grade || null,
-                groupName: row.groupName || null,
-              },
-            });
-          linkedStudents += 1;
+      const updates: Promise<unknown>[] = [];
+      for (const row of importRows) {
+        const current = existingByMatricule.get(row.matricule);
+        if (!current) {
+          missingRows.push(row);
           continue;
         }
-        await tx.student.create({
-          data: {
-            id: `std_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        if (current.firstName !== row.firstName || current.lastName !== row.lastName) {
+          conflicts += 1;
+          continue;
+        }
+        existing += 1;
+        if (current.teacherId === req.user!.id && current.classId !== classId) {
+          updates.push(tx.student.update({
+            where: { id: current.id },
+            data: { classId, grade: grade || row.grade || null, groupName: row.groupName || null },
+          }));
+        }
+        linkedStudents += 1;
+      }
+      if (updates.length) await Promise.all(updates);
+      if (missingRows.length) {
+        await tx.student.createMany({
+          data: missingRows.map((row, index) => ({
+            id: `std_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`,
             teacherId: req.user!.id,
             institutionId,
             classId,
-            matricule,
-            firstName: row.firstName.trim(),
-            lastName: row.lastName.trim(),
+            matricule: row.matricule,
+            firstName: row.firstName,
+            lastName: row.lastName,
             birthDate: row.birthDate ? new Date(row.birthDate) : null,
             grade: grade || row.grade || null,
             groupName: row.groupName || null,
-          },
+            schoolYear: row.schoolYear || null,
+          })),
         });
-        created += 1;
-        linkedStudents += 1;
       }
+      const created = missingRows.length;
+      linkedStudents += created;
       return {
         created,
         existing,
@@ -206,7 +227,7 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
         conflicts,
         review: rows.length - validRows.length,
       };
-    });
+    }, { maxWait: 10000, timeout: 25000 });
     res.json({ success: true, classId, summary });
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED_CLASS')
@@ -214,6 +235,10 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
     if ((error as { code?: string })?.code === 'P2021') {
       console.error('Student roster schema is missing (P2021):', error);
       return res.status(503).json({ error: 'قاعدة بيانات قوائم التلاميذ غير مهيأة بعد. يرجى تحديث المنصة.' });
+    }
+    if ((error as { code?: string })?.code === 'P2028') {
+      console.error('Student roster import transaction timed out (P2028):', error);
+      return res.status(504).json({ error: 'استغرقت عملية حفظ القائمة وقتاً أطول من المتوقع. يرجى إعادة المحاولة.' });
     }
     console.error('Student roster import persistence failed:', error);
     res.status(500).json({ error: 'تعذر حفظ قائمة التلاميذ.' });
