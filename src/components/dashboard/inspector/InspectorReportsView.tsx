@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Award, Plus, FileText, Printer, CheckCircle2, User, Search, Filter, ShieldCheck, Star } from 'lucide-react';
+import { Award, Plus, FileText, Printer, Search, ShieldCheck } from 'lucide-react';
 import { InspectionVisit, User as UserType } from '../../../types/spex';
 
 interface InspectorReportsViewProps {
@@ -26,21 +26,34 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
   const [showAddVisitModal, setShowAddVisitModal] = useState(false);
   const [printableVisit, setPrintableVisit] = useState<InspectionVisit | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveState, setSaveState] = useState<'idle' | 'success' | 'save-error' | 'refresh-error'>('idle');
+  const [saveState, setSaveState] = useState<'idle' | 'success' | 'save-error' | 'refresh-error'>(
+    'idle'
+  );
 
   // Form state
   const [selectedTeacherId, setSelectedTeacherId] = useState(teacherId || teachers[0]?.id || '');
-  const [visitType, setVisitType] = useState<'تفتيش تثبيت' | 'توجيهية' | 'متابعة دورية' | 'تقييمية'>('توجيهية');
+  const [visitType, setVisitType] = useState<
+    'تفتيش تثبيت' | 'توجيهية' | 'متابعة دورية' | 'تقييمية'
+  >('توجيهية');
   const [visitDate, setVisitDate] = useState(new Date().toISOString().split('T')[0]);
   const [lessonTitle, setLessonTitle] = useState('');
   const [adminGrade, setAdminGrade] = useState('4.5'); // /5
   const [pedagogicalGrade, setPedagogicalGrade] = useState('8.5'); // /10
   const [safetyGrade, setSafetyGrade] = useState('4.0'); // /5
-  const [positivesText, setPositivesText] = useState('التزام بدفتر اليوميات والتوزيع السنوي، تحكم بيداغوجي وتوزيع محكم للمجموعات.');
-  const [improvementsText, setImprovementsText] = useState('تنويع أساليب التقييم التكويني الذاتي، وتدعيم الجانب التحفيزي.');
-  const [recommendationsText, setRecommendationsText] = useState('مواصلة التطبيق الدقيق للتدرج السنوي المعتمد من المفتشية.');
+  const [positivesText, setPositivesText] = useState(
+    'التزام بدفتر اليوميات والتوزيع السنوي، تحكم بيداغوجي وتوزيع محكم للمجموعات.'
+  );
+  const [improvementsText, setImprovementsText] = useState(
+    'تنويع أساليب التقييم التكويني الذاتي، وتدعيم الجانب التحفيزي.'
+  );
+  const [recommendationsText, setRecommendationsText] = useState(
+    'مواصلة التطبيق الدقيق للتدرج السنوي المعتمد من المفتشية.'
+  );
 
-  const totalScore = (parseFloat(adminGrade) || 0) + (parseFloat(pedagogicalGrade) || 0) + (parseFloat(safetyGrade) || 0);
+  const totalScore =
+    (parseFloat(adminGrade) || 0) +
+    (parseFloat(pedagogicalGrade) || 0) +
+    (parseFloat(safetyGrade) || 0);
 
   const selectedContextTeacher = teachers.find((teacher) => teacher.id === teacherId);
 
@@ -68,9 +81,18 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
       visitType,
       lessonObservedTitle: lessonTitle.trim() || 'حصة التربية البدنية والرياضية',
       pedagogicalGrade: totalScore,
-      positivePoints: positivesText.split('،').map((s) => s.trim()).filter(Boolean),
-      areasForImprovement: improvementsText.split('،').map((s) => s.trim()).filter(Boolean),
-      recommendations: recommendationsText.split('،').map((s) => s.trim()).filter(Boolean),
+      positivePoints: positivesText
+        .split('،')
+        .map((s) => s.trim())
+        .filter(Boolean),
+      areasForImprovement: improvementsText
+        .split('،')
+        .map((s) => s.trim())
+        .filter(Boolean),
+      recommendations: recommendationsText
+        .split('،')
+        .map((s) => s.trim())
+        .filter(Boolean),
       officialReportGenerated: true,
     };
 
@@ -104,10 +126,36 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
 
   return (
     <div className="space-y-6 dir-rtl animate-in fade-in duration-200">
-      {selectedContextTeacher && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-900">زيارة الأستاذ: {selectedContextTeacher.firstName} {selectedContextTeacher.lastName} <button type="button" onClick={() => { setSelectedTeacherId(''); onClearTeacherContext?.(); }} className="mr-3 text-emerald-700 underline">إلغاء تحديد الأستاذ</button></div>}
-      {saveState === 'success' && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800">تم حفظ الزيارة بنجاح.</div>}
-      {saveState === 'save-error' && <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-800">تعذر حفظ الزيارة.</div>}
-      {saveState === 'refresh-error' && <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">تم حفظ الزيارة، وتعذر تحديث العرض فوراً.</div>}
+      {selectedContextTeacher && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-900">
+          زيارة الأستاذ: {selectedContextTeacher.firstName} {selectedContextTeacher.lastName}{' '}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedTeacherId('');
+              onClearTeacherContext?.();
+            }}
+            className="mr-3 text-emerald-700 underline"
+          >
+            إلغاء تحديد الأستاذ
+          </button>
+        </div>
+      )}
+      {saveState === 'success' && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800">
+          تم حفظ الزيارة بنجاح.
+        </div>
+      )}
+      {saveState === 'save-error' && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-800">
+          تعذر حفظ الزيارة.
+        </div>
+      )}
+      {saveState === 'refresh-error' && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">
+          تم حفظ الزيارة، وتعذر تحديث العرض فوراً.
+        </div>
+      )}
       {/* Banner */}
       <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 text-white rounded-3xl p-6 shadow-md border border-emerald-700/50">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -120,12 +168,16 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
               سجل التقييم والزيارات التفتيشية المعتمدة
             </h2>
             <p className="text-xs text-emerald-100/90 max-w-2xl leading-relaxed">
-              توثيق وطباعة تقارير الزيارات التفتيشية البيداغوجية الرسمية لأساتذة التربية البدنية والرياضية بالمقاطعة 07 سطيف.
+              توثيق وطباعة تقارير الزيارات التفتيشية البيداغوجية الرسمية لأساتذة التربية البدنية
+              والرياضية بالمقاطعة 07 سطيف.
             </p>
           </div>
 
           <button
-                  onClick={() => { setSaveState('idle'); setShowAddVisitModal(true); }}
+            onClick={() => {
+              setSaveState('idle');
+              setShowAddVisitModal(true);
+            }}
             className="px-5 py-3 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-2xl shadow-lg transition-all flex items-center gap-2 cursor-pointer shrink-0"
           >
             <Plus className="w-4 h-4" />
@@ -165,13 +217,19 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
         {filteredVisits.length === 0 ? (
           <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
             <FileText className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-            <p className="text-xs font-bold text-slate-500">{teacherId ? 'لا توجد زيارات مسجلة لهذا الأستاذ.' : 'لا توجد زيارات مسجلة مطابقة للفرز المحدد.'}</p>
+            <p className="text-xs font-bold text-slate-500">
+              {teacherId
+                ? 'لا توجد زيارات مسجلة لهذا الأستاذ.'
+                : 'لا توجد زيارات مسجلة مطابقة للفرز المحدد.'}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredVisits.map((visit) => {
               const teacher = teachers.find((t) => t.id === visit.teacherId);
-              const teacherName = teacher ? `${teacher.firstName} ${teacher.lastName}` : 'أستاذ المادة';
+              const teacherName = teacher
+                ? `${teacher.firstName} ${teacher.lastName}`
+                : 'أستاذ المادة';
 
               return (
                 <div
@@ -192,7 +250,9 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                     </div>
 
                     <div className="bg-amber-50 border border-amber-200 rounded-2xl px-3 py-1.5 text-center">
-                      <span className="text-[9px] text-amber-700 font-bold block">العلامة الرسمية</span>
+                      <span className="text-[9px] text-amber-700 font-bold block">
+                        العلامة الرسمية
+                      </span>
                       <span className="text-base font-black text-amber-900">
                         {visit.pedagogicalGrade || 16} / 20
                       </span>
@@ -206,7 +266,8 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                         ✅ النقاط الإيجابية:
                       </span>
                       <p className="text-slate-600 text-[11px] leading-relaxed">
-                        {visit.positivePoints?.join(' • ') || 'انضباط ممتاز بدفتر التحضير والتوجيهات.'}
+                        {visit.positivePoints?.join(' • ') ||
+                          'انضباط ممتاز بدفتر التحضير والتوجيهات.'}
                       </p>
                     </div>
 
@@ -249,13 +310,18 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-slate-900">تسجيل تقرير زيارة تفتيشية جديدة</h3>
+                  <h3 className="text-sm font-black text-slate-900">
+                    تسجيل تقرير زيارة تفتيشية جديدة
+                  </h3>
                   <p className="text-[10px] text-slate-500 font-bold">
                     إدخال تقييم الأستاذ واستخراج بطاقة المعاينة الرسمية
                   </p>
                 </div>
               </div>
-              <button onClick={() => setShowAddVisitModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+              <button
+                onClick={() => setShowAddVisitModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
                 ✕
               </button>
             </div>
@@ -278,7 +344,9 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-extrabold text-slate-700 mb-1">نوع الزيارة التفتيشية</label>
+                  <label className="block font-extrabold text-slate-700 mb-1">
+                    نوع الزيارة التفتيشية
+                  </label>
                   <select
                     value={visitType}
                     onChange={(e) => setVisitType(e.target.value as any)}
@@ -302,7 +370,9 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-extrabold text-slate-700 mb-1">عنوان الحصة المعاينة</label>
+                  <label className="block font-extrabold text-slate-700 mb-1">
+                    عنوان الحصة المعاينة
+                  </label>
                   <input
                     type="text"
                     required
@@ -374,7 +444,9 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
               {/* Text notes */}
               <div className="space-y-3">
                 <div>
-                  <label className="block font-extrabold text-slate-700 mb-1">النقاط الإيجابية والمكاسب</label>
+                  <label className="block font-extrabold text-slate-700 mb-1">
+                    النقاط الإيجابية والمكاسب
+                  </label>
                   <textarea
                     rows={2}
                     value={positivesText}
@@ -384,7 +456,9 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-extrabold text-slate-700 mb-1">الجوانب الواجب تحسينها</label>
+                  <label className="block font-extrabold text-slate-700 mb-1">
+                    الجوانب الواجب تحسينها
+                  </label>
                   <textarea
                     rows={2}
                     value={improvementsText}
@@ -394,7 +468,9 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-extrabold text-slate-700 mb-1">التوصيات والتعليمات المباشرة</label>
+                  <label className="block font-extrabold text-slate-700 mb-1">
+                    التوصيات والتعليمات المباشرة
+                  </label>
                   <textarea
                     rows={2}
                     value={recommendationsText}
@@ -442,32 +518,52 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
             {/* Visit Details */}
             <div className="grid grid-cols-2 gap-4 text-xs font-bold border-b border-slate-300 pb-4">
               <div>
-                <p>الأستاذ المعايَن: {teachers.find((t) => t.id === printableVisit.teacherId)?.firstName} {teachers.find((t) => t.id === printableVisit.teacherId)?.lastName}</p>
-                <p>المؤسسة التعليمية: {teachers.find((t) => t.id === printableVisit.teacherId)?.schoolName || 'المؤسسة غير محددة'}</p>
+                <p>
+                  الأستاذ المعايَن:{' '}
+                  {teachers.find((t) => t.id === printableVisit.teacherId)?.firstName}{' '}
+                  {teachers.find((t) => t.id === printableVisit.teacherId)?.lastName}
+                </p>
+                <p>
+                  المؤسسة التعليمية:{' '}
+                  {teachers.find((t) => t.id === printableVisit.teacherId)?.schoolName ||
+                    'المؤسسة غير محددة'}
+                </p>
                 <p>نوع الزيارة: {printableVisit.visitType}</p>
               </div>
               <div>
                 <p>تاريخ الزيارة: {printableVisit.visitDate}</p>
                 <p>عنوان الحصة المعاينة: {printableVisit.lessonObservedTitle}</p>
-                <p className="text-emerald-900 font-extrabold text-sm mt-1">العلامة النهائية: {printableVisit.pedagogicalGrade} / 20</p>
+                <p className="text-emerald-900 font-extrabold text-sm mt-1">
+                  العلامة النهائية: {printableVisit.pedagogicalGrade} / 20
+                </p>
               </div>
             </div>
 
             {/* Observations */}
             <div className="space-y-4 text-xs">
               <div>
-                <h4 className="font-bold underline text-slate-900">1. النقاط الإيجابية والمكاسب:</h4>
+                <h4 className="font-bold underline text-slate-900">
+                  1. النقاط الإيجابية والمكاسب:
+                </h4>
                 <p className="mt-1 leading-relaxed">{printableVisit.positivePoints?.join(' • ')}</p>
               </div>
 
               <div>
-                <h4 className="font-bold underline text-slate-900">2. النقاط التوجيهية الواجب تحسينها:</h4>
-                <p className="mt-1 leading-relaxed">{printableVisit.areasForImprovement?.join(' • ')}</p>
+                <h4 className="font-bold underline text-slate-900">
+                  2. النقاط التوجيهية الواجب تحسينها:
+                </h4>
+                <p className="mt-1 leading-relaxed">
+                  {printableVisit.areasForImprovement?.join(' • ')}
+                </p>
               </div>
 
               <div>
-                <h4 className="font-bold underline text-slate-900">3. التوصيات البيداغوجية الملزمة:</h4>
-                <p className="mt-1 leading-relaxed">{printableVisit.recommendations?.join(' • ')}</p>
+                <h4 className="font-bold underline text-slate-900">
+                  3. التوصيات البيداغوجية الملزمة:
+                </h4>
+                <p className="mt-1 leading-relaxed">
+                  {printableVisit.recommendations?.join(' • ')}
+                </p>
               </div>
             </div>
 
@@ -480,7 +576,9 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
 
               <div className="text-center">
                 <p>ختم وتوقيع مفتش التربية والتعليم الابتدائي</p>
-                <p className="text-emerald-900 font-extrabold mt-1">المفتش: {inspector.firstName} {inspector.lastName}</p>
+                <p className="text-emerald-900 font-extrabold mt-1">
+                  المفتش: {inspector.firstName} {inspector.lastName}
+                </p>
                 <div className="w-24 h-24 rounded-full border-2 border-emerald-800 text-emerald-900 text-[9px] font-black flex items-center justify-center mx-auto mt-2 border-dashed">
                   ختم المفتشية الرسمية
                 </div>

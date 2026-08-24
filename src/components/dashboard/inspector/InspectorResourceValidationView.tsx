@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
-import { ShieldCheck, CheckCircle2, Clock, Search, Filter, Sparkles, MessageSquare, FileText, UserCheck, AlertCircle } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, Clock, Search, MessageSquare, AlertCircle } from 'lucide-react';
 import { CommunityResource, User } from '../../../types/spex';
 
 interface InspectorResourceValidationViewProps {
   resources: CommunityResource[];
   teachers: User[];
   onToggleApproveResource: (resourceId: string) => void;
-  onSendNoteToTeacher: (teacherId: string, teacherName: string, title: string, content: string) => void;
+  onSendNoteToTeacher: (
+    teacherId: string,
+    teacherName: string,
+    title: string,
+    content: string
+  ) => void;
 }
 
 export const InspectorResourceValidationView: React.FC<InspectorResourceValidationViewProps> = ({
@@ -18,9 +23,11 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'pending' | 'approved'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  
+
   // Feedback note state
-  const [selectedResourceForNote, setSelectedResourceForNote] = useState<CommunityResource | null>(null);
+  const [selectedResourceForNote, setSelectedResourceForNote] = useState<CommunityResource | null>(
+    null
+  );
   const [feedbackNote, setFeedbackNote] = useState('');
 
   const filteredResources = resources.filter((res) => {
@@ -33,11 +40,10 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
       filterType === 'all'
         ? true
         : filterType === 'pending'
-        ? !res.isApprovedByInspector
-        : res.isApprovedByInspector;
+          ? !res.isApprovedByInspector
+          : res.isApprovedByInspector;
 
-    const matchesCategory =
-      categoryFilter === 'all' ? true : res.type === categoryFilter;
+    const matchesCategory = categoryFilter === 'all' ? true : res.type === categoryFilter;
 
     return matchesSearch && matchesStatus && matchesCategory;
   });
@@ -51,7 +57,9 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
 
     // Find author user ID if available from teachers
     const authorTeacher = teachers.find(
-      (t) => `${t.firstName} ${t.lastName}` === selectedResourceForNote.authorName || t.username === selectedResourceForNote.authorUsername.replace('@', '')
+      (t) =>
+        `${t.firstName} ${t.lastName}` === selectedResourceForNote.authorName ||
+        t.username === selectedResourceForNote.authorUsername.replace('@', '')
     );
 
     const teacherId = authorTeacher?.id || '';
@@ -81,7 +89,8 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
               مركز المصادقة والاعتماد البيداغوجي للموارد المرفوعة
             </h2>
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-              فحص ومراجعة المذكرات والألعاب التربوية والوثائق البيداغوجية المنشورة من طرف أساتذة المقاطعة، وتوثيق المكتمل منها بختم المفتشية الرسمي.
+              فحص ومراجعة المذكرات والألعاب التربوية والوثائق البيداغوجية المنشورة من طرف أساتذة
+              المقاطعة، وتوثيق المكتمل منها بختم المفتشية الرسمي.
             </p>
           </div>
 
@@ -106,7 +115,9 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
             <button
               onClick={() => setFilterType('all')}
               className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all whitespace-nowrap cursor-pointer ${
-                filterType === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                filterType === 'all'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               جميع الموارد ({resources.length})
@@ -166,7 +177,9 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
         {filteredResources.length === 0 ? (
           <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
             <ShieldCheck className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-            <p className="text-xs font-bold text-slate-500">لا توجد موارد مطابقة للفرز المحدد حالياً.</p>
+            <p className="text-xs font-bold text-slate-500">
+              لا توجد موارد مطابقة للفرز المحدد حالياً.
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -186,10 +199,10 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
                       {res.type === 'lesson_plan'
                         ? '📄 مذكرة بيداغوجية'
                         : res.type === 'game'
-                        ? '🎮 لعبة تربوية'
-                        : res.type === 'situation'
-                        ? '🎯 وضعية تعلمية'
-                        : '📁 وثيقة بيداغوجية'}
+                          ? '🎮 لعبة تربوية'
+                          : res.type === 'situation'
+                            ? '🎯 وضعية تعلمية'
+                            : '📁 وثيقة بيداغوجية'}
                     </span>
 
                     {res.isApprovedByInspector ? (
@@ -226,7 +239,8 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
                           {res.authorName}
                         </span>
                         <span className="text-[9px] text-slate-400">
-                          {res.authorUsername} • {new Date(res.createdAt).toLocaleDateString('ar-DZ')}
+                          {res.authorUsername} •{' '}
+                          {new Date(res.createdAt).toLocaleDateString('ar-DZ')}
                         </span>
                       </div>
                     </div>
@@ -277,7 +291,9 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
                   <AlertCircle className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-slate-900">إرسال توجيه بيداغوجي للأستاذ</h3>
+                  <h3 className="text-sm font-black text-slate-900">
+                    إرسال توجيه بيداغوجي للأستاذ
+                  </h3>
                   <p className="text-[10px] text-slate-500 font-bold">
                     المورد المعني: {selectedResourceForNote.title}
                   </p>

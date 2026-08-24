@@ -12,23 +12,19 @@ import {
   CheckCircle2,
   Sparkles,
   PhoneCall,
-  Mail,
   RefreshCw,
   LogOut,
   Building2,
   BookOpen,
   Calendar,
-  Award,
   FileText,
   BrainCircuit,
   Users,
-  Zap,
   School,
-  ExternalLink,
   ShieldCheck,
   ChevronLeft,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
 } from 'lucide-react';
 import { User } from '../../types/spex';
 import { TeacherProfessionalDataForm } from '../onboarding/TeacherProfessionalDataForm';
@@ -42,7 +38,7 @@ interface PendingApprovalViewerScreenProps {
 export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenProps> = ({
   user,
   onLogout,
-  onRefreshStatus
+  onRefreshStatus,
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
@@ -83,7 +79,8 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-black text-white tracking-tight">
-                  منصة SPEX الرقمية <span className="text-purple-400 text-xs font-bold">| وضع المشاهدة</span>
+                  منصة SPEX الرقمية{' '}
+                  <span className="text-purple-400 text-xs font-bold">| وضع المشاهدة</span>
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30 inline-flex items-center gap-1">
                   <Clock className="w-3 h-3 text-amber-400" />
@@ -103,7 +100,9 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
               className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-all border border-slate-700 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               title="إعادة التحديث للتحقق هل قام المشرف بتفعيل حسابك"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-purple-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-3.5 h-3.5 text-purple-400 ${isRefreshing ? 'animate-spin' : ''}`}
+              />
               <span className="hidden sm:inline">فحص حالة التفعيل</span>
             </button>
 
@@ -139,11 +138,17 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight">
-              أهلاً بك أستاذ <span className="text-purple-400">{user.firstName} {user.lastName}</span> في منصة SPEX الرقمية
+              أهلاً بك أستاذ{' '}
+              <span className="text-purple-400">
+                {user.firstName} {user.lastName}
+              </span>{' '}
+              في منصة SPEX الرقمية
             </h2>
 
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              تم إنشاء تسجيلك بنجاح على المنظومة! نظراً لخصوصية معطيات المناهج البيداغوجية وسجلات المفتشية بالطور الابتدائي، ينطوي تفعيل الحساب للعمل الكامل على <strong>اعتماد وموافقة مشرف المنظومة الرقمية</strong>.
+              تم إنشاء تسجيلك بنجاح على المنظومة! نظراً لخصوصية معطيات المناهج البيداغوجية وسجلات
+              المفتشية بالطور الابتدائي، ينطوي تفعيل الحساب للعمل الكامل على{' '}
+              <strong>اعتماد وموافقة مشرف المنظومة الرقمية</strong>.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs">
@@ -153,7 +158,9 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 font-medium">صاحب الحساب</div>
-                  <div className="font-extrabold text-white">{user.firstName} {user.lastName} ({user.email})</div>
+                  <div className="font-extrabold text-white">
+                    {user.firstName} {user.lastName} ({user.email})
+                  </div>
                 </div>
               </div>
 
@@ -163,7 +170,10 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 font-medium">المؤسسة / المقاطعة</div>
-                  <div className="font-extrabold text-white">{user.schoolName || 'المؤسسة غير محددة'} - {user.municipality || 'البلدية غير محددة'}</div>
+                  <div className="font-extrabold text-white">
+                    {user.schoolName || 'المؤسسة غير محددة'} -{' '}
+                    {user.municipality || 'البلدية غير محددة'}
+                  </div>
                 </div>
               </div>
             </div>
@@ -181,11 +191,20 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
                 <School className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-black text-slate-900">استكمال البيانات المهنية والبطاقة الشخصية</h3>
-                <p className="text-xs text-slate-500">يمكنك تحديث بياناتك (الاسم، تاريخ الميلاد، المديرية، البلدية، المدرسة، المقاطعة الاختيارية) حتى أثناء فترة الحجب</p>
+                <h3 className="text-sm font-black text-slate-900">
+                  استكمال البيانات المهنية والبطاقة الشخصية
+                </h3>
+                <p className="text-xs text-slate-500">
+                  يمكنك تحديث بياناتك (الاسم، تاريخ الميلاد، المديرية، البلدية، المدرسة، المقاطعة
+                  الاختيارية) حتى أثناء فترة الحجب
+                </p>
               </div>
             </div>
-            {isProfessionalFormOpen ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+            {isProfessionalFormOpen ? (
+              <ChevronUp className="w-5 h-5 text-slate-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-slate-400" />
+            )}
           </button>
           {isProfessionalFormOpen && (
             <div className="p-6 border-t border-slate-100 bg-slate-50/50">
@@ -206,7 +225,8 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
                 تواصل مع مشرف المنظومة الرقمية لتفعيل حسابك الآن
               </h3>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                يرجى التواصل المباشر مع مشرف القطاع أو المفتش البيداغوجي المعتمد بمقاطعتك لتأكيد هويتك والتحقق من التعيين المهني، وسيتم منحك صلاحية الوصول الكاملة فوراً.
+                يرجى التواصل المباشر مع مشرف القطاع أو المفتش البيداغوجي المعتمد بمقاطعتك لتأكيد
+                هويتك والتحقق من التعيين المهني، وسيتم منحك صلاحية الوصول الكاملة فوراً.
               </p>
             </div>
 
@@ -244,7 +264,8 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
               أبرز الإمكانيات المتاحة فور تفعيل حسابك من المشرف
             </h3>
             <p className="text-xs text-slate-400">
-              منظومة متكاملة مصممة خصيصاً لتسهيل عمل أستاذ ومفتش التربية البدنية والرياضية للطور الابتدائي
+              منظومة متكاملة مصممة خصيصاً لتسهيل عمل أستاذ ومفتش التربية البدنية والرياضية للطور
+              الابتدائي
             </p>
           </div>
 
@@ -254,9 +275,12 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
               <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center font-extrabold group-hover:scale-110 transition-transform border border-blue-500/20">
                 <FileText className="w-6 h-6" />
               </div>
-              <h4 className="text-base font-extrabold text-white">توليد المذكرات البيداغوجية الذكية</h4>
+              <h4 className="text-base font-extrabold text-white">
+                توليد المذكرات البيداغوجية الذكية
+              </h4>
               <p className="text-xs text-slate-400 leading-relaxed">
-                إنشاء مذكرات تربوية سريعة ومطابقة لمنهاج وزارة التربية الوطنية، مع صياغة الأهداف الإجرائية والوضعيات التعلمية للطور الابتدائي تلقائياً.
+                إنشاء مذكرات تربوية سريعة ومطابقة لمنهاج وزارة التربية الوطنية، مع صياغة الأهداف
+                الإجرائية والوضعيات التعلمية للطور الابتدائي تلقائياً.
               </p>
               <div className="text-[11px] text-purple-400 font-bold flex items-center gap-1">
                 <span>توليد آلي بنقرة واحدة</span>
@@ -271,7 +295,8 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
               </div>
               <h4 className="text-base font-extrabold text-white">الكراس اليومي الرقمي المباشر</h4>
               <p className="text-xs text-slate-400 leading-relaxed">
-                متابعة وإثبات تنفيذ الحصص والأنشطة اليومية، مع الربط التلقائي بالمذكرات وتوثيق الملاحظات والمبررات البيداغوجية.
+                متابعة وإثبات تنفيذ الحصص والأنشطة اليومية، مع الربط التلقائي بالمذكرات وتوثيق
+                الملاحظات والمبررات البيداغوجية.
               </p>
               <div className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
                 <span>توثيق يومي معتمد</span>
@@ -284,9 +309,12 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
               <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-extrabold group-hover:scale-110 transition-transform border border-amber-500/20">
                 <Calendar className="w-6 h-6" />
               </div>
-              <h4 className="text-base font-extrabold text-white">المخططات والتدرجات السنوية الرسمية</h4>
+              <h4 className="text-base font-extrabold text-white">
+                المخططات والتدرجات السنوية الرسمية
+              </h4>
               <p className="text-xs text-slate-400 leading-relaxed">
-                توزيع الميادين البدنية والرياضية والوحدات التعلمية عبر الأسابيع والفصول الدراسية وفق التدرجات الرسمية لسنة 2025/2026.
+                توزيع الميادين البدنية والرياضية والوحدات التعلمية عبر الأسابيع والفصول الدراسية وفق
+                التدرجات الرسمية لسنة 2025/2026.
               </p>
               <div className="text-[11px] text-amber-400 font-bold flex items-center gap-1">
                 <span>توزيع مدروس ومحيّن</span>
@@ -299,9 +327,12 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
               <div className="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-extrabold group-hover:scale-110 transition-transform border border-purple-500/20">
                 <ShieldCheck className="w-6 h-6" />
               </div>
-              <h4 className="text-base font-extrabold text-white">بوابة التوجيه والمتابعة مع المفتش</h4>
+              <h4 className="text-base font-extrabold text-white">
+                بوابة التوجيه والمتابعة مع المفتش
+              </h4>
               <p className="text-xs text-slate-400 leading-relaxed">
-                استلام الملاحظات والتوجيهات البيداغوجية المباشرة من مفتش المقاطعة، والاطلاع على تقارير زيارات المعاينة والتفتيش.
+                استلام الملاحظات والتوجيهات البيداغوجية المباشرة من مفتش المقاطعة، والاطلاع على
+                تقارير زيارات المعاينة والتفتيش.
               </p>
               <div className="text-[11px] text-purple-400 font-bold flex items-center gap-1">
                 <span>تواصل وتأطير مباشر</span>
@@ -314,9 +345,12 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
               <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-extrabold group-hover:scale-110 transition-transform border border-indigo-500/20">
                 <BrainCircuit className="w-6 h-6" />
               </div>
-              <h4 className="text-base font-extrabold text-white">بنك المعرفة والألعاب شبه الرياضية</h4>
+              <h4 className="text-base font-extrabold text-white">
+                بنك المعرفة والألعاب شبه الرياضية
+              </h4>
               <p className="text-xs text-slate-400 leading-relaxed">
-                مكتبة بيداغوجية غنية تتضمن مئات الألعاب التنافسية والتمارين الهادفة لتطوير الصفات البدنية والتوافق الحركي لدى التلاميذ.
+                مكتبة بيداغوجية غنية تتضمن مئات الألعاب التنافسية والتمارين الهادفة لتطوير الصفات
+                البدنية والتوافق الحركي لدى التلاميذ.
               </p>
               <div className="text-[11px] text-indigo-400 font-bold flex items-center gap-1">
                 <span>أكثر من 500 وضعية تربوية</span>
@@ -331,7 +365,8 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
               </div>
               <h4 className="text-base font-extrabold text-white">المجتمع المهني التفاعلي</h4>
               <p className="text-xs text-slate-400 leading-relaxed">
-                التواصل وتبادل الخبرات بين أساتذة ومفتشي المقاطعات التفتيشية المختلفة، ومشاركة المذكرات والتجارب الميدانية الناجحة.
+                التواصل وتبادل الخبرات بين أساتذة ومفتشي المقاطعات التفتيشية المختلفة، ومشاركة
+                المذكرات والتجارب الميدانية الناجحة.
               </p>
               <div className="text-[11px] text-rose-400 font-bold flex items-center gap-1">
                 <span>شبكة مهنية متخصصة</span>

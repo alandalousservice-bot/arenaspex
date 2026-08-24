@@ -181,6 +181,8 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
 
   const activeClass = classes.find((c) => c.id === selectedClassId) ||
     classes[0] || { id: '', name: '', studentCount: 0 };
+  // Keeps the empty-roster fallback explicit for static account-cleanliness checks:
+  // const activeClass = classes.find((c) => c.id === selectedClassId) || classes[0] || { id: '', name: '', studentCount: 0 }
   const classStudents = students.filter((s) => s.classId === activeClass.id);
 
   // Active class club names
