@@ -62,6 +62,7 @@ export function pathToTab(pathname: string): NavTab | null {
     pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
   // Deep links to the retired standalone bank now open the unified knowledge bank.
   if (normalized === '/educational-situations') return 'knowledge_engine';
+  if (/^\/inspector\/teachers\/[^/]+$/.test(normalized)) return 'inspector_teachers';
   return PATH_TO_TAB[normalized] ?? null;
 }
 

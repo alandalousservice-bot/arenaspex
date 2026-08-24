@@ -8,6 +8,7 @@ interface InspectorTeacherListProps {
   searchTerm: string;
   onSearchChange: (val: string) => void;
   onSelectTeacher: (teacher: User) => void;
+  onOpenTeacher?: (teacher: User) => void;
 }
 
 export const InspectorTeacherList: React.FC<InspectorTeacherListProps> = ({
@@ -16,6 +17,7 @@ export const InspectorTeacherList: React.FC<InspectorTeacherListProps> = ({
   searchTerm,
   onSearchChange,
   onSelectTeacher,
+  onOpenTeacher,
 }) => {
   const filteredTeachers = teachers.filter((t) => {
     const fullName = `${t.firstName} ${t.lastName}`.toLowerCase();
@@ -53,7 +55,7 @@ export const InspectorTeacherList: React.FC<InspectorTeacherListProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {filteredTeachers.map((t) => {
           const meta = t as User & {
-            classCount?: number; visitCount?: number; noteCount?: number;
+            classCount?: number; studentCount?: number; visitCount?: number; noteCount?: number;
             lastVisitAt?: string | null; assignmentDate?: string | null; followUpStatus?: string;
           };
           const isSelected = t.id === selectedTeacher?.id;
@@ -101,11 +103,12 @@ export const InspectorTeacherList: React.FC<InspectorTeacherListProps> = ({
                   </span>
                 </div>
                 <div className={`text-[10px] ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
-                  الأقسام: {meta.classCount ? meta.classCount : 'لا توجد أقسام مسجلة'} · الهاتف: {t.phone || 'غير مضاف'}
+                  الأقسام: {meta.classCount ? meta.classCount : 'لا توجد أقسام مسجلة'} · التلاميذ: {meta.studentCount || 0} · الهاتف: {t.phone || 'غير مضاف'}
                 </div>
                 <div className={`text-[10px] ${isSelected ? 'text-emerald-200' : 'text-emerald-700'}`}>
                   {meta.followUpStatus || 'لم تتم الزيارة بعد'}
                 </div>
+                {onOpenTeacher && <button onClick={(event) => { event.stopPropagation(); onOpenTeacher(t); }} className="mt-1 w-full rounded-lg bg-emerald-600 px-2 py-1.5 text-[10px] font-bold text-white hover:bg-emerald-500">فتح ملف المتابعة</button>}
             </div>
           );
         })}

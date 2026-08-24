@@ -841,6 +841,13 @@ export async function fetchInspectorSummary() {
   return data.summary || {};
 }
 
+export async function fetchInspectorTeacherFollowUp(teacherId: string) {
+  const res = await fetch(`/api/inspector/teachers/${encodeURIComponent(teacherId)}/follow-up`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل ملف متابعة الأستاذ.');
+  return data;
+}
+
 // PART A: Geo hierarchy public endpoints
 export const fetchGeoDirectorates = () => getJSON('/api/geo/directorates');
 export const fetchGeoDistricts = (directorateId: string) =>

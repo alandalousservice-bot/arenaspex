@@ -326,13 +326,14 @@ assignmentRouter.get('/inspector/teachers', requireRole('inspector'), async (req
     orderBy: { firstName: 'asc' }
   });
   const acceptedIds = teachers.map((teacher) => teacher.id);
-  const [visits, notes, classes] = await Promise.all([
+  const [visits, notes, classes, students] = await Promise.all([
     prisma.inspectionVisitRecord.findMany({
       where: { inspectorId: req.user!.id, teacherId: { in: acceptedIds } },
       orderBy: { createdAt: 'desc' },
     }),
     prisma.inspectorNote.findMany({ where: { authorId: req.user!.id } }),
     prisma.studentClass.findMany({ where: { teacherId: { in: acceptedIds } }, select: { teacherId: true } }),
+    prisma.student.findMany({ where: { teacherId: { in: acceptedIds } }, select: { teacherId: true } }),
   ]);
   const visitsByTeacher = new Map<string, typeof visits>();
   for (const visit of visits) {
@@ -343,6 +344,8 @@ assignmentRouter.get('/inspector/teachers', requireRole('inspector'), async (req
   const classCounts = new Map<string, number>();
   for (const item of classes) classCounts.set(item.teacherId, (classCounts.get(item.teacherId) || 0) + 1);
   const noteCounts = new Map<string, number>();
+  const studentCounts = new Map<string, number>();
+  for (const student of students) studentCounts.set(student.teacherId, (studentCounts.get(student.teacherId) || 0) + 1);
   for (const note of notes) {
     const teacherId = typeof (note.data as Record<string, unknown>)?.teacherId === 'string'
       ? String((note.data as Record<string, unknown>).teacherId)
@@ -357,12 +360,31 @@ assignmentRouter.get('/inspector/teachers', requireRole('inspector'), async (req
       assignmentStatus: 'ACCEPTED',
       assignmentDate: assignments.find((assignment) => assignment.teacherId === teacher.id)?.assignedAt || null,
       classCount: classCounts.get(teacher.id) || 0,
+      studentCount: studentCounts.get(teacher.id) || 0,
       visitCount: visitsByTeacher.get(teacher.id)?.length || 0,
       noteCount: noteCounts.get(teacher.id) || 0,
       lastVisitAt: visitsByTeacher.get(teacher.id)?.[0]?.createdAt || null,
       followUpStatus: visitsByTeacher.get(teacher.id)?.length ? 'متابعة مستمرة' : 'لم تتم الزيارة بعد',
     })),
   });
+});
+
+assignmentRouter.get('/inspector/teachers/:teacherId/follow-up', requireRole('inspector'), async (req, res) => {
+  const teacherId = req.params.teacherId;
+  const assignment = await prisma.inspectorAssignment.findUnique({ where: { teacherId } });
+  if (!assignment || assignment.inspectorId !== req.user!.id || !['Active', 'Changed'].includes(assignment.status)) {
+    return res.status(404).json({ error: 'الأستاذ غير موجود ضمن إسناداتك المقبولة.' });
+  }
+  const [teacher, classes, students, visits, notes, plans] = await Promise.all([
+    prisma.user.findUnique({ where: { id: teacherId }, select: { id: true, firstName: true, lastName: true, email: true, phone: true, schoolName: true, institutionId: true, status: true } }),
+    prisma.studentClass.findMany({ where: { teacherId }, orderBy: { createdAt: 'asc' } }),
+    prisma.student.findMany({ where: { teacherId }, orderBy: { lastName: 'asc' } }),
+    prisma.inspectionVisitRecord.findMany({ where: { teacherId, inspectorId: req.user!.id }, orderBy: { createdAt: 'desc' } }),
+    prisma.inspectorNote.findMany({ where: { authorId: req.user!.id }, orderBy: { createdAt: 'desc' } }),
+    prisma.lessonPlan.findMany({ where: { ownerId: teacherId }, orderBy: { updatedAt: 'desc' }, take: 50 }),
+  ]);
+  const guidance = notes.filter((note) => (note.data as Record<string, unknown>)?.teacherId === teacherId).map((note) => note.data);
+  res.json({ success: true, teacher, assignment, classes, students, visits: visits.map((row) => row.data), guidance, reports: visits.map((row) => row.data), lessonPlans: plans.map((row) => ({ id: row.id, data: row.data, updatedAt: row.updatedAt })) });
 });
 
 assignmentRouter.get('/inspector/summary', requireRole('inspector'), async (req, res) => {

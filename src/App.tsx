@@ -124,6 +124,7 @@ export default function App() {
 
   const urlTab = pathToTab(location.pathname);
   const currentTab: NavTab = urlTab ?? defaultTabForRole(currentUser.role);
+  const inspectorTeacherId = location.pathname.match(/^\/inspector\/teachers\/([^/]+)$/)?.[1];
 
   /** نقطة التنقل الموحدة: كل تغيير تبويب أصبح تغييراً لعنوان URL */
   const navigateToTab = (tab: NavTab) => {
@@ -549,6 +550,8 @@ export default function App() {
                 onAddBroadcast={handleAddBroadcast}
                 onAddDirectMessage={handleAddDirectMessageFromInspector}
                 onToggleApproveResource={handleToggleApproveResource}
+                teacherId={inspectorTeacherId}
+                onOpenTeacher={(teacherId) => navigate(`/inspector/teachers/${encodeURIComponent(teacherId)}`)}
               />
             )}
 
