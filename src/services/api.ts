@@ -29,7 +29,7 @@ export async function loginRequest(email: string, password: string): Promise<Aut
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -44,9 +44,11 @@ export async function loginRequest(email: string, password: string): Promise<Aut
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('spex_current_user', JSON.stringify(data.user));
       }
-    } catch {}
+    } catch {
+      // localStorage may be unavailable; the server session remains authoritative.
+    }
     return { success: true, user: data.user };
-  } catch (e) {
+  } catch {
     return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
   }
 }
@@ -69,7 +71,7 @@ export async function registerRequest(userData: {
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(userData)
+      body: JSON.stringify(userData),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -79,9 +81,11 @@ export async function registerRequest(userData: {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('spex_current_user', JSON.stringify(data.user));
       }
-    } catch {}
+    } catch {
+      // localStorage may be unavailable; registration itself already completed.
+    }
     return { success: true, user: data.user };
-  } catch (e) {
+  } catch {
     return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
   }
 }
@@ -89,7 +93,7 @@ export async function registerRequest(userData: {
 export async function logoutRequest(): Promise<void> {
   try {
     await fetch('/api/auth/logout', { method: 'POST' });
-  } catch (e) {
+  } catch {
     // تجاهل: تنظيف الحالة المحلية سيحدث بغض النظر
   }
   try {
@@ -98,7 +102,9 @@ export async function logoutRequest(): Promise<void> {
       // للخروج العادي نمسح المستخدم فقط
       localStorage.removeItem('spex_current_user');
     }
-  } catch {}
+  } catch {
+    // localStorage cleanup is best effort.
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -112,7 +118,7 @@ export async function googleLoginRequest(
     const res = await fetch('/api/auth/google', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(role ? { credential, role } : { credential })
+      body: JSON.stringify(role ? { credential, role } : { credential }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -125,9 +131,11 @@ export async function googleLoginRequest(
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('spex_current_user', JSON.stringify(data.user));
       }
-    } catch {}
+    } catch {
+      // localStorage may be unavailable while handling the Google session.
+    }
     return { success: true, user: data.user };
-  } catch (e) {
+  } catch {
     return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
   }
 }
@@ -136,14 +144,14 @@ export async function googleLinkRequest(credential: string): Promise<AuthResult>
     const res = await fetch('/api/auth/google/link', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ credential })
+      body: JSON.stringify({ credential }),
     });
     const data = await res.json();
     if (!res.ok) {
       return { success: false, error: data.error || 'تعذر ربط حساب Google.' };
     }
     return { success: true, user: data.user };
-  } catch (e) {
+  } catch {
     return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
   }
 }
@@ -156,7 +164,7 @@ export async function googleUnlinkRequest(): Promise<AuthResult> {
       return { success: false, error: data.error || 'تعذر إلغاء ربط حساب Google.' };
     }
     return { success: true, user: data.user };
-  } catch (e) {
+  } catch {
     return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
   }
 }
@@ -170,7 +178,9 @@ export async function fetchCurrentSession(): Promise<AuthResult> {
         const user = JSON.parse(raw);
         return { success: true, offline: true, isOfflineSession: true, user };
       }
-    } catch {}
+    } catch {
+      // malformed local session data is ignored and the caller receives offline failure.
+    }
     return { success: false, offline: true, error: 'offline', isOfflineSession: false };
   }
 
@@ -179,7 +189,13 @@ export async function fetchCurrentSession(): Promise<AuthResult> {
     const data = await res.json();
     if (!res.ok) {
       if (data.code === 'ACCOUNT_DISABLED' || data.disabled || data.error?.includes('معطّل')) {
-        return { success: false, disabled: true, user: data.user, error: data.error, code: data.code };
+        return {
+          success: false,
+          disabled: true,
+          user: data.user,
+          error: data.error,
+          code: data.code,
+        };
       }
       if (data.code === 'ACCOUNT_GONE') {
         return { success: false, error: data.error, code: data.code };
@@ -191,9 +207,11 @@ export async function fetchCurrentSession(): Promise<AuthResult> {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('spex_current_user', JSON.stringify(data.user));
       }
-    } catch {}
+    } catch {
+      // localStorage may be unavailable during offline fallback.
+    }
     return { success: true, user: data.user };
-  } catch (e) {
+  } catch {
     // network error — check if offline explicitly
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       try {
@@ -202,7 +220,9 @@ export async function fetchCurrentSession(): Promise<AuthResult> {
           const user = JSON.parse(raw);
           return { success: true, offline: true, isOfflineSession: true, user };
         }
-      } catch {}
+      } catch {
+        // malformed local session data is ignored.
+      }
       return { success: false, offline: true, error: 'offline' };
     }
     return { success: false, error: 'تعذر الاتصال بالخادم.' };
@@ -220,27 +240,30 @@ export async function forgotPasswordRequest(email: string): Promise<SimpleResult
     const res = await fetch('/api/auth/forgot-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email })
+      body: JSON.stringify({ email }),
     });
     const data = await res.json();
     if (!res.ok) return { success: false, error: data.error || 'تعذر إرسال الطلب.' };
     return { success: true, message: data.message };
-  } catch (e) {
+  } catch {
     return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
   }
 }
 
-export async function resetPasswordRequest(token: string, newPassword: string): Promise<SimpleResult> {
+export async function resetPasswordRequest(
+  token: string,
+  newPassword: string
+): Promise<SimpleResult> {
   try {
     const res = await fetch('/api/auth/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, newPassword })
+      body: JSON.stringify({ token, newPassword }),
     });
     const data = await res.json();
     if (!res.ok) return { success: false, error: data.error || 'تعذر تحديث كلمة المرور.' };
     return { success: true, message: data.message };
-  } catch (e) {
+  } catch {
     return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
   }
 }
@@ -256,7 +279,7 @@ export function getStoredApiKey(): string {
       const user = JSON.parse(userRaw);
       if (user.customApiKey) return user.customApiKey.trim();
     }
-  } catch (e) {
+  } catch {
     // ignore json error
   }
   return '';
@@ -276,7 +299,7 @@ export async function testAIProviderOnServer(provider: string) {
     const response = await fetch('/api/ai/test-provider', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider })
+      body: JSON.stringify({ provider }),
     });
     return await response.json();
   } catch {
@@ -323,20 +346,85 @@ export async function fetchAIProviders(): Promise<AIProviderStatusItem[]> {
   }
 }
 
-export interface GenerationAccessItem { userId: string; enabled: boolean; assistantEnabled: boolean; gameSuggestionsEnabled: boolean; provider?: string; keyConfigured?: boolean; credentialEnabled?: boolean; updatedAt?: string; }
-export async function fetchGenerationConfig() { const res = await fetch('/api/admin/generation/config'); const data = await res.json(); if (!res.ok) throw new Error(data.error || 'تعذر تحميل إعدادات الخدمات.'); return data as { generationEnabled: boolean; providerConfigured: boolean; platformFallbackConfigured?: boolean; providers: AIProviderStatusItem[] }; }
-export async function updateGenerationConfig(enabled: boolean) { const res = await fetch('/api/admin/generation/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) }); if (!res.ok) throw new Error('تعذر تحديث حالة الخدمة.'); }
-export async function fetchGenerationAccess(): Promise<GenerationAccessItem[]> { const res = await fetch('/api/admin/generation/access'); const data = await res.json(); if (!res.ok) throw new Error(data.error || 'تعذر تحميل صلاحيات الخدمات.'); return data.access || []; }
-export async function updateGenerationAccess(userId: string, access: { enabled: boolean; assistantEnabled: boolean; gameSuggestionsEnabled: boolean; apiKey?: string; clearKey?: boolean; credentialEnabled?: boolean; provider?: string }) { const res = await fetch(`/api/admin/generation/access/${encodeURIComponent(userId)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(access) }); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data.error || 'تعذر تحديث صلاحيات الخدمات.'); return data.access as GenerationAccessItem; }
-export async function testGenerationAccess(userId: string) { const res = await fetch(`/api/admin/generation/access/${encodeURIComponent(userId)}/test`, { method: 'POST' }); const data = await res.json(); if (!res.ok) throw new Error(data.error || 'تعذر اختبار بيانات الحساب.'); return data as { success: boolean; message: string }; }
-export async function testPlatformFallback() { const res = await fetch('/api/admin/generation/fallback/test', { method: 'POST' }); const data = await res.json(); if (!res.ok) throw new Error(data.error || 'تعذر اختبار المفتاح الاحتياطي.'); return data as { success: boolean; message: string }; }
+export interface GenerationAccessItem {
+  userId: string;
+  enabled: boolean;
+  assistantEnabled: boolean;
+  gameSuggestionsEnabled: boolean;
+  provider?: string;
+  keyConfigured?: boolean;
+  credentialEnabled?: boolean;
+  updatedAt?: string;
+}
+export async function fetchGenerationConfig() {
+  const res = await fetch('/api/admin/generation/config');
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل إعدادات الخدمات.');
+  return data as {
+    generationEnabled: boolean;
+    providerConfigured: boolean;
+    platformFallbackConfigured?: boolean;
+    providers: AIProviderStatusItem[];
+  };
+}
+export async function updateGenerationConfig(enabled: boolean) {
+  const res = await fetch('/api/admin/generation/config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  });
+  if (!res.ok) throw new Error('تعذر تحديث حالة الخدمة.');
+}
+export async function fetchGenerationAccess(): Promise<GenerationAccessItem[]> {
+  const res = await fetch('/api/admin/generation/access');
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل صلاحيات الخدمات.');
+  return data.access || [];
+}
+export async function updateGenerationAccess(
+  userId: string,
+  access: {
+    enabled: boolean;
+    assistantEnabled: boolean;
+    gameSuggestionsEnabled: boolean;
+    apiKey?: string;
+    clearKey?: boolean;
+    credentialEnabled?: boolean;
+    provider?: string;
+  }
+) {
+  const res = await fetch(`/api/admin/generation/access/${encodeURIComponent(userId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(access),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحديث صلاحيات الخدمات.');
+  return data.access as GenerationAccessItem;
+}
+export async function testGenerationAccess(userId: string) {
+  const res = await fetch(`/api/admin/generation/access/${encodeURIComponent(userId)}/test`, {
+    method: 'POST',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'تعذر اختبار بيانات الحساب.');
+  return data as { success: boolean; message: string };
+}
+export async function testPlatformFallback() {
+  const res = await fetch('/api/admin/generation/fallback/test', { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'تعذر اختبار المفتاح الاحتياطي.');
+  return data as { success: boolean; message: string };
+}
 
-export async function createAIProvider(input: AIProviderInput): Promise<{ success: boolean; error?: string }> {
+export async function createAIProvider(
+  input: AIProviderInput
+): Promise<{ success: boolean; error?: string }> {
   try {
     const res = await fetch('/api/ai/providers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input)
+      body: JSON.stringify(input),
     });
     const data = await res.json();
     if (!res.ok) return { success: false, error: data.error || 'تعذّر حفظ المزود.' };
@@ -346,12 +434,15 @@ export async function createAIProvider(input: AIProviderInput): Promise<{ succes
   }
 }
 
-export async function updateAIProvider(id: string, input: AIProviderInput): Promise<{ success: boolean; error?: string }> {
+export async function updateAIProvider(
+  id: string,
+  input: AIProviderInput
+): Promise<{ success: boolean; error?: string }> {
   try {
     const res = await fetch(`/api/ai/providers/${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input)
+      body: JSON.stringify(input),
     });
     const data = await res.json();
     if (!res.ok) return { success: false, error: data.error || 'تعذّر تحديث المزود.' };
@@ -403,7 +494,7 @@ export async function requestAILessonPlan(payload: LessonGeneratorPayload) {
     const response = await fetch('/api/ai/generate-lesson', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -428,54 +519,109 @@ export async function previewStudentRoster(file: File) {
     reader.onerror = () => reject(reader.error || new Error('file read failed'));
     reader.readAsDataURL(file);
   });
-  const response = await fetch('/api/students/import/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: file.name, contentBase64 }) });
+  const response = await fetch('/api/students/import/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename: file.name, contentBase64 }),
+  });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'تعذر التعرف على بنية الملف.');
-  return data as { previews: any[]; summary: { worksheets: number; students: number; invalidRows: number; needsGradeSelection: number } };
+  return data as {
+    previews: unknown[];
+    summary: {
+      worksheets: number;
+      students: number;
+      invalidRows: number;
+      needsGradeSelection: number;
+    };
+  };
 }
 
-export async function confirmStudentRosterImport(rows: unknown[], classId: string, grade?: number, className?: string, levelId?: string) {
-  const response = await fetch('/api/students/import/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows, classId, grade, className, levelId }) });
+export async function confirmStudentRosterImport(
+  rows: unknown[],
+  classId: string,
+  grade?: number,
+  className?: string,
+  levelId?: string
+) {
+  const response = await fetch('/api/students/import/confirm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rows, classId, grade, className, levelId }),
+  });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'تعذر تأكيد الاستيراد.');
-  return data as { success: boolean; classId: string; summary: { created: number; existing: number; linkedStudents: number; conflicts: number; review: number } };
+  return data as {
+    success: boolean;
+    classId: string;
+    summary: {
+      created: number;
+      existing: number;
+      linkedStudents: number;
+      conflicts: number;
+      review: number;
+    };
+  };
 }
 
 export async function fetchStudentRoster() {
   const response = await fetch('/api/students/roster');
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'تعذر تحميل قائمة التلاميذ.');
-  return data as { classes: any[]; students: any[] };
+  return data as { classes: unknown[]; students: unknown[] };
 }
 
-function normalizeLessonPlanData(data: any, payload: LessonGeneratorPayload) {
+type ApiRecord = Record<string, unknown>;
+
+function asApiRecord(value: unknown): ApiRecord {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as ApiRecord) : {};
+}
+
+function normalizeLessonPlanData(data: unknown, payload: LessonGeneratorPayload) {
   const base = fallbackLessonClientGenerator(payload);
-  const warmupGame = data?.warmupPhase?.pedagogicalWarmupGame || base.warmupPhase.pedagogicalWarmupGame;
+  const input = asApiRecord(data);
+  const warmupPhase = asApiRecord(input.warmupPhase);
+  const mainPhase = asApiRecord(input.mainPhase);
+  const warmupGame = warmupPhase.pedagogicalWarmupGame || base.warmupPhase.pedagogicalWarmupGame;
 
   return {
     ...base,
-    ...(data || {}),
-    generalObjective: data?.generalObjective || base.generalObjective,
-    proceduralObjectives: { ...base.proceduralObjectives, ...(data?.proceduralObjectives || {}) },
+    ...input,
+    generalObjective: input.generalObjective || base.generalObjective,
+    proceduralObjectives: {
+      ...base.proceduralObjectives,
+      ...asApiRecord(input.proceduralObjectives),
+    },
     equipmentNeeded:
-      Array.isArray(data?.equipmentNeeded) && data.equipmentNeeded.length > 0
-        ? data.equipmentNeeded
+      Array.isArray(input.equipmentNeeded) && input.equipmentNeeded.length > 0
+        ? input.equipmentNeeded
         : base.equipmentNeeded,
     safetyRules:
-      Array.isArray(data?.safetyRules) && data.safetyRules.length > 0 ? data.safetyRules : base.safetyRules,
+      Array.isArray(input.safetyRules) && input.safetyRules.length > 0
+        ? input.safetyRules
+        : base.safetyRules,
     warmupPhase: {
       ...base.warmupPhase,
-      ...(data?.warmupPhase || {}),
-      pedagogicalWarmupGame: warmupGame
+      ...warmupPhase,
+      pedagogicalWarmupGame: warmupGame,
     },
     mainPhase: {
       ...base.mainPhase,
-      ...(data?.mainPhase || {}),
-      learningSituation1: { ...base.mainPhase.learningSituation1, ...(data?.mainPhase?.learningSituation1 || {}) },
-      learningSituation2: { ...base.mainPhase.learningSituation2, ...(data?.mainPhase?.learningSituation2 || {}) },
-      guidedApplication: { ...base.mainPhase.guidedApplication, ...(data?.mainPhase?.guidedApplication || {}) }
+      ...mainPhase,
+      learningSituation1: {
+        ...base.mainPhase.learningSituation1,
+        ...asApiRecord(mainPhase.learningSituation1),
+      },
+      learningSituation2: {
+        ...base.mainPhase.learningSituation2,
+        ...asApiRecord(mainPhase.learningSituation2),
+      },
+      guidedApplication: {
+        ...base.mainPhase.guidedApplication,
+        ...asApiRecord(mainPhase.guidedApplication),
+      },
     },
-    coolDownPhase: { ...base.coolDownPhase, ...(data?.coolDownPhase || {}) }
+    coolDownPhase: { ...base.coolDownPhase, ...asApiRecord(input.coolDownPhase) },
   };
 }
 
@@ -490,7 +636,7 @@ export async function requestAIImproveWording(payload: ImproveWordingPayload): P
     const response = await fetch('/api/ai/improve-wording', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
     if (!response.ok) throw new Error(`Server returned status ${response.status}`);
     const json = await response.json();
@@ -507,19 +653,19 @@ export async function requestAIGames(fieldName: string, levelName: string) {
     const response = await fetch('/api/ai/suggest-games', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fieldName, levelName })
+      body: JSON.stringify({ fieldName, levelName }),
     });
     const json = await response.json();
     return json.games || [];
-  } catch (err) {
+  } catch {
     return [
       {
         title: `لعبة سباق الكرات والتمرير السريع (${fieldName})`,
         description: `لعبة حماسية لرفع كفاءة التنسيق والسرعة الاستجابية لدى التلاميذ.`,
         equipment: ['أقماع شواخص (6)', 'كرات مخصصة (4)'],
         rules: 'ينقسم القسم لأربعة أفواج، ويتم التناوب على التمرير السريع بدقة.',
-        duration: '10 دقائق'
-      }
+        duration: '10 دقائق',
+      },
     ];
   }
 }
@@ -532,7 +678,12 @@ export interface PedagogicalGameSuggestionRequest {
   objectiveText: string;
   existingGames?: string[];
   existingSituations?: string[];
-  constraints?: { equipment?: string; groupSize?: string; environment?: string; difficulty?: string };
+  constraints?: {
+    equipment?: string;
+    groupSize?: string;
+    environment?: string;
+    difficulty?: string;
+  };
 }
 
 export async function requestPedagogicalGameSuggestion(payload: PedagogicalGameSuggestionRequest) {
@@ -561,41 +712,71 @@ export async function fetchPedagogicalGames(scope: 'public' | 'mine' | 'pending'
 }
 
 export async function createPedagogicalGame(game: Partial<KnowledgeItem>) {
-  const response = await fetch('/api/pedagogical-games', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(game) });
+  const response = await fetch('/api/pedagogical-games', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(game),
+  });
   const json = await response.json();
   if (!response.ok) throw new Error(json.error || 'تعذر حفظ اللعبة.');
   return json.game;
 }
 
 export async function updatePedagogicalGame(id: string, game: Partial<KnowledgeItem>) {
-  const response = await fetch(`/api/pedagogical-games/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(game) });
+  const response = await fetch(`/api/pedagogical-games/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(game),
+  });
   const json = await response.json();
   if (!response.ok) throw new Error(json.error || 'تعذر تعديل اللعبة.');
   return json.game;
 }
 
-export async function deletePedagogicalGame(id: string) { await fetch(`/api/pedagogical-games/${id}`, { method: 'DELETE' }); }
-export async function submitPedagogicalGame(id: string) { const response = await fetch(`/api/pedagogical-games/${id}/submit`, { method: 'POST' }); const json = await response.json(); if (!response.ok) throw new Error(json.error || 'تعذر إرسال اللعبة.'); return json.game; }
-export async function approvePedagogicalGame(id: string) { const response = await fetch(`/api/pedagogical-games/${id}/approve`, { method: 'POST' }); if (!response.ok) throw new Error('تعذر اعتماد اللعبة.'); }
-export async function rejectPedagogicalGame(id: string, rejectionReason: string) { const response = await fetch(`/api/pedagogical-games/${id}/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rejectionReason }) }); if (!response.ok) throw new Error('تعذر رفض اللعبة.'); }
+export async function deletePedagogicalGame(id: string) {
+  await fetch(`/api/pedagogical-games/${id}`, { method: 'DELETE' });
+}
+export async function submitPedagogicalGame(id: string) {
+  const response = await fetch(`/api/pedagogical-games/${id}/submit`, { method: 'POST' });
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.error || 'تعذر إرسال اللعبة.');
+  return json.game;
+}
+export async function approvePedagogicalGame(id: string) {
+  const response = await fetch(`/api/pedagogical-games/${id}/approve`, { method: 'POST' });
+  if (!response.ok) throw new Error('تعذر اعتماد اللعبة.');
+}
+export async function rejectPedagogicalGame(id: string, rejectionReason: string) {
+  const response = await fetch(`/api/pedagogical-games/${id}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rejectionReason }),
+  });
+  if (!response.ok) throw new Error('تعذر رفض اللعبة.');
+}
 
-export async function sendAIChatMessage(message: string, history: { role: 'user' | 'model'; text: string }[]) {
+export async function sendAIChatMessage(
+  message: string,
+  history: { role: 'user' | 'model'; text: string }[]
+) {
   try {
     const response = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, history })
+      body: JSON.stringify({ message, history }),
     });
     const json = await response.json();
     return json.response || 'عذراً، حدث خطأ في معالجة الرسالة.';
-  } catch (err) {
+  } catch {
     return '⚠️ **ملاحظة من البنك البيداغوجي للمنصة**: تم استنفاذ السعة اليومية المتاحة للاستعلام المباشر لهذا الحساب اليوم. يتجدد الرصيد تلقائياً غداً صباحاً. يمكنك الاعتماد حالياً على بنك المذكرات والأنشطة المخزنة مسبقاً في المنصة.';
   }
 }
 
 // Platform DB Auto-Save Sync Helpers — PART C: موجهة عبر offlinePost/offlineDelete
 
-export async function syncUserToDB(user: User): Promise<{ success: boolean; user?: User; error?: string }> {
+export async function syncUserToDB(
+  user: User
+): Promise<{ success: boolean; user?: User; error?: string }> {
   const result = await offlinePost('/api/db/users', { user }, 'POST');
   if (result.success) {
     // try to get actual user from server if online, but offlinePost already attempted
@@ -603,7 +784,7 @@ export async function syncUserToDB(user: User): Promise<{ success: boolean; user
       const res = await fetch('/api/db/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user })
+        body: JSON.stringify({ user }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -632,7 +813,7 @@ export async function fetchUsersFromDB() {
     const res = await fetch('/api/db/users');
     const data = await res.json();
     return data.users || [];
-  } catch (e) {
+  } catch {
     return [];
   }
 }
@@ -659,9 +840,13 @@ export async function fetchManagedUsersFromDB(): Promise<User[]> {
   }
 }
 
-export async function activateUserAccount(userId: string): Promise<{ success: boolean; user?: User; error?: string }> {
+export async function activateUserAccount(
+  userId: string
+): Promise<{ success: boolean; user?: User; error?: string }> {
   try {
-    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/activate`, { method: 'POST' });
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/activate`, {
+      method: 'POST',
+    });
     const data = await res.json();
     return res.ok ? { success: true, user: data.user } : { success: false, error: data.error };
   } catch {
@@ -682,7 +867,7 @@ export async function fetchLessonPlansFromDB() {
     const res = await fetch('/api/db/lesson-plans');
     const data = await res.json();
     return data.lessonPlans || [];
-  } catch (e) {
+  } catch {
     return [];
   }
 }
@@ -703,7 +888,9 @@ export async function deleteNotebookEntryFromDB(entryId: string) {
   await offlineDelete(`/api/db/notebook/${entryId}`);
 }
 
-export async function syncInspectorNoteToDB(note: unknown): Promise<{ success: boolean; error?: string }> {
+export async function syncInspectorNoteToDB(
+  note: unknown
+): Promise<{ success: boolean; error?: string }> {
   return offlinePost('/api/db/inspector-notes', { note }, 'POST');
 }
 
@@ -714,7 +901,9 @@ export async function fetchTeacherInspectionFeed() {
   return data;
 }
 
-export async function syncInspectionVisitToDB(visit: unknown): Promise<{ success: boolean; error?: string }> {
+export async function syncInspectionVisitToDB(
+  visit: unknown
+): Promise<{ success: boolean; error?: string }> {
   return offlinePost('/api/inspection-visits', { visit }, 'POST');
 }
 
@@ -749,7 +938,7 @@ export async function fetchCommunityResourcesFromDB() {
     const res = await fetch('/api/db/community-resources');
     const data = await res.json();
     return data.communityResources || [];
-  } catch (e) {
+  } catch {
     return [];
   }
 }
@@ -779,7 +968,7 @@ async function getJSON(url: string) {
     const data = await res.json();
     if (!res.ok) return { success: false, error: data.error };
     return data;
-  } catch (e) {
+  } catch {
     return { success: false, error: 'تعذر الاتصال بالخادم.' };
   }
 }
@@ -789,12 +978,12 @@ async function postJSON(url: string, body?: unknown, method: 'POST' | 'PUT' | 'D
     const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: body !== undefined ? JSON.stringify(body) : undefined
+      body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     const data = await res.json();
     if (!res.ok) return { success: false, error: data.error };
     return data;
-  } catch (e) {
+  } catch {
     return { success: false, error: 'تعذر الاتصال بالخادم.' };
   }
 }
@@ -826,7 +1015,10 @@ export const saveTeacherProfessionalData = (payload: TeacherProfessionalData) =>
 
 export const fetchMyAssignment = () => getJSON('/api/teacher/assignment');
 
-export const fetchMyAssignedTeachers = (filters?: { municipalityId?: string; institutionId?: string }) => {
+export const fetchMyAssignedTeachers = (filters?: {
+  municipalityId?: string;
+  institutionId?: string;
+}) => {
   const params = new URLSearchParams();
   if (filters?.municipalityId) params.set('municipalityId', filters.municipalityId);
   if (filters?.institutionId) params.set('institutionId', filters.institutionId);
@@ -861,7 +1053,11 @@ export const fetchGeoDistricts = (directorateId: string) =>
   getJSON(`/api/geo/directorates/${directorateId}/districts`);
 export const fetchGeoMunicipalities = (directorateId: string) =>
   getJSON(`/api/geo/directorates/${directorateId}/municipalities`);
-export const fetchGeoSchools = (params?: { municipalityId?: string; districtId?: string; commune?: string }) => {
+export const fetchGeoSchools = (params?: {
+  municipalityId?: string;
+  districtId?: string;
+  commune?: string;
+}) => {
   const q = new URLSearchParams();
   if (params?.municipalityId) q.set('municipalityId', params.municipalityId);
   if (params?.districtId) q.set('districtId', params.districtId);
@@ -873,33 +1069,47 @@ export const fetchGeoDistrictCommunes = (districtId: string) =>
   getJSON(`/api/geo/districts/${districtId}/communes`);
 
 // --- إدارة (Admin) ---
-export const adminCreateDirectorate = (payload: { id: string; name: string; wilayaCode?: string }) =>
-  postJSON('/api/admin/directorates', payload);
+export const adminCreateDirectorate = (payload: {
+  id: string;
+  name: string;
+  wilayaCode?: string;
+}) => postJSON('/api/admin/directorates', payload);
 export const adminCreateMunicipality = (payload: { name: string; directorateId: string }) =>
   postJSON('/api/admin/municipalities', payload);
 export const adminCreateSchool = (payload: { name: string; municipalityId: string }) =>
   postJSON('/api/admin/schools', payload);
-export const adminCreateDistrict = (payload: { name: string; directorateId: string; districtNumber?: number }) =>
-  postJSON('/api/admin/districts', payload);
+export const adminCreateDistrict = (payload: {
+  name: string;
+  directorateId: string;
+  districtNumber?: number;
+}) => postJSON('/api/admin/districts', payload);
 
-export const adminDeleteDirectorate = (id: string) => postJSON(`/api/admin/directorates/${id}`, undefined, 'DELETE');
-export const adminDeleteMunicipality = (id: string) => postJSON(`/api/admin/municipalities/${id}`, undefined, 'DELETE');
-export const adminDeleteSchool = (id: string) => postJSON(`/api/admin/schools/${id}`, undefined, 'DELETE');
-export const adminDeleteDistrict = (id: string) => postJSON(`/api/admin/districts/${id}`, undefined, 'DELETE');
+export const adminDeleteDirectorate = (id: string) =>
+  postJSON(`/api/admin/directorates/${id}`, undefined, 'DELETE');
+export const adminDeleteMunicipality = (id: string) =>
+  postJSON(`/api/admin/municipalities/${id}`, undefined, 'DELETE');
+export const adminDeleteSchool = (id: string) =>
+  postJSON(`/api/admin/schools/${id}`, undefined, 'DELETE');
+export const adminDeleteDistrict = (id: string) =>
+  postJSON(`/api/admin/districts/${id}`, undefined, 'DELETE');
 
 export const fetchPendingSuggestions = () => getJSON('/api/admin/suggestions');
 export const approveMunicipalitySuggestion = (id: string) =>
   postJSON(`/api/admin/suggestions/municipalities/${id}/approve`);
 export const rejectMunicipalitySuggestion = (id: string) =>
   postJSON(`/api/admin/suggestions/municipalities/${id}/reject`);
-export const approveSchoolSuggestion = (id: string) => postJSON(`/api/admin/suggestions/schools/${id}/approve`);
-export const rejectSchoolSuggestion = (id: string) => postJSON(`/api/admin/suggestions/schools/${id}/reject`);
+export const approveSchoolSuggestion = (id: string) =>
+  postJSON(`/api/admin/suggestions/schools/${id}/approve`);
+export const rejectSchoolSuggestion = (id: string) =>
+  postJSON(`/api/admin/suggestions/schools/${id}/reject`);
 
 export const fetchAllAssignments = (status?: string) =>
   getJSON(`/api/admin/assignments${status ? `?status=${status}` : ''}`);
 export const reassignAllTeachers = () => postJSON('/api/admin/assignments/reassign-all');
-export const removeTeacherAssignment = (teacherId: string) => postJSON(`/api/admin/assignments/${teacherId}/remove`);
-export const reassignSingleTeacher = (teacherId: string) => postJSON(`/api/admin/assignments/${teacherId}/reassign`);
+export const removeTeacherAssignment = (teacherId: string) =>
+  postJSON(`/api/admin/assignments/${teacherId}/remove`);
+export const reassignSingleTeacher = (teacherId: string) =>
+  postJSON(`/api/admin/assignments/${teacherId}/reassign`);
 
 // Pending assignments for inspector (PART B)
 export const fetchInspectorPendingAssignments = () => getJSON('/api/inspector/pending-assignments');
@@ -925,7 +1135,11 @@ export const fetchAnnualPlans = (params: {
   if (params.academicYearId) query.set('academicYearId', params.academicYearId);
   if (params.levelId) query.set('levelId', params.levelId);
   const qs = query.toString();
-  return getJSON(`/api/db/annual-plans${qs ? `?${qs}` : ''}`) as Promise<{ success: boolean; annualPlans?: AnnualPlan[]; error?: string }>;
+  return getJSON(`/api/db/annual-plans${qs ? `?${qs}` : ''}`) as Promise<{
+    success: boolean;
+    annualPlans?: AnnualPlan[];
+    error?: string;
+  }>;
 };
 
 // الأستاذ يحفظ مسودته الخاصة، أو المفتش يحفظ اقتراحاً لأستاذ من مقاطعته (يبقى
@@ -937,16 +1151,31 @@ export const saveAnnualPlan = (payload: {
   levelId: string;
   kind: AnnualPlanKind;
   data: { overrides: Record<string, AnnualPlanObjectiveOverride>; note?: string };
-}) => postJSON('/api/db/annual-plans', { annualPlan: payload }) as Promise<{ success: boolean; annualPlan?: AnnualPlan; error?: string }>;
+}) =>
+  postJSON('/api/db/annual-plans', { annualPlan: payload }) as Promise<{
+    success: boolean;
+    annualPlan?: AnnualPlan;
+    error?: string;
+  }>;
 
 export const approveAnnualPlan = (id: string) =>
-  postJSON(`/api/db/annual-plans/${id}/approve`) as Promise<{ success: boolean; annualPlan?: AnnualPlan; error?: string }>;
+  postJSON(`/api/db/annual-plans/${id}/approve`) as Promise<{
+    success: boolean;
+    annualPlan?: AnnualPlan;
+    error?: string;
+  }>;
 
-export const deleteAnnualPlan = (id: string) => postJSON(`/api/db/annual-plans/${id}`, undefined, 'DELETE');
+export const deleteAnnualPlan = (id: string) =>
+  postJSON(`/api/db/annual-plans/${id}`, undefined, 'DELETE');
 
 function fallbackLessonClientGenerator(payload: LessonGeneratorPayload) {
-  const customObj = payload.customObjective || `تحقيق هدف المقطع التعليمي لـ (${payload.sessionTitle}) وفق المعايير الرسمية المعتمدة.`;
-  const segmentTarget = payload.segmentGoal || payload.competencyTitle || 'التحكم في المهارات الحركية والسلوك البدني والتنظيم الجماعي.';
+  const customObj =
+    payload.customObjective ||
+    `تحقيق هدف المقطع التعليمي لـ (${payload.sessionTitle}) وفق المعايير الرسمية المعتمدة.`;
+  const segmentTarget =
+    payload.segmentGoal ||
+    payload.competencyTitle ||
+    'التحكم في المهارات الحركية والسلوك البدني والتنظيم الجماعي.';
 
   return {
     teacherName: payload.teacherName || 'أستاذ المادة',
@@ -957,24 +1186,28 @@ function fallbackLessonClientGenerator(payload: LessonGeneratorPayload) {
     proceduralObjectives: {
       motor: `أن ينفذ التلميذ المهارات الحركية لـ (${customObj}) بتناسق حركي وسلاسة ودقة أداء.`,
       cognitive: `أن يستوعب التلميذ التكتيك وقوانين اللعبة المنظمة للحصة لربطها بـ (${segmentTarget}).`,
-      affective: `أن يبدي التلميذ الروح الرياضية التنافسية، الانضباط، والتعاون مع زملائه داخل الفريق.`
+      affective: `أن يبدي التلميذ الروح الرياضية التنافسية، الانضباط، والتعاون مع زملائه داخل الفريق.`,
     },
-    equipmentNeeded: payload.customEquipment ? payload.customEquipment.split(/[,،]/).map(s => s.trim()) : ['ميقاتي رقمي', 'أقماع ملونة (10)', 'كرات مخصصة', 'صفارة حكّم'],
+    equipmentNeeded: payload.customEquipment
+      ? payload.customEquipment.split(/[,،]/).map((s) => s.trim())
+      : ['ميقاتي رقمي', 'أقماع ملونة (10)', 'كرات مخصصة', 'صفارة حكّم'],
     safetyRules: [
       'التفقد الميداني لخلو الملعب من العوائق والأجسام الصلبة',
       'التأكد من ارتداء اللباس والحذاء الرياضي المناسب',
-      'مراعاة التدرج في الإحماء والجهد البدني تجنباً للإصابات العضلية'
+      'مراعاة التدرج في الإحماء والجهد البدني تجنباً للإصابات العضلية',
     ],
     warmupPhase: {
       duration: '10-12 دقيقة',
       pedagogicalWarmupGame: {
         title: `لعبة الصياد والأسماك السريعة (إحماء تربوي حر)`,
         rules: `يتنقل التلاميذ داخل منطقة محددة بالإيقاع الجري، وعند إشارة الأستاذ يحاول "الصياد" المساس بأكبر عدد مع تفادي الاصطدام.`,
-        equipment: 'أقماع ملونة لتحديد منطقة اللعب + صدريات للوحدات'
+        equipment: 'أقماع ملونة لتحديد منطقة اللعب + صدريات للوحدات',
       },
-      generalWarmup: 'جري خفيف حول الميدان في تشكيل منظم مع تنويع الإيقاع والاستجابة لإشارات الأستاذ.',
-      specificWarmup: 'تمارين مرونة المفاصل والإطالة العضلية الديناميكية الموجهة للطرفين السفليين والعلميين.',
-      organization: 'مجموعات متوازية مع الحفاظ على مسافة أمان كافية بين التلاميذ.'
+      generalWarmup:
+        'جري خفيف حول الميدان في تشكيل منظم مع تنويع الإيقاع والاستجابة لإشارات الأستاذ.',
+      specificWarmup:
+        'تمارين مرونة المفاصل والإطالة العضلية الديناميكية الموجهة للطرفين السفليين والعلميين.',
+      organization: 'مجموعات متوازية مع الحفاظ على مسافة أمان كافية بين التلاميذ.',
     },
     mainPhase: {
       duration: '30-35 دقيقة',
@@ -983,24 +1216,25 @@ function fallbackLessonClientGenerator(payload: LessonGeneratorPayload) {
         title: `الموقف الأول (لعبة تربوية تنافسية 1): سباق التتابع والدقة الحركية`,
         description: `يتنافس قاطرتان بين الأقماع للوصول إلى النقطة النهائية وأداء حركة (${customObj}) ثم العودة لتسليم الشاهد لزميله.`,
         dosing: `3 جولات تنافسية متتالية مع احتساب النقاط لكل فوج.`,
-        criteria: `سرعة الإنجاز والالتزام بقواعد اللعبة والدقة الحركية.`
+        criteria: `سرعة الإنجاز والالتزام بقواعد اللعبة والدقة الحركية.`,
       },
       learningSituation2: {
         title: `الموقف الثاني (لعبة تربوية تنافسية 2): مباراة التحدي والتصويب الجماعي`,
         description: `موقف تنافسي مركب يتواجه فيه فريقان لإنجاز المهارة تحت ضغط المنافسة المباشرة مع تحقيق هدف المقطع (${segmentTarget}).`,
         dosing: `جولتان لمدة 5 دقائق لكل جولة مع تبادل الملاعب.`,
-        criteria: `تحقيق هدف الحصة عبر جمع أكبر عدد من النقاط وفق شروط التنافس.`
+        criteria: `تحقيق هدف الحصة عبر جمع أكبر عدد من النقاط وفق شروط التنافس.`,
       },
       guidedApplication: {
         title: `التطبيق الموجه: مواجهة تنافسية مصغرة بروح رياضية`,
         description: `إقامة منافسة بين أفواج القسم لتطبيق المهارات المكتسبة مع احتساب النقاط.`,
-        rules: `احترام قوانين اللعبة والتنافس الشريف.`
-      }
+        rules: `احترام قوانين اللعبة والتنافس الشريف.`,
+      },
     },
     coolDownPhase: {
       duration: '5-10 دقائق',
       activities: 'المشي الخفيف، حركات التنفس الموجهة والاسترخاء العضلي للتهدئة.',
-      assessmentAndDialogue: 'مناقشة الأستاذ للتلاميذ وتحديد الملاحظات الفردية الجماعية وتسجيل النتائج.'
-    }
+      assessmentAndDialogue:
+        'مناقشة الأستاذ للتلاميذ وتحديد الملاحظات الفردية الجماعية وتسجيل النتائج.',
+    },
   };
 }
