@@ -1,24 +1,16 @@
 import React from 'react';
 import {
   X,
-  User,
   Building2,
   School,
-  MapPin,
-  Award,
   CheckCircle2,
   UserPlus,
   UserCheck,
   MessageCircle,
-  Mail,
-  Phone,
-  Calendar,
   ShieldCheck,
   Sparkles,
-  BookOpen,
-  Star,
   Lock,
-  GraduationCap
+  GraduationCap,
 } from 'lucide-react';
 import { User as UserType } from '../../types/spex';
 
@@ -39,7 +31,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onClose,
   onToggleFollow,
   onStartDirectChat,
-  totalFollowersCount = 12
+  totalFollowersCount = 12,
 }) => {
   if (!isOpen || !user) return null;
 
@@ -68,7 +60,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-200" dir="rtl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-200"
+      dir="rtl"
+    >
       <div className="bg-white rounded-3xl max-w-xl w-full overflow-hidden shadow-2xl border border-slate-200 relative">
         {/* Cover Top Banner */}
         <div className="h-32 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 relative p-4 flex items-start justify-between">
@@ -93,11 +88,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <div className="flex items-end gap-4">
               <div className="relative">
                 <img
-                  src={user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'}
+                  src={
+                    user.avatar ||
+                    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'
+                  }
                   alt={`${user.firstName} ${user.lastName}`}
                   className="w-24 h-24 rounded-3xl object-cover border-4 border-white shadow-xl bg-slate-100"
                 />
-                <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white" title="متصل الآن"></span>
+                <span
+                  className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white"
+                  title="متصل الآن"
+                ></span>
               </div>
 
               <div className="space-y-1">
@@ -111,7 +112,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </h3>
 
                 <div className="flex items-center gap-2 text-xs font-bold">
-                  <span className="text-blue-600 dir-ltr font-extrabold">@{user.username || 'user'}</span>
+                  <span className="text-blue-600 dir-ltr font-extrabold">
+                    @{user.username || 'user'}
+                  </span>
                   <span className="text-slate-300">•</span>
                   <span className="px-2 py-0.5 rounded bg-slate-900 text-emerald-400 font-mono text-[10px] font-bold">
                     SPEX ID: {user.spexId || 'SPX-8K31H2'}
@@ -196,8 +199,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
               <div className="p-3 bg-slate-50/90 rounded-2xl border border-slate-200/70 space-y-0.5">
-                <span className="text-[10px] text-slate-400 font-bold block">المقاطعة التفتيشية:</span>
-                <span className="font-extrabold text-slate-900 block">{getDistrictTitle(user.districtId)}</span>
+                <span className="text-[10px] text-slate-400 font-bold block">
+                  المقاطعة التفتيشية:
+                </span>
+                <span className="font-extrabold text-slate-900 block">
+                  {getDistrictTitle(user.districtId)}
+                </span>
                 {isSameDistrict ? (
                   <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" />
@@ -212,22 +219,30 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               </div>
 
               <div className="p-3 bg-slate-50/90 rounded-2xl border border-slate-200/70 space-y-0.5">
-                <span className="text-[10px] text-slate-400 font-bold block">البلدية والولاية:</span>
+                <span className="text-[10px] text-slate-400 font-bold block">
+                  البلدية والولاية:
+                </span>
                 <span className="font-extrabold text-slate-900 block">
                   {user.municipality || 'البلدية غير محددة'}
                 </span>
-                <span className="text-[10px] text-slate-500 font-bold">المديرية: {user.directorateId || 'غير محددة'}</span>
+                <span className="text-[10px] text-slate-500 font-bold">
+                  المديرية: {user.directorateId || 'غير محددة'}
+                </span>
               </div>
 
               <div className="p-3 bg-slate-50/90 rounded-2xl border border-slate-200/70 space-y-0.5">
-                <span className="text-[10px] text-slate-400 font-bold block">البريد الإلكتروني المعتمد:</span>
+                <span className="text-[10px] text-slate-400 font-bold block">
+                  البريد الإلكتروني المعتمد:
+                </span>
                 <span className="font-extrabold text-slate-800 dir-ltr text-right block truncate">
                   {user.email}
                 </span>
               </div>
 
               <div className="p-3 bg-slate-50/90 rounded-2xl border border-slate-200/70 space-y-0.5">
-                <span className="text-[10px] text-slate-400 font-bold block">رقم الهاتف للتواصل المهني:</span>
+                <span className="text-[10px] text-slate-400 font-bold block">
+                  رقم الهاتف للتواصل المهني:
+                </span>
                 <span className="font-extrabold text-slate-800 dir-ltr text-right block">
                   {user.phone || 'غير مضاف'}
                 </span>
@@ -242,7 +257,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <span>الرسالة البيداغوجية والهدف:</span>
             </span>
             <p className="text-slate-700 leading-relaxed font-medium">
-              "الالتزام بتطوير الحصص البدنية بالطور الابتدائي، وتعزيز قيم الروح الرياضية، والتعاون مع زملائي الأساتذة بمقاطعة عين أزال لرفع جودة التعليم المباشر."
+              "الالتزام بتطوير الحصص البدنية بالطور الابتدائي، وتعزيز قيم الروح الرياضية، والتعاون
+              مع زملائي الأساتذة بمقاطعة عين أزال لرفع جودة التعليم المباشر."
             </p>
           </div>
 

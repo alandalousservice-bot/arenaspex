@@ -14,26 +14,19 @@ import {
   Lock,
   Search,
   School,
-  MapPin,
   Sparkles,
   Heart,
   Reply,
-  CheckCircle2,
   AlertTriangle,
   Building2,
-  Clock,
-  BookOpen,
   X,
   MessageCircle,
-  Share2,
-  Radio,
-  Bell
 } from 'lucide-react';
 import {
   User,
   DistrictGroupMessage,
   DirectChatMessage,
-  InspectionDistrict
+  InspectionDistrict,
 } from '../../types/spex';
 import { UserProfileModal } from './UserProfileModal';
 
@@ -55,7 +48,7 @@ interface DistrictChatViewProps {
 export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
   currentUser,
   allUsers,
-  districts = [],
+  districts: _districts = [],
   groupMessages,
   directMessages,
   onSendGroupMessage,
@@ -63,10 +56,12 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
   onToggleFollowTeacher,
   controlledSubTab,
   onSubTabChange,
-  hideTabBar = false
+  hideTabBar = false,
 }) => {
   // Navigation sub-tabs inside chat hub
-  const [activeSubTab, setActiveSubTab] = useState<'group_chat' | 'directory' | 'direct_chats'>('group_chat');
+  const [activeSubTab, setActiveSubTab] = useState<'group_chat' | 'directory' | 'direct_chats'>(
+    'group_chat'
+  );
   const currentSubTab = controlledSubTab ?? activeSubTab;
   const goToSubTab = (tab: typeof currentSubTab) => {
     if (onSubTabChange) onSubTabChange(tab);
@@ -111,7 +106,8 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
 
   // Filter teachers belonging to the SAME district
   const sameDistrictTeachers = allUsers.filter(
-    (u) => u.role === 'teacher' && u.districtId === currentUser.districtId && u.id !== currentUser.id
+    (u) =>
+      u.role === 'teacher' && u.districtId === currentUser.districtId && u.id !== currentUser.id
   );
 
   // Teachers in OTHER districts (to demonstrate restriction rule)
@@ -135,7 +131,7 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
 
     onSendGroupMessage({
       message: groupMessageInput.trim(),
-      replyToId: replyingTo ? replyingTo.id : undefined
+      replyToId: replyingTo ? replyingTo.id : undefined,
     });
 
     setGroupMessageInput('');
@@ -147,7 +143,11 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
     e.preventDefault();
     if (!directInput.trim() || !selectedDirectUser) return;
 
-    onSendDirectMessage(selectedDirectUser.id, `${selectedDirectUser.firstName} ${selectedDirectUser.lastName}`, directInput.trim());
+    onSendDirectMessage(
+      selectedDirectUser.id,
+      `${selectedDirectUser.firstName} ${selectedDirectUser.lastName}`,
+      directInput.trim()
+    );
     setDirectInput('');
   };
 
@@ -188,7 +188,8 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
             </h2>
 
             <p className="text-xs sm:text-sm text-blue-100/90 max-w-2xl leading-relaxed">
-              منصة تفاعلية مخصصة لأساتذة التربية البدنية بالطور الابتدائي: الدردشة الجماعية، وتبادل التجارب البيداغوجية، ومتابعة حسابات الزملاء داخل مقاطعتك.
+              منصة تفاعلية مخصصة لأساتذة التربية البدنية بالطور الابتدائي: الدردشة الجماعية، وتبادل
+              التجارب البيداغوجية، ومتابعة حسابات الزملاء داخل مقاطعتك.
             </p>
           </div>
 
@@ -211,10 +212,11 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
       {restrictionWarning && (
         <div className="bg-amber-500/15 border-2 border-amber-500 text-amber-900 p-4 rounded-2xl flex items-start gap-3 shadow-md animate-in slide-in-from-top-2">
           <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="flex-1 text-xs font-extrabold leading-relaxed">
-            {restrictionWarning}
-          </div>
-          <button onClick={() => setRestrictionWarning(null)} className="text-amber-800 hover:text-amber-950">
+          <div className="flex-1 text-xs font-extrabold leading-relaxed">{restrictionWarning}</div>
+          <button
+            onClick={() => setRestrictionWarning(null)}
+            className="text-amber-800 hover:text-amber-950"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -223,60 +225,60 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
       {/* Primary Navigation Tabs */}
       {!hideTabBar && (
         <div className="flex items-center justify-between border-b border-slate-200 bg-white p-2 rounded-2xl shadow-xs">
-        <div className="flex items-center gap-2 overflow-x-auto">
-          <button
-            onClick={() => goToSubTab('group_chat')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              currentSubTab === 'group_chat'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <MessageSquare className="w-4 h-4" />
-            <span>📢 الدردشة الجماعية للمقاطعة</span>
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-white">
-              {districtChatFeed.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => goToSubTab('directory')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              currentSubTab === 'directory'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>👥 دليل الأساتذة ومتابعة الحسابات</span>
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-900 font-extrabold">
-              {sameDistrictTeachers.length} أساتذة
-            </span>
-          </button>
-
-          <button
-            onClick={() => goToSubTab('direct_chats')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              currentSubTab === 'direct_chats'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <MessageCircle className="w-4 h-4" />
-            <span>✉️ المحادثات الثنائية المباشرة</span>
-            {followedTeachers.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-bold">
-                {followedTeachers.length} متابَعون
+          <div className="flex items-center gap-2 overflow-x-auto">
+            <button
+              onClick={() => goToSubTab('group_chat')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                currentSubTab === 'group_chat'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>📢 الدردشة الجماعية للمقاطعة</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 text-white">
+                {districtChatFeed.length}
               </span>
-            )}
-          </button>
-        </div>
+            </button>
 
-        {/* Same District Strict Indicator Tag */}
-        <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500 font-bold px-3">
-          <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span>شرط القبول: معلمو {userDistrictName} فقط</span>
-        </div>
+            <button
+              onClick={() => goToSubTab('directory')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                currentSubTab === 'directory'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>👥 دليل الأساتذة ومتابعة الحسابات</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-900 font-extrabold">
+                {sameDistrictTeachers.length} أساتذة
+              </span>
+            </button>
+
+            <button
+              onClick={() => goToSubTab('direct_chats')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                currentSubTab === 'direct_chats'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>✉️ المحادثات الثنائية المباشرة</span>
+              {followedTeachers.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-bold">
+                  {followedTeachers.length} متابَعون
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Same District Strict Indicator Tag */}
+          <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500 font-bold px-3">
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <span>شرط القبول: معلمو {userDistrictName} فقط</span>
+          </div>
         </div>
       )}
 
@@ -327,8 +329,8 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
                           isMe
                             ? 'bg-blue-50/80 border border-blue-200/80 mr-auto max-w-xl'
                             : isInspector
-                            ? 'bg-amber-50/90 border-2 border-amber-300 shadow-xs max-w-xl'
-                            : 'bg-white border border-slate-200 max-w-xl'
+                              ? 'bg-amber-50/90 border-2 border-amber-300 shadow-xs max-w-xl'
+                              : 'bg-white border border-slate-200 max-w-xl'
                         }`}
                       >
                         {/* Header Sender Info */}
@@ -337,16 +339,19 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
                             <button
                               type="button"
                               onClick={() => {
-                                const targetUser = allUsers.find((u) => u.id === msg.senderId) || {
-                                  id: msg.senderId,
-                                  firstName: msg.senderName.split(' ')[0] || 'أستاذ',
-                                  lastName: msg.senderName.split(' ').slice(1).join(' ') || 'المقاطعة',
-                                  email: `${msg.senderId}@spex.dz`,
-                                  role: msg.senderRole,
-                                  schoolName: msg.senderSchool,
-                                  districtId: currentUser.districtId,
-                                  yearsExperience: 6
-                                } as User;
+                                const targetUser =
+                                  allUsers.find((u) => u.id === msg.senderId) ||
+                                  ({
+                                    id: msg.senderId,
+                                    firstName: msg.senderName.split(' ')[0] || 'أستاذ',
+                                    lastName:
+                                      msg.senderName.split(' ').slice(1).join(' ') || 'المقاطعة',
+                                    email: `${msg.senderId}@spex.dz`,
+                                    role: msg.senderRole,
+                                    schoolName: msg.senderSchool,
+                                    districtId: currentUser.districtId,
+                                    yearsExperience: 6,
+                                  } as User);
                                 handleOpenUserProfile(targetUser);
                               }}
                               className={`w-8 h-8 rounded-full font-extrabold text-[11px] flex items-center justify-center text-white cursor-pointer hover:scale-105 transition-transform ${
@@ -360,16 +365,19 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const targetUser = allUsers.find((u) => u.id === msg.senderId) || {
-                                    id: msg.senderId,
-                                    firstName: msg.senderName.split(' ')[0] || 'أستاذ',
-                                    lastName: msg.senderName.split(' ').slice(1).join(' ') || 'المقاطعة',
-                                    email: `${msg.senderId}@spex.dz`,
-                                    role: msg.senderRole,
-                                    schoolName: msg.senderSchool,
-                                    districtId: currentUser.districtId,
-                                    yearsExperience: 6
-                                  } as User;
+                                  const targetUser =
+                                    allUsers.find((u) => u.id === msg.senderId) ||
+                                    ({
+                                      id: msg.senderId,
+                                      firstName: msg.senderName.split(' ')[0] || 'أستاذ',
+                                      lastName:
+                                        msg.senderName.split(' ').slice(1).join(' ') || 'المقاطعة',
+                                      email: `${msg.senderId}@spex.dz`,
+                                      role: msg.senderRole,
+                                      schoolName: msg.senderSchool,
+                                      districtId: currentUser.districtId,
+                                      yearsExperience: 6,
+                                    } as User);
                                   handleOpenUserProfile(targetUser);
                                 }}
                                 className="font-extrabold text-slate-900 hover:text-blue-600 block text-xs cursor-pointer text-right transition-colors"
@@ -439,8 +447,13 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
             <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
               {replyingTo && (
                 <div className="flex items-center justify-between bg-blue-50 text-blue-900 p-2 rounded-xl text-xs border border-blue-200">
-                  <span className="font-bold truncate">رد على {replyingTo.senderName}: "{replyingTo.message.slice(0, 40)}..."</span>
-                  <button onClick={() => setReplyingTo(null)} className="text-blue-700 hover:text-blue-950">
+                  <span className="font-bold truncate">
+                    رد على {replyingTo.senderName}: "{replyingTo.message.slice(0, 40)}..."
+                  </span>
+                  <button
+                    onClick={() => setReplyingTo(null)}
+                    className="text-blue-700 hover:text-blue-950"
+                  >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -453,12 +466,14 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
                   'حول الميدان البدني 🏃‍♂️',
                   'استفسار عن التدرج السنوي 📅',
                   'التنظيم والسلامة في الفناء ⚽',
-                  'التحضير للندوة البيداغوجية 📝'
+                  'التحضير للندوة البيداغوجية 📝',
                 ].map((chip) => (
                   <button
                     key={chip}
                     type="button"
-                    onClick={() => setGroupMessageInput((prev) => (prev ? `${prev} ${chip}` : chip))}
+                    onClick={() =>
+                      setGroupMessageInput((prev) => (prev ? `${prev} ${chip}` : chip))
+                    }
                     className="px-2.5 py-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 rounded-lg whitespace-nowrap transition-colors cursor-pointer"
                   >
                     {chip}
@@ -556,7 +571,8 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
                 <span>نصيحة المتابعة البيداغوجية</span>
               </div>
               <p className="text-[11px] text-amber-800 leading-relaxed font-medium">
-                متابعة حسابات أساتذة مقاطعتك تُتيح لك إجراء دردشة ثنائية مباشرة، ومشاركة المذكرات البيداغوجية، والتنسيق المباشر للندوات الداخلية.
+                متابعة حسابات أساتذة مقاطعتك تُتيح لك إجراء دردشة ثنائية مباشرة، ومشاركة المذكرات
+                البيداغوجية، والتنسيق المباشر للندوات الداخلية.
               </p>
             </div>
           </div>
@@ -590,7 +606,11 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
                 }`}
               >
                 <Building2 className="w-3.5 h-3.5" />
-                <span>{showOutsideDistrict ? 'إخفاء أساتذة المقاطعات الأخرى' : 'معاينة أساتذة من مقاطعات أخرى (اختبار الشرط)'}</span>
+                <span>
+                  {showOutsideDistrict
+                    ? 'إخفاء أساتذة المقاطعات الأخرى'
+                    : 'معاينة أساتذة من مقاطعات أخرى (اختبار الشرط)'}
+                </span>
               </button>
             </div>
           </div>
@@ -600,18 +620,23 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                 <Users className="w-4 h-4 text-blue-600" />
-                <span>دليل أساتذة {userDistrictName} ({sameDistrictTeachers.length})</span>
+                <span>
+                  دليل أساتذة {userDistrictName} ({sameDistrictTeachers.length})
+                </span>
               </h3>
               <span className="text-xs text-slate-500 font-medium">
-                تتابع حالياً <strong className="text-emerald-700">{followedTeacherIds.length}</strong> أستاذ بالمقاطعة
+                تتابع حالياً{' '}
+                <strong className="text-emerald-700">{followedTeacherIds.length}</strong> أستاذ
+                بالمقاطعة
               </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {sameDistrictTeachers
-                .filter(
-                  (t) =>
-                    `${t.firstName} ${t.lastName} ${t.schoolName}`.toLowerCase().includes(searchQuery.toLowerCase())
+                .filter((t) =>
+                  `${t.firstName} ${t.lastName} ${t.schoolName}`
+                    .toLowerCase()
+                    .includes(searchQuery.toLowerCase())
                 )
                 .map((teacher) => {
                   const isFollowed = followedTeacherIds.includes(teacher.id);
@@ -628,7 +653,10 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
                           className="flex items-start gap-3 cursor-pointer group"
                         >
                           <img
-                            src={teacher.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'}
+                            src={
+                              teacher.avatar ||
+                              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'
+                            }
                             alt={teacher.firstName}
                             className="w-12 h-12 rounded-2xl object-cover border-2 border-slate-200 shadow-2xs group-hover:scale-105 transition-transform"
                           />
@@ -649,12 +677,20 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
                         {/* Specs badges */}
                         <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/60 text-[11px]">
                           <div>
-                            <span className="text-slate-400 block text-[10px] font-bold">البلدية:</span>
-                            <span className="font-extrabold text-slate-800">{teacher.municipality || 'عين أزال'}</span>
+                            <span className="text-slate-400 block text-[10px] font-bold">
+                              البلدية:
+                            </span>
+                            <span className="font-extrabold text-slate-800">
+                              {teacher.municipality || 'عين أزال'}
+                            </span>
                           </div>
                           <div>
-                            <span className="text-slate-400 block text-[10px] font-bold">الخبرة:</span>
-                            <span className="font-extrabold text-slate-800">{teacher.yearsExperience || 6} سنوات</span>
+                            <span className="text-slate-400 block text-[10px] font-bold">
+                              الخبرة:
+                            </span>
+                            <span className="font-extrabold text-slate-800">
+                              {teacher.yearsExperience || 6} سنوات
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -705,7 +741,9 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
             <div className="bg-amber-50/80 p-6 rounded-3xl border-2 border-amber-300 space-y-4 animate-in fade-in duration-200">
               <div className="flex items-center gap-2 text-amber-900 font-extrabold text-sm border-b border-amber-200 pb-2">
                 <Lock className="w-5 h-5 text-amber-700" />
-                <span>أساتذة من مقاطعات تفتيشية أخرى (تطبيق شرط عدم السماح بالمتابعة خارج المقاطعة)</span>
+                <span>
+                  أساتذة من مقاطعات تفتيشية أخرى (تطبيق شرط عدم السماح بالمتابعة خارج المقاطعة)
+                </span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -777,7 +815,8 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
                 <option value="">-- اختر أستاذاً من المقاطعة --</option>
                 {sameDistrictTeachers.map((t) => (
                   <option key={t.id} value={t.id}>
-                    أ. {t.firstName} {t.lastName} ({followedTeacherIds.includes(t.id) ? 'تتابع' : 'المقاطعة'})
+                    أ. {t.firstName} {t.lastName} (
+                    {followedTeacherIds.includes(t.id) ? 'تتابع' : 'المقاطعة'})
                   </option>
                 ))}
               </select>
@@ -793,13 +832,17 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
                   className="flex items-center gap-3 cursor-pointer group"
                 >
                   <img
-                    src={selectedDirectUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'}
+                    src={
+                      selectedDirectUser.avatar ||
+                      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'
+                    }
                     alt={selectedDirectUser.firstName}
                     className="w-10 h-10 rounded-xl object-cover border border-slate-200 group-hover:scale-105 transition-transform"
                   />
                   <div>
                     <h4 className="text-xs font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors">
-                      محادثة مع الأستاذ: {selectedDirectUser.firstName} {selectedDirectUser.lastName}
+                      محادثة مع الأستاذ: {selectedDirectUser.firstName}{' '}
+                      {selectedDirectUser.lastName}
                     </h4>
                     <span className="text-[10px] text-slate-500">
                       {selectedDirectUser.schoolName || 'مدرسة ابتدائية'} • {userDistrictName}
@@ -828,7 +871,8 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
                     (m.senderId === selectedDirectUser.id && m.receiverId === currentUser.id)
                 ).length === 0 ? (
                   <div className="text-center py-12 text-slate-400 text-xs">
-                    ✉️ لا توجد رسائل ثنائية سابقة مع الأستاذ {selectedDirectUser.firstName}. ابدأ المحادثة البيداغوجية الآن!
+                    ✉️ لا توجد رسائل ثنائية سابقة مع الأستاذ {selectedDirectUser.firstName}. ابدأ
+                    المحادثة البيداغوجية الآن!
                   </div>
                 ) : (
                   directMessages
@@ -840,7 +884,10 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
                     .map((msg) => {
                       const isMe = msg.senderId === currentUser.id;
                       return (
-                        <div key={msg.id} className={`flex ${isMe ? 'justify-start' : 'justify-end'}`}>
+                        <div
+                          key={msg.id}
+                          className={`flex ${isMe ? 'justify-start' : 'justify-end'}`}
+                        >
                           <div
                             className={`max-w-md p-3.5 rounded-2xl text-xs space-y-1 shadow-xs ${
                               isMe
@@ -885,7 +932,8 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
                 اختر أستاذك المتابَع للبدء بالمحادثة المباشرة
               </h4>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
-                يمكنك التفاعل مع زملائك في عين أزال والمقاطعة 07 ومشاركتهم الأفكار والملاحظات الميدانية.
+                يمكنك التفاعل مع زملائك في عين أزال والمقاطعة 07 ومشاركتهم الأفكار والملاحظات
+                الميدانية.
               </p>
             </div>
           )}

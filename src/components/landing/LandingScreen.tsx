@@ -8,20 +8,12 @@ import {
   ShieldCheck,
   Sparkles,
   LogIn,
-  BookOpen,
-  Users,
-  Award,
-  Zap,
   CheckCircle2,
   Building2,
-  FileText,
   Lock,
   ArrowLeft,
   ChevronDown,
   GraduationCap,
-  Layers,
-  BarChart3,
-  HelpCircle
 } from 'lucide-react';
 
 interface LandingScreenProps {
@@ -37,8 +29,10 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onGoToLogin }) => 
   };
 
   return (
-
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500 selection:text-white flex flex-col justify-between relative overflow-x-hidden" dir="rtl">
+    <div
+      className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500 selection:text-white flex flex-col justify-between relative overflow-x-hidden"
+      dir="rtl"
+    >
       {/* Background Decorative Gradients */}
       <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-emerald-600/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute top-1/3 left-10 w-[450px] h-[450px] bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
@@ -105,11 +99,10 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onGoToLogin }) => 
 
           {/* Subtitle description */}
           <p className="text-sm sm:text-base lg:text-lg text-slate-300 max-w-3xl mx-auto leading-relaxed font-medium mb-10">
-            بيئة بيداغوجية متكاملة تجمع بين{' '}
-            <strong className="text-white">أستاذ المادة</strong>،{' '}
+            بيئة بيداغوجية متكاملة تجمع بين <strong className="text-white">أستاذ المادة</strong>،{' '}
             <strong className="text-emerald-400">المفتش البيداغوجي</strong>، و{' '}
-            <strong className="text-teal-300">مدير المدرسة الابتدائية</strong>{' '}
-            لإعداد المذكرات الرقمية، متابعة الكراس اليومي، تقييم الكفاءات، واستخراج التقارير الرسمية بدقة متناهية.
+            <strong className="text-teal-300">مدير المدرسة الابتدائية</strong> لإعداد المذكرات
+            الرقمية، متابعة الكراس اليومي، تقييم الكفاءات، واستخراج التقارير الرسمية بدقة متناهية.
           </p>
 
           {/* Primary & Secondary Call To Actions */}
@@ -146,7 +139,8 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onGoToLogin }) => 
               </h4>
               <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
                 المنظومة رقمية مغلقة ولا يتم تسجيل الدخول التلقائي لأي زائر. يتوجب عليك الضغط على زر
-                <strong className="text-emerald-400 mx-1">"تسجيل الدخول"</strong> وإدخال البريد الإلكتروني الرسمي وكلمة المرور الخاصة بحسابك البيداغوجي.
+                <strong className="text-emerald-400 mx-1">"تسجيل الدخول"</strong> وإدخال البريد
+                الإلكتروني الرسمي وكلمة المرور الخاصة بحسابك البيداغوجي.
               </p>
             </div>
           </div>
@@ -158,19 +152,25 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onGoToLogin }) => 
             <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
               <div className="text-2xl sm:text-3xl font-black text-emerald-400 mb-1">57</div>
               <div className="text-xs text-slate-400 font-bold">مديرية تربية موحدة</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">تحديث سطيف والولايات المجارورة</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                تحديث سطيف والولايات المجارورة
+              </div>
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
               <div className="text-2xl sm:text-3xl font-black text-teal-400 mb-1">09</div>
               <div className="text-xs text-slate-400 font-bold">مقاطعات مفتشين مفعلة</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">مفتشو ولاية سطيف معتمدون بالكامل</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                مفتشو ولاية سطيف معتمدون بالكامل
+              </div>
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
               <div className="text-2xl sm:text-3xl font-black text-blue-400 mb-1">+100</div>
               <div className="text-xs text-slate-400 font-bold">مذكرة بيداغوجية نموذجية</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">موزعة على جميع الأطوار الثلاثة</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                موزعة على جميع الأطوار الثلاثة
+              </div>
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
@@ -182,7 +182,10 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onGoToLogin }) => 
         </section>
 
         {/* Platform Modules & Features */}
-        <section id="platform-features" className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-12">
+        <section
+          id="platform-features"
+          className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-12"
+        >
           <div className="text-center space-y-3">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold border border-emerald-500/20">
               <Sparkles className="w-3.5 h-3.5" />
@@ -192,7 +195,8 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onGoToLogin }) => 
               خدمات مخصصة لكل متدخل في المنظومة التربوية
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 max-w-2xl mx-auto">
-              تتيح منصة SPEX Engine بيئات عمل مستقلة ومتكاملة تلبي احتياجات الأستاذ، المفتش، والمدير.
+              تتيح منصة SPEX Engine بيئات عمل مستقلة ومتكاملة تلبي احتياجات الأستاذ، المفتش،
+              والمدير.
             </p>
           </div>
 
@@ -205,7 +209,8 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onGoToLogin }) => 
                 </div>
                 <h3 className="text-lg font-bold text-white">بوابة أستاذ التربية البدنية</h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  تتيح للأستاذ إعداد المذكرات البيداغوجية، تدوين الكراس اليومي، متابعة المخطط السنوي للتعلمات، وحساب معدلات التلاميذ بآلية فورية.
+                  تتيح للأستاذ إعداد المذكرات البيداغوجية، تدوين الكراس اليومي، متابعة المخطط السنوي
+                  للتعلمات، وحساب معدلات التلاميذ بآلية فورية.
                 </p>
                 <ul className="space-y-2 pt-2 text-xs text-slate-300">
                   <li className="flex items-center gap-2">
@@ -242,7 +247,8 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onGoToLogin }) => 
                 </div>
                 <h3 className="text-lg font-bold text-white">بوابة المفتش البيداغوجي</h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  مخصصة لمفتشي المقاطعات (مثل المقاطعة 07 سطيف) لمتابعة أساتذة المادة ميدانياً، إرسال التوجيهات، وإعداد تقارير التفتيش الرسمية.
+                  مخصصة لمفتشي المقاطعات (مثل المقاطعة 07 سطيف) لمتابعة أساتذة المادة ميدانياً،
+                  إرسال التوجيهات، وإعداد تقارير التفتيش الرسمية.
                 </p>
                 <ul className="space-y-2 pt-2 text-xs text-slate-300">
                   <li className="flex items-center gap-2">
@@ -279,7 +285,8 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onGoToLogin }) => 
                 </div>
                 <h3 className="text-lg font-bold text-white">بوابة مدير المدرسة الابتدائية</h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  تمكّن مدير المدرسة من التأشير على الكراس اليومي، الإشراف على جدول توقيت أستاذ المادة، ومتابعة الأمن والسلامة في الملاعب.
+                  تمكّن مدير المدرسة من التأشير على الكراس اليومي، الإشراف على جدول توقيت أستاذ
+                  المادة، ومتابعة الأمن والسلامة في الملاعب.
                 </p>
                 <ul className="space-y-2 pt-2 text-xs text-slate-300">
                   <li className="flex items-center gap-2">
@@ -318,7 +325,8 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onGoToLogin }) => 
                 جاهز للبدء في استخدام المنظومة البيداغوجية؟
               </h2>
               <p className="text-xs sm:text-sm text-slate-300 max-w-xl mx-auto">
-                قم بتسجيل الدخول بحسابك الرسمي للوصول إلى كافة الأدوات والمذكرات البيداغوجية المحدثة.
+                قم بتسجيل الدخول بحسابك الرسمي للوصول إلى كافة الأدوات والمذكرات البيداغوجية
+                المحدثة.
               </p>
             </div>
 
