@@ -834,6 +834,13 @@ export const fetchMyAssignedTeachers = (filters?: { municipalityId?: string; ins
   return getJSON(`/api/inspector/teachers${qs ? `?${qs}` : ''}`);
 };
 
+export async function fetchInspectorSummary() {
+  const res = await fetch('/api/inspector/summary');
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل ملخص المفتش.');
+  return data.summary || {};
+}
+
 // PART A: Geo hierarchy public endpoints
 export const fetchGeoDirectorates = () => getJSON('/api/geo/directorates');
 export const fetchGeoDistricts = (directorateId: string) =>

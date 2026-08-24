@@ -365,6 +365,23 @@ assignmentRouter.get('/inspector/teachers', requireRole('inspector'), async (req
   });
 });
 
+assignmentRouter.get('/inspector/summary', requireRole('inspector'), async (req, res) => {
+  const inspectorId = req.user!.id;
+  const [accepted, pending, visits, notes, messages, games, situations, resources, broadcasts] = await Promise.all([
+    prisma.inspectorAssignment.count({ where: { inspectorId, status: { in: ['Active', 'Changed'] } } }),
+    prisma.inspectorAssignment.count({ where: { inspectorId, status: 'Pending' } }),
+    prisma.inspectionVisitRecord.count({ where: { inspectorId } }),
+    prisma.inspectorNote.count({ where: { authorId: inspectorId } }),
+    prisma.directMessage.count({ where: { recipientId: inspectorId, readAt: null } }),
+    prisma.pedagogicalGame.findMany({ select: { status: true } }),
+    prisma.educationalSituation.findMany({ select: { status: true } }),
+    prisma.communityResource.findMany({ select: { data: true } }),
+    prisma.districtMessage.count({ where: { authorId: inspectorId } }),
+  ]);
+  const pendingResources = games.filter((row) => row.status === 'PENDING_APPROVAL').length + situations.filter((row) => row.status === 'PENDING_APPROVAL').length + resources.filter((row) => ['PENDING', 'PENDING_REVIEW', 'PENDING_APPROVAL'].includes(String((row.data as Record<string, unknown>)?.status || ''))).length;
+  res.json({ success: true, summary: { teachersCount: accepted, pendingAssignmentsCount: pending, visitsCount: visits, guidanceCount: notes + broadcasts, unreadMessagesCount: messages, pendingApprovalsCount: pendingResources } });
+});
+
 // PART B/B2 — قبل بوابة requireRole('admin') مباشرة: مسارات المفتش لقبول/رفض الإسناد
 assignmentRouter.get('/inspector/pending-assignments', requireRole('inspector'), async (req, res) => {
   try {

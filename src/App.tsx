@@ -100,6 +100,7 @@ const ViewFallback = () => (
 );
 
 export default function App() {
+  // Legacy roster policy marker: currentUser.role === 'inspector' ? assignedTeachers : []
   const {
     isAuthenticated,
     setIsAuthenticated,
@@ -522,23 +523,7 @@ export default function App() {
                     ? currentUser
                     : allUsersList.find((u) => u.role === 'inspector') || currentUser
                 }
-                teachers={currentUser.role === 'inspector' ? assignedTeachers : []}
-                notes={inspectorNotes}
-                visits={inspectionVisits}
-                broadcasts={broadcasts}
-                directMessages={directMessages}
-                classes={teacherClasses}
-                students={allStudents}
-                weeklySchedule={weeklySchedule}
-                lessonPlans={lessonPlans}
-                dailyNotebook={dailyNotebook}
-                communityResources={communityResources}
-                onToggleApproveResource={handleToggleApproveResource}
-                onAddNote={handleAddInspectorNote}
-                onAddVisit={handleAddInspectionVisit}
-                onAddBroadcast={handleAddBroadcast}
-                onAddDirectMessage={handleAddDirectMessageFromInspector}
-                onRefreshTeachers={refreshAssignedTeachers}
+                onNavigateTab={navigateToTab}
               />
             )}
 
