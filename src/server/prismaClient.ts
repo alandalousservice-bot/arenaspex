@@ -85,6 +85,18 @@ function isRetryableDbError(err: any): boolean {
   );
 }
 
+const globalForPrisma = globalThis as unknown as {
+  prisma?: PrismaClient;
+  prismaBase?: PrismaClient;
+};
+
+const prismaBase =
+  globalForPrisma.prismaBase ??
+  new PrismaClient({
+    datasources: { db: { url: DATABASE_URL } },
+    log: process.env.NODE_ENV === 'production' ? ['error', 'warn'] : ['error', 'warn'],
+  });
+
 async function sleep(ms: number): Promise<void> {
   return new Promise((res) => setTimeout(res, ms));
 }
@@ -104,30 +116,28 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, baseDelayMs = 400
       );
       // محاولة فصل وإعادة توصيل لتنظيف الـ pool الفاسد
       try {
-        // @ts-ignore - prismaBase may not be initialized yet at import time
         if (typeof prismaBase !== 'undefined' && prismaBase.$disconnect) {
-          await prismaBase.$disconnect().catch(() => {});
+          await prismaBase.$disconnect().catch(() => {
+            // Intentionally ignore cleanup failures before retrying the operation.
+          });
         }
-      } catch {}
+      } catch {
+        // Intentionally ignore cleanup failures before retrying the operation.
+      }
       await sleep(baseDelayMs * (attempt + 1) + Math.random() * 250);
       try {
         if (typeof prismaBase !== 'undefined' && prismaBase.$connect) {
-          await prismaBase.$connect().catch(() => {});
+          await prismaBase.$connect().catch(() => {
+            // Intentionally ignore reconnect failures; the next retry may recover.
+          });
         }
-      } catch {}
+      } catch {
+        // Intentionally ignore reconnect failures; the next retry may recover.
+      }
     }
   }
   throw lastErr;
 }
-
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient; prismaBase?: PrismaClient };
-
-const prismaBase =
-  globalForPrisma.prismaBase ??
-  new PrismaClient({
-    datasources: { db: { url: DATABASE_URL } },
-    log: process.env.NODE_ENV === 'production' ? ['error', 'warn'] : ['error', 'warn']
-  });
 
 // تمديد يعيد المحاولة لكل عمليات الموديلات ($allModels.$allOperations)
 const prismaExtended = (prismaBase as any).$extends({
@@ -135,14 +145,20 @@ const prismaExtended = (prismaBase as any).$extends({
     $allModels: {
       async $allOperations({ args, query }: any) {
         return withRetry(() => query(args));
-      }
-    }
-  }
+      },
+    },
+  },
 });
 
 // لفّ خاص لـ $queryRaw / $executeRaw / $transaction التي لا تمر عبر $allModels
 function wrapRawMethods(client: any, base: any) {
-  const methodsToWrap = ['$queryRaw', '$executeRaw', '$queryRawUnsafe', '$executeRawUnsafe', '$transaction'];
+  const methodsToWrap = [
+    '$queryRaw',
+    '$executeRaw',
+    '$queryRawUnsafe',
+    '$executeRawUnsafe',
+    '$transaction',
+  ];
 
   for (const m of methodsToWrap) {
     if (typeof base[m] === 'function') {
@@ -169,6 +185,9 @@ if (process.env.NODE_ENV !== 'production') {
     await withRetry(() => prismaBase.$connect(), 2, 500);
     console.log('✅ SPEX DB: Prisma client connected (with retry wrapper ready).');
   } catch (err) {
-    console.warn('⚠️ SPEX DB: Initial connect failed, will retry on first query:', (err as Error).message?.slice(0, 200));
+    console.warn(
+      '⚠️ SPEX DB: Initial connect failed, will retry on first query:',
+      (err as Error).message?.slice(0, 200)
+    );
   }
 })();
