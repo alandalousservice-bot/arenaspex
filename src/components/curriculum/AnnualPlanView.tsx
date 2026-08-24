@@ -28,7 +28,11 @@ import {
   RefreshCcw,
   AlertTriangle,
 } from 'lucide-react';
-import { ANNUAL_PLAN_REFERENCE, ANNUAL_PLAN_LEVELS, AnnualPlanLevel } from '../../data/annualPlanReference';
+import {
+  ANNUAL_PLAN_REFERENCE,
+  ANNUAL_PLAN_LEVELS,
+  AnnualPlanLevel,
+} from '../../data/annualPlanReference';
 import { PE_LEVELS } from '../../data/algerianCurriculum';
 import { User } from '../../types/spex';
 import { useCurriculumOverrides } from '../../hooks/useCurriculumOverrides';
@@ -43,31 +47,49 @@ interface AnnualPlanViewProps {
 
 type EditValues = {
   comprehensive: string;
-  domains: Record<string, {
-    finalCompetency: string;
-    components: string;
-    knowledgeResources: string;
-    transversalResources: string;
-    evaluationCriteria: string;
-    time: string;
-  }>;
+  domains: Record<
+    string,
+    {
+      finalCompetency: string;
+      components: string;
+      knowledgeResources: string;
+      transversalResources: string;
+      evaluationCriteria: string;
+      time: string;
+    }
+  >;
 };
 
-function buildEditValuesFromDisplay(level: AnnualPlanLevel, getDisplay: (fieldId: string, prop: string, ref: string) => string): EditValues {
+function buildEditValuesFromDisplay(
+  level: AnnualPlanLevel,
+  getDisplay: (fieldId: string, prop: string, ref: string) => string
+): EditValues {
   const domains: EditValues['domains'] = {};
   for (const dom of level.domains) {
     domains[dom.fieldId] = {
       finalCompetency: getDisplay(`${dom.fieldId}__final`, 'finalCompetency', dom.finalCompetency),
       components: getDisplay(`${dom.fieldId}__components`, 'components', dom.components),
-      knowledgeResources: getDisplay(`${dom.fieldId}__knowledge`, 'knowledgeResources', dom.knowledgeResources),
-      transversalResources: getDisplay(`${dom.fieldId}__transversal`, 'transversalResources', dom.transversalResources),
-      evaluationCriteria: getDisplay(`${dom.fieldId}__evaluation`, 'evaluationCriteria', dom.evaluationCriteria),
+      knowledgeResources: getDisplay(
+        `${dom.fieldId}__knowledge`,
+        'knowledgeResources',
+        dom.knowledgeResources
+      ),
+      transversalResources: getDisplay(
+        `${dom.fieldId}__transversal`,
+        'transversalResources',
+        dom.transversalResources
+      ),
+      evaluationCriteria: getDisplay(
+        `${dom.fieldId}__evaluation`,
+        'evaluationCriteria',
+        dom.evaluationCriteria
+      ),
       time: getDisplay(`${dom.fieldId}__time`, 'time', dom.time),
     };
   }
   return {
     comprehensive: getDisplay('comprehensive', 'comprehensive', level.comprehensive),
-    domains
+    domains,
   };
 }
 
@@ -85,7 +107,7 @@ function buildEmptyEditValues(level: AnnualPlanLevel): EditValues {
   }
   return {
     comprehensive: '',
-    domains
+    domains,
   };
 }
 
@@ -103,55 +125,59 @@ function buildOverridesFromEditValues(editValues: EditValues) {
   return overrides;
 }
 
-export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
-  currentUser,
-}) => {
+export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({ currentUser }) => {
   const [selectedLevelId, setSelectedLevelId] = useState<string>('lvl_p1');
   const [isEditing, setIsEditing] = useState(false);
   const [editValues, setEditValues] = useState<EditValues | null>(null);
   const [autoDetected, setAutoDetected] = useState(false);
 
-  const {
-    record,
-    values,
-    isLoading,
-    isSaving,
-    saveAll,
-    clearAll,
-    restoreOriginal,
-    reload
-  } = useCurriculumOverrides({
-    currentUser,
-    levelId: selectedLevelId,
-    kind: 'annual_plan_new'
-  });
+  const { record, values, isLoading, isSaving, saveAll, clearAll, restoreOriginal, reload } =
+    useCurriculumOverrides({
+      currentUser,
+      levelId: selectedLevelId,
+      kind: 'annual_plan_new',
+    });
 
-  const referenceLevel: AnnualPlanLevel = ANNUAL_PLAN_REFERENCE[selectedLevelId] || ANNUAL_PLAN_REFERENCE['lvl_p1'];
+  const referenceLevel: AnnualPlanLevel =
+    ANNUAL_PLAN_REFERENCE[selectedLevelId] || ANNUAL_PLAN_REFERENCE['lvl_p1'];
 
   useEffect(() => {
     if (autoDetected) return;
     if (currentUser.role !== 'teacher') return;
     (async () => {
       try {
-        const res = await fetchAnnualPlans({ teacherId: currentUser.id, kind: 'annual_plan_new' as any });
+        const res = await fetchAnnualPlans({
+          teacherId: currentUser.id,
+          kind: 'annual_plan_new' as any,
+        });
         if (res.success && res.annualPlans && res.annualPlans.length > 0) {
-          const sorted = [...res.annualPlans].sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+          const sorted = [...res.annualPlans].sort(
+            (a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          );
           const latest = sorted[0];
           if (latest.levelId && ANNUAL_PLAN_REFERENCE[latest.levelId]) {
             setSelectedLevelId(latest.levelId);
             setAutoDetected(true);
           }
         }
-      } catch {}
+      } catch {
+        // Saved-plan auto-detection is best-effort; retain the reference fallback on failure.
+      }
     })();
   }, [currentUser.id, currentUser.role, autoDetected]);
 
   const hasCustomization = !!record;
-  const isCleared = !!(values as any)?.__cleared || (hasCustomization && Object.keys(values).length > 0 && Object.values(values).every((v: any) => {
-    if (!v) return true;
-    if ((v as any).isCleared) return true;
-    return Object.values(v).every((x) => x === '' || x === null || (Array.isArray(x) && (x as any).length === 0));
-  }));
+  const isCleared =
+    !!(values as any)?.__cleared ||
+    (hasCustomization &&
+      Object.keys(values).length > 0 &&
+      Object.values(values).every((v: any) => {
+        if (!v) return true;
+        if ((v as any).isCleared) return true;
+        return Object.values(v).every(
+          (x) => x === '' || x === null || (Array.isArray(x) && (x as any).length === 0)
+        );
+      }));
 
   const getDisplayValue = (key: string, prop: string, refValue: string): string => {
     if (!hasCustomization) return refValue;
@@ -225,52 +251,83 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
       <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg">المرجع الرسمي 2025</span>
-            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">مخطط سنوي جديد</span>
+            <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg">
+              المرجع الرسمي 2025
+            </span>
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">
+              مخطط سنوي جديد
+            </span>
             {hasCustomization && !isCleared && (
               <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 flex items-center gap-1">
                 <Pencil className="w-3 h-3" /> مخصص للأستاذ
               </span>
             )}
             {isCleared && (
-              <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border">مفرغ</span>
+              <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border">
+                مفرغ
+              </span>
             )}
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 mt-2 flex items-center gap-2">
             <Calendar className="w-6 h-6 text-blue-600" />
             <span>المخطط السنوي لبناء التعلمات</span>
           </h2>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">يظهر تلقائياً المخطط المرجعي الخاص بالمستوى الذي تدرسه — 3 ميادين فقط بدون حصص أو تواريخ</p>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            يظهر تلقائياً المخطط المرجعي الخاص بالمستوى الذي تدرسه — 3 ميادين فقط بدون حصص أو تواريخ
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {!isEditing ? (
             <>
-              <button onClick={handleStartEdit} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-2xl shadow-sm transition-all">
+              <button
+                onClick={handleStartEdit}
+                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-2xl shadow-sm transition-all"
+              >
                 <Pencil className="w-4 h-4" />
                 <span>تعديل المخطط</span>
               </button>
-              <button onClick={handleClear} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-800 text-xs font-bold rounded-2xl shadow-xs transition-all">
+              <button
+                onClick={handleClear}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-800 text-xs font-bold rounded-2xl shadow-xs transition-all"
+              >
                 <Trash2 className="w-4 h-4" />
                 <span>تفريغ المخطط</span>
               </button>
-              <button onClick={handleRestore} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-2xl shadow-xs transition-all">
+              <button
+                onClick={handleRestore}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-2xl shadow-xs transition-all"
+              >
                 <RefreshCcw className="w-4 h-4" />
                 <span>استعادة المخطط الأصلي</span>
               </button>
             </>
           ) : (
             <>
-              <button onClick={handleSave} disabled={isSaving} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl shadow-sm transition-all disabled:opacity-60">
-                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl shadow-sm transition-all disabled:opacity-60"
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
                 <span>حفظ التعديلات</span>
               </button>
-              <button onClick={handleCancelEdit} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-2xl shadow-xs transition-all">
+              <button
+                onClick={handleCancelEdit}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-2xl shadow-xs transition-all"
+              >
                 <span>إلغاء</span>
               </button>
             </>
           )}
-          <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-2xl shadow-sm transition-all">
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-2xl shadow-sm transition-all"
+          >
             <span>طباعة</span>
           </button>
         </div>
@@ -288,14 +345,18 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
           <School className="w-4 h-4 text-blue-600 shrink-0" />
           <div>
             <span className="block text-slate-500 font-bold">المدرسة</span>
-            <span className="block font-extrabold text-slate-900 truncate">{currentUser.schoolName || 'غير محددة'}</span>
+            <span className="block font-extrabold text-slate-900 truncate">
+              {currentUser.schoolName || 'غير محددة'}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">
           <UserIcon className="w-4 h-4 text-blue-600 shrink-0" />
           <div>
             <span className="block text-slate-500 font-bold">الأستاذ(ة)</span>
-            <span className="block font-extrabold text-slate-900 truncate">{currentUser.firstName} {currentUser.lastName}</span>
+            <span className="block font-extrabold text-slate-900 truncate">
+              {currentUser.firstName} {currentUser.lastName}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">
@@ -324,7 +385,9 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
                   setEditValues(null);
                 }}
                 className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                  isSelected ? 'bg-slate-900 text-white shadow-md font-extrabold' : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
+                  isSelected
+                    ? 'bg-slate-900 text-white shadow-md font-extrabold'
+                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
                 }`}
               >
                 {lvl.levelName}
@@ -336,21 +399,35 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
 
       <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-6 rounded-3xl shadow-md border border-blue-800 space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-amber-300 bg-white/10 px-3 py-1 rounded-full border border-white/10">المستوى: {referenceLevel.levelName}</span>
+          <span className="text-xs font-bold text-amber-300 bg-white/10 px-3 py-1 rounded-full border border-white/10">
+            المستوى: {referenceLevel.levelName}
+          </span>
           <span className="text-xs font-bold text-slate-200 flex items-center gap-1">
             <ShieldCheck className="w-4 h-4 text-emerald-300" />
-            {hasCustomization ? (isCleared ? 'مخطط مفرغ (تخصيص فارغ صالح)' : 'نسخة الأستاذ') : 'المخطط المرجعي الأصلي'}
+            {hasCustomization
+              ? isCleared
+                ? 'مخطط مفرغ (تخصيص فارغ صالح)'
+                : 'نسخة الأستاذ'
+              : 'المخطط المرجعي الأصلي'}
           </span>
         </div>
-        <span className="text-[11px] font-bold text-blue-200 bg-white/10 px-2.5 py-1 rounded-lg inline-block">الكفاءة الشاملة</span>
+        <span className="text-[11px] font-bold text-blue-200 bg-white/10 px-2.5 py-1 rounded-lg inline-block">
+          الكفاءة الشاملة
+        </span>
         {!isEditing ? (
           <h3 className="text-base font-extrabold text-white leading-relaxed min-h-[24px]">
-            {displayData.comprehensive ? `« ${displayData.comprehensive} »` : <span className="text-slate-300 italic">— فارغ —</span>}
+            {displayData.comprehensive ? (
+              `« ${displayData.comprehensive} »`
+            ) : (
+              <span className="text-slate-300 italic">— فارغ —</span>
+            )}
           </h3>
         ) : (
           <textarea
             value={currentEdit?.comprehensive || ''}
-            onChange={(e) => setEditValues((prev) => (prev ? { ...prev, comprehensive: e.target.value } : prev))}
+            onChange={(e) =>
+              setEditValues((prev) => (prev ? { ...prev, comprehensive: e.target.value } : prev))
+            }
             rows={3}
             placeholder="اكتب الكفاءة الشاملة..."
             className="w-full px-3 py-2.5 bg-white text-slate-900 rounded-xl border border-blue-300 text-sm font-bold focus:ring-2 focus:ring-amber-300 outline-none resize-y"
@@ -367,12 +444,15 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
             knowledgeResources: domainRef.knowledgeResources,
             transversalResources: domainRef.transversalResources,
             evaluationCriteria: domainRef.evaluationCriteria,
-            time: domainRef.time
+            time: domainRef.time,
           };
           const editDisp = currentEdit?.domains[fieldId];
 
           return (
-            <div key={fieldId} className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4">
+            <div
+              key={fieldId}
+              className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4"
+            >
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full bg-blue-600" />
@@ -391,7 +471,19 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
                     <span className="text-[10px] font-bold text-slate-500">الزمن:</span>
                     <input
                       value={editDisp?.time || ''}
-                      onChange={(e) => setEditValues((prev) => (prev ? { ...prev, domains: { ...prev.domains, [fieldId]: { ...prev.domains[fieldId], time: e.target.value } } } : prev))}
+                      onChange={(e) =>
+                        setEditValues((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                domains: {
+                                  ...prev.domains,
+                                  [fieldId]: { ...prev.domains[fieldId], time: e.target.value },
+                                },
+                              }
+                            : prev
+                        )
+                      }
                       placeholder="مثال: 20 ساعة"
                       className="px-2.5 py-1.5 bg-white border border-blue-300 rounded-lg text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none w-28"
                     />
@@ -400,15 +492,36 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
               </div>
 
               <div className="bg-blue-50/60 p-4 rounded-2xl border border-blue-100 space-y-2">
-                <span className="text-[11px] font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-md">الكفاءة الختامية</span>
+                <span className="text-[11px] font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-md">
+                  الكفاءة الختامية
+                </span>
                 {!isEditing ? (
                   <p className="text-sm font-extrabold text-slate-900 leading-relaxed min-h-[20px]">
-                    {disp.finalCompetency ? `« ${disp.finalCompetency} »` : <span className="text-slate-400 italic">— فارغ —</span>}
+                    {disp.finalCompetency ? (
+                      `« ${disp.finalCompetency} »`
+                    ) : (
+                      <span className="text-slate-400 italic">— فارغ —</span>
+                    )}
                   </p>
                 ) : (
                   <textarea
                     value={editDisp?.finalCompetency || ''}
-                    onChange={(e) => setEditValues((prev) => (prev ? { ...prev, domains: { ...prev.domains, [fieldId]: { ...prev.domains[fieldId], finalCompetency: e.target.value } } } : prev))}
+                    onChange={(e) =>
+                      setEditValues((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              domains: {
+                                ...prev.domains,
+                                [fieldId]: {
+                                  ...prev.domains[fieldId],
+                                  finalCompetency: e.target.value,
+                                },
+                              },
+                            }
+                          : prev
+                      )
+                    }
                     rows={2}
                     placeholder="الكفاءة الختامية..."
                     className="w-full px-3 py-2 bg-white rounded-lg border border-blue-300 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none resize-y"
@@ -418,13 +531,32 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">مركبات الكفاءة</span>
+                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                    مركبات الكفاءة
+                  </span>
                   {!isEditing ? (
-                    <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap min-h-[20px]">{disp.components || <span className="text-slate-400 italic">— فارغ —</span>}</p>
+                    <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap min-h-[20px]">
+                      {disp.components || <span className="text-slate-400 italic">— فارغ —</span>}
+                    </p>
                   ) : (
                     <textarea
                       value={editDisp?.components || ''}
-                      onChange={(e) => setEditValues((prev) => (prev ? { ...prev, domains: { ...prev.domains, [fieldId]: { ...prev.domains[fieldId], components: e.target.value } } } : prev))}
+                      onChange={(e) =>
+                        setEditValues((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                domains: {
+                                  ...prev.domains,
+                                  [fieldId]: {
+                                    ...prev.domains[fieldId],
+                                    components: e.target.value,
+                                  },
+                                },
+                              }
+                            : prev
+                        )
+                      }
                       rows={5}
                       className="w-full px-3 py-2 bg-white rounded-lg border border-emerald-300 text-xs text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none resize-y"
                     />
@@ -432,13 +564,34 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
                 </div>
 
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                  <span className="text-[11px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 rounded-md">الموارد المعرفية</span>
+                  <span className="text-[11px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 rounded-md">
+                    الموارد المعرفية
+                  </span>
                   {!isEditing ? (
-                    <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap min-h-[20px]">{disp.knowledgeResources || <span className="text-slate-400 italic">— فارغ —</span>}</p>
+                    <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap min-h-[20px]">
+                      {disp.knowledgeResources || (
+                        <span className="text-slate-400 italic">— فارغ —</span>
+                      )}
+                    </p>
                   ) : (
                     <textarea
                       value={editDisp?.knowledgeResources || ''}
-                      onChange={(e) => setEditValues((prev) => (prev ? { ...prev, domains: { ...prev.domains, [fieldId]: { ...prev.domains[fieldId], knowledgeResources: e.target.value } } } : prev))}
+                      onChange={(e) =>
+                        setEditValues((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                domains: {
+                                  ...prev.domains,
+                                  [fieldId]: {
+                                    ...prev.domains[fieldId],
+                                    knowledgeResources: e.target.value,
+                                  },
+                                },
+                              }
+                            : prev
+                        )
+                      }
                       rows={5}
                       className="w-full px-3 py-2 bg-white rounded-lg border border-teal-300 text-xs text-slate-900 focus:ring-2 focus:ring-teal-500 outline-none resize-y"
                     />
@@ -446,13 +599,34 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
                 </div>
 
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                  <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">الموارد العرضية</span>
+                  <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                    الموارد العرضية
+                  </span>
                   {!isEditing ? (
-                    <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap min-h-[20px]">{disp.transversalResources || <span className="text-slate-400 italic">— فارغ —</span>}</p>
+                    <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap min-h-[20px]">
+                      {disp.transversalResources || (
+                        <span className="text-slate-400 italic">— فارغ —</span>
+                      )}
+                    </p>
                   ) : (
                     <textarea
                       value={editDisp?.transversalResources || ''}
-                      onChange={(e) => setEditValues((prev) => (prev ? { ...prev, domains: { ...prev.domains, [fieldId]: { ...prev.domains[fieldId], transversalResources: e.target.value } } } : prev))}
+                      onChange={(e) =>
+                        setEditValues((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                domains: {
+                                  ...prev.domains,
+                                  [fieldId]: {
+                                    ...prev.domains[fieldId],
+                                    transversalResources: e.target.value,
+                                  },
+                                },
+                              }
+                            : prev
+                        )
+                      }
                       rows={5}
                       className="w-full px-3 py-2 bg-white rounded-lg border border-amber-300 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none resize-y"
                     />
@@ -460,13 +634,34 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
                 </div>
 
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                  <span className="text-[11px] font-bold text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded-md">معايير ومؤشرات التقويم</span>
+                  <span className="text-[11px] font-bold text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded-md">
+                    معايير ومؤشرات التقويم
+                  </span>
                   {!isEditing ? (
-                    <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap min-h-[20px]">{disp.evaluationCriteria || <span className="text-slate-400 italic">— فارغ —</span>}</p>
+                    <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap min-h-[20px]">
+                      {disp.evaluationCriteria || (
+                        <span className="text-slate-400 italic">— فارغ —</span>
+                      )}
+                    </p>
                   ) : (
                     <textarea
                       value={editDisp?.evaluationCriteria || ''}
-                      onChange={(e) => setEditValues((prev) => (prev ? { ...prev, domains: { ...prev.domains, [fieldId]: { ...prev.domains[fieldId], evaluationCriteria: e.target.value } } } : prev))}
+                      onChange={(e) =>
+                        setEditValues((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                domains: {
+                                  ...prev.domains,
+                                  [fieldId]: {
+                                    ...prev.domains[fieldId],
+                                    evaluationCriteria: e.target.value,
+                                  },
+                                },
+                              }
+                            : prev
+                        )
+                      }
                       rows={5}
                       className="w-full px-3 py-2 bg-white rounded-lg border border-indigo-300 text-xs text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none resize-y"
                     />
@@ -481,7 +676,10 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
       {isCleared && !isEditing && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3 text-amber-900 text-xs font-bold">
           <AlertTriangle className="w-5 h-5 text-amber-600" />
-          <span>هذا المخطط مفرغ حالياً (تخصيص فارغ صالح) — لن يتم الرجوع تلقائياً إلى المرجع. يمكنك كتابة مخطط جديد ثم حفظه، أو استعادة الأصلي.</span>
+          <span>
+            هذا المخطط مفرغ حالياً (تخصيص فارغ صالح) — لن يتم الرجوع تلقائياً إلى المرجع. يمكنك
+            كتابة مخطط جديد ثم حفظه، أو استعادة الأصلي.
+          </span>
         </div>
       )}
     </div>
