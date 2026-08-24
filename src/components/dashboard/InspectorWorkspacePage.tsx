@@ -47,7 +47,10 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
   const [selectedTeacherId, setSelectedTeacherId] = useState(props.teacherId || teachers[0]?.id || '');
   const [detail, setDetail] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [institutionFilter, setInstitutionFilter] = useState('all');
+  const [visitFilter, setVisitFilter] = useState('all');
   const selectedTeacher = teachers.find((teacher) => teacher.id === selectedTeacherId);
+  const rosterTeachers = teachers.filter((teacher: any) => (institutionFilter === 'all' || (teacher.schoolName || 'غير محددة') === institutionFilter) && (visitFilter === 'all' || (visitFilter === 'visited' ? (teacher.visitCount || 0) > 0 : (teacher.visitCount || 0) === 0))).sort((a: any, b: any) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, 'ar'));
   const { teacherClasses, totalStudentsTaught, maleCount, femaleCount, weeklyHoursCount } = useTeacher(teachers, selectedTeacherId, classes, students, weeklySchedule);
   const { filteredTeacherPlans } = useLessonPlans(lessonPlans, selectedTeacher, teachers);
   const { teacherVisits, teacherNotes } = useReports(visits, notes);
@@ -78,7 +81,8 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
     return <div className="space-y-6">
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs"><h1 className="text-lg font-black text-slate-900 flex items-center gap-2"><Users className="text-emerald-600" />متابعة الأساتذة بالمقاطعة</h1><p className="text-xs text-slate-500 mt-1">المصدر: الإسنادات المقبولة المحفوظة في PostgreSQL.</p></section>
       <InspectorPendingAssignments onAccepted={props.onRefreshTeachers} />
-      <InspectorTeacherList teachers={teachers} selectedTeacher={selectedTeacher} searchTerm={searchTerm} onSearchChange={setSearchTerm} onSelectTeacher={(teacher) => setSelectedTeacherId(teacher.id)} onOpenTeacher={(teacher) => props.onOpenTeacher?.(teacher.id)} />
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-3"><select value={institutionFilter} onChange={(event) => setInstitutionFilter(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs"><option value="all">كل المؤسسات</option>{Array.from(new Set(teachers.map((teacher) => teacher.schoolName || 'غير محددة'))).map((name) => <option key={name} value={name}>{name}</option>)}</select><select value={visitFilter} onChange={(event) => setVisitFilter(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs"><option value="all">كل حالات الزيارة</option><option value="visited">تمت زيارة</option><option value="unvisited">لم تتم الزيارة</option></select></div>
+      <InspectorTeacherList teachers={rosterTeachers} selectedTeacher={selectedTeacher} searchTerm={searchTerm} onSearchChange={setSearchTerm} onSelectTeacher={(teacher) => setSelectedTeacherId(teacher.id)} onOpenTeacher={(teacher) => props.onOpenTeacher?.(teacher.id)} />
       {teachers.length === 0 && <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">لا يوجد أساتذة مسندون إليك حالياً.</div>}
       {selectedTeacher && <InspectorPedagogicalProfile inspector={inspector} selectedTeacher={selectedTeacher} teacherClasses={teacherClasses} totalStudentsTaught={totalStudentsTaught} maleCount={maleCount} femaleCount={femaleCount} weeklyHoursCount={weeklyHoursCount} teacherSubTab="annual_plan" onSetTeacherSubTab={() => undefined} selectedInspectorLevelId="" onSetSelectedInspectorLevelId={() => undefined} teacherLessonPlans={filteredTeacherPlans} teacherNotebook={dailyNotebook.filter((item) => item.teacherId === selectedTeacher.id)} teacherScheduleSlots={weeklySchedule.filter((item) => !item.teacherId || item.teacherId === selectedTeacher.id)} visits={teacherVisits(selectedTeacher.id)} notes={teacherNotes(selectedTeacher.id)} onOpenVisitModal={() => props.onNavigate('inspector_visits')} onOpenNoteModal={() => props.onNavigate('inspector_visits')} onSelectLessonPlanModal={() => undefined} />}
     </div>;
