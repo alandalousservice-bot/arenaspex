@@ -16,44 +16,30 @@ import {
   Plus,
   Search,
   CheckCircle2,
-  XCircle,
-  AlertCircle,
-  FileCheck2,
   ShieldAlert,
-  Trophy,
   Shuffle,
-  Edit3,
   Calendar,
-  UserX,
   UserCheck,
-  Building,
   Flag,
   Sparkles,
-  Award,
-  ChevronDown,
   Trash2,
-  Layers,
   X,
-  Settings,
   History,
   RefreshCw,
   Sliders,
   Check,
-  HelpCircle,
   TrendingUp,
   BarChart2,
-  Zap
 } from 'lucide-react';
 import { previewStudentRoster, confirmStudentRosterImport } from '../../services/api';
 import {
   Student,
   ExemptedStudent,
-  AttendanceEntry,
   ClassRoom,
   User,
   GradeRecord,
   EvaluationWeights,
-  GradeAuditLog
+  GradeAuditLog,
 } from '../../types/spex';
 
 type RegisterTab = 'gradebook' | 'attendance' | 'exempted' | 'clubs';
@@ -61,7 +47,13 @@ type RegisterTab = 'gradebook' | 'attendance' | 'exempted' | 'clubs';
 export interface GradebookViewProps {
   classes?: ClassRoom[];
   students?: Student[];
-  onAddClass?: (newClassData: { name: string; levelId: string; studentCount: number; municipality?: string; schoolName?: string }) => string;
+  onAddClass?: (newClassData: {
+    name: string;
+    levelId: string;
+    studentCount: number;
+    municipality?: string;
+    schoolName?: string;
+  }) => string;
   onDeleteClass?: (classId: string) => void;
   onAddStudent?: (studentData: Omit<Student, 'id'>) => void;
   onDeleteStudent?: (studentId: string) => void;
@@ -81,23 +73,24 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
   onAddStudent,
   onDeleteStudent,
   onRefreshRoster,
-  currentUser
+  currentUser,
 }) => {
-
   const [activeRegister, setActiveRegister] = useState<RegisterTab>('gradebook');
   const [selectedClassId, setSelectedClassId] = useState<string>(classes[0]?.id || '');
   const [searchVal, setSearchVal] = useState<string>('');
   // تأخير التصفية عن الطباعة المباشرة لتقليل عمليات إعادة الرسم على قوائم التلاميذ الكبيرة
   const debouncedSearchVal = useDebounce(searchVal, 300);
-  const [selectedTerm, setSelectedTerm] = useState<'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث'>('الفصل الأول');
+  const [selectedTerm, setSelectedTerm] = useState<'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث'>(
+    'الفصل الأول'
+  );
 
   // Evaluation Weights Settings (Default total = 10 pts)
   const [weights, setWeights] = useState<EvaluationWeights>({
-    competencyWeight: 5.0,    // تملك الكفاءة الختامية: 5/10
+    competencyWeight: 5.0, // تملك الكفاءة الختامية: 5/10
     participationWeight: 2.0, // المشاركة الفعالة: 2/10
-    behaviorWeight: 2.0,      // السلوك والانضباط: 2/10
-    attendanceWeight: 1.0,    // المواظبة والحضور: 1/10
-    unexcusedDeduction: 0.25  // خصم 0.25 عن كل غياب غير مبرر
+    behaviorWeight: 2.0, // السلوك والانضباط: 2/10
+    attendanceWeight: 1.0, // المواظبة والحضور: 1/10
+    unexcusedDeduction: 0.25, // خصم 0.25 عن كل غياب غير مبرر
   });
 
   // Modal States
@@ -124,7 +117,13 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
   const [gradeRecords, setGradeRecords] = useState<Record<string, GradeRecord>>(() => {
     const key = currentUser ? `spex_grade_records_${currentUser.id}` : 'spex_grade_records';
     const saved = localStorage.getItem(key);
-    if (saved) { try { return JSON.parse(saved); } catch (e) { void e; } }
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        void e;
+      }
+    }
     return {};
   });
 
@@ -132,35 +131,56 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
   const [auditLogs, setAuditLogs] = useState<GradeAuditLog[]>(() => {
     const key = currentUser ? `spex_audit_logs_${currentUser.id}` : 'spex_audit_logs';
     const saved = localStorage.getItem(key);
-    if (saved) { try { return JSON.parse(saved); } catch (e) { void e; } }
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        void e;
+      }
+    }
     return [];
   });
 
   // Attendance State
-  const [selectedAttendanceDate, setSelectedAttendanceDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [currentAttendanceStatus, setCurrentAttendanceStatus] = useState<Record<string, 'حاضر' | 'غائب' | 'غائب بمبرر' | 'معفى'>>({});
+  const [selectedAttendanceDate, setSelectedAttendanceDate] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
+  const [currentAttendanceStatus, setCurrentAttendanceStatus] = useState<
+    Record<string, 'حاضر' | 'غائب' | 'غائب بمبرر' | 'معفى'>
+  >({});
 
   // Exemptions State
   const [exemptionsList, setExemptionsList] = useState<ExemptedStudent[]>(() => {
     const key = currentUser ? `spex_exemptions_${currentUser.id}` : 'spex_exemptions';
     const saved = localStorage.getItem(key);
-    if (saved) { try { return JSON.parse(saved); } catch (e) { void e; } }
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        void e;
+      }
+    }
     return [];
   });
   const [showAddExemptionModal, setShowAddExemptionModal] = useState<boolean>(false);
   const [newExemptionStudentId, setNewExemptionStudentId] = useState<string>('');
-  const [newCertNo, setNewCertNo] = useState<string>('');
+  const [newCertNo] = useState<string>('');
   const [newDoctor, setNewDoctor] = useState<string>('');
   const [newReason, setNewReason] = useState<string>('');
-  const [newPeriod, setNewPeriod] = useState<'كامل السنة الدراسية' | 'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث' | 'محددة بالتواريخ'>('الفصل الأول');
+  const [newPeriod, setNewPeriod] = useState<
+    'كامل السنة الدراسية' | 'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث' | 'محددة بالتواريخ'
+  >('الفصل الأول');
 
   // Per-Class Educational Clubs State (البلدية التربوية لكل قسم)
-  const [classClubNames, setClassClubNames] = useState<Record<string, { aName: string; aSlogan: string; bName: string; bSlogan: string }>>({});
+  const [classClubNames, setClassClubNames] = useState<
+    Record<string, { aName: string; aSlogan: string; bName: string; bSlogan: string }>
+  >({});
 
   // Club assignments map: studentId -> 'club_a' | 'club_b'
   const [clubAssignments, setClubAssignments] = useState<ClubAssignmentMap>({});
 
-  const activeClass = classes.find((c) => c.id === selectedClassId) || classes[0] || { id: '', name: '', studentCount: 0 };
+  const activeClass = classes.find((c) => c.id === selectedClassId) ||
+    classes[0] || { id: '', name: '', studentCount: 0 };
   const classStudents = students.filter((s) => s.classId === activeClass.id);
 
   // Active class club names
@@ -168,15 +188,15 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     aName: `نادي أ (${activeClass.name})`,
     aSlogan: 'بالرياضة والأخلاق نسبق الجميع',
     bName: `نادي ب (${activeClass.name})`,
-    bSlogan: 'بالعزيمة والإصرار نحو القمة'
+    bSlogan: 'بالعزيمة والإصرار نحو القمة',
   };
 
   // Helper: calculate ratings to score multipliers
   const RATING_MULTIPLIERS = {
-    'ممتاز': 1.0,
-    'جيد': 0.85,
-    'متوسط': 0.65,
-    'ضعيف': 0.40,
+    ممتاز: 1.0,
+    جيد: 0.85,
+    متوسط: 0.65,
+    ضعيف: 0.4,
     'تمكن ممتاز': 1.0,
     'تمكن جيد': 0.85,
     'تمكن متوسط': 0.65,
@@ -194,9 +214,15 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     const defaultParticipation: 'ممتاز' | 'جيد' | 'متوسط' | 'ضعيف' = 'جيد';
     const defaultCompetency: 'تمكن ممتاز' | 'تمكن جيد' | 'تمكن متوسط' | 'تمكن جزئي' = 'تمكن جيد';
 
-    const bScore = Number((weights.behaviorWeight * RATING_MULTIPLIERS[defaultBehavior]).toFixed(2));
-    const pScore = Number((weights.participationWeight * RATING_MULTIPLIERS[defaultParticipation]).toFixed(2));
-    const cScore = Number((weights.competencyWeight * RATING_MULTIPLIERS[defaultCompetency]).toFixed(2));
+    const bScore = Number(
+      (weights.behaviorWeight * RATING_MULTIPLIERS[defaultBehavior]).toFixed(2)
+    );
+    const pScore = Number(
+      (weights.participationWeight * RATING_MULTIPLIERS[defaultParticipation]).toFixed(2)
+    );
+    const cScore = Number(
+      (weights.competencyWeight * RATING_MULTIPLIERS[defaultCompetency]).toFixed(2)
+    );
     const attScore = weights.attendanceWeight;
 
     const suggested = Number((bScore + pScore + cScore + attScore).toFixed(1));
@@ -218,12 +244,15 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
       suggestedMark: Math.min(10, suggested),
       finalMark: Math.min(10, suggested),
       isApprovedByTeacher: false,
-      updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16)
+      updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
     };
   };
 
   // Recalculate suggested mark for a student based on current ratings & weights
-  const calculateSuggestedMark = (rec: Partial<GradeRecord>, currentWeights: EvaluationWeights): number => {
+  const calculateSuggestedMark = (
+    rec: Partial<GradeRecord>,
+    currentWeights: EvaluationWeights
+  ): number => {
     const bMult = RATING_MULTIPLIERS[rec.behaviorRating || 'ممتاز'] || 1.0;
     const pMult = RATING_MULTIPLIERS[rec.participationRating || 'جيد'] || 0.85;
     const cMult = RATING_MULTIPLIERS[rec.competencyRating || 'تمكن جيد'] || 0.85;
@@ -234,18 +263,25 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
 
     // Attendance calculation: max - (unexcused * deduction)
     const unexcused = rec.unexcusedAbsencesCount || 0;
-    const attScore = Math.max(0, currentWeights.attendanceWeight - (unexcused * currentWeights.unexcusedDeduction));
+    const attScore = Math.max(
+      0,
+      currentWeights.attendanceWeight - unexcused * currentWeights.unexcusedDeduction
+    );
 
     const total = bScore + pScore + cScore + attScore;
     return Number(Math.min(10, Math.max(0, total)).toFixed(1));
   };
 
   // Update a student's grade record
-  const handleUpdateGradeRecord = (studentId: string, updates: Partial<GradeRecord>, newReason?: string) => {
+  const handleUpdateGradeRecord = (
+    studentId: string,
+    updates: Partial<GradeRecord>,
+    newReason?: string
+  ) => {
     const existing = getStudentGrade(studentId);
     const updatedRecord: GradeRecord = {
       ...existing,
-      ...updates
+      ...updates,
     };
 
     // Recompute components if ratings changed
@@ -276,9 +312,15 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
         suggestedMark: newSuggested,
         previousFinalMark: existing.finalMark,
         newFinalMark: updates.finalMark,
-        changedByTeacherName: currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'الأستاذ',
+        changedByTeacherName: currentUser
+          ? `${currentUser.firstName} ${currentUser.lastName}`
+          : 'الأستاذ',
         changeDate: new Date().toISOString().replace('T', ' ').slice(0, 16),
-        reason: newReason || updates.adjustmentReason || existing.adjustmentReason || 'تعديل مباشر من طرف الأستاذ'
+        reason:
+          newReason ||
+          updates.adjustmentReason ||
+          existing.adjustmentReason ||
+          'تعديل مباشر من طرف الأستاذ',
       };
 
       setAuditLogs((prev) => [auditEntry, ...prev]);
@@ -292,7 +334,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
 
     setGradeRecords((prev) => ({
       ...prev,
-      [studentId]: updatedRecord
+      [studentId]: updatedRecord,
     }));
   };
 
@@ -308,12 +350,14 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
         suggestedMark: newSuggested,
         // If not approved yet, reset final mark to suggested mark
         finalMark: rec.isApprovedByTeacher ? rec.finalMark : newSuggested,
-        updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16)
+        updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
       };
     });
 
     setGradeRecords(updatedMap);
-    alert('تمت إعادة الحساب الذكي لجميع العلامات المقترحة بنجاح بناءً على أوزان التقييم وسجلات الغياب.');
+    alert(
+      'تمت إعادة الحساب الذكي لجميع العلامات المقترحة بنجاح بناءً على أوزان التقييم وسجلات الغياب.'
+    );
   };
 
   // Action: Approve All Suggested/Current Final Grades for Active Class
@@ -325,7 +369,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
       updatedMap[std.id] = {
         ...rec,
         isApprovedByTeacher: true,
-        updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16)
+        updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
       };
     });
 
@@ -345,7 +389,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
         competencyRate: 0,
         attendanceRate: 0,
         approvedCount: 0,
-        distribution: { excellent: 0, good: 0, average: 0, weak: 0 }
+        distribution: { excellent: 0, good: 0, average: 0, weak: 0 },
       };
     }
 
@@ -374,7 +418,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
       competencyRate,
       attendanceRate: 0,
       approvedCount,
-      distribution: { excellent, good, average, weak }
+      distribution: { excellent, good, average, weak },
     };
   }, [classStudents, gradeRecords, selectedTerm, weights]);
 
@@ -396,7 +440,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
         levelId: newClassLevel,
         studentCount: newClassStudentCount || 0,
         municipality: currentUser?.municipality,
-        schoolName: currentUser?.schoolName
+        schoolName: currentUser?.schoolName,
       });
     }
 
@@ -411,7 +455,11 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
       return;
     }
     const targetClass = classes.find((c) => c.id === classId);
-    if (window.confirm(`هل أنت تأكد من إرادة حذف القسم: ${targetClass?.name || classId} مع جميع بياناته والتلاميذ المسجلين فيه؟`)) {
+    if (
+      window.confirm(
+        `هل أنت تأكد من إرادة حذف القسم: ${targetClass?.name || classId} مع جميع بياناته والتلاميذ المسجلين فيه؟`
+      )
+    ) {
       if (onDeleteClass) {
         onDeleteClass(classId);
       }
@@ -435,7 +483,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
         firstName: newStudentFirstName.trim(),
         lastName: newStudentLastName.trim(),
         gender: newStudentGender,
-        registrationNumber: newReg
+        registrationNumber: newReg,
       });
     }
 
@@ -449,32 +497,81 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    setRosterLoading(true); setRosterError(''); setRosterFileName(file.name);
-    try { setRosterPreview(await previewStudentRoster(file)); }
-    catch (error) { setRosterError(error instanceof Error ? error.message : 'تعذر التعرف على بنية الملف.'); }
-    finally { setRosterLoading(false); }
+    setRosterLoading(true);
+    setRosterError('');
+    setRosterFileName(file.name);
+    try {
+      setRosterPreview(await previewStudentRoster(file));
+    } catch (error) {
+      setRosterError(error instanceof Error ? error.message : 'تعذر التعرف على بنية الملف.');
+    } finally {
+      setRosterLoading(false);
+    }
   };
 
   const confirmRoster = async () => {
     if (!rosterPreview || !activeClass) return;
-    const previews = rosterPreview.previews.filter((preview: any) => (preview.students || []).length);
-    if (!previews.length) { setRosterError('لا توجد صفوف صالحة للاستيراد.'); return; }
-    setRosterLoading(true); setRosterError('');
+    const previews = rosterPreview.previews.filter(
+      (preview: any) => (preview.students || []).length
+    );
+    if (!previews.length) {
+      setRosterError('لا توجد صفوف صالحة للاستيراد.');
+      return;
+    }
+    setRosterLoading(true);
+    setRosterError('');
     try {
-      let created = 0; let existing = 0; let conflicts = 0; let review = 0;
+      let created = 0;
+      let existing = 0;
+      let conflicts = 0;
+      let review = 0;
       for (const preview of previews) {
-        const grade = Number(preview.grade) || Number(('levelId' in activeClass ? activeClass.levelId : '').replace('lvl_p', '')) || 1;
+        const grade =
+          Number(preview.grade) ||
+          Number(('levelId' in activeClass ? activeClass.levelId : '').replace('lvl_p', '')) ||
+          1;
         const levelId = `lvl_p${grade}`;
-        const matched = classes.find((item) => item.levelId === levelId && (!preview.groupName || item.name.includes(preview.groupName))) || (grade === Number(('levelId' in activeClass ? activeClass.levelId : '').replace('lvl_p', '')) ? activeClass : undefined);
-        const destinationId = matched?.id || onAddClass?.({ name: preview.groupName || `السنة ${grade} ابتدائي`, levelId, studentCount: preview.students.length }) || activeClass.id;
-        const result = await confirmStudentRosterImport(preview.students, destinationId, grade, preview.groupName || matched?.name || `السنة ${grade} ابتدائي`, levelId);
-        created += result.summary.created; existing += result.summary.existing; conflicts += result.summary.conflicts; review += result.summary.review;
+        const matched =
+          classes.find(
+            (item) =>
+              item.levelId === levelId &&
+              (!preview.groupName || item.name.includes(preview.groupName))
+          ) ||
+          (grade ===
+          Number(('levelId' in activeClass ? activeClass.levelId : '').replace('lvl_p', ''))
+            ? activeClass
+            : undefined);
+        const destinationId =
+          matched?.id ||
+          onAddClass?.({
+            name: preview.groupName || `السنة ${grade} ابتدائي`,
+            levelId,
+            studentCount: preview.students.length,
+          }) ||
+          activeClass.id;
+        const result = await confirmStudentRosterImport(
+          preview.students,
+          destinationId,
+          grade,
+          preview.groupName || matched?.name || `السنة ${grade} ابتدائي`,
+          levelId
+        );
+        created += result.summary.created;
+        existing += result.summary.existing;
+        conflicts += result.summary.conflicts;
+        review += result.summary.review;
       }
       await onRefreshRoster?.();
-      window.alert(`تم الاستيراد بنجاح\nالجدد: ${created}\nالموجودون مسبقاً: ${existing}\nبحاجة إلى مراجعة: ${conflicts + review}`);
-      setRosterPreview(null); setRosterFileName('');
-    } catch (error) { setRosterError(error instanceof Error ? error.message : 'تعذر تأكيد الاستيراد.'); }
-    finally { setRosterLoading(false); }
+      window.alert(
+        `تم الاستيراد بنجاح\nالجدد: ${created}\nالموجودون مسبقاً: ${existing}\nبحاجة إلى مراجعة: ${conflicts + review}`
+      );
+      setRosterPreview(null);
+      setRosterFileName('');
+    } catch (error) {
+      setRosterError(error instanceof Error ? error.message : 'تعذر تأكيد الاستيراد.');
+    } finally {
+      setRosterLoading(false);
+    }
   };
 
   // Handle Delete Student
@@ -507,18 +604,21 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
   const toggleStudentClub = (studentId: string) => {
     setClubAssignments((prev) => ({
       ...prev,
-      [studentId]: prev[studentId] === 'club_b' ? 'club_a' : 'club_b'
+      [studentId]: prev[studentId] === 'club_b' ? 'club_a' : 'club_b',
     }));
   };
 
   // Update active class club details
-  const updateActiveClubDetails = (field: 'aName' | 'aSlogan' | 'bName' | 'bSlogan', val: string) => {
+  const updateActiveClubDetails = (
+    field: 'aName' | 'aSlogan' | 'bName' | 'bSlogan',
+    val: string
+  ) => {
     setClassClubNames((prev) => ({
       ...prev,
       [activeClass.id]: {
         ...(prev[activeClass.id] || currentClubs),
-        [field]: val
-      }
+        [field]: val,
+      },
     }));
   };
 
@@ -542,7 +642,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
       exemptionReason: newReason,
       period: newPeriod,
       roleInSession: 'تحكيم وملاحظة',
-      notes: 'يعفى من المجهود البدني ويسند له دور الملاحظة الحركية والتحكيم.'
+      notes: 'يعفى من المجهود البدني ويسند له دور الملاحظة الحركية والتحكيم.',
     };
 
     setExemptionsList((prev) => [newEx, ...prev]);
@@ -570,7 +670,8 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
             <span>نظام دفتر التنقيط والسجلات البيداغوجية الرسمية</span>
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            نظام تقييم ذكي يحترم المنهاج الجزائري • اقتراح العلامة آلياً • سلطة وتعديل الأستاذ • سجل الشفافية والتعديلات
+            نظام تقييم ذكي يحترم المنهاج الجزائري • اقتراح العلامة آلياً • سلطة وتعديل الأستاذ • سجل
+            الشفافية والتعديلات
           </p>
         </div>
 
@@ -611,7 +712,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
       {/* Class Selector Row with Class Switching and Delete Option */}
       <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2 overflow-x-auto pb-1 w-full sm:w-auto">
-          <span className="text-xs font-bold text-slate-500 whitespace-nowrap ml-2">الأقسام المسندة للأستاذ:</span>
+          <span className="text-xs font-bold text-slate-500 whitespace-nowrap ml-2">
+            الأقسام المسندة للأستاذ:
+          </span>
           {classes.map((cls) => {
             const isSelected = cls.id === activeClass.id;
             const count = students.filter((s) => s.classId === cls.id).length;
@@ -627,7 +730,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               >
                 <Users className="w-3.5 h-3.5" />
                 <span>{cls.name}</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}
+                >
                   {count} تلميذاً
                 </span>
               </div>
@@ -637,7 +742,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
 
         {/* Delete current class button */}
         <div className="flex items-center gap-2 self-end sm:self-center">
-          <span className="text-xs font-bold text-slate-600">القسم المختار: <strong className="text-blue-900">{activeClass.name}</strong></span>
+          <span className="text-xs font-bold text-slate-600">
+            القسم المختار: <strong className="text-blue-900">{activeClass.name}</strong>
+          </span>
           <button
             onClick={() => handleConfirmDeleteClass(activeClass.id)}
             className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold border border-rose-200 flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -725,10 +832,15 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                   </span>
                 </div>
                 <h3 className="text-base font-black text-white">
-                  دفتر التنقيط ليس آلة صماء تمنح العلامات، بل أداة مساعدة ذكية تضع التقديرات وتترك القرار الأخير دائماً للأستاذ
+                  دفتر التنقيط ليس آلة صماء تمنح العلامات، بل أداة مساعدة ذكية تضع التقديرات وتترك
+                  القرار الأخير دائماً للأستاذ
                 </h3>
                 <p className="text-xs text-blue-100/90 leading-relaxed">
-                  يحسب النظام العلامة المقترحة تلقائياً من 10 نقاط بناءً على: تملك الكفاءة الختامية ({weights.competencyWeight}ن)، المشاركة الفعالة ({weights.participationWeight}ن)، السلوك والانضباط ({weights.behaviorWeight}ن)، والمواظبة والحضور ({weights.attendanceWeight}ن). للأستاذ الحرية التامة في تعديل أي عنصر أو اعتماد العلامة مباشرة مع توثيق سبب التعديل للشفافية.
+                  يحسب النظام العلامة المقترحة تلقائياً من 10 نقاط بناءً على: تملك الكفاءة الختامية
+                  ({weights.competencyWeight}ن)، المشاركة الفعالة ({weights.participationWeight}ن)،
+                  السلوك والانضباط ({weights.behaviorWeight}ن)، والمواظبة والحضور (
+                  {weights.attendanceWeight}ن). للأستاذ الحرية التامة في تعديل أي عنصر أو اعتماد
+                  العلامة مباشرة مع توثيق سبب التعديل للشفافية.
                 </p>
               </div>
 
@@ -746,7 +858,10 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                   className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-2xl border border-white/20 transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-xs"
                 >
                   <History className="w-4 h-4 text-blue-300" />
-                  <span>سجل التعديلات والشفافية ({auditLogs.filter((a) => a.classId === activeClass.id).length})</span>
+                  <span>
+                    سجل التعديلات والشفافية (
+                    {auditLogs.filter((a) => a.classId === activeClass.id).length})
+                  </span>
                 </button>
               </div>
             </div>
@@ -766,7 +881,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
             </div>
 
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">أعلى علامة بالقسم</span>
+              <span className="text-[11px] font-extrabold text-slate-500 block">
+                أعلى علامة بالقسم
+              </span>
               <div className="flex items-baseline gap-1">
                 <span className="text-xl font-black text-emerald-600">{classStats.max}</span>
                 <span className="text-[10px] text-slate-400 font-bold">/ 10</span>
@@ -775,7 +892,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
             </div>
 
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">أدنى علامة بالقسم</span>
+              <span className="text-[11px] font-extrabold text-slate-500 block">
+                أدنى علامة بالقسم
+              </span>
               <div className="flex items-baseline gap-1">
                 <span className="text-xl font-black text-amber-600">{classStats.min}</span>
                 <span className="text-[10px] text-slate-400 font-bold">/ 10</span>
@@ -784,26 +903,38 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
             </div>
 
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">نسبة التمكن الكفائي</span>
+              <span className="text-[11px] font-extrabold text-slate-500 block">
+                نسبة التمكن الكفائي
+              </span>
               <div className="flex items-baseline gap-1">
-                <span className="text-xl font-black text-purple-700">{classStats.competencyRate}%</span>
+                <span className="text-xl font-black text-purple-700">
+                  {classStats.competencyRate}%
+                </span>
               </div>
               <span className="text-[10px] text-purple-600 font-bold">تمكن جيد وممتاز</span>
             </div>
 
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">نسبة المواظبة والحضور</span>
+              <span className="text-[11px] font-extrabold text-slate-500 block">
+                نسبة المواظبة والحضور
+              </span>
               <div className="flex items-baseline gap-1">
-                <span className="text-xl font-black text-emerald-700">{classStats.attendanceRate}%</span>
+                <span className="text-xl font-black text-emerald-700">
+                  {classStats.attendanceRate}%
+                </span>
               </div>
               <span className="text-[10px] text-slate-500 font-bold">انضباط حركي ملحوظ</span>
             </div>
 
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">حالة الاعتماد الأستاذي</span>
+              <span className="text-[11px] font-extrabold text-slate-500 block">
+                حالة الاعتماد الأستاذي
+              </span>
               <div className="flex items-baseline gap-1">
                 <span className="text-xl font-black text-blue-900">{classStats.approvedCount}</span>
-                <span className="text-[10px] text-slate-400 font-bold">/ {classStudents.length}</span>
+                <span className="text-[10px] text-slate-400 font-bold">
+                  / {classStudents.length}
+                </span>
               </div>
               <span className="text-[10px] text-blue-600 font-bold">علامات معتمدة</span>
             </div>
@@ -819,22 +950,30 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <span className="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl font-bold flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                ممتاز (9-10): <strong className="font-black text-emerald-900">{classStats.distribution.excellent}</strong>
+                ممتاز (9-10):{' '}
+                <strong className="font-black text-emerald-900">
+                  {classStats.distribution.excellent}
+                </strong>
               </span>
 
               <span className="px-3 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-xl font-bold flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-blue-500" />
-                جيد (7-8.9): <strong className="font-black text-blue-900">{classStats.distribution.good}</strong>
+                جيد (7-8.9):{' '}
+                <strong className="font-black text-blue-900">{classStats.distribution.good}</strong>
               </span>
 
               <span className="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl font-bold flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-amber-500" />
-                متوسط (5-6.9): <strong className="font-black text-amber-900">{classStats.distribution.average}</strong>
+                متوسط (5-6.9):{' '}
+                <strong className="font-black text-amber-900">
+                  {classStats.distribution.average}
+                </strong>
               </span>
 
               <span className="px-3 py-1 bg-rose-50 text-rose-800 border border-rose-200 rounded-xl font-bold flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-rose-500" />
-                ضعيف (&lt;5): <strong className="font-black text-rose-900">{classStats.distribution.weak}</strong>
+                ضعيف (&lt;5):{' '}
+                <strong className="font-black text-rose-900">{classStats.distribution.weak}</strong>
               </span>
             </div>
           </div>
@@ -844,10 +983,13 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
                 <h3 className="text-base font-black text-slate-900">
-                  شبكة تنقيط علامات التربية البدنية والرياضية - <span className="text-blue-700">{activeClass.name}</span>
+                  شبكة تنقيط علامات التربية البدنية والرياضية -{' '}
+                  <span className="text-blue-700">{activeClass.name}</span>
                 </h3>
                 <span className="text-xs bg-slate-100 text-slate-700 font-extrabold px-2.5 py-1 rounded-xl">
-                  توزيع الأوزان: كفاءة ({weights.competencyWeight}) • مشاركة ({weights.participationWeight}) • سلوك ({weights.behaviorWeight}) • مواظبة ({weights.attendanceWeight})
+                  توزيع الأوزان: كفاءة ({weights.competencyWeight}) • مشاركة (
+                  {weights.participationWeight}) • سلوك ({weights.behaviorWeight}) • مواظبة (
+                  {weights.attendanceWeight})
                 </span>
               </div>
 
@@ -902,8 +1044,13 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               </div>
 
               <div className="text-xs text-slate-500 font-semibold flex items-center gap-2">
-                <span>تلاميذ القسم: <strong className="text-blue-700">{classStudents.length}</strong></span>
-                <span>• المعتمَدة: <strong className="text-emerald-700">{classStats.approvedCount}</strong></span>
+                <span>
+                  تلاميذ القسم: <strong className="text-blue-700">{classStudents.length}</strong>
+                </span>
+                <span>
+                  • المعتمَدة:{' '}
+                  <strong className="text-emerald-700">{classStats.approvedCount}</strong>
+                </span>
               </div>
             </div>
 
@@ -942,7 +1089,8 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                   {classStudents.length === 0 ? (
                     <tr>
                       <td colSpan={12} className="p-8 text-center text-slate-400 font-medium">
-                        لا يوجد تلاميذ مسجلين في هذا القسم حتى الآن. انقر فوق "إضافة تلميذ للقسم" للبدء.
+                        لا يوجد تلاميذ مسجلين في هذا القسم حتى الآن. انقر فوق "إضافة تلميذ للقسم"
+                        للبدء.
                       </td>
                     </tr>
                   ) : (
@@ -955,7 +1103,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                       )
                       .map((std, idx) => {
                         const rec = getStudentGrade(std.id);
-                        const isExempt = exemptionsList.some((ex) => ex.studentId === std.id && ex.classId === activeClass.id);
+                        const isExempt = exemptionsList.some(
+                          (ex) => ex.studentId === std.id && ex.classId === activeClass.id
+                        );
                         const isModified = rec.finalMark !== rec.suggestedMark;
 
                         return (
@@ -969,12 +1119,16 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                             <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
 
                             {/* Reg Number */}
-                            <td className="p-3 font-mono text-slate-500 font-bold">{std.registrationNumber}</td>
+                            <td className="p-3 font-mono text-slate-500 font-bold">
+                              {std.registrationNumber}
+                            </td>
 
                             {/* Full Name */}
                             <td className="p-3 font-extrabold text-slate-900">
                               <div className="flex items-center gap-1.5">
-                                <span>{std.firstName} {std.lastName}</span>
+                                <span>
+                                  {std.firstName} {std.lastName}
+                                </span>
                                 {isExempt && (
                                   <span className="bg-rose-100 text-rose-800 text-[9px] font-black px-1.5 py-0.5 rounded-full">
                                     معفى
@@ -989,7 +1143,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                                 value={rec.behaviorRating}
                                 onChange={(e) =>
                                   handleUpdateGradeRecord(std.id, {
-                                    behaviorRating: e.target.value as any
+                                    behaviorRating: e.target.value as any,
                                   })
                                 }
                                 className="w-full text-center py-1 px-1.5 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-500 cursor-pointer"
@@ -1022,7 +1176,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                                 value={rec.participationRating}
                                 onChange={(e) =>
                                   handleUpdateGradeRecord(std.id, {
-                                    participationRating: e.target.value as any
+                                    participationRating: e.target.value as any,
                                   })
                                 }
                                 className="w-full text-center py-1 px-1.5 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-500 cursor-pointer"
@@ -1043,7 +1197,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                                 value={rec.competencyRating}
                                 onChange={(e) =>
                                   handleUpdateGradeRecord(std.id, {
-                                    competencyRating: e.target.value as any
+                                    competencyRating: e.target.value as any,
                                   })
                                 }
                                 className="w-full text-center py-1 px-1.5 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-500 cursor-pointer"
@@ -1078,7 +1232,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                                   const val = parseFloat(e.target.value);
                                   if (!isNaN(val)) {
                                     handleUpdateGradeRecord(std.id, {
-                                      finalMark: Math.min(10, Math.max(0, val))
+                                      finalMark: Math.min(10, Math.max(0, val)),
                                     });
                                   }
                                 }}
@@ -1113,7 +1267,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                                 <button
                                   onClick={() =>
                                     handleUpdateGradeRecord(std.id, {
-                                      isApprovedByTeacher: !rec.isApprovedByTeacher
+                                      isApprovedByTeacher: !rec.isApprovedByTeacher,
                                     })
                                   }
                                   className={`px-2 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
@@ -1234,10 +1388,10 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                               status === 'حاضر'
                                 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                                 : status === 'غائب'
-                                ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                                : status === 'غائب بمبرر'
-                                ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                                : 'bg-purple-100 text-purple-800 border border-purple-200'
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                  : status === 'غائب بمبرر'
+                                    ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                    : 'bg-purple-100 text-purple-800 border border-purple-200'
                             }`}
                           >
                             {status}
@@ -1264,7 +1418,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                         </td>
                         <td className="p-2 text-center">
                           <button
-                            onClick={() => handleConfirmDeleteStudent(std.id, `${std.firstName} ${std.lastName}`)}
+                            onClick={() =>
+                              handleConfirmDeleteStudent(std.id, `${std.firstName} ${std.lastName}`)
+                            }
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                             title="حذف التلميذ"
                           >
@@ -1337,7 +1493,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                         <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
                         <td className="p-3 font-extrabold text-slate-900">{ex.studentName}</td>
                         <td className="p-3 text-slate-600">
-                          <div><strong className="text-slate-800">{ex.certificateNumber}</strong></div>
+                          <div>
+                            <strong className="text-slate-800">{ex.certificateNumber}</strong>
+                          </div>
                           <div className="text-[10px] text-slate-400">{ex.medicalFacility}</div>
                         </td>
                         <td className="p-3 text-rose-700 font-bold">{ex.exemptionReason}</td>
@@ -1346,10 +1504,14 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                             {ex.period}
                           </span>
                         </td>
-                        <td className="p-3 text-slate-700 font-semibold">{ex.roleInSession || 'تحكيم وملاحظة حركية'}</td>
+                        <td className="p-3 text-slate-700 font-semibold">
+                          {ex.roleInSession || 'تحكيم وملاحظة حركية'}
+                        </td>
                         <td className="p-2 text-center">
                           <button
-                            onClick={() => setExemptionsList((prev) => prev.filter((e) => e.id !== ex.id))}
+                            onClick={() =>
+                              setExemptionsList((prev) => prev.filter((e) => e.id !== ex.id))
+                            }
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                             title="حذف الإعفاء"
                           >
@@ -1380,7 +1542,8 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                 </span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                توزيع تلاميذ هذا القسم تلقائياً إلى ناديين (نادي أ ونادي ب) ومتابعة الروح المنافسة الشريفة
+                توزيع تلاميذ هذا القسم تلقائياً إلى ناديين (نادي أ ونادي ب) ومتابعة الروح المنافسة
+                الشريفة
               </p>
             </div>
 
@@ -1403,12 +1566,18 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                   <h4 className="text-xs font-black text-blue-900">النادي الأول (نادي أ)</h4>
                 </div>
                 <span className="text-[10px] bg-blue-200/60 text-blue-900 font-extrabold px-2 py-0.5 rounded-full">
-                  {classStudents.filter((s) => (clubAssignments[s.id] || 'club_a') === 'club_a').length} أعضاء
+                  {
+                    classStudents.filter((s) => (clubAssignments[s.id] || 'club_a') === 'club_a')
+                      .length
+                  }{' '}
+                  أعضاء
                 </span>
               </div>
               <div className="space-y-2">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">اسم النادي:</label>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                    اسم النادي:
+                  </label>
                   <input
                     type="text"
                     value={currentClubs.aName}
@@ -1417,7 +1586,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">شعار النادي:</label>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                    شعار النادي:
+                  </label>
                   <input
                     type="text"
                     value={currentClubs.aSlogan}
@@ -1441,7 +1612,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               </div>
               <div className="space-y-2">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">اسم النادي:</label>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                    اسم النادي:
+                  </label>
                   <input
                     type="text"
                     value={currentClubs.bName}
@@ -1450,7 +1623,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">شعار النادي:</label>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                    شعار النادي:
+                  </label>
                   <input
                     type="text"
                     value={currentClubs.bSlogan}
@@ -1484,7 +1659,8 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                   </tr>
                 ) : (
                   classStudents.map((std, idx) => {
-                    const assignedClub = clubAssignments[std.id] || (idx % 2 === 0 ? 'club_a' : 'club_b');
+                    const assignedClub =
+                      clubAssignments[std.id] || (idx % 2 === 0 ? 'club_a' : 'club_b');
 
                     return (
                       <tr key={std.id} className="hover:bg-slate-50 transition-colors">
@@ -1493,7 +1669,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                           {std.firstName} {std.lastName}
                         </td>
                         <td className="p-3 text-center">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${std.gender === 'ذكر' ? 'bg-blue-50 text-blue-700' : 'bg-pink-50 text-pink-700'}`}>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${std.gender === 'ذكر' ? 'bg-blue-50 text-blue-700' : 'bg-pink-50 text-pink-700'}`}
+                          >
                             {std.gender}
                           </span>
                         </td>
@@ -1518,7 +1696,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                         </td>
                         <td className="p-2 text-center">
                           <button
-                            onClick={() => handleConfirmDeleteStudent(std.id, `${std.firstName} ${std.lastName}`)}
+                            onClick={() =>
+                              handleConfirmDeleteStudent(std.id, `${std.firstName} ${std.lastName}`)
+                            }
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                             title="حذف التلميذ"
                           >
@@ -1555,7 +1735,8 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
             </div>
 
             <p className="text-xs text-slate-500">
-              يمكن للأستاذ أو المؤسسة تعديل التوزيع الافتراضي لأوزان التقييم الأربعة لتلائم خصوصيات التدريس أو المنشور الخاص بالولاية.
+              يمكن للأستاذ أو المؤسسة تعديل التوزيع الافتراضي لأوزان التقييم الأربعة لتلائم خصوصيات
+              التدريس أو المنشور الخاص بالولاية.
             </p>
 
             <div className="space-y-4">
@@ -1563,7 +1744,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               <div>
                 <div className="flex justify-between items-center text-xs font-bold mb-1">
                   <label className="text-slate-800">1. تملك الكفاءة الختامية:</label>
-                  <span className="text-blue-700 font-mono font-black">{weights.competencyWeight} نقاط</span>
+                  <span className="text-blue-700 font-mono font-black">
+                    {weights.competencyWeight} نقاط
+                  </span>
                 </div>
                 <input
                   type="range"
@@ -1572,7 +1755,10 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                   step="0.5"
                   value={weights.competencyWeight}
                   onChange={(e) =>
-                    setWeights((prev) => ({ ...prev, competencyWeight: parseFloat(e.target.value) }))
+                    setWeights((prev) => ({
+                      ...prev,
+                      competencyWeight: parseFloat(e.target.value),
+                    }))
                   }
                   className="w-full accent-blue-600 cursor-pointer"
                 />
@@ -1582,7 +1768,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               <div>
                 <div className="flex justify-between items-center text-xs font-bold mb-1">
                   <label className="text-slate-800">2. المشاركة الفعالة والأداء الحركي:</label>
-                  <span className="text-blue-700 font-mono font-black">{weights.participationWeight} نقاط</span>
+                  <span className="text-blue-700 font-mono font-black">
+                    {weights.participationWeight} نقاط
+                  </span>
                 </div>
                 <input
                   type="range"
@@ -1591,7 +1779,10 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                   step="0.5"
                   value={weights.participationWeight}
                   onChange={(e) =>
-                    setWeights((prev) => ({ ...prev, participationWeight: parseFloat(e.target.value) }))
+                    setWeights((prev) => ({
+                      ...prev,
+                      participationWeight: parseFloat(e.target.value),
+                    }))
                   }
                   className="w-full accent-blue-600 cursor-pointer"
                 />
@@ -1601,7 +1792,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               <div>
                 <div className="flex justify-between items-center text-xs font-bold mb-1">
                   <label className="text-slate-800">3. السلوك والانضباط والروح الرياضية:</label>
-                  <span className="text-blue-700 font-mono font-black">{weights.behaviorWeight} نقاط</span>
+                  <span className="text-blue-700 font-mono font-black">
+                    {weights.behaviorWeight} نقاط
+                  </span>
                 </div>
                 <input
                   type="range"
@@ -1620,7 +1813,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               <div>
                 <div className="flex justify-between items-center text-xs font-bold mb-1">
                   <label className="text-slate-800">4. المواظبة والحضور:</label>
-                  <span className="text-blue-700 font-mono font-black">{weights.attendanceWeight} نقاط</span>
+                  <span className="text-blue-700 font-mono font-black">
+                    {weights.attendanceWeight} نقاط
+                  </span>
                 </div>
                 <input
                   type="range"
@@ -1629,7 +1824,10 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                   step="0.5"
                   value={weights.attendanceWeight}
                   onChange={(e) =>
-                    setWeights((prev) => ({ ...prev, attendanceWeight: parseFloat(e.target.value) }))
+                    setWeights((prev) => ({
+                      ...prev,
+                      attendanceWeight: parseFloat(e.target.value),
+                    }))
                   }
                   className="w-full accent-blue-600 cursor-pointer"
                 />
@@ -1639,7 +1837,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               <div className="pt-2 border-t border-slate-100">
                 <div className="flex justify-between items-center text-xs font-bold mb-1">
                   <label className="text-slate-800">خصم الغياب غير المبرر (عن كل حصة):</label>
-                  <span className="text-rose-600 font-mono font-black">-{weights.unexcusedDeduction} نقطة</span>
+                  <span className="text-rose-600 font-mono font-black">
+                    -{weights.unexcusedDeduction} نقطة
+                  </span>
                 </div>
                 <input
                   type="range"
@@ -1648,7 +1848,10 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                   step="0.05"
                   value={weights.unexcusedDeduction}
                   onChange={(e) =>
-                    setWeights((prev) => ({ ...prev, unexcusedDeduction: parseFloat(e.target.value) }))
+                    setWeights((prev) => ({
+                      ...prev,
+                      unexcusedDeduction: parseFloat(e.target.value),
+                    }))
                   }
                   className="w-full accent-rose-600 cursor-pointer"
                 />
@@ -1678,7 +1881,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                     participationWeight: 2.0,
                     behaviorWeight: 2.0,
                     attendanceWeight: 1.0,
-                    unexcusedDeduction: 0.25
+                    unexcusedDeduction: 0.25,
                   })
                 }
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-2xl cursor-pointer"
@@ -1713,7 +1916,8 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                   <span>سجل التعديلات المباشرة والشفافية (Audit Log)</span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  توثيق كامل لكافة التغييرات التي أجراها الأستاذ على العلامات المقترحة مع الأسباب والتاريخ
+                  توثيق كامل لكافة التغييرات التي أجراها الأستاذ على العلامات المقترحة مع الأسباب
+                  والتاريخ
                 </p>
               </div>
               <button
@@ -1730,7 +1934,11 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
             {/* Filter student */}
             {selectedAuditStudentId && (
               <div className="flex items-center justify-between p-3 bg-blue-50 text-blue-900 rounded-2xl border border-blue-200 text-xs font-bold">
-                <span>تصفية السجل للتلميذ: {students.find((s) => s.id === selectedAuditStudentId)?.firstName} {students.find((s) => s.id === selectedAuditStudentId)?.lastName}</span>
+                <span>
+                  تصفية السجل للتلميذ:{' '}
+                  {students.find((s) => s.id === selectedAuditStudentId)?.firstName}{' '}
+                  {students.find((s) => s.id === selectedAuditStudentId)?.lastName}
+                </span>
                 <button
                   onClick={() => setSelectedAuditStudentId(null)}
                   className="text-blue-700 hover:underline cursor-pointer"
@@ -1748,7 +1956,8 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                   (!selectedAuditStudentId || a.studentId === selectedAuditStudentId)
               ).length === 0 ? (
                 <div className="p-8 text-center text-slate-400 font-medium bg-slate-50 rounded-2xl">
-                  لا توجد سجلات تعديلات مسجلة لهذا القسم حتى الآن. العلامات الحالية مطابقة لاقتراح النظام آلياً.
+                  لا توجد سجلات تعديلات مسجلة لهذا القسم حتى الآن. العلامات الحالية مطابقة لاقتراح
+                  النظام آلياً.
                 </div>
               ) : (
                 auditLogs
@@ -1763,7 +1972,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                       className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-xs"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-slate-900 text-sm">{log.studentName}</span>
+                        <span className="font-extrabold text-slate-900 text-sm">
+                          {log.studentName}
+                        </span>
                         <span className="text-[10px] text-slate-500 font-mono bg-white px-2.5 py-1 rounded-lg border border-slate-200">
                           {log.changeDate}
                         </span>
@@ -1772,28 +1983,41 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                       <div className="grid grid-cols-3 gap-2 p-2.5 bg-white rounded-xl border border-slate-100 font-mono text-center">
                         <div>
                           <span className="text-[10px] text-slate-400 block">المقترحة</span>
-                          <span className="font-black text-indigo-700">{log.suggestedMark} / 10</span>
+                          <span className="font-black text-indigo-700">
+                            {log.suggestedMark} / 10
+                          </span>
                         </div>
                         <div>
                           <span className="text-[10px] text-slate-400 block">السابقة</span>
-                          <span className="font-bold text-slate-600">{log.previousFinalMark ?? '-'}</span>
+                          <span className="font-bold text-slate-600">
+                            {log.previousFinalMark ?? '-'}
+                          </span>
                         </div>
                         <div>
                           <span className="text-[10px] text-slate-400 block">النهائية المعدلة</span>
-                          <span className="font-black text-emerald-700">{log.newFinalMark} / 10</span>
+                          <span className="font-black text-emerald-700">
+                            {log.newFinalMark} / 10
+                          </span>
                         </div>
                       </div>
 
                       {log.reason && (
                         <div className="text-slate-700 bg-amber-50/70 p-2.5 rounded-xl border border-amber-200/80">
-                          <strong className="text-amber-900 font-bold block mb-0.5">سبب التعديل:</strong>
+                          <strong className="text-amber-900 font-bold block mb-0.5">
+                            سبب التعديل:
+                          </strong>
                           <span>{log.reason}</span>
                         </div>
                       )}
 
                       <div className="text-[10px] text-slate-500 flex justify-between items-center pt-1">
-                        <span>الأستاذ المعدّل: <strong className="text-slate-800">{log.changedByTeacherName}</strong></span>
-                        <span className="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-md">{log.term}</span>
+                        <span>
+                          الأستاذ المعدّل:{' '}
+                          <strong className="text-slate-800">{log.changedByTeacherName}</strong>
+                        </span>
+                        <span className="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-md">
+                          {log.term}
+                        </span>
                       </div>
                     </div>
                   ))
@@ -1837,7 +2061,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
 
             <form onSubmit={handleCreateClass} className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">اسم القسم (مثال: 1 ابتدائي 2):</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                  اسم القسم (مثال: 1 ابتدائي 2):
+                </label>
                 <input
                   type="text"
                   required
@@ -1849,7 +2075,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">المستوى التعليمي:</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                  المستوى التعليمي:
+                </label>
                 <select
                   value={newClassLevel}
                   onChange={(e) => setNewClassLevel(e.target.value)}
@@ -1864,7 +2092,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">عدد تلاميذ القسم:</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                  عدد تلاميذ القسم:
+                </label>
                 <input
                   type="number"
                   min="1"
@@ -1970,7 +2200,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">رقم التسجيل المدرسي (اختياري):</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                  رقم التسجيل المدرسي (اختياري):
+                </label>
                 <input
                   type="text"
                   value={newStudentRegNo}
@@ -2004,18 +2236,89 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl p-6 max-w-3xl w-full shadow-2xl border border-slate-200 space-y-4 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div><h3 className="text-base font-black text-slate-900">معاينة استيراد قائمة التلاميذ</h3><p className="text-xs text-slate-500">{rosterFileName} — القسم المختار: {activeClass.name}</p></div>
-              <button onClick={() => setRosterPreview(null)} className="p-1.5 text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  معاينة استيراد قائمة التلاميذ
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {rosterFileName} — القسم المختار: {activeClass.name}
+                </p>
+              </div>
+              <button
+                onClick={() => setRosterPreview(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-bold">
-              <div className="rounded-xl bg-blue-50 p-3">الأوراق: {rosterPreview.summary.worksheets}</div>
-              <div className="rounded-xl bg-emerald-50 p-3">الصفوف الصالحة: {rosterPreview.summary.students}</div>
-              <div className="rounded-xl bg-amber-50 p-3">بحاجة لمراجعة: {rosterPreview.summary.invalidRows}</div>
-              <div className="rounded-xl bg-slate-50 p-3">مستوى يدوي: {rosterPreview.summary.needsGradeSelection}</div>
+              <div className="rounded-xl bg-blue-50 p-3">
+                الأوراق: {rosterPreview.summary.worksheets}
+              </div>
+              <div className="rounded-xl bg-emerald-50 p-3">
+                الصفوف الصالحة: {rosterPreview.summary.students}
+              </div>
+              <div className="rounded-xl bg-amber-50 p-3">
+                بحاجة لمراجعة: {rosterPreview.summary.invalidRows}
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3">
+                مستوى يدوي: {rosterPreview.summary.needsGradeSelection}
+              </div>
             </div>
-            {rosterError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-700">{rosterError}</p>}
-            {rosterPreview.previews.map((preview: any) => <div key={preview.worksheet} className="rounded-2xl border border-slate-200 overflow-hidden"><div className="bg-slate-50 p-3 text-xs font-black">{preview.worksheet} — {preview.grade ? `السنة ${preview.grade}` : 'المستوى غير محدد'} {preview.groupName ? `— ${preview.groupName}` : ''}</div><div className="overflow-x-auto"><table className="w-full text-right text-xs"><thead><tr className="border-b"><th className="p-2">رقم التعريف</th><th className="p-2">اللقب</th><th className="p-2">الاسم</th><th className="p-2">تاريخ الميلاد</th></tr></thead><tbody>{preview.students.slice(0, 8).map((row: any) => <tr key={`${preview.worksheet}-${row.rowNumber}`} className="border-b"><td className="p-2 font-mono">{row.matricule}</td><td className="p-2">{row.lastName}</td><td className="p-2">{row.firstName}</td><td className="p-2">{row.birthDate || '—'}</td></tr>)}</tbody></table></div></div>)}
-            <div className="flex justify-end gap-2"><button onClick={() => setRosterPreview(null)} className="px-4 py-2 rounded-xl bg-slate-100 text-xs font-bold">إلغاء</button><button disabled={rosterLoading} onClick={() => void confirmRoster()} className="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">{rosterLoading ? 'جارٍ الاستيراد...' : 'تأكيد الاستيراد'}</button></div>
+            {rosterError && (
+              <p role="alert" className="rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-700">
+                {rosterError}
+              </p>
+            )}
+            {rosterPreview.previews.map((preview: any) => (
+              <div
+                key={preview.worksheet}
+                className="rounded-2xl border border-slate-200 overflow-hidden"
+              >
+                <div className="bg-slate-50 p-3 text-xs font-black">
+                  {preview.worksheet} —{' '}
+                  {preview.grade ? `السنة ${preview.grade}` : 'المستوى غير محدد'}{' '}
+                  {preview.groupName ? `— ${preview.groupName}` : ''}
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="p-2">رقم التعريف</th>
+                        <th className="p-2">اللقب</th>
+                        <th className="p-2">الاسم</th>
+                        <th className="p-2">تاريخ الميلاد</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.students.slice(0, 8).map((row: any) => (
+                        <tr key={`${preview.worksheet}-${row.rowNumber}`} className="border-b">
+                          <td className="p-2 font-mono">{row.matricule}</td>
+                          <td className="p-2">{row.lastName}</td>
+                          <td className="p-2">{row.firstName}</td>
+                          <td className="p-2">{row.birthDate || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setRosterPreview(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 text-xs font-bold"
+              >
+                إلغاء
+              </button>
+              <button
+                disabled={rosterLoading}
+                onClick={() => void confirmRoster()}
+                className="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50"
+              >
+                {rosterLoading ? 'جارٍ الاستيراد...' : 'تأكيد الاستيراد'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2041,7 +2344,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
 
             <form onSubmit={handleAddExemption} className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">اختر التلميذ:</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                  اختر التلميذ:
+                </label>
                 <select
                   required
                   value={newExemptionStudentId}
@@ -2058,7 +2363,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">سبب الإعفاء الطبي:</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                  سبب الإعفاء الطبي:
+                </label>
                 <input
                   type="text"
                   required
@@ -2070,7 +2377,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">مدة الإعفاء:</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                  مدة الإعفاء:
+                </label>
                 <select
                   value={newPeriod}
                   onChange={(e) => setNewPeriod(e.target.value as any)}
@@ -2084,7 +2393,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">اسم الطبيب أو وحدة الكشف:</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                  اسم الطبيب أو وحدة الكشف:
+                </label>
                 <input
                   type="text"
                   value={newDoctor}

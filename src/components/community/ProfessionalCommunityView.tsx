@@ -16,28 +16,18 @@ import {
   UserPlus,
   ShieldCheck,
   FileText,
-  FileSpreadsheet,
   Image as ImageIcon,
   Send,
   Lock,
   Globe,
-  CheckCircle2,
   Sparkles,
   Heart,
   Bookmark,
-  Eye,
-  FileCode,
   Download,
   PlusCircle,
-  HelpCircle,
   X,
-  Sliders,
-  ChevronRight,
   Info,
   Check,
-  Building2,
-  Award,
-  GraduationCap
 } from 'lucide-react';
 
 import {
@@ -48,7 +38,7 @@ import {
   PersonalLibraryItem,
   LessonPlan,
   KnowledgeItem,
-  UserPrivacySettings
+  UserPrivacySettings,
 } from '../../types/spex';
 
 interface ProfessionalCommunityViewProps {
@@ -84,63 +74,75 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
   onAddCommunityResource,
   onToggleLikeResource,
   onSaveToPersonalLibrary,
-  personalLibraryItems,
+  personalLibraryItems: _personalLibraryItems,
   directMessages,
   onSendDirectMessage,
   notifications,
   onMarkNotificationRead,
   onDeleteNotification,
   onNotifyNewFollower,
-  lessonPlans,
-  knowledgeItems,
+  lessonPlans: _lessonPlans,
+  knowledgeItems: _knowledgeItems,
   controlledTab,
   onTabChange,
-  hideTabBar = false
+  hideTabBar = false,
 }) => {
-  const [activeTab, setActiveTab] = useState<'feed' | 'search' | 'chat' | 'notifications' | 'profile_privacy'>('feed');
+  const [activeTab, setActiveTab] = useState<
+    'feed' | 'search' | 'chat' | 'notifications' | 'profile_privacy'
+  >('feed');
   const currentTab = controlledTab ?? activeTab;
   const goToTab = (tab: typeof currentTab) => {
     if (onTabChange) onTabChange(tab);
     else setActiveTab(tab);
   };
-  
+
   // Search state - ONLY search by username
   const [searchUsernameQuery, setSearchUsernameQuery] = useState('');
-  
+
   // Chat state
   const [selectedChatUser, setSelectedChatUser] = useState<User | null>(null);
   const [chatInputText, setChatInputText] = useState('');
-  const [attachedFileType, setAttachedFileType] = useState<'none' | 'image' | 'pdf' | 'word' | 'resource'>('none');
+  const [attachedFileType, setAttachedFileType] = useState<
+    'none' | 'image' | 'pdf' | 'word' | 'resource'
+  >('none');
   const [attachedFileName, setAttachedFileName] = useState('');
-  const [selectedResourceToShare, setSelectedResourceToShare] = useState<CommunityResource | null>(null);
-  
+  const [selectedResourceToShare, setSelectedResourceToShare] = useState<CommunityResource | null>(
+    null
+  );
+
   // Sharing Modal
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [shareCategory, setShareCategory] = useState<'game' | 'situation' | 'lesson_plan' | 'file'>('game');
+  const [shareCategory, setShareCategory] = useState<'game' | 'situation' | 'lesson_plan' | 'file'>(
+    'game'
+  );
   const [shareTitle, setShareTitle] = useState('');
   const [shareDescription, setShareDescription] = useState('');
-  
+
   // Privacy Settings Form state
   const [privacySettings, setPrivacySettings] = useState<UserPrivacySettings>(() => {
-    return currentUser.privacySettings || {
-      whoCanFollow: 'everyone',
-      whoCanMessage: 'everyone',
-      showInSearch: true,
-      showPersonalInfo: true
-    };
+    return (
+      currentUser.privacySettings || {
+        whoCanFollow: 'everyone',
+        whoCanMessage: 'everyone',
+        showInSearch: true,
+        showPersonalInfo: true,
+      }
+    );
   });
   const [userBio, setUserBio] = useState(currentUser.bio || '');
 
   // Followers & Following Modal
   const [isFollowersModalOpen, setIsFollowersModalOpen] = useState(false);
-  const [followersModalType, setFollowersModalType] = useState<'followers' | 'following'>('followers');
+  const [followersModalType, setFollowersModalType] = useState<'followers' | 'following'>(
+    'followers'
+  );
 
   // Filter users by Username strictly
   const searchResults = useMemo(() => {
     if (!searchUsernameQuery.trim()) return [];
     const cleanQuery = searchUsernameQuery.trim().toLowerCase().replace(/^@/, '');
-    
-    return allUsersList.filter(u => {
+
+    return allUsersList.filter((u) => {
       if (u.id === currentUser.id) return false;
       if (u.privacySettings?.showInSearch === false) return false;
       const usernameClean = (u.username || '').toLowerCase().replace(/^@/, '');
@@ -151,10 +153,10 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
   // Handle Follow/Unfollow
   const handleToggleFollow = (targetUser: User) => {
     const isCurrentlyFollowing = (currentUser.followingIds || []).includes(targetUser.id);
-    
+
     let updatedMyFollowing = [...(currentUser.followingIds || [])];
     if (isCurrentlyFollowing) {
-      updatedMyFollowing = updatedMyFollowing.filter(id => id !== targetUser.id);
+      updatedMyFollowing = updatedMyFollowing.filter((id) => id !== targetUser.id);
     } else {
       updatedMyFollowing.push(targetUser.id);
     }
@@ -162,25 +164,25 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
     const updatedMe: User = {
       ...currentUser,
       followingIds: updatedMyFollowing,
-      followingCount: updatedMyFollowing.length
+      followingCount: updatedMyFollowing.length,
     };
 
     // Update target user's followers
-    const updatedUsers = allUsersList.map(u => {
+    const updatedUsers = allUsersList.map((u) => {
       if (u.id === currentUser.id) {
         return updatedMe;
       }
       if (u.id === targetUser.id) {
         let updatedFollowers = [...(u.followersIds || [])];
         if (isCurrentlyFollowing) {
-          updatedFollowers = updatedFollowers.filter(id => id !== currentUser.id);
+          updatedFollowers = updatedFollowers.filter((id) => id !== currentUser.id);
         } else {
           updatedFollowers.push(currentUser.id);
         }
         return {
           ...u,
           followersIds: updatedFollowers,
-          followersCount: updatedFollowers.length
+          followersCount: updatedFollowers.length,
         };
       }
       return u;
@@ -200,7 +202,7 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
     const updatedUser: User = {
       ...currentUser,
       bio: userBio,
-      privacySettings
+      privacySettings,
     };
     onUpdateCurrentUser(updatedUser);
     alert('تم حفظ إعدادات الخصوصية والملف الشخصي بنجاح!');
@@ -226,7 +228,7 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
       likesCount: 1,
       savesCount: 0,
       isApprovedByInspector: currentUser.role === 'inspector',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
 
     onAddCommunityResource(newResource);
@@ -250,16 +252,21 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
       senderAvatar: currentUser.avatar,
       receiverId: selectedChatUser.id,
       receiverSpexId: selectedChatUser.spexId,
-      message: chatInputText.trim() || (selectedResourceToShare ? `مشاركة مورد: ${selectedResourceToShare.title}` : 'مرفق جديد'),
+      message:
+        chatInputText.trim() ||
+        (selectedResourceToShare ? `مشاركة مورد: ${selectedResourceToShare.title}` : 'مرفق جديد'),
       sharedResource: selectedResourceToShare || undefined,
-      attachment: attachedFileType !== 'none' ? {
-        url: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&q=80&w=600',
-        name: attachedFileName || 'ملف_مرفق',
-        type: attachedFileType === 'resource' ? 'resource' : attachedFileType,
-        size: '1.4 MB'
-      } : undefined,
+      attachment:
+        attachedFileType !== 'none'
+          ? {
+              url: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&q=80&w=600',
+              name: attachedFileName || 'ملف_مرفق',
+              type: attachedFileType === 'resource' ? 'resource' : attachedFileType,
+              size: '1.4 MB',
+            }
+          : undefined,
       createdAt: new Date().toISOString(),
-      read: false
+      read: false,
     };
 
     onSendDirectMessage(newMessage);
@@ -273,14 +280,15 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
   const activeChatMessages = useMemo(() => {
     if (!selectedChatUser) return [];
     return directMessages.filter(
-      m => (m.senderId === currentUser.id && m.receiverId === selectedChatUser.id) ||
-           (m.senderId === selectedChatUser.id && m.receiverId === currentUser.id)
+      (m) =>
+        (m.senderId === currentUser.id && m.receiverId === selectedChatUser.id) ||
+        (m.senderId === selectedChatUser.id && m.receiverId === currentUser.id)
     );
   }, [directMessages, currentUser.id, selectedChatUser]);
 
   // Unread notifications count
   const unreadNotificationsCount = useMemo(() => {
-    return notifications.filter(n => n.userId === currentUser.id && !n.read).length;
+    return notifications.filter((n) => n.userId === currentUser.id && !n.read).length;
   }, [notifications, currentUser.id]);
 
   return (
@@ -300,7 +308,8 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
               المجتمع المهني للتربية البدنية والرياضية
             </h1>
             <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
-              تواصل مباشر وتبادل بيداغوجي موثوق بين الأساتذة والمفتشين داخل وخارج المقاطعات التفتيشية.
+              تواصل مباشر وتبادل بيداغوجي موثوق بين الأساتذة والمفتشين داخل وخارج المقاطعات
+              التفتيشية.
             </p>
           </div>
 
@@ -318,71 +327,71 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
         {/* Navigation Tabs Bar */}
         {!hideTabBar && (
           <div className="mt-6 pt-4 border-t border-white/10 flex items-center gap-2 overflow-x-auto scrollbar-none">
-          <button
-            onClick={() => goToTab('feed')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-              currentTab === 'feed'
-                ? 'bg-white text-blue-900 shadow-md font-black'
-                : 'bg-white/10 text-white hover:bg-white/20'
-            }`}
-          >
-            <Globe className="w-4 h-4 text-blue-600" />
-            <span>منشورات الموارد والخبرات</span>
-          </button>
+            <button
+              onClick={() => goToTab('feed')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+                currentTab === 'feed'
+                  ? 'bg-white text-blue-900 shadow-md font-black'
+                  : 'bg-white/10 text-white hover:bg-white/20'
+              }`}
+            >
+              <Globe className="w-4 h-4 text-blue-600" />
+              <span>منشورات الموارد والخبرات</span>
+            </button>
 
-          <button
-            onClick={() => goToTab('search')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-              currentTab === 'search'
-                ? 'bg-white text-blue-900 shadow-md font-black'
-                : 'bg-white/10 text-white hover:bg-white/20'
-            }`}
-          >
-            <Search className="w-4 h-4 text-amber-500" />
-            <span>البحث بالحساب (@Username)</span>
-          </button>
+            <button
+              onClick={() => goToTab('search')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+                currentTab === 'search'
+                  ? 'bg-white text-blue-900 shadow-md font-black'
+                  : 'bg-white/10 text-white hover:bg-white/20'
+              }`}
+            >
+              <Search className="w-4 h-4 text-amber-500" />
+              <span>البحث بالحساب (@Username)</span>
+            </button>
 
-          <button
-            onClick={() => goToTab('chat')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap relative ${
-              currentTab === 'chat'
-                ? 'bg-white text-blue-900 shadow-md font-black'
-                : 'bg-white/10 text-white hover:bg-white/20'
-            }`}
-          >
-            <MessageSquare className="w-4 h-4 text-emerald-400" />
-            <span>المحادثات الخاصة والموارد</span>
-          </button>
+            <button
+              onClick={() => goToTab('chat')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap relative ${
+                currentTab === 'chat'
+                  ? 'bg-white text-blue-900 shadow-md font-black'
+                  : 'bg-white/10 text-white hover:bg-white/20'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4 text-emerald-400" />
+              <span>المحادثات الخاصة والموارد</span>
+            </button>
 
-          <button
-            onClick={() => goToTab('notifications')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap relative ${
-              currentTab === 'notifications'
-                ? 'bg-white text-blue-900 shadow-md font-black'
-                : 'bg-white/10 text-white hover:bg-white/20'
-            }`}
-          >
-            <Bell className="w-4 h-4 text-yellow-400" />
-            <span>الإشعارات</span>
-            {unreadNotificationsCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center">
-                {unreadNotificationsCount}
-              </span>
-            )}
-          </button>
+            <button
+              onClick={() => goToTab('notifications')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap relative ${
+                currentTab === 'notifications'
+                  ? 'bg-white text-blue-900 shadow-md font-black'
+                  : 'bg-white/10 text-white hover:bg-white/20'
+              }`}
+            >
+              <Bell className="w-4 h-4 text-yellow-400" />
+              <span>الإشعارات</span>
+              {unreadNotificationsCount > 0 && (
+                <span className="w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center">
+                  {unreadNotificationsCount}
+                </span>
+              )}
+            </button>
 
-          <button
-            onClick={() => goToTab('profile_privacy')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-              currentTab === 'profile_privacy'
-                ? 'bg-white text-blue-900 shadow-md font-black'
-                : 'bg-white/10 text-white hover:bg-white/20'
-            }`}
-          >
-            <Settings className="w-4 h-4 text-cyan-400" />
-            <span>حسابي الشخصي والخصوصية</span>
-          </button>
-        </div>
+            <button
+              onClick={() => goToTab('profile_privacy')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+                currentTab === 'profile_privacy'
+                  ? 'bg-white text-blue-900 shadow-md font-black'
+                  : 'bg-white/10 text-white hover:bg-white/20'
+              }`}
+            >
+              <Settings className="w-4 h-4 text-cyan-400" />
+              <span>حسابي الشخصي والخصوصية</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -394,7 +403,9 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
               <Sparkles className="w-4 h-4 text-blue-600" />
-              <span>الموارد والأنشطة المنشورة من زملاء المجتمع المهني ({communityResources.length})</span>
+              <span>
+                الموارد والأنشطة المنشورة من زملاء المجتمع المهني ({communityResources.length})
+              </span>
             </div>
 
             <button
@@ -422,13 +433,19 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                 </button>
               </div>
             ) : (
-              communityResources.map(res => (
-                <div key={res.id} className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-md transition-all space-y-4">
+              communityResources.map((res) => (
+                <div
+                  key={res.id}
+                  className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-md transition-all space-y-4"
+                >
                   {/* Author Banner */}
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                     <div className="flex items-center gap-3">
                       <img
-                        src={res.authorAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'}
+                        src={
+                          res.authorAvatar ||
+                          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'
+                        }
                         alt={res.authorName}
                         className="w-10 h-10 rounded-2xl object-cover border border-slate-200 shadow-xs"
                       />
@@ -442,23 +459,31 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                           )}
                         </h4>
                         <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                          <span className="font-extrabold text-blue-700 dir-ltr">{res.authorUsername}</span>
+                          <span className="font-extrabold text-blue-700 dir-ltr">
+                            {res.authorUsername}
+                          </span>
                           <span>•</span>
-                          <span className="px-1.5 py-0.5 rounded bg-slate-100 font-mono font-bold">{res.spexId}</span>
+                          <span className="px-1.5 py-0.5 rounded bg-slate-100 font-mono font-bold">
+                            {res.spexId}
+                          </span>
                         </div>
                       </div>
                     </div>
 
                     <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-[10px] font-black rounded-lg border border-blue-100">
-                      {res.type === 'game' ? 'لعبة تربوية' : res.type === 'situation' ? 'وضعية تعلمية' : res.type === 'lesson_plan' ? 'مذكرة بيداغوجية' : 'مورد تعليمي'}
+                      {res.type === 'game'
+                        ? 'لعبة تربوية'
+                        : res.type === 'situation'
+                          ? 'وضعية تعلمية'
+                          : res.type === 'lesson_plan'
+                            ? 'مذكرة بيداغوجية'
+                            : 'مورد تعليمي'}
                     </span>
                   </div>
 
                   {/* Resource Content */}
                   <div className="space-y-2">
-                    <h3 className="text-sm font-black text-slate-900 leading-snug">
-                      {res.title}
-                    </h3>
+                    <h3 className="text-sm font-black text-slate-900 leading-snug">{res.title}</h3>
                     <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-2xl border border-slate-100">
                       {res.description}
                     </p>
@@ -475,7 +500,9 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                             : 'text-slate-500 hover:text-rose-600'
                         }`}
                       >
-                        <Heart className={`w-4 h-4 ${(res.likedByUserIds || []).includes(currentUser.id) ? 'fill-current' : ''}`} />
+                        <Heart
+                          className={`w-4 h-4 ${(res.likedByUserIds || []).includes(currentUser.id) ? 'fill-current' : ''}`}
+                        />
                         <span>{res.likesCount}</span>
                       </button>
 
@@ -489,7 +516,7 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                             title: res.title,
                             content: res.description,
                             tags: ['المجتمع_المهني', res.authorUsername],
-                            createdAt: new Date().toISOString()
+                            createdAt: new Date().toISOString(),
                           };
                           onSaveToPersonalLibrary(libraryItem);
                           alert('تم حفظ المورد بنجاح داخل مكتبتك البيداغوجية الشخصية!');
@@ -504,7 +531,11 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                     <button
                       onClick={() => {
                         // Find user and open direct chat
-                        const author = allUsersList.find(u => u.spexId === res.spexId || u.username === res.authorUsername.replace(/^@/, ''));
+                        const author = allUsersList.find(
+                          (u) =>
+                            u.spexId === res.spexId ||
+                            u.username === res.authorUsername.replace(/^@/, '')
+                        );
                         if (author) {
                           setSelectedChatUser(author);
                           setSelectedResourceToShare(res);
@@ -535,16 +566,22 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                 <Search className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-black text-slate-900">محرك البحث بالحساب الموحد (Username)</h3>
+                <h3 className="text-base font-black text-slate-900">
+                  محرك البحث بالحساب الموحد (Username)
+                </h3>
                 <p className="text-xs text-slate-500 font-medium">
-                  وفق الضوابط الرسمية: الوصول للحسابات متاح <strong className="text-amber-700">حصرياً بواسطة Username</strong> دون إمكانية البحث بالاسم أو الولايات أو المؤسسات.
+                  وفق الضوابط الرسمية: الوصول للحسابات متاح{' '}
+                  <strong className="text-amber-700">حصرياً بواسطة Username</strong> دون إمكانية
+                  البحث بالاسم أو الولايات أو المؤسسات.
                 </p>
               </div>
             </div>
 
             {/* Strict Username Search Input */}
             <div className="relative">
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-extrabold text-sm">@</span>
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-extrabold text-sm">
+                @
+              </span>
               <input
                 type="text"
                 value={searchUsernameQuery}
@@ -556,7 +593,10 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
 
             <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200/80 text-[11px] text-amber-900 flex items-center gap-2 font-medium">
               <Info className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>إذا لم تكن تعرف Username الخاص بالزميل، فلن يتم إظهار الحساب في نواتج البحث لحماية الخصوصية.</span>
+              <span>
+                إذا لم تكن تعرف Username الخاص بالزميل، فلن يتم إظهار الحساب في نواتج البحث لحماية
+                الخصوصية.
+              </span>
             </div>
           </div>
 
@@ -570,32 +610,43 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
             {searchUsernameQuery.trim() === '' ? (
               <div className="p-12 text-center bg-slate-50 rounded-3xl border border-dashed border-slate-200 space-y-2">
                 <Search className="w-10 h-10 text-slate-300 mx-auto" />
-                <p className="text-xs text-slate-500 font-bold">أدخل Username بالخانة أعلاه لعرض الحساب الشخصي</p>
+                <p className="text-xs text-slate-500 font-bold">
+                  أدخل Username بالخانة أعلاه لعرض الحساب الشخصي
+                </p>
               </div>
             ) : searchResults.length === 0 ? (
               <div className="p-10 text-center bg-rose-50/50 rounded-3xl border border-rose-100 text-rose-800 space-y-2">
                 <Lock className="w-8 h-8 text-rose-400 mx-auto" />
                 <h4 className="text-xs font-black">لم يتم العثور على أي حساب بهذا الـ Username</h4>
                 <p className="text-[11px] text-rose-600 font-medium max-w-sm mx-auto">
-                  تأكد من كتابة الأحرف والرموز بدقة، أو قد يكون صاحب الحساب غيّر إعدادات الخصوصية لمنع الظهور.
+                  تأكد من كتابة الأحرف والرموز بدقة، أو قد يكون صاحب الحساب غيّر إعدادات الخصوصية
+                  لمنع الظهور.
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {searchResults.map(user => {
+                {searchResults.map((user) => {
                   const isFollowing = (currentUser.followingIds || []).includes(user.id);
                   return (
-                    <div key={user.id} className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all space-y-4">
+                    <div
+                      key={user.id}
+                      className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all space-y-4"
+                    >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
                           <img
-                            src={user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'}
+                            src={
+                              user.avatar ||
+                              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'
+                            }
                             alt={user.username}
                             className="w-12 h-12 rounded-2xl object-cover border border-slate-200 shadow-xs"
                           />
                           <div>
                             <h3 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
-                              <span>{user.firstName} {user.lastName}</span>
+                              <span>
+                                {user.firstName} {user.lastName}
+                              </span>
                               {user.role === 'inspector' && (
                                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
                               )}
@@ -640,15 +691,21 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                       <div className="grid grid-cols-3 gap-2 text-center text-[10px] bg-slate-50/80 p-2 rounded-xl font-bold border border-slate-100">
                         <div>
                           <span className="text-slate-400 block">المتابعون</span>
-                          <strong className="text-slate-800 text-xs">{user.followersCount || user.followersIds?.length || 0}</strong>
+                          <strong className="text-slate-800 text-xs">
+                            {user.followersCount || user.followersIds?.length || 0}
+                          </strong>
                         </div>
                         <div>
                           <span className="text-slate-400 block">يتابع</span>
-                          <strong className="text-slate-800 text-xs">{user.followingCount || user.followingIds?.length || 0}</strong>
+                          <strong className="text-slate-800 text-xs">
+                            {user.followingCount || user.followingIds?.length || 0}
+                          </strong>
                         </div>
                         <div>
                           <span className="text-slate-400 block">الموارد</span>
-                          <strong className="text-blue-700 text-xs">{user.publishedResourcesCount || 0}</strong>
+                          <strong className="text-blue-700 text-xs">
+                            {user.publishedResourcesCount || 0}
+                          </strong>
                         </div>
                       </div>
 
@@ -693,44 +750,58 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
             </h3>
 
             <div className="space-y-1.5 max-h-[440px] overflow-y-auto">
-              {allUsersList.filter(u => u.id !== currentUser.id).map(user => {
-                const isSelected = selectedChatUser?.id === user.id;
-                const lastMsg = directMessages.filter(
-                  m => (m.senderId === currentUser.id && m.receiverId === user.id) ||
-                       (m.senderId === user.id && m.receiverId === currentUser.id)
-                ).pop();
+              {allUsersList
+                .filter((u) => u.id !== currentUser.id)
+                .map((user) => {
+                  const isSelected = selectedChatUser?.id === user.id;
+                  const lastMsg = directMessages
+                    .filter(
+                      (m) =>
+                        (m.senderId === currentUser.id && m.receiverId === user.id) ||
+                        (m.senderId === user.id && m.receiverId === currentUser.id)
+                    )
+                    .pop();
 
-                return (
-                  <button
-                    key={user.id}
-                    onClick={() => setSelectedChatUser(user)}
-                    className={`w-full p-3 rounded-2xl transition-all text-right cursor-pointer flex items-center gap-3 ${
-                      isSelected
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'hover:bg-slate-100/80 text-slate-800'
-                    }`}
-                  >
-                    <img
-                      src={user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'}
-                      alt={user.username}
-                      className="w-10 h-10 rounded-2xl object-cover border border-slate-200 shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <h4 className={`text-xs font-black truncate ${isSelected ? 'text-white' : 'text-slate-900'}`}>
-                          {user.firstName} {user.lastName}
-                        </h4>
-                        <span className={`text-[10px] font-extrabold dir-ltr ${isSelected ? 'text-blue-200' : 'text-blue-600'}`}>
-                          @{user.username}
-                        </span>
+                  return (
+                    <button
+                      key={user.id}
+                      onClick={() => setSelectedChatUser(user)}
+                      className={`w-full p-3 rounded-2xl transition-all text-right cursor-pointer flex items-center gap-3 ${
+                        isSelected
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'hover:bg-slate-100/80 text-slate-800'
+                      }`}
+                    >
+                      <img
+                        src={
+                          user.avatar ||
+                          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'
+                        }
+                        alt={user.username}
+                        className="w-10 h-10 rounded-2xl object-cover border border-slate-200 shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <h4
+                            className={`text-xs font-black truncate ${isSelected ? 'text-white' : 'text-slate-900'}`}
+                          >
+                            {user.firstName} {user.lastName}
+                          </h4>
+                          <span
+                            className={`text-[10px] font-extrabold dir-ltr ${isSelected ? 'text-blue-200' : 'text-blue-600'}`}
+                          >
+                            @{user.username}
+                          </span>
+                        </div>
+                        <p
+                          className={`text-[10px] truncate mt-0.5 ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}
+                        >
+                          {lastMsg ? lastMsg.message : 'ابدأ المحادثة ومشاركة الموارد...'}
+                        </p>
                       </div>
-                      <p className={`text-[10px] truncate mt-0.5 ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
-                        {lastMsg ? lastMsg.message : 'ابدأ المحادثة ومشاركة الموارد...'}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
             </div>
           </div>
 
@@ -739,9 +810,12 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
             {!selectedChatUser ? (
               <div className="my-auto text-center space-y-3 p-8">
                 <MessageSquare className="w-12 h-12 text-slate-300 mx-auto" />
-                <h4 className="text-sm font-bold text-slate-700">اختر زميلاً لبدء المحادثة ومشاركة الموارد</h4>
+                <h4 className="text-sm font-bold text-slate-700">
+                  اختر زميلاً لبدء المحادثة ومشاركة الموارد
+                </h4>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  يمكنك إرسال الرسائل النصية، الصور، ملفات Word و PDF، ومشاركة الألعاب والمذكرات البيداغوجية مباشرة.
+                  يمكنك إرسال الرسائل النصية، الصور، ملفات Word و PDF، ومشاركة الألعاب والمذكرات
+                  البيداغوجية مباشرة.
                 </p>
               </div>
             ) : (
@@ -750,19 +824,26 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                   <div className="flex items-center gap-3">
                     <img
-                      src={selectedChatUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'}
+                      src={
+                        selectedChatUser.avatar ||
+                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'
+                      }
                       alt={selectedChatUser.username}
                       className="w-10 h-10 rounded-2xl object-cover border border-slate-200"
                     />
                     <div>
                       <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                        <span>{selectedChatUser.firstName} {selectedChatUser.lastName}</span>
+                        <span>
+                          {selectedChatUser.firstName} {selectedChatUser.lastName}
+                        </span>
                         {selectedChatUser.role === 'inspector' && (
                           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                         )}
                       </h3>
                       <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                        <span className="font-extrabold text-blue-600 dir-ltr">@{selectedChatUser.username}</span>
+                        <span className="font-extrabold text-blue-600 dir-ltr">
+                          @{selectedChatUser.username}
+                        </span>
                         <span>•</span>
                         <span className="font-mono">{selectedChatUser.spexId}</span>
                       </div>
@@ -781,7 +862,7 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                       لا توجد رسائل سابقة. أرسل تحية أو شارك لعبة تربوية الآن!
                     </div>
                   ) : (
-                    activeChatMessages.map(msg => {
+                    activeChatMessages.map((msg) => {
                       const isMe = msg.senderId === currentUser.id;
                       return (
                         <div
@@ -799,18 +880,26 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
 
                             {/* Attached Shared Resource card */}
                             {msg.sharedResource && (
-                              <div className={`p-3 rounded-xl border space-y-2 mt-2 ${
-                                isMe ? 'bg-blue-700/80 border-blue-400/30 text-white' : 'bg-white border-slate-200 text-slate-900'
-                              }`}>
+                              <div
+                                className={`p-3 rounded-xl border space-y-2 mt-2 ${
+                                  isMe
+                                    ? 'bg-blue-700/80 border-blue-400/30 text-white'
+                                    : 'bg-white border-slate-200 text-slate-900'
+                                }`}
+                              >
                                 <div className="flex items-center justify-between text-[10px] font-bold">
                                   <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-900">
-                                    {msg.sharedResource.type === 'game' ? 'لعبة تربوية' : 'مذكرة بيداغوجية'}
+                                    {msg.sharedResource.type === 'game'
+                                      ? 'لعبة تربوية'
+                                      : 'مذكرة بيداغوجية'}
                                   </span>
                                   <span>{msg.sharedResource.authorName}</span>
                                 </div>
                                 <h4 className="text-xs font-black">{msg.sharedResource.title}</h4>
-                                <p className="text-[11px] opacity-90 line-clamp-2">{msg.sharedResource.description}</p>
-                                
+                                <p className="text-[11px] opacity-90 line-clamp-2">
+                                  {msg.sharedResource.description}
+                                </p>
+
                                 <button
                                   onClick={() => {
                                     const libraryItem: PersonalLibraryItem = {
@@ -820,10 +909,12 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                                       title: msg.sharedResource!.title,
                                       content: msg.sharedResource!.description,
                                       tags: ['مشاركة_محادثة'],
-                                      createdAt: new Date().toISOString()
+                                      createdAt: new Date().toISOString(),
                                     };
                                     onSaveToPersonalLibrary(libraryItem);
-                                    alert('تم حفظ هذا المورد مباشرة في مكتبتك البيداغوجية الشخصية!');
+                                    alert(
+                                      'تم حفظ هذا المورد مباشرة في مكتبتك البيداغوجية الشخصية!'
+                                    );
                                   }}
                                   className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-extrabold rounded-lg shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1"
                                 >
@@ -835,16 +926,22 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
 
                             {/* Attached Image / PDF / Word File */}
                             {msg.attachment && (
-                              <div className={`p-2.5 rounded-xl border flex items-center justify-between text-[11px] font-bold ${
-                                isMe ? 'bg-blue-800/60 border-blue-400/30 text-white' : 'bg-white border-slate-200 text-slate-800'
-                              }`}>
+                              <div
+                                className={`p-2.5 rounded-xl border flex items-center justify-between text-[11px] font-bold ${
+                                  isMe
+                                    ? 'bg-blue-800/60 border-blue-400/30 text-white'
+                                    : 'bg-white border-slate-200 text-slate-800'
+                                }`}
+                              >
                                 <div className="flex items-center gap-2">
                                   {msg.attachment.type === 'image' ? (
                                     <ImageIcon className="w-4 h-4 text-emerald-300" />
                                   ) : (
                                     <FileText className="w-4 h-4 text-amber-300" />
                                   )}
-                                  <span className="truncate max-w-[140px]">{msg.attachment.name}</span>
+                                  <span className="truncate max-w-[140px]">
+                                    {msg.attachment.name}
+                                  </span>
                                 </div>
 
                                 <button
@@ -857,8 +954,13 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                               </div>
                             )}
 
-                            <span className={`text-[9px] block text-left dir-ltr ${isMe ? 'text-blue-200' : 'text-slate-400'}`}>
-                              {new Date(msg.createdAt).toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' })}
+                            <span
+                              className={`text-[9px] block text-left dir-ltr ${isMe ? 'text-blue-200' : 'text-slate-400'}`}
+                            >
+                              {new Date(msg.createdAt).toLocaleTimeString('ar-DZ', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
                             </span>
                           </div>
                         </div>
@@ -873,7 +975,10 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                     <span className="font-bold text-blue-900 truncate">
                       مورد محدد للمشاركة: {selectedResourceToShare.title}
                     </span>
-                    <button onClick={() => setSelectedResourceToShare(null)} className="text-slate-500 hover:text-slate-800">
+                    <button
+                      onClick={() => setSelectedResourceToShare(null)}
+                      className="text-slate-500 hover:text-slate-800"
+                    >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
@@ -885,7 +990,10 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                     <span className="font-bold text-emerald-900 truncate">
                       مرفق محدد ({attachedFileType}): {attachedFileName}
                     </span>
-                    <button onClick={() => setAttachedFileType('none')} className="text-slate-500 hover:text-slate-800">
+                    <button
+                      onClick={() => setAttachedFileType('none')}
+                      className="text-slate-500 hover:text-slate-800"
+                    >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
@@ -954,48 +1062,55 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
           </div>
 
           <div className="space-y-2.5">
-            {notifications.filter(n => n.userId === currentUser.id).length === 0 ? (
+            {notifications.filter((n) => n.userId === currentUser.id).length === 0 ? (
               <div className="p-8 text-center text-slate-400 text-xs font-bold">
                 لا توجد إشعارات جديدة حالياً
               </div>
             ) : (
-              notifications.filter(n => n.userId === currentUser.id).map(notif => (
-                <div
-                  key={notif.id}
-                  onClick={() => onMarkNotificationRead(notif.id)}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
-                    notif.read ? 'bg-slate-50 border-slate-100 text-slate-600' : 'bg-blue-50/80 border-blue-200 text-blue-900 font-bold'
-                  }`}
-                >
-                  <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
-                    <Bell className="w-4 h-4" />
-                  </div>
-
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-black">{notif.title}</h4>
-                      <span className="text-[10px] text-slate-400 dir-ltr">
-                        {new Date(notif.createdAt).toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+              notifications
+                .filter((n) => n.userId === currentUser.id)
+                .map((notif) => (
+                  <div
+                    key={notif.id}
+                    onClick={() => onMarkNotificationRead(notif.id)}
+                    className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
+                      notif.read
+                        ? 'bg-slate-50 border-slate-100 text-slate-600'
+                        : 'bg-blue-50/80 border-blue-200 text-blue-900 font-bold'
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+                      <Bell className="w-4 h-4" />
                     </div>
-                    <p className="text-xs mt-1 leading-relaxed">{notif.message}</p>
-                  </div>
 
-                  {onDeleteNotification && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteNotification(notif.id);
-                      }}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer shrink-0"
-                      title="حذف الإشعار"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black">{notif.title}</h4>
+                        <span className="text-[10px] text-slate-400 dir-ltr">
+                          {new Date(notif.createdAt).toLocaleTimeString('ar-DZ', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                      <p className="text-xs mt-1 leading-relaxed">{notif.message}</p>
+                    </div>
+
+                    {onDeleteNotification && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteNotification(notif.id);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer shrink-0"
+                        title="حذف الإشعار"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))
             )}
           </div>
         </div>
@@ -1008,7 +1123,10 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
             <div className="text-center space-y-3 border-b border-slate-100 pb-6">
               <img
-                src={currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'}
+                src={
+                  currentUser.avatar ||
+                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'
+                }
                 alt={currentUser.firstName}
                 className="w-24 h-24 rounded-3xl object-cover mx-auto border-4 border-blue-50 shadow-md"
               />
@@ -1039,7 +1157,9 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                 className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200 transition-all cursor-pointer"
               >
                 <span className="text-[10px] text-slate-400 font-bold block">المتابعون</span>
-                <strong className="text-base font-black text-slate-900">{currentUser.followersCount || currentUser.followersIds?.length || 0}</strong>
+                <strong className="text-base font-black text-slate-900">
+                  {currentUser.followersCount || currentUser.followersIds?.length || 0}
+                </strong>
               </button>
 
               <button
@@ -1050,23 +1170,31 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                 className="p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200 transition-all cursor-pointer"
               >
                 <span className="text-[10px] text-slate-400 font-bold block">تتابعهم</span>
-                <strong className="text-base font-black text-slate-900">{currentUser.followingCount || currentUser.followingIds?.length || 0}</strong>
+                <strong className="text-base font-black text-slate-900">
+                  {currentUser.followingCount || currentUser.followingIds?.length || 0}
+                </strong>
               </button>
 
               <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200">
                 <span className="text-[10px] text-slate-400 font-bold block">الموارد المنشورة</span>
-                <strong className="text-base font-black text-blue-700">{currentUser.publishedResourcesCount || 0}</strong>
+                <strong className="text-base font-black text-blue-700">
+                  {currentUser.publishedResourcesCount || 0}
+                </strong>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200">
                 <span className="text-[10px] text-slate-400 font-bold block">الموارد المعتمدة</span>
-                <strong className="text-base font-black text-emerald-700">{currentUser.approvedResourcesCount || 0}</strong>
+                <strong className="text-base font-black text-emerald-700">
+                  {currentUser.approvedResourcesCount || 0}
+                </strong>
               </div>
             </div>
 
             {/* Editable Bio Form */}
             <div className="space-y-2">
-              <label className="text-xs font-black text-slate-700 block">النبذة الشخصية والرسالة المهنية:</label>
+              <label className="text-xs font-black text-slate-700 block">
+                النبذة الشخصية والرسالة المهنية:
+              </label>
               <textarea
                 value={userBio}
                 onChange={(e) => setUserBio(e.target.value)}
@@ -1084,7 +1212,9 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                 <Lock className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-black text-slate-900">إعدادات الخصوصية والتحكم في الحساب</h3>
+                <h3 className="text-base font-black text-slate-900">
+                  إعدادات الخصوصية والتحكم في الحساب
+                </h3>
                 <p className="text-xs text-slate-500 font-medium">
                   حدد الضوابط والصلاحيات لمشاهدة ملفك الشخصي ومراسلتك والظهور في البحث عبر Username.
                 </p>
@@ -1094,11 +1224,15 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
             <div className="space-y-5">
               {/* Who can follow */}
               <div className="space-y-2">
-                <label className="text-xs font-black text-slate-800 block">من يستطيع متابعة حسابك؟</label>
+                <label className="text-xs font-black text-slate-800 block">
+                  من يستطيع متابعة حسابك؟
+                </label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setPrivacySettings({ ...privacySettings, whoCanFollow: 'everyone' })}
+                    onClick={() =>
+                      setPrivacySettings({ ...privacySettings, whoCanFollow: 'everyone' })
+                    }
                     className={`p-3.5 rounded-2xl border text-xs font-bold transition-all cursor-pointer text-right flex items-center justify-between ${
                       privacySettings.whoCanFollow === 'everyone'
                         ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
@@ -1111,7 +1245,9 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
 
                   <button
                     type="button"
-                    onClick={() => setPrivacySettings({ ...privacySettings, whoCanFollow: 'approved_only' })}
+                    onClick={() =>
+                      setPrivacySettings({ ...privacySettings, whoCanFollow: 'approved_only' })
+                    }
                     className={`p-3.5 rounded-2xl border text-xs font-bold transition-all cursor-pointer text-right flex items-center justify-between ${
                       privacySettings.whoCanFollow === 'approved_only'
                         ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
@@ -1119,18 +1255,24 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                     }`}
                   >
                     <span>الحسابات المعتمدة فقط</span>
-                    {privacySettings.whoCanFollow === 'approved_only' && <Check className="w-4 h-4" />}
+                    {privacySettings.whoCanFollow === 'approved_only' && (
+                      <Check className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </div>
 
               {/* Who can message */}
               <div className="space-y-2">
-                <label className="text-xs font-black text-slate-800 block">من يستطيع مراسلتك على الخاص؟</label>
+                <label className="text-xs font-black text-slate-800 block">
+                  من يستطيع مراسلتك على الخاص؟
+                </label>
                 <div className="grid grid-cols-3 gap-3">
                   <button
                     type="button"
-                    onClick={() => setPrivacySettings({ ...privacySettings, whoCanMessage: 'everyone' })}
+                    onClick={() =>
+                      setPrivacySettings({ ...privacySettings, whoCanMessage: 'everyone' })
+                    }
                     className={`p-3 rounded-2xl border text-xs font-bold transition-all cursor-pointer text-center ${
                       privacySettings.whoCanMessage === 'everyone'
                         ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
@@ -1142,7 +1284,9 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
 
                   <button
                     type="button"
-                    onClick={() => setPrivacySettings({ ...privacySettings, whoCanMessage: 'following_only' })}
+                    onClick={() =>
+                      setPrivacySettings({ ...privacySettings, whoCanMessage: 'following_only' })
+                    }
                     className={`p-3 rounded-2xl border text-xs font-bold transition-all cursor-pointer text-center ${
                       privacySettings.whoCanMessage === 'following_only'
                         ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
@@ -1154,7 +1298,9 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
 
                   <button
                     type="button"
-                    onClick={() => setPrivacySettings({ ...privacySettings, whoCanMessage: 'nobody' })}
+                    onClick={() =>
+                      setPrivacySettings({ ...privacySettings, whoCanMessage: 'nobody' })
+                    }
                     className={`p-3 rounded-2xl border text-xs font-bold transition-all cursor-pointer text-center ${
                       privacySettings.whoCanMessage === 'nobody'
                         ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
@@ -1169,40 +1315,62 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
               {/* Show in Search */}
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-black text-slate-900">ظهور الحساب في نتائج البحث عبر Username</h4>
-                  <p className="text-[11px] text-slate-500 font-medium">عند إيقافه لن يستطيع أحد العثور عليك عبر محرك البحث.</p>
+                  <h4 className="text-xs font-black text-slate-900">
+                    ظهور الحساب في نتائج البحث عبر Username
+                  </h4>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    عند إيقافه لن يستطيع أحد العثور عليك عبر محرك البحث.
+                  </p>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => setPrivacySettings({ ...privacySettings, showInSearch: !privacySettings.showInSearch })}
+                  onClick={() =>
+                    setPrivacySettings({
+                      ...privacySettings,
+                      showInSearch: !privacySettings.showInSearch,
+                    })
+                  }
                   className={`w-12 h-6 rounded-full transition-all relative p-0.5 cursor-pointer ${
                     privacySettings.showInSearch ? 'bg-blue-600' : 'bg-slate-300'
                   }`}
                 >
-                  <span className={`w-5 h-5 rounded-full bg-white block shadow-md transition-transform ${
-                    privacySettings.showInSearch ? 'translate-x-0' : '-translate-x-6'
-                  }`} />
+                  <span
+                    className={`w-5 h-5 rounded-full bg-white block shadow-md transition-transform ${
+                      privacySettings.showInSearch ? 'translate-x-0' : '-translate-x-6'
+                    }`}
+                  />
                 </button>
               </div>
 
               {/* Show Personal Info */}
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-black text-slate-900">إظهار المؤسسة والرتبة المهنية بالبروفايل العامة</h4>
-                  <p className="text-[11px] text-slate-500 font-medium">عرض اسم المدرسة الابتدائية والمقاطعة التفتيشية للزوار.</p>
+                  <h4 className="text-xs font-black text-slate-900">
+                    إظهار المؤسسة والرتبة المهنية بالبروفايل العامة
+                  </h4>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    عرض اسم المدرسة الابتدائية والمقاطعة التفتيشية للزوار.
+                  </p>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => setPrivacySettings({ ...privacySettings, showPersonalInfo: !privacySettings.showPersonalInfo })}
+                  onClick={() =>
+                    setPrivacySettings({
+                      ...privacySettings,
+                      showPersonalInfo: !privacySettings.showPersonalInfo,
+                    })
+                  }
                   className={`w-12 h-6 rounded-full transition-all relative p-0.5 cursor-pointer ${
                     privacySettings.showPersonalInfo ? 'bg-blue-600' : 'bg-slate-300'
                   }`}
                 >
-                  <span className={`w-5 h-5 rounded-full bg-white block shadow-md transition-transform ${
-                    privacySettings.showPersonalInfo ? 'translate-x-0' : '-translate-x-6'
-                  }`} />
+                  <span
+                    className={`w-5 h-5 rounded-full bg-white block shadow-md transition-transform ${
+                      privacySettings.showPersonalInfo ? 'translate-x-0' : '-translate-x-6'
+                    }`}
+                  />
                 </button>
               </div>
             </div>
@@ -1229,14 +1397,19 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                 <Share2 className="w-5 h-5 text-blue-600" />
                 <span>مشاركة مورد بيداغوجي بالمجتمع المهني</span>
               </h3>
-              <button onClick={() => setIsShareModalOpen(false)} className="text-slate-400 hover:text-slate-700">
+              <button
+                onClick={() => setIsShareModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-black text-slate-700 block mb-1">نوع المورد المراد مشاركته:</label>
+                <label className="text-xs font-black text-slate-700 block mb-1">
+                  نوع المورد المراد مشاركته:
+                </label>
                 <select
                   value={shareCategory}
                   onChange={(e) => setShareCategory(e.target.value as any)}
@@ -1250,7 +1423,9 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
               </div>
 
               <div>
-                <label className="text-xs font-black text-slate-700 block mb-1">عنوان المورد أو الأنشطة:</label>
+                <label className="text-xs font-black text-slate-700 block mb-1">
+                  عنوان المورد أو الأنشطة:
+                </label>
                 <input
                   type="text"
                   value={shareTitle}
@@ -1261,7 +1436,9 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
               </div>
 
               <div>
-                <label className="text-xs font-black text-slate-700 block mb-1">تفاصيل المورد وشرح طريقة التنفيذ:</label>
+                <label className="text-xs font-black text-slate-700 block mb-1">
+                  تفاصيل المورد وشرح طريقة التنفيذ:
+                </label>
                 <textarea
                   value={shareDescription}
                   onChange={(e) => setShareDescription(e.target.value)}
@@ -1297,15 +1474,20 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
           <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="text-sm font-black text-slate-900">
-                {followersModalType === 'followers' ? 'قائمة المتابعين لحسابك' : 'قائمة الحسابات التي تتابعها'}
+                {followersModalType === 'followers'
+                  ? 'قائمة المتابعين لحسابك'
+                  : 'قائمة الحسابات التي تتابعها'}
               </h3>
-              <button onClick={() => setIsFollowersModalOpen(false)} className="text-slate-400 hover:text-slate-700">
+              <button
+                onClick={() => setIsFollowersModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-2 max-h-[320px] overflow-y-auto">
-              {allUsersList.filter(u => {
+              {allUsersList.filter((u) => {
                 if (followersModalType === 'followers') {
                   return (currentUser.followersIds || []).includes(u.id);
                 }
@@ -1315,33 +1497,49 @@ export const ProfessionalCommunityView: React.FC<ProfessionalCommunityViewProps>
                   القائمة فارغة حالياً
                 </div>
               ) : (
-                allUsersList.filter(u => {
-                  if (followersModalType === 'followers') {
-                    return (currentUser.followersIds || []).includes(u.id);
-                  }
-                  return (currentUser.followingIds || []).includes(u.id);
-                }).map(u => (
-                  <div key={u.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <img src={u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'} alt={u.username} className="w-9 h-9 rounded-xl object-cover" />
-                      <div>
-                        <h4 className="text-xs font-black text-slate-900">{u.firstName} {u.lastName}</h4>
-                        <span className="text-[10px] text-blue-600 font-bold dir-ltr block">@{u.username}</span>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        setIsFollowersModalOpen(false);
-                        setSelectedChatUser(u);
-                        goToTab('chat');
-                      }}
-                      className="px-3 py-1 bg-slate-900 text-white text-[11px] font-bold rounded-lg"
+                allUsersList
+                  .filter((u) => {
+                    if (followersModalType === 'followers') {
+                      return (currentUser.followersIds || []).includes(u.id);
+                    }
+                    return (currentUser.followingIds || []).includes(u.id);
+                  })
+                  .map((u) => (
+                    <div
+                      key={u.id}
+                      className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between"
                     >
-                      مراسلة
-                    </button>
-                  </div>
-                ))
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={
+                            u.avatar ||
+                            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250'
+                          }
+                          alt={u.username}
+                          className="w-9 h-9 rounded-xl object-cover"
+                        />
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900">
+                            {u.firstName} {u.lastName}
+                          </h4>
+                          <span className="text-[10px] text-blue-600 font-bold dir-ltr block">
+                            @{u.username}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setIsFollowersModalOpen(false);
+                          setSelectedChatUser(u);
+                          goToTab('chat');
+                        }}
+                        className="px-3 py-1 bg-slate-900 text-white text-[11px] font-bold rounded-lg"
+                      >
+                        مراسلة
+                      </button>
+                    </div>
+                  ))
               )}
             </div>
           </div>
