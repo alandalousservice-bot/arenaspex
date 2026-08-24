@@ -26,6 +26,14 @@ describe('Inspector teacher follow-up workspace', () => {
     expect(read('src/components/dashboard/inspector/InspectorReportsView.tsx')).toContain('teacherId?: string');
   });
 
+  it('uses InspectorNote for authorized teacher-specific guidance and preserves district mode', () => {
+    const page = read('src/components/dashboard/inspector/InspectorBroadcastsView.tsx');
+    expect(page).toContain('onAddNote');
+    expect(page).toContain('teacherId: teacherContext.id');
+    expect(page).toContain('سيُحفظ التوجيه كسجل InspectorNote');
+    expect(read('src/components/dashboard/InspectorWorkspacePage.tsx')).toContain('تعذر فتح توجيه الأستاذ');
+  });
+
   it('keeps roster actions on accepted teachers and avoids per-card fetches', () => {
     const page = read('src/components/dashboard/InspectorWorkspacePage.tsx');
     expect(page).toContain('onOpenTeacher');
