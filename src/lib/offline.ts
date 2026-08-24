@@ -64,9 +64,13 @@ function setOutbox(entries: OutboxEntry[]): void {
   }
 }
 
-function addToOutbox(entry: Omit<OutboxEntry, 'id' | 'timestamp' | 'recordId'> & { payload?: unknown }): void {
+function addToOutbox(
+  entry: Omit<OutboxEntry, 'id' | 'timestamp' | 'recordId'> & { payload?: unknown }
+): void {
   const outbox = getOutbox();
-  const recordId = entry.payload ? extractRecordId(entry.payload) : extractRecordIdFromPath(entry.path);
+  const recordId = entry.payload
+    ? extractRecordId(entry.payload)
+    : extractRecordIdFromPath(entry.path);
 
   // إزالة تكرار بمعرّف السجل (payload.*.id) — نفس الترتيب مع استبدال الأحدث
   if (recordId) {
@@ -87,7 +91,12 @@ function addToOutbox(entry: Omit<OutboxEntry, 'id' | 'timestamp' | 'recordId'> &
     if (pathId) {
       const filtered = outbox.filter((e) => {
         const existingPathId = extractRecordIdFromPath(e.path);
-        if (existingPathId && existingPathId === pathId && e.method === entry.method && e.path === entry.path) {
+        if (
+          existingPathId &&
+          existingPathId === pathId &&
+          e.method === entry.method &&
+          e.path === entry.path
+        ) {
           return false;
         }
         return true;
@@ -103,7 +112,7 @@ function addToOutbox(entry: Omit<OutboxEntry, 'id' | 'timestamp' | 'recordId'> &
     method: entry.method,
     payload: entry.payload,
     recordId: recordId || extractRecordIdFromPath(entry.path),
-    timestamp: Date.now()
+    timestamp: Date.now(),
   };
   outbox.push(newEntry);
   setOutbox(outbox);
@@ -114,10 +123,23 @@ function extractRecordIdFromPath(path: string): string | null {
     // path like /api/db/lesson-plans/xxx or /api/db/users/xxx
     const parts = path.split('/').filter(Boolean);
     const last = parts[parts.length - 1];
-    if (last && last.length >= 3 && !last.includes('?') && !last.includes('batch') && !last.includes('users') && !last.includes('lesson-plans') && !last.includes('notebook') && !last.includes('inspector-notes') && !last.includes('district-messages') && !last.includes('direct-messages') && !last.includes('community-resources') && !last.includes('community-notifications')) {
+    if (
+      last &&
+      last.length >= 3 &&
+      !last.includes('?') &&
+      !last.includes('batch') &&
+      !last.includes('users') &&
+      !last.includes('lesson-plans') &&
+      !last.includes('notebook') &&
+      !last.includes('inspector-notes') &&
+      !last.includes('district-messages') &&
+      !last.includes('direct-messages') &&
+      !last.includes('community-resources') &&
+      !last.includes('community-notifications')
+    ) {
       // assume last segment is id if not a known collection name
       // we will consider any segment that looks like id (contains _ or - or length > 5)
-      if (/^[A-Za-z0-9_\-]+$/.test(last)) return last;
+      if (/^[A-Za-z0-9_-]+$/.test(last)) return last;
     }
     return null;
   } catch {
@@ -125,7 +147,11 @@ function extractRecordIdFromPath(path: string): string | null {
   }
 }
 
-export async function offlinePost(path: string, payload: unknown, method: 'POST' | 'PUT' = 'POST'): Promise<{ success: boolean; error?: string }> {
+export async function offlinePost(
+  path: string,
+  payload: unknown,
+  method: 'POST' | 'PUT' = 'POST'
+): Promise<{ success: boolean; error?: string }> {
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
   if (isOnline) {
@@ -133,7 +159,7 @@ export async function offlinePost(path: string, payload: unknown, method: 'POST'
       const res = await fetch(path, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: payload !== undefined ? JSON.stringify(payload) : undefined
+        body: payload !== undefined ? JSON.stringify(payload) : undefined,
       });
       if (res.ok) {
         return { success: true };
@@ -149,7 +175,12 @@ export async function offlinePost(path: string, payload: unknown, method: 'POST'
       // network error or 5xx -> queue
       const message = (e as Error).message || '';
       // if message indicates 4xx we already handled; otherwise queue
-      if (!isOnline || message.includes('Failed to fetch') || message.includes('NetworkError') || message.includes('Server error')) {
+      if (
+        !isOnline ||
+        message.includes('Failed to fetch') ||
+        message.includes('NetworkError') ||
+        message.includes('Server error')
+      ) {
         addToOutbox({ path, method, payload });
         return { success: false, error: 'queued offline' };
       }
@@ -190,7 +221,7 @@ export function registerOnlineFlush(): () => void {
 
   const flush = async () => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
-    let outbox = getOutbox();
+    const outbox = getOutbox();
     if (outbox.length === 0) return;
 
     // sort by timestamp to preserve order (already in order)
@@ -212,7 +243,7 @@ export function registerOnlineFlush(): () => void {
         const res = await fetch(entry.path, {
           method: entry.method,
           headers: entry.payload ? { 'Content-Type': 'application/json' } : undefined,
-          body: entry.payload ? JSON.stringify(entry.payload) : undefined
+          body: entry.payload ? JSON.stringify(entry.payload) : undefined,
         });
 
         if (res.ok) {

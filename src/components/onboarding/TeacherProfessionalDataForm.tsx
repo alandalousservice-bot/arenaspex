@@ -1,5 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Building2, MapPin, School, ShieldCheck, CheckCircle2, PlusCircle, Loader2, ArrowRight, ArrowLeft, User, Calendar } from 'lucide-react';
+import {
+  Building2,
+  MapPin,
+  School,
+  ShieldCheck,
+  CheckCircle2,
+  PlusCircle,
+  Loader2,
+  ArrowRight,
+  ArrowLeft,
+  User,
+  Calendar,
+} from 'lucide-react';
 import {
   fetchDirectorates,
   fetchMunicipalities,
@@ -7,13 +19,13 @@ import {
   fetchSchools,
   suggestMunicipality,
   suggestSchool,
-  saveTeacherProfessionalData
+  saveTeacherProfessionalData,
 } from '../../services/api';
 import {
   fetchGeoDirectorates,
   fetchGeoDistricts,
   fetchGeoMunicipalities,
-  fetchGeoSchools
+  fetchGeoSchools,
 } from '../../services/api';
 
 import { User as UserType } from '../../types/spex';
@@ -35,7 +47,10 @@ const STEPS = ['البطاقة الشخصية', 'المديرية', 'البلد�
  * خطوة صفرية «البطاقة الشخصية» (الاسم/اللقب/تاريخ الميلاد بتاريخ html)
  * ثم بقية الخطوات وتصير المقاطعة اختيارية حقيقة (زر الحفظ غير مشروط بها).
  */
-export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormProps> = ({ user, onCompleted }) => {
+export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormProps> = ({
+  user,
+  onCompleted,
+}) => {
   const [step, setStep] = useState(0);
 
   const [directorates, setDirectorates] = useState<Option[]>([]);
@@ -74,7 +89,7 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
   useEffect(() => {
     (async () => {
       setLoading(true);
-      let res = await fetchGeoDirectorates().catch(() => ({ success: false } as any));
+      const res = await fetchGeoDirectorates().catch(() => ({ success: false }) as any);
       if (!res.success) {
         const legacy = await fetchDirectorates();
         if (legacy.success) setDirectorates(legacy.directorates);
@@ -95,8 +110,8 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
       setLoading(true);
       // Try geo first
       const [muniResGeo, distResGeo] = await Promise.all([
-        fetchGeoMunicipalities(directorateId).catch(() => ({ success: false } as any)),
-        fetchGeoDistricts(directorateId).catch(() => ({ success: false } as any))
+        fetchGeoMunicipalities(directorateId).catch(() => ({ success: false }) as any),
+        fetchGeoDistricts(directorateId).catch(() => ({ success: false }) as any),
       ]);
 
       if (muniResGeo.success) {
@@ -123,7 +138,9 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
     (async () => {
       setLoading(true);
       // Try geo schools by municipalityId
-      const geoSchools = await fetchGeoSchools({ municipalityId }).catch(() => ({ success: false } as any));
+      const geoSchools = await fetchGeoSchools({ municipalityId }).catch(
+        () => ({ success: false }) as any
+      );
       if (geoSchools.success) {
         setSchools(geoSchools.schools);
       } else {
@@ -144,7 +161,13 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
     (step === 3 && !!institutionId) ||
     step === 4;
 
-  const canSave = !!directorateId && !!municipalityId && !!institutionId && firstName.trim().length >= 2 && lastName.trim().length >= 2 && !saving;
+  const canSave =
+    !!directorateId &&
+    !!municipalityId &&
+    !!institutionId &&
+    firstName.trim().length >= 2 &&
+    lastName.trim().length >= 2 &&
+    !saving;
 
   const handleSuggestSubmit = async () => {
     if (!suggestName.trim()) return;
@@ -170,7 +193,7 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
       ...(districtId ? { districtId } : {}),
       ...(firstName ? { firstName: firstName.trim() } : {}),
       ...(lastName ? { lastName: lastName.trim() } : {}),
-      ...(birthDate ? { birthDate } : {})
+      ...(birthDate ? { birthDate } : {}),
     };
     const res = await saveTeacherProfessionalData(payload);
     setSaving(false);
@@ -241,9 +264,14 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
   }
 
   return (
-    <div className="mx-auto max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-sm" dir="rtl">
+    <div
+      className="mx-auto max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+      dir="rtl"
+    >
       <h3 className="mb-1 text-lg font-bold text-gray-800">استكمال البيانات المهنية</h3>
-      <p className="mb-5 text-sm text-gray-500">لربطك تلقائياً بمفتش التربية البدنية والرياضية المختص — المقاطعة اختيارية.</p>
+      <p className="mb-5 text-sm text-gray-500">
+        لربطك تلقائياً بمفتش التربية البدنية والرياضية المختص — المقاطعة اختيارية.
+      </p>
 
       <div className="mb-5 flex items-center gap-1">
         {STEPS.map((label, i) => (
@@ -255,7 +283,9 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
             >
               {i + 1}
             </div>
-            {i < STEPS.length - 1 && <div className={`h-0.5 flex-1 ${i < step ? 'bg-emerald-600' : 'bg-gray-200'}`} />}
+            {i < STEPS.length - 1 && (
+              <div className={`h-0.5 flex-1 ${i < step ? 'bg-emerald-600' : 'bg-gray-200'}`} />
+            )}
           </div>
         ))}
       </div>
@@ -387,7 +417,8 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
                 ))}
               </select>
               <p className="mt-2 text-[11px] text-slate-500">
-                إن تركتها فارغة فلن يُنشأ لك سجل إسناد وستظهر رسالة «لم تطلب الإسناد بعد». يمكنك اختيار المقاطعة لاحقاً.
+                إن تركتها فارغة فلن يُنشأ لك سجل إسناد وستظهر رسالة «لم تطلب الإسناد بعد». يمكنك
+                اختيار المقاطعة لاحقاً.
               </p>
             </div>
           )}
@@ -417,7 +448,11 @@ export const TeacherProfessionalDataForm: React.FC<TeacherProfessionalDataFormPr
             disabled={!canSave}
             className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4" />
+            )}
             حفظ البيانات
           </button>
         )}
