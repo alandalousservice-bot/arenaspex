@@ -7,6 +7,7 @@ interface InspectorDirectChatProps {
   selectedTeacher: User;
   chatMessages: DirectChatMessage[];
   onSendMessage: (text: string) => void;
+  teacherId?: string;
 }
 
 export const InspectorDirectChat: React.FC<InspectorDirectChatProps> = ({
@@ -14,6 +15,7 @@ export const InspectorDirectChat: React.FC<InspectorDirectChatProps> = ({
   selectedTeacher,
   chatMessages,
   onSendMessage,
+  teacherId,
 }) => {
   const [inputText, setInputText] = useState('');
 

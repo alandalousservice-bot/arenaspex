@@ -21,6 +21,9 @@ describe('Inspector teacher follow-up workspace', () => {
     expect(page).toContain('الزيارات والتوجيهات');
     expect(page).toContain('إضافة زيارة');
     expect(page).toContain('مراسلة الأستاذ');
+    expect(read('src/App.tsx')).toContain('onNavigateWithTeacher');
+    expect(read('src/App.tsx')).toContain('?teacherId=');
+    expect(read('src/components/dashboard/inspector/InspectorReportsView.tsx')).toContain('teacherId?: string');
   });
 
   it('keeps roster actions on accepted teachers and avoids per-card fetches', () => {

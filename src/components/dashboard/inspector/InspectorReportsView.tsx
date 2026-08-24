@@ -7,6 +7,7 @@ interface InspectorReportsViewProps {
   teachers: UserType[];
   inspector: UserType;
   onAddVisit: (visit: Partial<InspectionVisit>) => void;
+  teacherId?: string;
 }
 
 export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
@@ -14,6 +15,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
   teachers,
   inspector,
   onAddVisit,
+  teacherId,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [visitTypeFilter, setVisitTypeFilter] = useState<string>('all');
@@ -21,7 +23,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
   const [printableVisit, setPrintableVisit] = useState<InspectionVisit | null>(null);
 
   // Form state
-  const [selectedTeacherId, setSelectedTeacherId] = useState(teachers[0]?.id || '');
+  const [selectedTeacherId, setSelectedTeacherId] = useState(teacherId || teachers[0]?.id || '');
   const [visitType, setVisitType] = useState<'تفتيش تثبيت' | 'توجيهية' | 'متابعة دورية' | 'تقييمية'>('توجيهية');
   const [visitDate, setVisitDate] = useState(new Date().toISOString().split('T')[0]);
   const [lessonTitle, setLessonTitle] = useState('');
@@ -33,6 +35,8 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
   const [recommendationsText, setRecommendationsText] = useState('مواصلة التطبيق الدقيق للتدرج السنوي المعتمد من المفتشية.');
 
   const totalScore = (parseFloat(adminGrade) || 0) + (parseFloat(pedagogicalGrade) || 0) + (parseFloat(safetyGrade) || 0);
+
+  const selectedContextTeacher = teachers.find((teacher) => teacher.id === teacherId);
 
   const filteredVisits = visits.filter((v) => {
     const teacher = teachers.find((t) => t.id === v.teacherId);
@@ -78,6 +82,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
 
   return (
     <div className="space-y-6 dir-rtl animate-in fade-in duration-200">
+      {selectedContextTeacher && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-900">متابعة الأستاذ: {selectedContextTeacher.firstName} {selectedContextTeacher.lastName} <button type="button" onClick={() => setSelectedTeacherId('')} className="mr-3 text-emerald-700 underline">إلغاء التحديد</button></div>}
       {/* Banner */}
       <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 text-white rounded-3xl p-6 shadow-md border border-emerald-700/50">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

@@ -6,12 +6,14 @@ interface InspectorBroadcastsViewProps {
   broadcasts: DistrictBroadcast[];
   inspector: User;
   onAddBroadcast: (broadcast: Partial<DistrictBroadcast>) => void;
+  teacherContext?: User | null;
 }
 
 export const InspectorBroadcastsView: React.FC<InspectorBroadcastsViewProps> = ({
   broadcasts,
   inspector,
   onAddBroadcast,
+  teacherContext = null,
 }) => {
   const [showModal, setShowModal] = useState(false);
   const [title, setTitle] = useState('');
@@ -40,6 +42,7 @@ export const InspectorBroadcastsView: React.FC<InspectorBroadcastsViewProps> = (
 
   return (
     <div className="space-y-6 dir-rtl animate-in fade-in duration-200">
+      {teacherContext && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-900">متابعة الأستاذ: {teacherContext.firstName} {teacherContext.lastName} — التوجيهات الخاصة بالأستاذ تستخدم InspectorNote.</div>}
       {/* Banner */}
       <div className="bg-gradient-to-r from-amber-900 via-amber-800 to-slate-900 text-white rounded-3xl p-6 shadow-md border border-amber-700/50">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
