@@ -40,15 +40,17 @@ function normalizeKey(str: string): string {
 }
 
 function slugifyFrench(str: string): string {
-  return str
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .substring(0, 60) || 'commune';
+  return (
+    str
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .substring(0, 60) || 'commune'
+  );
 }
 
 function slugifyArabic(ar: string, fr: string): string {
@@ -90,7 +92,7 @@ async function seedDirectorates() {
       directoratesToUpsert.push({
         id: 'setif_de',
         name: `مديرية التربية لولاية ${nameAr}`,
-        wilayaCode: '19'
+        wilayaCode: '19',
       });
     } else if (code === 16) {
       // الجزائر 16 → 3 مديريات: شرق/وسط/غرب
@@ -98,24 +100,24 @@ async function seedDirectorates() {
         {
           id: 'de_16_east',
           name: `مديرية التربية لولاية ${nameAr} شرق`,
-          wilayaCode: '16'
+          wilayaCode: '16',
         },
         {
           id: 'de_16_center',
           name: `مديرية التربية لولاية ${nameAr} وسط`,
-          wilayaCode: '16'
+          wilayaCode: '16',
         },
         {
           id: 'de_16_west',
           name: `مديرية التربية لولاية ${nameAr} غرب`,
-          wilayaCode: '16'
+          wilayaCode: '16',
         }
       );
     } else {
       directoratesToUpsert.push({
         id: `de_${wilayaCodeStr}`,
         name: `مديرية التربية لولاية ${nameAr}`,
-        wilayaCode: wilayaCodeStr
+        wilayaCode: wilayaCodeStr,
       });
     }
   }
@@ -125,7 +127,7 @@ async function seedDirectorates() {
     await prisma.directorate.upsert({
       where: { id: d.id },
       create: { id: d.id, name: d.name, wilayaCode: d.wilayaCode },
-      update: { name: d.name, wilayaCode: d.wilayaCode }
+      update: { name: d.name, wilayaCode: d.wilayaCode },
     });
   }
   console.log(`✅ Directorates seeded: ${directoratesToUpsert.length}`);
@@ -141,7 +143,7 @@ async function seedMunicipalities() {
   await prisma.directorate.upsert({
     where: { id: unlinkedDirId },
     create: { id: unlinkedDirId, name: 'مديرية التربية لولاية سطيف', wilayaCode: '19' },
-    update: {}
+    update: {},
   });
 
   await prisma.municipality.upsert({
@@ -149,9 +151,9 @@ async function seedMunicipalities() {
     create: {
       id: 'muni_unlinked',
       name: 'بلدية غير مرتبطة (احتياطية)',
-      directorateId: unlinkedDirId
+      directorateId: unlinkedDirId,
     },
-    update: {}
+    update: {},
   });
 
   // تنظيف التكرار بـ (مديرية+اسم NFKD مطبع)
@@ -175,7 +177,7 @@ async function seedMunicipalities() {
 
     // ensure id uniqueness within this batch (if slug collision across different Arabic names that produce same slug)
     let suffix = 1;
-    let baseId = id;
+    const baseId = id;
     while (municipalitiesForInsert.some((m) => m.id === id) || dedupMapHasId(dedupMap, id)) {
       id = `${baseId}_${suffix}`;
       suffix++;
@@ -193,7 +195,9 @@ async function seedMunicipalities() {
     return false;
   }
 
-  console.log(`🏘️ Unique municipalities after dedup (directorate+name): ${municipalitiesForInsert.length} (from ${communes.length})`);
+  console.log(
+    `🏘️ Unique municipalities after dedup (directorate+name): ${municipalitiesForInsert.length} (from ${communes.length})`
+  );
 
   // كتابة createMany مجمعة بـ skipDuplicates:true chunk=500
   const chunkSize = 500;
@@ -203,19 +207,24 @@ async function seedMunicipalities() {
     try {
       const result = await prisma.municipality.createMany({
         data: chunk,
-        skipDuplicates: true
+        skipDuplicates: true,
       });
       insertedTotal += result.count;
-      console.log(`  → municipalities chunk ${i / chunkSize + 1}: inserted ${result.count} (total ${insertedTotal})`);
+      console.log(
+        `  → municipalities chunk ${i / chunkSize + 1}: inserted ${result.count} (total ${insertedTotal})`
+      );
     } catch (err) {
-      console.error(`  ❌ municipalities chunk ${i / chunkSize + 1} failed:`, (err as Error).message);
+      console.error(
+        `  ❌ municipalities chunk ${i / chunkSize + 1} failed:`,
+        (err as Error).message
+      );
       // fallback to upsert one by one for this chunk
       for (const m of chunk) {
         try {
           await prisma.municipality.upsert({
             where: { id: m.id },
             create: m,
-            update: {}
+            update: {},
           });
           insertedTotal++;
         } catch (e) {
@@ -224,7 +233,7 @@ async function seedMunicipalities() {
             await prisma.municipality.upsert({
               where: { directorateId_name: { directorateId: m.directorateId, name: m.name } },
               create: m,
-              update: {}
+              update: {},
             });
           } catch (ee) {
             // ignore
@@ -234,7 +243,9 @@ async function seedMunicipalities() {
     }
   }
 
-  console.log(`✅ Municipalities seeded: attempted ${municipalitiesForInsert.length}, inserted ${insertedTotal} (plus existing)`);
+  console.log(
+    `✅ Municipalities seeded: attempted ${municipalitiesForInsert.length}, inserted ${insertedTotal} (plus existing)`
+  );
   return dedupMap;
 }
 
@@ -281,7 +292,13 @@ async function seedSchools() {
     muniLookup.set('unlinked', 'muni_unlinked');
   }
 
-  const schoolsForInsert: Array<{ id: string; name: string; municipalityId: string; wilayaCode: string; inspectionDistrictId: string | null }> = [];
+  const schoolsForInsert: Array<{
+    id: string;
+    name: string;
+    municipalityId: string;
+    wilayaCode: string;
+    inspectionDistrictId: string | null;
+  }> = [];
   let matchedCount = 0;
   let unlinkedCount = 0;
 
@@ -296,7 +313,9 @@ async function seedSchools() {
     if (communeFr) {
       const geoList = communesByWilaya.get(wilayaNum) || [];
       // 1) exact French match within wilaya
-      let geoMatch = geoList.find((gc) => gc.name_fr.trim().toLowerCase() === communeFr.toLowerCase());
+      let geoMatch = geoList.find(
+        (gc) => gc.name_fr.trim().toLowerCase() === communeFr.toLowerCase()
+      );
       // 2) includes fallback
       if (!geoMatch) {
         const lowerCommune = communeFr.toLowerCase();
@@ -314,7 +333,11 @@ async function seedSchools() {
           // fallback: search municipalities in same directorate whose name normalized equals geoMatch.name_ar normalized (already attempted) OR whose French slug matches?
           // we already attempted, so try any municipality in directorate with same normalized French? not stored
           // attempt to find by Arabic name_ar from geoMatch directly in dbMunicipalities list for that directorate
-          const candidate = dbMunicipalities.find((m) => m.directorateId === directorateId && normalizeKey(m.name) === normalizeKey(geoMatch!.name_ar));
+          const candidate = dbMunicipalities.find(
+            (m) =>
+              m.directorateId === directorateId &&
+              normalizeKey(m.name) === normalizeKey(geoMatch!.name_ar)
+          );
           if (candidate) matchedMuniId = candidate.id;
         }
       }
@@ -325,7 +348,9 @@ async function seedSchools() {
         // we will also try to find municipality whose French slug equals communeFr slug
         const slugFr = slugifyFrench(communeFr);
         // search for municipality id that ends with slugFr and same wilaya NN
-        const possible = dbMunicipalities.filter((m) => m.directorateId === directorateId && m.id.includes(slugFr));
+        const possible = dbMunicipalities.filter(
+          (m) => m.directorateId === directorateId && m.id.includes(slugFr)
+        );
         if (possible.length === 1) matchedMuniId = possible[0].id;
       }
     }
@@ -337,18 +362,22 @@ async function seedSchools() {
       matchedCount++;
     }
 
-    const schoolName = (s.name_ar || s.name || s.name_fr || 'مدرسة ابتدائية').trim().substring(0, 200);
+    const schoolName = (s.name_ar || s.name || s.name_fr || 'مدرسة ابتدائية')
+      .trim()
+      .substring(0, 200);
 
     schoolsForInsert.push({
       id: s.id,
       name: schoolName,
       municipalityId: matchedMuniId,
       wilayaCode: wilayaPadded,
-      inspectionDistrictId: null // يظل null دائماً حسب المواصفة — توزيع المدارس على المقاطعات غير موثق رسمياً
+      inspectionDistrictId: null, // يظل null دائماً حسب المواصفة — توزيع المدارس على المقاطعات غير موثق رسمياً
     });
   }
 
-  console.log(`🏫 Schools matching: matched=${matchedCount}, unlinked=${unlinkedCount}, total=${schoolsForInsert.length}`);
+  console.log(
+    `🏫 Schools matching: matched=${matchedCount}, unlinked=${unlinkedCount}, total=${schoolsForInsert.length}`
+  );
 
   // Chunk insert 500
   const chunkSize = 500;
@@ -358,10 +387,12 @@ async function seedSchools() {
     try {
       const result = await prisma.school.createMany({
         data: chunk,
-        skipDuplicates: true
+        skipDuplicates: true,
       });
       inserted += result.count;
-      console.log(`  → schools chunk ${i / chunkSize + 1}: inserted ${result.count} (total ${inserted})`);
+      console.log(
+        `  → schools chunk ${i / chunkSize + 1}: inserted ${result.count} (total ${inserted})`
+      );
     } catch (err) {
       console.error(`  ❌ schools chunk ${i / chunkSize + 1} failed:`, (err as Error).message);
       // fallback upsert one by one
@@ -374,28 +405,30 @@ async function seedSchools() {
               name: sch.name,
               municipalityId: sch.municipalityId,
               wilayaCode: sch.wilayaCode,
-              inspectionDistrictId: sch.inspectionDistrictId
+              inspectionDistrictId: sch.inspectionDistrictId,
             },
             update: {
               name: sch.name,
               municipalityId: sch.municipalityId,
-              wilayaCode: sch.wilayaCode
-            }
+              wilayaCode: sch.wilayaCode,
+            },
           });
           inserted++;
         } catch (e) {
           // try by municipalityId+name unique
           try {
             await prisma.school.upsert({
-              where: { municipalityId_name: { municipalityId: sch.municipalityId, name: sch.name } },
+              where: {
+                municipalityId_name: { municipalityId: sch.municipalityId, name: sch.name },
+              },
               create: {
                 id: sch.id,
                 name: sch.name,
                 municipalityId: sch.municipalityId,
                 wilayaCode: sch.wilayaCode,
-                inspectionDistrictId: sch.inspectionDistrictId
+                inspectionDistrictId: sch.inspectionDistrictId,
               },
-              update: {}
+              update: {},
             });
           } catch (ee) {
             // ignore duplicate names
@@ -426,5 +459,7 @@ main()
   .finally(async () => {
     try {
       await prisma.$disconnect();
-    } catch {}
+    } catch {
+      // Disconnect failures are intentionally ignored after seed completion/failure.
+    }
   });
