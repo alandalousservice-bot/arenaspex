@@ -703,8 +703,8 @@ export async function deleteNotebookEntryFromDB(entryId: string) {
   await offlineDelete(`/api/db/notebook/${entryId}`);
 }
 
-export async function syncInspectorNoteToDB(note: unknown) {
-  await offlinePost('/api/db/inspector-notes', { note }, 'POST');
+export async function syncInspectorNoteToDB(note: unknown): Promise<{ success: boolean; error?: string }> {
+  return offlinePost('/api/db/inspector-notes', { note }, 'POST');
 }
 
 export async function fetchTeacherInspectionFeed() {

@@ -33,7 +33,7 @@ interface Props {
   communityResources: CommunityResource[];
   onNavigate: (tab: NavTab) => void;
   onRefreshTeachers: () => void;
-  onAddNote: (note: Partial<InspectorNote>) => void;
+  onAddNote: (note: Partial<InspectorNote>) => void | Promise<boolean | void>;
   onAddVisit: (visit: Partial<InspectionVisit>) => void;
   onAddBroadcast: (broadcast: Partial<DistrictBroadcast>) => void;
   onAddDirectMessage: (msg: { receiverId: string; receiverName: string; message: string }) => void;
@@ -56,12 +56,27 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
   const { filteredTeacherPlans } = useLessonPlans(lessonPlans, selectedTeacher, teachers);
   const { teacherVisits, teacherNotes } = useReports(visits, notes);
 
+  const refreshTeacherDetail = React.useCallback(async () => {
+    if (!props.teacherId) return;
+    const data = await fetchInspectorTeacherFollowUp(props.teacherId);
+    setDetail(data);
+  }, [props.teacherId]);
+
   React.useEffect(() => {
     if (module !== 'inspector_teachers' || !props.teacherId) return;
     let active = true;
-    void fetchInspectorTeacherFollowUp(props.teacherId).then((data) => { if (active) setDetail(data); }).catch(() => { if (active) setDetail(null); });
+    void refreshTeacherDetail().catch(() => { if (active) setDetail(null); });
     return () => { active = false; };
-  }, [module, props.teacherId]);
+  }, [module, props.teacherId, refreshTeacherDetail]);
+
+  React.useEffect(() => {
+    const handler = (event: Event) => {
+      const teacherId = (event as CustomEvent<{ teacherId?: string }>).detail?.teacherId;
+      if (teacherId && teacherId === props.teacherId) void refreshTeacherDetail().catch(() => undefined);
+    };
+    window.addEventListener('inspector-note-saved', handler);
+    return () => window.removeEventListener('inspector-note-saved', handler);
+  }, [props.teacherId, refreshTeacherDetail]);
 
   if (!inspector) return <div className="rounded-3xl bg-amber-50 p-8 text-center font-bold text-amber-900">بيانات حساب المفتش غير مكتملة.</div>;
 
@@ -93,7 +108,7 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
   if (module === 'inspector_approvals') return <section className="space-y-5"><h1 className="text-lg font-black flex items-center gap-2"><ShieldCheck className="text-emerald-600" />مركز اعتمادات الموارد</h1><InspectorResourceValidationView resources={props.communityResources} teachers={teachers} onToggleApproveResource={props.onToggleApproveResource} onSendNoteToTeacher={(teacherId, teacherName, title, content) => props.onAddNote({ teacherId, teacherName, title, content, inspectorId: inspector.id, status: 'جديدة', priority: 'عادية', moduleRef: 'general' })} /></section>;
   if (module === 'inspector_visits') return <section className="space-y-5"><h1 className="text-lg font-black flex items-center gap-2"><FileSpreadsheet className="text-emerald-600" />تقارير وتوجيهات المعاينات</h1><InspectorReportsView visits={visits} teachers={teachers} inspector={inspector} teacherId={props.teacherId} onAddVisit={props.onAddVisit} /></section>;
   if (module === 'inspector_curriculum') return <section className="space-y-5"><h1 className="text-lg font-black flex items-center gap-2"><FileSpreadsheet className="text-emerald-600" />التدقيق البيداغوجي للمنهاج</h1><InspectorCurriculumAuditView teachers={teachers} lessonPlans={lessonPlans} onSendNoteToTeacher={(teacherId, teacherName, title, content) => props.onAddNote({ teacherId, teacherName, title, content, inspectorId: inspector.id, status: 'جديدة', priority: 'عادية', moduleRef: 'general' })} /></section>;
-  if (module === 'inspector_guidance') return <section className="space-y-5"><h1 className="text-lg font-black flex items-center gap-2"><Calendar className="text-emerald-600" />التوجيهات والندوات التربوية</h1><InspectorBroadcastsView broadcasts={broadcasts} inspector={inspector} teacherContext={selectedTeacher || null} onAddNote={props.onAddNote} onClearTeacherContext={() => props.onNavigate('inspector_guidance')} onAddBroadcast={props.onAddBroadcast} /></section>;
+  if (module === 'inspector_guidance') return <section className="space-y-5"><h1 className="text-lg font-black flex items-center gap-2"><Calendar className="text-emerald-600" />التوجيهات والندوات التربوية</h1><InspectorBroadcastsView broadcasts={broadcasts} inspector={inspector} teacherContext={selectedTeacher || null} onAddNote={props.onAddNote} onNoteSaved={async (teacherId) => { if (props.teacherId === teacherId) await refreshTeacherDetail(); window.dispatchEvent(new CustomEvent('inspector-note-saved', { detail: { teacherId } })); }} onClearTeacherContext={() => props.onNavigate('inspector_guidance')} onAddBroadcast={props.onAddBroadcast} /></section>;
   if (module === 'inspector_communication') return <section className="space-y-5"><h1 className="text-lg font-black flex items-center gap-2"><MessageSquare className="text-emerald-600" />التواصل المباشر مع الأستاذ</h1>{selectedTeacher ? <InspectorDirectChat inspector={inspector} selectedTeacher={selectedTeacher} teacherId={props.teacherId} chatMessages={directMessages} onSendMessage={(message) => props.onAddDirectMessage({ receiverId: selectedTeacher.id, receiverName: `${selectedTeacher.firstName} ${selectedTeacher.lastName}`.trim(), message })} /> : <p className="rounded-2xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">لا توجد محادثات بعد.</p>}</section>;
   return null;
 };

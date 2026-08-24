@@ -1067,7 +1067,7 @@ export function usePlatformStore({
     void rejectPedagogicalGame(id, rejectionReason).catch(() => undefined);
   };
 
-  const handleAddInspectorNote = (notePartial: Partial<InspectorNote>) => {
+  const handleAddInspectorNote = async (notePartial: Partial<InspectorNote>): Promise<boolean> => {
     const note: InspectorNote = {
       id: `note_${Date.now()}`,
       inspectorId: currentUser.id,
@@ -1082,8 +1082,10 @@ export function usePlatformStore({
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    setInspectorNotes((prev) => [note, ...prev]);
-    syncInspectorNoteToDB(note);
+    const result = await syncInspectorNoteToDB(note);
+    if (!result.success) return false;
+    setInspectorNotes((prev) => [note, ...prev.filter((item) => item.id !== note.id)]);
+    return true;
   };
 
   const handleAddInspectionVisit = (visitPartial: Partial<InspectionVisit>) => {

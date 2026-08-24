@@ -7,7 +7,8 @@ interface InspectorBroadcastsViewProps {
   inspector: User;
   onAddBroadcast: (broadcast: Partial<DistrictBroadcast>) => void;
   teacherContext?: User | null;
-  onAddNote?: (note: Partial<InspectorNote>) => void;
+  onAddNote?: (note: Partial<InspectorNote>) => void | Promise<boolean | void>;
+  onNoteSaved?: (teacherId: string) => void | Promise<void>;
   onClearTeacherContext?: () => void;
 }
 
@@ -17,6 +18,7 @@ export const InspectorBroadcastsView: React.FC<InspectorBroadcastsViewProps> = (
   onAddBroadcast,
   teacherContext = null,
   onAddNote,
+  onNoteSaved,
   onClearTeacherContext,
 }) => {
   const [showModal, setShowModal] = useState(false);
@@ -46,11 +48,12 @@ export const InspectorBroadcastsView: React.FC<InspectorBroadcastsViewProps> = (
 
   const [noteTitle, setNoteTitle] = useState('');
   const [noteContent, setNoteContent] = useState('');
-  const [noteSaved, setNoteSaved] = useState(false);
-  const handleTeacherNote = (e: React.FormEvent) => {
+  const [noteSaved, setNoteSaved] = useState<'idle' | 'success' | 'refresh-error' | 'save-error'>('idle');
+  const handleTeacherNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!teacherContext || !onAddNote || !noteTitle.trim() || !noteContent.trim()) return;
-    onAddNote({
+    setNoteSaved('idle');
+    const saved = await onAddNote({
       id: `note_${Date.now()}`,
       teacherId: teacherContext.id,
       teacherName: `${teacherContext.firstName} ${teacherContext.lastName}`.trim(),
@@ -62,9 +65,20 @@ export const InspectorBroadcastsView: React.FC<InspectorBroadcastsViewProps> = (
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
-    setNoteTitle('');
-    setNoteContent('');
-    setNoteSaved(true);
+    if (saved === false) {
+      setNoteSaved('save-error');
+      return;
+    }
+    try {
+      await onNoteSaved?.(teacherContext.id);
+      setNoteTitle('');
+      setNoteContent('');
+      setNoteSaved('success');
+    } catch {
+      setNoteSaved('refresh-error');
+      setNoteTitle('');
+      setNoteContent('');
+    }
   };
 
   if (teacherContext) {
@@ -76,7 +90,7 @@ export const InspectorBroadcastsView: React.FC<InspectorBroadcastsViewProps> = (
         <h3 className="text-sm font-black text-slate-900">إضافة توجيه أو ملاحظة</h3>
         <input value={noteTitle} onChange={(event) => setNoteTitle(event.target.value)} placeholder="العنوان / الموضوع" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-emerald-500" required />
         <textarea value={noteContent} onChange={(event) => setNoteContent(event.target.value)} placeholder="نص التوجيه أو الملاحظة" rows={6} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-emerald-500" required />
-        <div className="flex items-center justify-between"><span className="text-xs text-emerald-700">{noteSaved ? 'تم حفظ التوجيه بنجاح.' : 'سيُحفظ التوجيه كسجل InspectorNote خاص بهذا الأستاذ.'}</span><button type="submit" className="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-emerald-500">حفظ التوجيه</button></div>
+        <div className="flex items-center justify-between"><span className={`text-xs ${noteSaved === 'refresh-error' || noteSaved === 'save-error' ? 'text-rose-700' : 'text-emerald-700'}`}>{noteSaved === 'success' ? 'تم حفظ التوجيه بنجاح.' : noteSaved === 'refresh-error' ? 'تم حفظ التوجيه، وتعذر تحديث العرض فوراً.' : noteSaved === 'save-error' ? 'تعذر حفظ التوجيه.' : 'سيُحفظ التوجيه كسجل InspectorNote خاص بهذا الأستاذ.'}</span><button type="submit" className="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-emerald-500">حفظ التوجيه</button></div>
       </form>
     </div>;
   }
