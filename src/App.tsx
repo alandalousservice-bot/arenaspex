@@ -152,6 +152,7 @@ export default function App() {
     knowledgeItems,
     inspectorNotes,
     inspectionVisits,
+    refreshInspectionVisits,
     teacherInspectorFeed,
     assignedTeachers,
     refreshAssignedTeachers,
@@ -548,6 +549,7 @@ export default function App() {
                 onRefreshTeachers={refreshAssignedTeachers}
                 onAddNote={handleAddInspectorNote}
                 onAddVisit={handleAddInspectionVisit}
+                onRefreshVisits={refreshInspectionVisits}
                 onAddBroadcast={handleAddBroadcast}
                 onAddDirectMessage={handleAddDirectMessageFromInspector}
                 onToggleApproveResource={handleToggleApproveResource}

@@ -714,8 +714,8 @@ export async function fetchTeacherInspectionFeed() {
   return data;
 }
 
-export async function syncInspectionVisitToDB(visit: unknown) {
-  await offlinePost('/api/inspection-visits', { visit }, 'POST');
+export async function syncInspectionVisitToDB(visit: unknown): Promise<{ success: boolean; error?: string }> {
+  return offlinePost('/api/inspection-visits', { visit }, 'POST');
 }
 
 export async function syncDistrictMessageToDB(message: unknown) {
@@ -846,6 +846,13 @@ export async function fetchInspectorTeacherFollowUp(teacherId: string) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'تعذر تحميل ملف متابعة الأستاذ.');
   return data;
+}
+
+export async function fetchInspectorVisits(): Promise<unknown[]> {
+  const res = await fetch('/api/inspector/visits');
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل زيارات المفتش.');
+  return Array.isArray(data.visits) ? data.visits : [];
 }
 
 // PART A: Geo hierarchy public endpoints

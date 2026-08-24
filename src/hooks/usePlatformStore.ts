@@ -6,7 +6,7 @@
  * data-mutation handlers. App.tsx consumes this hook as a thin orchestrator.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { NavTab } from '../components/layout/Sidebar';
 import {
@@ -23,6 +23,7 @@ import {
   deleteNotebookEntryFromDB,
   syncInspectorNoteToDB,
   syncInspectionVisitToDB,
+  fetchInspectorVisits,
   fetchTeacherInspectionFeed,
   fetchMyAssignedTeachers,
   syncDistrictMessageToDB,
@@ -237,6 +238,12 @@ export function usePlatformStore({
     return [];
   });
 
+  const refreshInspectionVisits = useCallback(async () => {
+    if (currentUser.role !== 'inspector') return;
+    const rows = await fetchInspectorVisits();
+    setInspectionVisits(rows as InspectionVisit[]);
+  }, [currentUser.role]);
+
   const [teacherInspectorFeed, setTeacherInspectorFeed] = useState<{
     inspector: { id: string; displayName: string } | null;
     guidance: InspectorNote[];
@@ -267,11 +274,12 @@ export function usePlatformStore({
     }
     if (currentUser.role === 'inspector') {
       void fetchMyAssignedTeachers().then((rows) => { if (active) setAssignedTeachers(rows || []); }).catch(() => { if (active) setAssignedTeachers([]); });
+      void refreshInspectionVisits().catch(() => { if (active) setInspectionVisits([]); });
     } else {
       setAssignedTeachers([]);
     }
     return () => { active = false; };
-  }, [currentUser.id, currentUser.role]);
+  }, [currentUser.id, currentUser.role, refreshInspectionVisits]);
 
   const [assessmentSessions, setAssessmentSessions] = useState<CompetencyAssessmentSession[]>(
     () => {
@@ -1088,7 +1096,7 @@ export function usePlatformStore({
     return true;
   };
 
-  const handleAddInspectionVisit = (visitPartial: Partial<InspectionVisit>) => {
+  const handleAddInspectionVisit = async (visitPartial: Partial<InspectionVisit>): Promise<boolean> => {
     const visit: InspectionVisit = {
       id: `visit_${Date.now()}`,
       inspectorId: currentUser.id,
@@ -1103,8 +1111,10 @@ export function usePlatformStore({
       recommendations: visitPartial.recommendations || [],
       officialReportGenerated: true,
     };
-    setInspectionVisits((prev) => [visit, ...prev]);
-    void syncInspectionVisitToDB(visit).catch(() => undefined);
+    const result = await syncInspectionVisitToDB(visit);
+    if (!result.success) return false;
+    setInspectionVisits((prev) => [visit, ...prev.filter((item) => item.id !== visit.id)]);
+    return true;
   };
 
   const handleOpenLessonPlan = (lessonId?: string) => {
@@ -1386,6 +1396,7 @@ export function usePlatformStore({
     knowledgeItems,
     inspectorNotes,
     inspectionVisits,
+    refreshInspectionVisits,
     teacherInspectorFeed,
     assignedTeachers,
     refreshAssignedTeachers,

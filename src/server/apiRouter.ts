@@ -1405,9 +1405,26 @@ apiRouter.post('/inspection-visits', requireRole('inspector'), async (req, res) 
   if (!assignment || assignment.inspectorId !== req.user!.id || !['Active', 'Changed'].includes(assignment.status)) {
     return res.status(403).json({ error: 'لا تملك صلاحية تسجيل زيارة لهذا الأستاذ.' });
   }
+  const teacher = await prisma.user.findUnique({ where: { id: teacherId }, select: { id: true, institutionId: true } });
+  if (!teacher || teacher.id !== teacherId) return res.status(403).json({ error: 'الأستاذ المحدد غير متاح ضمن إسناداتك المقبولة.' });
   const id = typeof visit.id === 'string' && visit.id.trim() ? visit.id : `visit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const stringList = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').slice(0, 50) : [];
+  const safeData = {
+    id,
+    teacherId,
+    inspectorId: req.user!.id,
+    institutionId: teacher.institutionId,
+    visitDate: typeof visit.visitDate === 'string' ? visit.visitDate : new Date().toISOString().slice(0, 10),
+    visitType: typeof visit.visitType === 'string' ? visit.visitType : 'توجيهية',
+    lessonObservedTitle: typeof visit.lessonObservedTitle === 'string' ? visit.lessonObservedTitle : 'حصة التربية البدنية والرياضية',
+    pedagogicalGrade: typeof visit.pedagogicalGrade === 'number' ? visit.pedagogicalGrade : null,
+    positivePoints: stringList(visit.positivePoints),
+    areasForImprovement: stringList(visit.areasForImprovement),
+    recommendations: stringList(visit.recommendations),
+    officialReportGenerated: visit.officialReportGenerated === true,
+  };
   const row = await prisma.inspectionVisitRecord.create({
-    data: { id, inspectorId: req.user!.id, teacherId, institutionId: typeof visit.institutionId === 'string' ? visit.institutionId : null, data: visit as any },
+    data: { id, inspectorId: req.user!.id, teacherId, institutionId: teacher.institutionId, data: safeData as any },
   });
   res.status(201).json({ success: true, visit: row.data });
 });

@@ -387,6 +387,19 @@ assignmentRouter.get('/inspector/teachers/:teacherId/follow-up', requireRole('in
   res.json({ success: true, teacher, assignment, classes, students, visits: visits.map((row) => row.data), guidance, reports: visits.map((row) => row.data), lessonPlans: plans.map((row) => ({ id: row.id, data: row.data, updatedAt: row.updatedAt })) });
 });
 
+assignmentRouter.get('/inspector/visits', requireRole('inspector'), async (req, res) => {
+  const assignments = await prisma.inspectorAssignment.findMany({
+    where: { inspectorId: req.user!.id, status: { in: ['Active', 'Changed'] } },
+    select: { teacherId: true },
+  });
+  const teacherIds = assignments.map((assignment) => assignment.teacherId);
+  const visits = await prisma.inspectionVisitRecord.findMany({
+    where: { inspectorId: req.user!.id, teacherId: { in: teacherIds } },
+    orderBy: { createdAt: 'desc' },
+  });
+  res.json({ success: true, visits: visits.map((row) => row.data) });
+});
+
 assignmentRouter.get('/inspector/summary', requireRole('inspector'), async (req, res) => {
   const inspectorId = req.user!.id;
   const [accepted, pending, visits, notes, messages, games, situations, resources, broadcasts] = await Promise.all([

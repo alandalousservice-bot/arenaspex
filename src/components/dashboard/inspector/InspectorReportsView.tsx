@@ -6,7 +6,9 @@ interface InspectorReportsViewProps {
   visits: InspectionVisit[];
   teachers: UserType[];
   inspector: UserType;
-  onAddVisit: (visit: Partial<InspectionVisit>) => void;
+  onAddVisit: (visit: Partial<InspectionVisit>) => void | Promise<boolean | void>;
+  onVisitSaved?: (teacherId: string) => void | Promise<void>;
+  onClearTeacherContext?: () => void;
   teacherId?: string;
 }
 
@@ -15,12 +17,16 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
   teachers,
   inspector,
   onAddVisit,
+  onVisitSaved,
+  onClearTeacherContext,
   teacherId,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [visitTypeFilter, setVisitTypeFilter] = useState<string>('all');
   const [showAddVisitModal, setShowAddVisitModal] = useState(false);
   const [printableVisit, setPrintableVisit] = useState<InspectionVisit | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'success' | 'save-error' | 'refresh-error'>('idle');
 
   // Form state
   const [selectedTeacherId, setSelectedTeacherId] = useState(teacherId || teachers[0]?.id || '');
@@ -48,7 +54,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
     return matchesSearch && matchesType;
   });
 
-  const handleSubmitVisit = (e: React.FormEvent) => {
+  const handleSubmitVisit = async (e: React.FormEvent) => {
     e.preventDefault();
     const selectedTeacher = teachers.find((t) => t.id === selectedTeacherId) || teachers[0];
     if (!selectedTeacher) return;
@@ -68,9 +74,25 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
       officialReportGenerated: true,
     };
 
-    onAddVisit(newVisit);
-    setShowAddVisitModal(false);
-    setLessonTitle('');
+    setIsSaving(true);
+    setSaveState('idle');
+    try {
+      const saved = await onAddVisit(newVisit);
+      if (saved === false) {
+        setSaveState('save-error');
+        return;
+      }
+      try {
+        await onVisitSaved?.(selectedTeacher.id);
+        setSaveState('success');
+        setShowAddVisitModal(false);
+        setLessonTitle('');
+      } catch {
+        setSaveState('refresh-error');
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handlePrintReport = (visit: InspectionVisit) => {
@@ -82,7 +104,10 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
 
   return (
     <div className="space-y-6 dir-rtl animate-in fade-in duration-200">
-      {selectedContextTeacher && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-900">متابعة الأستاذ: {selectedContextTeacher.firstName} {selectedContextTeacher.lastName} <button type="button" onClick={() => setSelectedTeacherId('')} className="mr-3 text-emerald-700 underline">إلغاء التحديد</button></div>}
+      {selectedContextTeacher && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-900">زيارة الأستاذ: {selectedContextTeacher.firstName} {selectedContextTeacher.lastName} <button type="button" onClick={() => { setSelectedTeacherId(''); onClearTeacherContext?.(); }} className="mr-3 text-emerald-700 underline">إلغاء تحديد الأستاذ</button></div>}
+      {saveState === 'success' && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800">تم حفظ الزيارة بنجاح.</div>}
+      {saveState === 'save-error' && <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-800">تعذر حفظ الزيارة.</div>}
+      {saveState === 'refresh-error' && <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">تم حفظ الزيارة، وتعذر تحديث العرض فوراً.</div>}
       {/* Banner */}
       <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 text-white rounded-3xl p-6 shadow-md border border-emerald-700/50">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -100,7 +125,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
           </div>
 
           <button
-            onClick={() => setShowAddVisitModal(true)}
+                  onClick={() => { setSaveState('idle'); setShowAddVisitModal(true); }}
             className="px-5 py-3 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-2xl shadow-lg transition-all flex items-center gap-2 cursor-pointer shrink-0"
           >
             <Plus className="w-4 h-4" />
@@ -140,7 +165,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
         {filteredVisits.length === 0 ? (
           <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
             <FileText className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-            <p className="text-xs font-bold text-slate-500">لا توجد زيارات مسجلة مطابقة للفرز المحدد.</p>
+            <p className="text-xs font-bold text-slate-500">{teacherId ? 'لا توجد زيارات مسجلة لهذا الأستاذ.' : 'لا توجد زيارات مسجلة مطابقة للفرز المحدد.'}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -389,9 +414,10 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black shadow-md cursor-pointer"
+                  disabled={isSaving}
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-xl font-black shadow-md cursor-pointer"
                 >
-                  حفظ تقرير الزيارة الرسمية
+                  {isSaving ? 'جارٍ حفظ الزيارة...' : 'حفظ تقرير الزيارة الرسمية'}
                 </button>
               </div>
             </form>
