@@ -28,6 +28,9 @@ const InspectorDashboard = lazy(() =>
     default: m.InspectorDashboard,
   }))
 );
+const InspectorWorkspacePage = lazy(() =>
+  import('./components/dashboard/InspectorWorkspacePage').then((m) => ({ default: m.InspectorWorkspacePage }))
+);
 const DirectorDashboard = lazy(() =>
   import('./components/dashboard/DirectorDashboard').then((m) => ({ default: m.DirectorDashboard }))
 );
@@ -536,6 +539,31 @@ export default function App() {
                 onAddBroadcast={handleAddBroadcast}
                 onAddDirectMessage={handleAddDirectMessageFromInspector}
                 onRefreshTeachers={refreshAssignedTeachers}
+              />
+            )}
+
+            {currentUser.role === 'inspector' && activeTab.startsWith('inspector_') && activeTab !== 'inspector_portal' && (
+              <InspectorWorkspacePage
+                module={activeTab as any}
+                inspector={currentUser}
+                teachers={assignedTeachers}
+                notes={inspectorNotes}
+                visits={inspectionVisits}
+                broadcasts={broadcasts}
+                directMessages={directMessages}
+                classes={teacherClasses}
+                students={allStudents}
+                weeklySchedule={weeklySchedule}
+                lessonPlans={lessonPlans}
+                dailyNotebook={dailyNotebook}
+                communityResources={communityResources}
+                onNavigate={navigateToTab}
+                onRefreshTeachers={refreshAssignedTeachers}
+                onAddNote={handleAddInspectorNote}
+                onAddVisit={handleAddInspectionVisit}
+                onAddBroadcast={handleAddBroadcast}
+                onAddDirectMessage={handleAddDirectMessageFromInspector}
+                onToggleApproveResource={handleToggleApproveResource}
               />
             )}
 

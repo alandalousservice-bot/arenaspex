@@ -43,6 +43,12 @@ export type NavTab =
   | 'gradebook'
   | 'professional_hub'
   | 'inspector_portal'
+  | 'inspector_teachers'
+  | 'inspector_approvals'
+  | 'inspector_visits'
+  | 'inspector_curriculum'
+  | 'inspector_guidance'
+  | 'inspector_communication'
   | 'director_portal'
   | 'admin_portal'
   | 'reports'
@@ -125,11 +131,17 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
           items: [
             {
               id: 'inspector_portal' as NavTab,
-              label: 'بوابة المفتش البيداغوجي',
+              label: 'الرئيسية',
               icon: ShieldCheck,
               badge:
                 unreadInspectorNotesCount > 0 ? `${unreadInspectorNotesCount} ملاحظة` : undefined,
             },
+            { id: 'inspector_teachers' as NavTab, label: 'متابعة الأساتذة بالمقاطعة', icon: Users },
+            { id: 'inspector_approvals' as NavTab, label: 'مركز اعتمادات الموارد', icon: BrainCircuit },
+            { id: 'inspector_visits' as NavTab, label: 'تقارير وتوجيهات المعاينات', icon: FileSpreadsheet },
+            { id: 'inspector_curriculum' as NavTab, label: 'التدقيق البيداغوجي للمنهاج', icon: BookMarked },
+            { id: 'inspector_guidance' as NavTab, label: 'التوجيهات والندوات التربوية', icon: Calendar },
+            { id: 'inspector_communication' as NavTab, label: 'التواصل المباشر مع الأستاذ', icon: Users },
             {
               id: 'professional_hub' as NavTab,
               label: 'التواصل المهني',
