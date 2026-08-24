@@ -23,7 +23,9 @@ export function triggerKillSwitch(): void {
     for (const k of keysToRemove) {
       try {
         localStorage.removeItem(k);
-      } catch {}
+      } catch {
+        // Individual storage removal failures are intentionally ignored.
+      }
     }
 
     // احتفظ بـ spex_outbox_v1 — لا نمسحه
@@ -33,28 +35,44 @@ export function triggerKillSwitch(): void {
 
   // 2. مسح كاشات Service Worker
   try {
-    const cacheObj = (typeof caches !== 'undefined' ? caches : (typeof window !== 'undefined' && (window as any).caches ? (window as any).caches : null)) as any;
+    const cacheObj = (
+      typeof caches !== 'undefined'
+        ? caches
+        : typeof window !== 'undefined' && (window as any).caches
+          ? (window as any).caches
+          : null
+    ) as any;
     if (cacheObj && cacheObj.keys) {
-      cacheObj.keys().then((keys: string[]) => {
-        for (const key of keys) {
-          if (key.startsWith('spex-') || key.includes('spex') || key.includes('api')) {
-            cacheObj.delete(key).catch(() => {});
+      cacheObj
+        .keys()
+        .then((keys: string[]) => {
+          for (const key of keys) {
+            if (key.startsWith('spex-') || key.includes('spex') || key.includes('api')) {
+              cacheObj.delete(key).catch(() => {});
+            }
           }
-        }
-      }).catch(() => {});
+        })
+        .catch(() => {});
     }
-  } catch {}
+  } catch {
+    // Cache API failures are intentionally ignored after the kill-switch is triggered.
+  }
 
   // 3. إلغاء تسجيل عمال الخدمة
   try {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then((regs) => {
-        for (const reg of regs) {
-          reg.unregister().catch(() => {});
-        }
-      }).catch(() => {});
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((regs) => {
+          for (const reg of regs) {
+            reg.unregister().catch(() => {});
+          }
+        })
+        .catch(() => {});
     }
-  } catch {}
+  } catch {
+    // Service-worker lookup failures are intentionally ignored during emergency cleanup.
+  }
 }
 
 export function getOutboxPreserved(): string | null {
@@ -62,6 +80,8 @@ export function getOutboxPreserved(): string | null {
     if (typeof localStorage !== 'undefined') {
       return localStorage.getItem(OUTBOX_KEY);
     }
-  } catch {}
+  } catch {
+    // Reading the preserved outbox is best-effort and intentionally fails closed.
+  }
   return null;
 }
