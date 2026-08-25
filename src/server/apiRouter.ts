@@ -1924,6 +1924,38 @@ async function isInspectorOfTeacher(inspectorId: string, teacherId: string): Pro
   );
 }
 
+apiRouter.get('/admin/curriculum/overrides', requireRole('admin'), async (_req, res) => {
+  try {
+    const rows = await prisma.annualPlan.findMany({
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        teacherId: true,
+        academicYearId: true,
+        levelId: true,
+        kind: true,
+        status: true,
+        data: true,
+        createdAt: true,
+        updatedAt: true,
+        proposedByInspectorId: true,
+        approvedAt: true,
+      },
+    });
+    const teacherIds = [...new Set(rows.map((row) => row.teacherId))];
+    const teachers = await prisma.user.findMany({
+      where: { id: { in: teacherIds } },
+      select: { id: true, firstName: true, lastName: true, email: true, role: true },
+    });
+    const teacherById = new Map(teachers.map((teacher) => [teacher.id, teacher]));
+    res.json({
+      success: true,
+      overrides: rows.map((row) => ({ ...row, teacher: teacherById.get(row.teacherId) || null })),
+    });
+  } catch {
+    res.status(500).json({ error: 'تعذر تحميل تخصيصات الأساتذة.' });
+  }
+});
 apiRouter.get('/db/annual-plans', async (req, res) => {
   const { teacherId, kind, academicYearId, levelId } = req.query;
   const user = req.user!;

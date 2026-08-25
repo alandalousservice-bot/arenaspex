@@ -9,7 +9,7 @@ import { AdminReportsPage } from './AdminReportsPage';
 import { AdminInspectorWorkspacePage } from './AdminInspectorWorkspacePage';
 import { AdminServicesPage } from './AdminServicesPage';
 import { AdminApprovalsPage } from './AdminApprovalsPage';
-import { KnowledgeEngineView } from '../knowledge/KnowledgeEngineView';
+import { AdminCurriculumPage } from './AdminCurriculumPage';
 import { AISetting, AILog, CommunityResource, KnowledgeItem, User } from '../../types/spex';
 
 interface AdminWorkspacePageProps {
@@ -49,19 +49,7 @@ export const AdminWorkspacePage: React.FC<AdminWorkspacePageProps> = (props) => 
     );
   if (pathname === '/admin/reports') return <AdminReportsPage fallbackUsers={props.users} />;
   if (pathname === '/admin/curriculum')
-    return (
-      <KnowledgeEngineView
-        knowledgeItems={props.knowledgeItems}
-        onAddKnowledgeItem={props.onAddKnowledgeItem}
-        onUpdateKnowledgeItem={props.onUpdateKnowledgeItem}
-        onSubmitKnowledgeItem={props.onSubmitKnowledgeItem}
-        onDeleteKnowledgeItem={props.onDeleteKnowledgeItem}
-        onApproveKnowledgeItem={props.onApproveKnowledgeItem}
-        onRejectKnowledgeItem={props.onRejectKnowledgeItem}
-        currentUser={props.currentUser}
-        communityResources={props.communityResources}
-      />
-    );
+    return <AdminCurriculumPage knowledgeItems={props.knowledgeItems} />;
   const initialAdminTab =
     pathname === '/admin/services'
       ? 'account_api_keys'

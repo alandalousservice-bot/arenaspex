@@ -909,6 +909,26 @@ export async function reviewAdminModerationItem(
   if (!res.ok) throw new Error(data.error || 'تعذر تنفيذ إجراء المراجعة.');
   return data as { success: boolean };
 }
+export interface AdminCurriculumOverride {
+  id: string;
+  teacherId: string;
+  academicYearId: string;
+  levelId: string;
+  kind: string;
+  status: string;
+  data: { overrides?: Record<string, unknown>; note?: string };
+  createdAt: string;
+  updatedAt: string;
+  proposedByInspectorId?: string | null;
+  approvedAt?: string | null;
+  teacher: { id: string; firstName: string; lastName: string; email: string; role: string } | null;
+}
+export async function fetchAdminCurriculumOverrides(): Promise<AdminCurriculumOverride[]> {
+  const res = await fetch('/api/admin/curriculum/overrides');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل تخصيصات الأساتذة.');
+  return Array.isArray(data.overrides) ? data.overrides : [];
+}
 export async function fetchAdminAccountsDirectory(): Promise<{
   success: boolean;
   users: AdminAccountDetail[];

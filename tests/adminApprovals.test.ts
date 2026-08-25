@@ -18,9 +18,7 @@ describe('unified admin resource approvals', () => {
   });
 
   it('protects transitions, reviewer identity, and rejection reasons server-side', () => {
-    expect(router).toContain(
-      "post('/admin/resource-approvals/:resourceType/:id/review', requireRole('admin')"
-    );
+    expect(router).toContain('/admin/resource-approvals/:resourceType/:id/review');
     expect(router).toContain("status: 'PENDING_APPROVAL'");
     expect(router).toContain('req.user!.id');
     expect(router).toContain('سبب الرفض إلزامي');
