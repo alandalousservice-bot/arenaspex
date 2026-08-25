@@ -47,7 +47,7 @@ export const AdminWorkspacePage: React.FC<AdminWorkspacePageProps> = (props) => 
         onUpdateUser={props.onUpdateUser}
       />
     );
-  if (pathname === '/admin/reports') return <AdminReportsPage fallbackUsers={props.users} />;
+  if (pathname === '/admin/reports') return <AdminReportsPage />;
   if (pathname === '/admin/curriculum')
     return <AdminCurriculumPage knowledgeItems={props.knowledgeItems} />;
   const initialAdminTab =

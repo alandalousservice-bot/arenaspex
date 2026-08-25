@@ -1117,6 +1117,210 @@ apiRouter.get('/db/users', async (req, res) => {
 });
 
 // Persistent approval queue: PostgreSQL is the sole source of truth.
+// Authoritative read-only Admin operational reporting; secrets and message content are excluded.
+apiRouter.get('/admin/reports/overview', requireRole('admin'), async (req, res) => {
+  try {
+    const range = String(req.query.range || 'all');
+    const days = range === '7' ? 7 : range === '30' ? 30 : range === 'year' ? 365 : 0;
+    const since = days ? new Date(Date.now() - days * 86400000) : undefined;
+    const [
+      users,
+      assignments,
+      districts,
+      access,
+      config,
+      games,
+      situations,
+      visits,
+      notes,
+      directMessages,
+      districtMessages,
+      classes,
+      students,
+    ] = await Promise.all([
+      prisma.user.findMany({
+        where: { role: { in: ['teacher', 'inspector', 'director', 'admin'] } },
+        select: {
+          id: true,
+          role: true,
+          status: true,
+          isApprovedByAdmin: true,
+          phone: true,
+          institutionId: true,
+          districtId: true,
+          eduDistrictId: true,
+          createdAt: true,
+        },
+      }),
+      prisma.inspectorAssignment.findMany({
+        select: { id: true, status: true, inspectorId: true, teacherId: true, updatedAt: true },
+        orderBy: { updatedAt: 'desc' },
+        take: 500,
+      }),
+      prisma.inspectionDistrict.findMany({
+        select: { id: true, name: true, directorate: { select: { id: true, name: true } } },
+        orderBy: [{ directorateId: 'asc' }, { name: 'asc' }],
+      }),
+      prisma.userGenerationAccess.findMany({
+        select: {
+          userId: true,
+          enabled: true,
+          assistantEnabled: true,
+          gameSuggestionsEnabled: true,
+          credentialEnabled: true,
+          encryptedApiKey: true,
+        },
+      }),
+      prisma.generationServiceConfig.findUnique({
+        where: { id: 'default' },
+        select: { enabled: true },
+      }),
+      prisma.pedagogicalGame.groupBy({
+        by: ['status'],
+        where: { origin: { not: 'REFERENCE_SEED' } },
+        _count: { _all: true },
+      }),
+      prisma.educationalSituation.groupBy({
+        by: ['status'],
+        where: { origin: { not: 'REFERENCE_SEED' }, ownerId: { not: null } },
+        _count: { _all: true },
+      }),
+      prisma.inspectionVisitRecord.count({
+        where: since ? { createdAt: { gte: since } } : undefined,
+      }),
+      prisma.inspectorNote.count({ where: since ? { createdAt: { gte: since } } : undefined }),
+      prisma.directMessage.count({ where: since ? { createdAt: { gte: since } } : undefined }),
+      prisma.districtMessage.count({ where: since ? { createdAt: { gte: since } } : undefined }),
+      prisma.studentClass.count(),
+      prisma.student.count(),
+    ]);
+    const pendingAccount = (u: any) =>
+      ['teacher', 'inspector'].includes(u.role) &&
+      (u.status === 'pending_approval' || !u.isApprovedByAdmin);
+    const activeTeacher = (u: any) =>
+      u.role === 'teacher' && u.status === 'active' && u.isApprovedByAdmin;
+    const accepted = assignments.filter((a) => ['Active', 'Changed'].includes(a.status));
+    const pending = assignments.filter((a) => a.status === 'Pending');
+    const activeInspectors = users.filter((u) => u.role === 'inspector' && u.status === 'active');
+    const covered = new Set(
+      activeInspectors.map((u) => u.eduDistrictId || u.districtId).filter(Boolean)
+    );
+    const counts = (rows: any[]) =>
+      Object.fromEntries(rows.map((row) => [row.status, row._count._all]));
+    const roleCounts = Object.fromEntries(
+      ['teacher', 'inspector', 'director', 'admin'].map((role) => [
+        role,
+        users.filter((u) => u.role === role).length,
+      ])
+    );
+    const statusCounts = Object.fromEntries(
+      ['active', 'inactive', 'pending_approval'].map((status) => [
+        status,
+        users.filter((u) => u.status === status).length,
+      ])
+    );
+    const serviceEnabled = access.filter((a) => a.enabled).length;
+    const teachers = users.filter(activeTeacher);
+    const trend = Object.entries(
+      users.reduce((out: Record<string, number>, u) => {
+        const day = u.createdAt.toISOString().slice(0, 10);
+        out[day] = (out[day] || 0) + 1;
+        return out;
+      }, {})
+    ).sort();
+    res.json({
+      success: true,
+      range,
+      generatedAt: new Date().toISOString(),
+      overview: {
+        totalAccounts: users.length,
+        activeAccounts: users.filter((u) => u.status === 'active' && u.isApprovedByAdmin).length,
+        pendingAccounts: users.filter(pendingAccount).length,
+        teachers: roleCounts.teacher,
+        inspectors: roleCounts.inspector,
+        directors: roleCounts.director,
+        admins: roleCounts.admin,
+        districts: districts.length,
+        coveredDistricts: covered.size,
+        uncoveredDistricts: districts.length - covered.size,
+        acceptedAssignments: accepted.length,
+        pendingAssignments: pending.length,
+        moderationPending:
+          (counts(games).PENDING_APPROVAL || 0) + (counts(situations).PENDING_APPROVAL || 0),
+        serviceEnabledAccounts: serviceEnabled,
+      },
+      accounts: {
+        roleCounts,
+        statusCounts,
+        activeTeachers: teachers.length,
+        pendingAccounts: users.filter(pendingAccount).length,
+        creationTrend: trend,
+      },
+      coverage: {
+        districts: districts.map((d) => ({
+          id: d.id,
+          name: d.name,
+          directorate: d.directorate,
+          covered: covered.has(d.id),
+        })),
+        inspectorsWithoutAcceptedTeachers: activeInspectors.filter(
+          (i) => !accepted.some((a) => a.inspectorId === i.id)
+        ).length,
+      },
+      assignments: {
+        statuses: Object.fromEntries(
+          ['Pending', 'Active', 'Changed', 'Removed'].map((status) => [
+            status,
+            assignments.filter((a) => a.status === status).length,
+          ])
+        ),
+        pending: pending
+          .slice(0, 25)
+          .map((a) => ({
+            id: a.id,
+            teacherId: a.teacherId,
+            inspectorId: a.inspectorId,
+            updatedAt: a.updatedAt,
+          })),
+        workload: activeInspectors.map((i) => ({
+          id: i.id,
+          accepted: accepted.filter((a) => a.inspectorId === i.id).length,
+          pending: pending.filter((a) => a.inspectorId === i.id).length,
+        })),
+      },
+      moderation: { games: counts(games), situations: counts(situations) },
+      services: {
+        globalEnabled: config?.enabled ?? true,
+        enabledAccounts: serviceEnabled,
+        disabledAccounts: users.length - serviceEnabled,
+        personalCredentialConfigured: access.filter(
+          (a) => a.credentialEnabled || Boolean(a.encryptedApiKey)
+        ).length,
+        fallbackAccounts: access.filter(
+          (a) => a.enabled && !a.credentialEnabled && !a.encryptedApiKey
+        ).length,
+        assistantEnabled: access.filter((a) => a.assistantEnabled).length,
+        gameSuggestionsEnabled: access.filter((a) => a.gameSuggestionsEnabled).length,
+      },
+      activity: { visits, notes, directMessages, districtMessages, classes, students },
+      quality: {
+        activeTeachersWithoutInstitution: teachers.filter((u) => !u.institutionId).length,
+        activeTeachersWithoutAcceptedAssignment: teachers.filter(
+          (u) => !accepted.some((a) => a.teacherId === u.id)
+        ).length,
+        inspectorsWithoutDistrict: activeInspectors.filter(
+          (u) => !(u.eduDistrictId || u.districtId)
+        ).length,
+        districtsWithoutInspector: districts.length - covered.size,
+        accountsWithoutPhone: users.filter((u) => !u.phone).length,
+      },
+    });
+  } catch (error) {
+    console.error('admin reports error:', error);
+    res.status(500).json({ error: 'تعذر تحميل التقارير التشغيلية.' });
+  }
+});
+
 apiRouter.get('/admin/users/pending', requireRole('admin'), async (_req, res) => {
   const users = await prisma.user.findMany({
     where: {

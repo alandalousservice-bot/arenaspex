@@ -862,6 +862,14 @@ export async function fetchPendingUsersFromDB(): Promise<AdminAccountDetail[]> {
   return result.users;
 }
 
+export type AdminReportRange = '7' | '30' | 'year' | 'all';
+export async function fetchAdminReportsOverview(range: AdminReportRange = 'all') {
+  const res = await fetch('/api/admin/reports/overview?range=' + encodeURIComponent(range));
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل التقارير التشغيلية.');
+  return data as any;
+}
+
 export interface AdminModerationItem {
   id: string;
   resourceType: 'game' | 'situation';
