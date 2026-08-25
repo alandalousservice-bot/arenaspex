@@ -829,6 +829,21 @@ export async function fetchPendingUsersFromDB(): Promise<User[]> {
   }
 }
 
+export async function fetchAdminAccountsDirectory(): Promise<{
+  success: boolean;
+  users: AdminAccountDetail[];
+  error?: string;
+}> {
+  try {
+    const res = await fetch('/api/admin/users');
+    const data = await res.json();
+    return res.ok
+      ? { success: true, users: Array.isArray(data.users) ? data.users : [] }
+      : { success: false, users: [], error: data.error || 'تعذر تحميل الحسابات.' };
+  } catch {
+    return { success: false, users: [], error: 'تعذر الاتصال بخادم الحسابات.' };
+  }
+}
 export async function fetchManagedUsersFromDB(): Promise<User[]> {
   try {
     const res = await fetch('/api/admin/users');
@@ -840,6 +855,34 @@ export async function fetchManagedUsersFromDB(): Promise<User[]> {
   }
 }
 
+export interface AdminAccountDetail extends User {
+  createdAt?: string;
+  adminAffiliation?: {
+    directorateName?: string;
+    districtName?: string;
+    institutionName?: string;
+    municipalityName?: string;
+  };
+  assignment?: {
+    status: string;
+    inspector?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email'> | null;
+  } | null;
+  assignedTeachers?: Array<Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'status'>>;
+  counts?: { students: number; classes: number; assignedTeachers: number };
+  serviceAccess?: { enabled: boolean; credentialEnabled: boolean } | null;
+}
+
+export async function fetchAdminAccount(
+  userId: string
+): Promise<{ success: boolean; user?: AdminAccountDetail; error?: string }> {
+  try {
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`);
+    const data = await res.json();
+    return res.ok ? { success: true, user: data.user } : { success: false, error: data.error };
+  } catch {
+    return { success: false, error: 'تعذر تحميل بيانات الحساب.' };
+  }
+}
 export async function activateUserAccount(
   userId: string
 ): Promise<{ success: boolean; user?: User; error?: string }> {

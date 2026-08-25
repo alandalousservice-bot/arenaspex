@@ -152,101 +152,125 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
   let inputConflicts = 0;
   for (const row of validRows) {
     const matricule = row.matricule.trim();
-    const normalized = { ...row, matricule, firstName: row.firstName.trim(), lastName: row.lastName.trim() };
+    const normalized = {
+      ...row,
+      matricule,
+      firstName: row.firstName.trim(),
+      lastName: row.lastName.trim(),
+    };
     const previous = normalizedRows.get(matricule);
     if (previous) {
-      if (previous.firstName !== normalized.firstName || previous.lastName !== normalized.lastName) inputConflicts += 1;
+      if (previous.firstName !== normalized.firstName || previous.lastName !== normalized.lastName)
+        inputConflicts += 1;
       continue;
     }
     normalizedRows.set(matricule, normalized);
   }
   const importRows = [...normalizedRows.values()];
   try {
-    const summary = await prisma.$transaction(async (tx) => {
-      const assignedClass = await tx.studentClass.findUnique({ where: { id: classId } });
-      if (assignedClass && assignedClass.teacherId !== req.user!.id)
-        throw new Error('UNAUTHORIZED_CLASS');
-      if (!assignedClass)
-        await tx.studentClass.create({
-          data: { id: classId, teacherId: req.user!.id, institutionId, levelId, name: className },
-        });
-      else if (
-        assignedClass.name !== className &&
-        new RegExp(`^${className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s+(?:مادة|المادة|الفصل|السنة\\s+الدراسية)\\s*[:：-]?`, 'i').test(assignedClass.name)
-      ) {
-        // Compatibility for classes created by the old parser: only normalize
-        // when the malformed value is deterministically the same class.
-        await tx.studentClass.update({ where: { id: classId }, data: { name: className } });
-      }
-      const matricules = importRows.map((row) => row.matricule);
-      // One bulk lookup replaces the former findFirst-per-student N+1 pattern.
-      const existingStudents = matricules.length
-        ? await tx.student.findMany({ where: { institutionId, matricule: { in: matricules } } })
-        : [];
-      const existingByMatricule = new Map(existingStudents.map((student) => [student.matricule, student]));
-      const missingRows: ParsedRosterStudent[] = [];
-      let existing = 0;
-      let conflicts = inputConflicts;
-      let linkedStudents = 0;
-      const updates: Promise<unknown>[] = [];
-      for (const row of importRows) {
-        const current = existingByMatricule.get(row.matricule);
-        if (!current) {
-          missingRows.push(row);
-          continue;
+    const summary = await prisma.$transaction(
+      async (tx) => {
+        const assignedClass = await tx.studentClass.findUnique({ where: { id: classId } });
+        if (assignedClass && assignedClass.teacherId !== req.user!.id)
+          throw new Error('UNAUTHORIZED_CLASS');
+        if (!assignedClass)
+          await tx.studentClass.create({
+            data: { id: classId, teacherId: req.user!.id, institutionId, levelId, name: className },
+          });
+        else if (
+          assignedClass.name !== className &&
+          new RegExp(
+            `^${className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s+(?:مادة|المادة|الفصل|السنة\\s+الدراسية)\\s*[:：-]?`,
+            'i'
+          ).test(assignedClass.name)
+        ) {
+          // Compatibility for classes created by the old parser: only normalize
+          // when the malformed value is deterministically the same class.
+          await tx.studentClass.update({ where: { id: classId }, data: { name: className } });
         }
-        if (current.firstName !== row.firstName || current.lastName !== row.lastName) {
-          conflicts += 1;
-          continue;
+        const matricules = importRows.map((row) => row.matricule);
+        // One bulk lookup replaces the former findFirst-per-student N+1 pattern.
+        const existingStudents = matricules.length
+          ? await tx.student.findMany({ where: { institutionId, matricule: { in: matricules } } })
+          : [];
+        const existingByMatricule = new Map(
+          existingStudents.map((student) => [student.matricule, student])
+        );
+        const missingRows: ParsedRosterStudent[] = [];
+        let existing = 0;
+        let conflicts = inputConflicts;
+        let linkedStudents = 0;
+        const updates: Promise<unknown>[] = [];
+        for (const row of importRows) {
+          const current = existingByMatricule.get(row.matricule);
+          if (!current) {
+            missingRows.push(row);
+            continue;
+          }
+          if (current.firstName !== row.firstName || current.lastName !== row.lastName) {
+            conflicts += 1;
+            continue;
+          }
+          existing += 1;
+          if (current.teacherId === req.user!.id && current.classId !== classId) {
+            updates.push(
+              tx.student.update({
+                where: { id: current.id },
+                data: {
+                  classId,
+                  grade: grade || row.grade || null,
+                  groupName: row.groupName || null,
+                },
+              })
+            );
+          }
+          linkedStudents += 1;
         }
-        existing += 1;
-        if (current.teacherId === req.user!.id && current.classId !== classId) {
-          updates.push(tx.student.update({
-            where: { id: current.id },
-            data: { classId, grade: grade || row.grade || null, groupName: row.groupName || null },
-          }));
+        if (updates.length) await Promise.all(updates);
+        if (missingRows.length) {
+          await tx.student.createMany({
+            data: missingRows.map((row, index) => ({
+              id: `std_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`,
+              teacherId: req.user!.id,
+              institutionId,
+              classId,
+              matricule: row.matricule,
+              firstName: row.firstName,
+              lastName: row.lastName,
+              birthDate: row.birthDate ? new Date(row.birthDate) : null,
+              grade: grade || row.grade || null,
+              groupName: row.groupName || null,
+              schoolYear: row.schoolYear || null,
+            })),
+          });
         }
-        linkedStudents += 1;
-      }
-      if (updates.length) await Promise.all(updates);
-      if (missingRows.length) {
-        await tx.student.createMany({
-          data: missingRows.map((row, index) => ({
-            id: `std_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`,
-            teacherId: req.user!.id,
-            institutionId,
-            classId,
-            matricule: row.matricule,
-            firstName: row.firstName,
-            lastName: row.lastName,
-            birthDate: row.birthDate ? new Date(row.birthDate) : null,
-            grade: grade || row.grade || null,
-            groupName: row.groupName || null,
-            schoolYear: row.schoolYear || null,
-          })),
-        });
-      }
-      const created = missingRows.length;
-      linkedStudents += created;
-      return {
-        created,
-        existing,
-        linkedStudents,
-        conflicts,
-        review: rows.length - validRows.length,
-      };
-    }, { maxWait: 10000, timeout: 25000 });
+        const created = missingRows.length;
+        linkedStudents += created;
+        return {
+          created,
+          existing,
+          linkedStudents,
+          conflicts,
+          review: rows.length - validRows.length,
+        };
+      },
+      { maxWait: 10000, timeout: 25000 }
+    );
     res.json({ success: true, classId, summary });
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED_CLASS')
       return res.status(403).json({ error: 'لا تملك صلاحية الاستيراد إلى هذا القسم.' });
     if ((error as { code?: string })?.code === 'P2021') {
       console.error('Student roster schema is missing (P2021):', error);
-      return res.status(503).json({ error: 'قاعدة بيانات قوائم التلاميذ غير مهيأة بعد. يرجى تحديث المنصة.' });
+      return res
+        .status(503)
+        .json({ error: 'قاعدة بيانات قوائم التلاميذ غير مهيأة بعد. يرجى تحديث المنصة.' });
     }
     if ((error as { code?: string })?.code === 'P2028') {
       console.error('Student roster import transaction timed out (P2028):', error);
-      return res.status(504).json({ error: 'استغرقت عملية حفظ القائمة وقتاً أطول من المتوقع. يرجى إعادة المحاولة.' });
+      return res
+        .status(504)
+        .json({ error: 'استغرقت عملية حفظ القائمة وقتاً أطول من المتوقع. يرجى إعادة المحاولة.' });
     }
     console.error('Student roster import persistence failed:', error);
     res.status(500).json({ error: 'تعذر حفظ قائمة التلاميذ.' });
@@ -858,27 +882,123 @@ apiRouter.get('/db/users', async (req, res) => {
 // Persistent approval queue: PostgreSQL is the sole source of truth.
 apiRouter.get('/admin/users/pending', requireRole('admin'), async (_req, res) => {
   const users = await prisma.user.findMany({
-    where: { role: { in: ['teacher', 'inspector'] }, OR: [{ status: 'pending_approval' }, { isApprovedByAdmin: false }] },
+    where: {
+      role: { in: ['teacher', 'inspector'] },
+      OR: [{ status: 'pending_approval' }, { isApprovedByAdmin: false }],
+    },
     orderBy: { createdAt: 'asc' },
   });
   res.json({ success: true, users: users.map((user) => sanitizeUser(user)) });
 });
 
 apiRouter.get('/admin/users', requireRole('admin'), async (_req, res) => {
-  const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
-  res.json({ success: true, users: users.map((user) => sanitizeUser(user)) });
+  const users = await prisma.user.findMany({
+    orderBy: { createdAt: 'desc' },
+    include: {
+      eduDirectorate: { select: { name: true } },
+      eduDistrict: { select: { name: true } },
+      eduSchool: { select: { name: true, municipality: { select: { name: true } } } },
+    },
+  });
+  res.json({
+    success: true,
+    users: users.map((user) => {
+      const safe = sanitizeUser(user as any) as any;
+      const { eduDirectorate, eduDistrict, eduSchool, ...base } = safe;
+      return {
+        ...base,
+        adminAffiliation: {
+          directorateName: eduDirectorate?.name || undefined,
+          districtName: eduDistrict?.name || undefined,
+          institutionName: eduSchool?.name || user.schoolName || undefined,
+          municipalityName: eduSchool?.municipality?.name || user.municipality || undefined,
+        },
+      };
+    }),
+  });
 });
 
+apiRouter.get('/admin/users/:id', requireRole('admin'), async (req, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.params.id },
+    include: {
+      eduDirectorate: { select: { id: true, name: true } },
+      eduDistrict: { select: { id: true, name: true, directorateId: true } },
+      eduSchool: {
+        select: { id: true, name: true, municipality: { select: { id: true, name: true } } },
+      },
+      teacherAssignment: {
+        select: {
+          status: true,
+          inspector: { select: { id: true, firstName: true, lastName: true, email: true } },
+        },
+      },
+      inspectorAssignments: {
+        where: { status: { in: ['Active', 'Changed'] } },
+        select: {
+          status: true,
+          teacher: {
+            select: { id: true, firstName: true, lastName: true, email: true, status: true },
+          },
+        },
+      },
+      generationAccess: { select: { enabled: true, credentialEnabled: true } },
+      _count: { select: { students: true, studentClasses: true, inspectorAssignments: true } },
+    },
+  });
+  if (!user) return res.status(404).json({ error: 'الحساب غير موجود.' });
+  const safe = sanitizeUser(user as any) as any;
+  const {
+    eduDirectorate,
+    eduDistrict,
+    eduSchool,
+    teacherAssignment,
+    inspectorAssignments,
+    generationAccess,
+    _count,
+    ...base
+  } = safe;
+  res.json({
+    success: true,
+    user: {
+      ...base,
+      createdAt: user.createdAt,
+      adminAffiliation: {
+        directorateName: eduDirectorate?.name || undefined,
+        districtName: eduDistrict?.name || undefined,
+        institutionName: eduSchool?.name || user.schoolName || undefined,
+        municipalityName: eduSchool?.municipality?.name || user.municipality || undefined,
+      },
+      assignment: teacherAssignment,
+      assignedTeachers: (inspectorAssignments || []).map((item: any) => item.teacher),
+      counts: {
+        students: _count.students,
+        classes: _count.studentClasses,
+        assignedTeachers: inspectorAssignments?.length || 0,
+      },
+      serviceAccess: generationAccess,
+    },
+  });
+});
 apiRouter.post('/admin/users/:id/activate', requireRole('admin'), async (req, res) => {
   const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
   if (!existing) return res.status(404).json({ error: 'الحساب غير موجود.' });
-  if (existing.role === 'admin') return res.status(403).json({ error: 'لا يمكن تفعيل حساب مشرف من هذا المسار.' });
+  if (existing.role === 'admin')
+    return res.status(403).json({ error: 'لا يمكن تفعيل حساب مشرف من هذا المسار.' });
   if (existing.role === 'inspector') {
-    const assignment = { role: existing.role, directorateId: existing.directorateId, districtId: existing.districtId };
+    const assignment = {
+      role: existing.role,
+      directorateId: existing.directorateId,
+      districtId: existing.districtId,
+    };
     try {
       await enforceRoleAssignment(assignment, existing);
     } catch (error) {
-      return res.status(400).json({ error: error instanceof Error ? error.message : 'يرجى استكمال مديرية ومقاطعة المفتش.' });
+      return res
+        .status(400)
+        .json({
+          error: error instanceof Error ? error.message : 'يرجى استكمال مديرية ومقاطعة المفتش.',
+        });
     }
   }
   const user = await prisma.user.update({
@@ -1258,7 +1378,11 @@ function jsonCollectionRoutes(opts: {
       const assignment = targetTeacherId
         ? await prisma.inspectorAssignment.findUnique({ where: { teacherId: targetTeacherId } })
         : null;
-      if (!assignment || assignment.inspectorId !== req.user!.id || !['Active', 'Changed'].includes(assignment.status)) {
+      if (
+        !assignment ||
+        assignment.inspectorId !== req.user!.id ||
+        !['Active', 'Changed'].includes(assignment.status)
+      ) {
         return res.status(403).json({ error: 'لا تملك صلاحية توجيه ملاحظة لهذا الأستاذ.' });
       }
     }
@@ -1311,7 +1435,12 @@ function jsonCollectionRoutes(opts: {
           const assignment = targetTeacherId
             ? await prisma.inspectorAssignment.findUnique({ where: { teacherId: targetTeacherId } })
             : null;
-          if (!assignment || assignment.inspectorId !== req.user!.id || !['Active', 'Changed'].includes(assignment.status)) continue;
+          if (
+            !assignment ||
+            assignment.inspectorId !== req.user!.id ||
+            !['Active', 'Changed'].includes(assignment.status)
+          )
+            continue;
         }
         const existing = await model.findUnique({ where: { id: item.id } });
         if (!canWrite(existing, req.user!)) continue; // تجاهل العناصر التي لا يملك المستخدم صلاحية تعديلها
@@ -1398,25 +1527,45 @@ jsonCollectionRoutes({
 // Inspection visits are persisted separately from the UI state and are scoped
 // to the current active teacher↔inspector assignment.
 apiRouter.post('/inspection-visits', requireRole('inspector'), async (req, res) => {
-  const visit = (req.body?.visit && typeof req.body.visit === 'object' ? req.body.visit : req.body) as Record<string, unknown>;
+  const visit = (
+    req.body?.visit && typeof req.body.visit === 'object' ? req.body.visit : req.body
+  ) as Record<string, unknown>;
   const teacherId = typeof visit.teacherId === 'string' ? visit.teacherId : '';
   if (!teacherId) return res.status(400).json({ error: 'المعلم مطلوب.' });
   const assignment = await prisma.inspectorAssignment.findUnique({ where: { teacherId } });
-  if (!assignment || assignment.inspectorId !== req.user!.id || !['Active', 'Changed'].includes(assignment.status)) {
+  if (
+    !assignment ||
+    assignment.inspectorId !== req.user!.id ||
+    !['Active', 'Changed'].includes(assignment.status)
+  ) {
     return res.status(403).json({ error: 'لا تملك صلاحية تسجيل زيارة لهذا الأستاذ.' });
   }
-  const teacher = await prisma.user.findUnique({ where: { id: teacherId }, select: { id: true, institutionId: true } });
-  if (!teacher || teacher.id !== teacherId) return res.status(403).json({ error: 'الأستاذ المحدد غير متاح ضمن إسناداتك المقبولة.' });
-  const id = typeof visit.id === 'string' && visit.id.trim() ? visit.id : `visit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const stringList = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').slice(0, 50) : [];
+  const teacher = await prisma.user.findUnique({
+    where: { id: teacherId },
+    select: { id: true, institutionId: true },
+  });
+  if (!teacher || teacher.id !== teacherId)
+    return res.status(403).json({ error: 'الأستاذ المحدد غير متاح ضمن إسناداتك المقبولة.' });
+  const id =
+    typeof visit.id === 'string' && visit.id.trim()
+      ? visit.id
+      : `visit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const stringList = (value: unknown) =>
+    Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === 'string').slice(0, 50)
+      : [];
   const safeData = {
     id,
     teacherId,
     inspectorId: req.user!.id,
     institutionId: teacher.institutionId,
-    visitDate: typeof visit.visitDate === 'string' ? visit.visitDate : new Date().toISOString().slice(0, 10),
+    visitDate:
+      typeof visit.visitDate === 'string' ? visit.visitDate : new Date().toISOString().slice(0, 10),
     visitType: typeof visit.visitType === 'string' ? visit.visitType : 'توجيهية',
-    lessonObservedTitle: typeof visit.lessonObservedTitle === 'string' ? visit.lessonObservedTitle : 'حصة التربية البدنية والرياضية',
+    lessonObservedTitle:
+      typeof visit.lessonObservedTitle === 'string'
+        ? visit.lessonObservedTitle
+        : 'حصة التربية البدنية والرياضية',
     pedagogicalGrade: typeof visit.pedagogicalGrade === 'number' ? visit.pedagogicalGrade : null,
     positivePoints: stringList(visit.positivePoints),
     areasForImprovement: stringList(visit.areasForImprovement),
@@ -1424,7 +1573,13 @@ apiRouter.post('/inspection-visits', requireRole('inspector'), async (req, res) 
     officialReportGenerated: visit.officialReportGenerated === true,
   };
   const row = await prisma.inspectionVisitRecord.create({
-    data: { id, inspectorId: req.user!.id, teacherId, institutionId: teacher.institutionId, data: safeData as any },
+    data: {
+      id,
+      inspectorId: req.user!.id,
+      teacherId,
+      institutionId: teacher.institutionId,
+      data: safeData as any,
+    },
   });
   res.status(201).json({ success: true, visit: row.data });
 });

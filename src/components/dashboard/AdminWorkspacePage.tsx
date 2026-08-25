@@ -1,6 +1,8 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { AdminDashboard } from './AdminDashboard';
+import { AdminAccountsPage } from './AdminAccountsPage';
+import { AdminAccountDetailPage } from './AdminAccountDetailPage';
 import { AdminOverview } from './AdminOverview';
 import { AdminPendingUsersPage } from './AdminPendingUsersPage';
 import { AdminReportsPage } from './AdminReportsPage';
@@ -29,6 +31,9 @@ interface AdminWorkspacePageProps {
 
 export const AdminWorkspacePage: React.FC<AdminWorkspacePageProps> = (props) => {
   const { pathname } = useLocation();
+  if (/^\/admin\/accounts\/[^/]+$/.test(pathname))
+    return <AdminAccountDetailPage currentUser={props.currentUser} />;
+  if (pathname === '/admin/accounts') return <AdminAccountsPage />;
   if (pathname === '/admin/pending-users') return <AdminPendingUsersPage />;
   if (pathname === '/admin/inspectors') return <AssignmentAdminPanel />;
   if (pathname === '/admin/reports') return <AdminReportsPage fallbackUsers={props.users} />;
