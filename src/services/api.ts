@@ -14,6 +14,7 @@ import {
   User,
   KnowledgeItem,
   AssessmentSessionDto,
+  StudentAssessmentHistoryDto,
   StudentAssessmentDto,
   CriterionResultDto,
   TeacherAssessmentType,
@@ -761,6 +762,19 @@ export async function fetchTeacherAssessmentResults(
   return data as { success: boolean; results: StudentAssessmentDto[] };
 }
 
+export async function fetchTeacherStudentAssessmentHistory(
+  studentId: string,
+  classId: string,
+  academicYearId: string
+): Promise<{ success: boolean; history: StudentAssessmentHistoryDto[] }> {
+  const query = new URLSearchParams({ classId, academicYearId });
+  const res = await fetch(
+    `/api/teacher/assessment-students/${encodeURIComponent(studentId)}/history?${query.toString()}`
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل تاريخ تقويم التلميذ.');
+  return data as { success: boolean; history: StudentAssessmentHistoryDto[] };
+}
 export async function upsertTeacherStudentAssessment(
   sessionId: string,
   studentId: string,

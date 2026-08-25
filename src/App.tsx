@@ -64,6 +64,11 @@ const KnowledgeEngineView = lazy(() =>
     default: m.KnowledgeEngineView,
   }))
 );
+const AssessmentNotebookView = lazy(() =>
+  import('./components/assessment/AssessmentNotebookView').then((m) => ({
+    default: m.AssessmentNotebookView,
+  }))
+);
 const CompetencyAssessmentView = lazy(() =>
   import('./components/assessment/CompetencyAssessmentView').then((m) => ({
     default: m.CompetencyAssessmentView,
@@ -231,6 +236,10 @@ export default function App() {
   // → يُصحَّح تلقائياً إلى الرابط المناسب (replace حتى لا يُلوَّث السجل)
   useEffect(() => {
     if (!isAuthenticated) return;
+    if (location.pathname === '/assessment' || location.pathname === '/gradebook') {
+      navigate('/assessment-notebook' + location.search, { replace: true });
+      return;
+    }
     const legacyPlanningSection = planningSectionForPath(location.pathname);
     if (legacyPlanningSection) {
       navigate('/planning?section=' + legacyPlanningSection, { replace: true });
@@ -448,6 +457,17 @@ export default function App() {
                 onUpdateTimingSettings={handleUpdateTimingSettings}
                 onNavigateToLessonPlans={() => navigateToTab('lesson_plans')}
                 onAddNotebookEntry={handleAddNotebookEntry}
+                onOpenAssessment={() => {
+                  if (!activeLessonSession?.classPlannedSessionId) return;
+                  navigate(
+                    '/assessment-notebook?classId=' +
+                      encodeURIComponent(activeLessonSession.classId) +
+                      '&academicYearId=' +
+                      encodeURIComponent(activeLessonSession.academicYearId || '') +
+                      '&classPlannedSessionId=' +
+                      encodeURIComponent(activeLessonSession.classPlannedSessionId)
+                  );
+                }}
               />
             )}
 
@@ -462,6 +482,14 @@ export default function App() {
                 onRejectKnowledgeItem={handleRejectKnowledgeItem}
                 currentUser={currentUser}
                 communityResources={communityResources}
+              />
+            )}
+
+            {activeTab === 'assessment_notebook' && (
+              <AssessmentNotebookView
+                currentUser={currentUser}
+                teacherClasses={teacherClasses}
+                students={allStudents}
               />
             )}
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BookMarked, Calendar, Clock, FileText, MapPin } from 'lucide-react';
+import { BookMarked, Calendar, Clock, FileText, MapPin, Target } from 'lucide-react';
 import type { ClassRoom, DailyNotebookEntry, LessonPlan, User } from '../../types/spex';
 import { PE_FIELDS, PE_LEVELS } from '../../data/algerianCurriculum';
 import {
@@ -411,6 +411,25 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                   >
                     <FileText className="h-3.5 w-3.5" /> فتح المذكرة
                   </button>
+                  {reference &&
+                    (reference.sessionType === 'تقويم تشخيصي' ||
+                      reference.sessionType === 'تقويم تحصيلي') && (
+                      <button
+                        onClick={() =>
+                          window.location.assign(
+                            '/assessment-notebook?classId=' +
+                              encodeURIComponent(session.classId) +
+                              '&academicYearId=' +
+                              encodeURIComponent(session.academicYearId) +
+                              '&classPlannedSessionId=' +
+                              encodeURIComponent(session.id)
+                          )
+                        }
+                        className="flex items-center gap-1 rounded-xl bg-purple-50 px-3 py-2 text-xs font-bold text-purple-700"
+                      >
+                        <Target className="h-3.5 w-3.5" /> فتح التقويم
+                      </button>
+                    )}
                 </div>
               </div>
             </article>

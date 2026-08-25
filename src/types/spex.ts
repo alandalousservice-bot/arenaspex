@@ -843,6 +843,10 @@ export interface StudentAssessmentDto {
   criterionResults: CriterionResultDto[];
 }
 
+export interface StudentAssessmentHistoryDto {
+  session: AssessmentSessionDto;
+  result: StudentAssessmentDto | null;
+}
 export interface CriterionResultDto {
   id: string;
   studentAssessmentId: string;

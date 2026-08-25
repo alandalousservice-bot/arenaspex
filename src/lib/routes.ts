@@ -30,6 +30,7 @@ export const TAB_PATHS: Record<NavTab, string> = {
   knowledge_engine: '/knowledge-engine',
   competency_assessment: '/assessment',
   gradebook: '/gradebook',
+  assessment_notebook: '/assessment-notebook',
   professional_hub: '/community',
   inspector_portal: '/inspector',
   inspector_teachers: '/inspector/teachers',
@@ -70,6 +71,7 @@ export function pathToTab(pathname: string): NavTab | null {
     pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
   // Deep links to the retired standalone bank now open the unified knowledge bank.
   if (normalized === '/educational-situations') return 'knowledge_engine';
+  if (normalized === '/assessment' || normalized === '/gradebook') return 'assessment_notebook';
   if (
     ['/annual-plan', '/annual-schedule', '/weekly-schedule', '/learning-segments'].includes(
       normalized
@@ -113,8 +115,7 @@ export const ROLE_TABS: Record<UserRole, NavTab[]> = {
     'lesson_plans',
     'lesson_command_center',
     'knowledge_engine',
-    'competency_assessment',
-    'gradebook',
+    'assessment_notebook',
     'reports',
     'settings',
   ],

@@ -550,7 +550,28 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             >
               تشغيل في مركز القيادة
             </button>
-          )}
+          )}{' '}
+          {!editing &&
+            plan.classPlannedSessionId &&
+            plan.classId &&
+            plan.academicYearId &&
+            (plan.sessionType === 'تقويم تشخيصي' || plan.sessionType === 'تقويم تحصيلي') && (
+              <button
+                onClick={() =>
+                  window.location.assign(
+                    '/assessment-notebook?classId=' +
+                      encodeURIComponent(plan.classId || '') +
+                      '&academicYearId=' +
+                      encodeURIComponent(plan.academicYearId || '') +
+                      '&classPlannedSessionId=' +
+                      encodeURIComponent(plan.classPlannedSessionId || '')
+                  )
+                }
+                className="rounded-xl bg-purple-600 px-3 py-2 text-xs font-bold text-white"
+              >
+                فتح دفتر التقويم
+              </button>
+            )}
           {!editing && (
             <>
               <button

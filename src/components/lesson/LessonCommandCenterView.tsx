@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { Target } from 'lucide-react';
 import {
   LessonSession,
   LessonSessionTiming,
@@ -47,6 +48,7 @@ interface LessonCommandCenterViewProps {
   onUpdateTimingSettings: (settings: LessonSessionTiming) => void;
   onNavigateToLessonPlans: () => void;
   onAddNotebookEntry?: (entry: Omit<DailyNotebookEntry, 'id'>) => void;
+  onOpenAssessment?: () => void;
 }
 
 export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = ({
@@ -62,6 +64,7 @@ export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = (
   onUpdateTimingSettings,
   onNavigateToLessonPlans,
   onAddNotebookEntry,
+  onOpenAssessment,
 }) => {
   const [selectedClassId, setSelectedClassId] = useState<string>(teacherClasses[0]?.id || '');
   const [selectedLessonPlanId, setSelectedLessonPlanId] = useState<string>('');
@@ -244,6 +247,19 @@ export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = (
         isFullScreenMode={isFullScreenMode}
         onToggleFullScreen={() => setIsFullScreenMode((prev) => !prev)}
       />
+
+      {onOpenAssessment &&
+        selectedPlan &&
+        selectedPlan.classPlannedSessionId &&
+        (selectedPlan.sessionType === 'تقويم تشخيصي' ||
+          selectedPlan.sessionType === 'تقويم تحصيلي') && (
+          <button
+            onClick={onOpenAssessment}
+            className="mb-3 flex items-center gap-2 rounded-xl bg-purple-50 px-3 py-2 text-xs font-bold text-purple-700"
+          >
+            <Target className="h-4 w-4" /> فتح دفتر التقويم
+          </button>
+        )}
 
       {/* Whistle Console */}
       <CommandCenterWhistleConsole

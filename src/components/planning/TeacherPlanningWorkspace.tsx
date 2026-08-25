@@ -245,7 +245,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
             أنشئ أو راجع إسناد القسم من فضاء القسم والتلاميذ.
           </p>
           <button
-            onClick={() => window.location.assign('/gradebook')}
+            onClick={() => window.location.assign('/assessment-notebook')}
             className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"
           >
             فضاء القسم والتلاميذ
@@ -345,6 +345,20 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
                       >
                         <BookOpen className="h-3.5 w-3.5" /> المذكرة
                       </button>
+                      {reference &&
+                        (reference.sessionType === 'تقويم تشخيصي' ||
+                          reference.sessionType === 'تقويم تحصيلي') && (
+                          <button
+                            onClick={() =>
+                              window.location.assign(
+                                `/assessment-notebook?classId=${session.classId}&academicYearId=${session.academicYearId}&classPlannedSessionId=${session.id}`
+                              )
+                            }
+                            className="flex items-center gap-1 rounded-lg border border-purple-200 px-2 py-1.5 font-bold text-purple-700"
+                          >
+                            تقويم
+                          </button>
+                        )}
                       <button
                         onClick={() =>
                           window.location.assign(

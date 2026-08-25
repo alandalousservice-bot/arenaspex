@@ -484,6 +484,45 @@ apiRouter.get(
   }
 );
 
+apiRouter.get(
+  '/teacher/assessment-students/:studentId/history',
+  requireRole('teacher'),
+  async (req, res) => {
+    const parsed = assessmentQuerySchema.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ error: 'القسم والسنة الدراسية مطلوبان.' });
+    const classRecord = await prisma.studentClass.findFirst({
+      where: { id: parsed.data.classId, teacherId: req.user!.id },
+    });
+    if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+    const student = await prisma.student.findFirst({
+      where: { id: req.params.studentId, teacherId: req.user!.id, classId: classRecord.id },
+    });
+    if (!student) return res.status(403).json({ error: 'التلميذ غير موجود ضمن القسم المحدد.' });
+    const sessions = await prisma.assessmentSession.findMany({
+      where: {
+        teacherId: req.user!.id,
+        classId: classRecord.id,
+        academicYearId: parsed.data.academicYearId,
+      },
+      include: {
+        studentAssessments: {
+          where: { studentId: student.id },
+          include: { criterionResults: true },
+        },
+      },
+      orderBy: [{ assessedAt: 'desc' }, { id: 'asc' }],
+    });
+    res.json({
+      success: true,
+      history: sessions.map((session) => ({
+        session: assessmentSessionView(session),
+        result: session.studentAssessments[0]
+          ? studentAssessmentView(session.studentAssessments[0])
+          : null,
+      })),
+    });
+  }
+);
 apiRouter.put(
   '/teacher/assessment-sessions/:sessionId/students/:studentId',
   requireRole('teacher'),
