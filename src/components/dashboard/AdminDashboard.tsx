@@ -538,30 +538,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </button>
 
           <button
-            onClick={() => setActiveAdminTab('account_api_keys')}
-            className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-              activeAdminTab === 'account_api_keys'
-                ? 'bg-gradient-to-r from-amber-400 to-amber-300 text-purple-950 shadow-md font-black ring-2 ring-amber-300/50'
-                : 'bg-amber-400/20 text-amber-200 hover:bg-amber-400/30 border border-amber-400/30'
-            }`}
-          >
-            <Key className="w-4 h-4 text-amber-300" />
-            <span>🔑 مفاتيح الـ API لكل حساب (خاص بالمشرف)</span>
-          </button>
-
-          <button
-            onClick={() => setActiveAdminTab('ai_engine')}
-            className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-              activeAdminTab === 'ai_engine'
-                ? 'bg-white text-purple-950 shadow-md'
-                : 'bg-white/10 text-purple-200 hover:bg-white/20'
-            }`}
-          >
-            <BrainCircuit className="w-4 h-4" />
-            <span>إدارة المحرك البيداغوجي المعتمد</span>
-          </button>
-
-          <button
             onClick={() => setActiveAdminTab('audit_logs')}
             className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
               activeAdminTab === 'audit_logs'

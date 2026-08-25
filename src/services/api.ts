@@ -367,6 +367,29 @@ export async function fetchGenerationConfig() {
     providers: AIProviderStatusItem[];
   };
 }
+export interface AdminGenerationAccount {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: string;
+  status: string;
+  isApprovedByAdmin: boolean;
+  access: GenerationAccessItem | null;
+}
+export interface AdminGenerationOverview {
+  generationEnabled: boolean;
+  providerConfigured: boolean;
+  platformFallbackConfigured: boolean;
+  providers: AIProviderStatusItem[];
+  accounts: AdminGenerationAccount[];
+}
+export async function fetchAdminGenerationOverview(): Promise<AdminGenerationOverview> {
+  const res = await fetch('/api/admin/generation/overview');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل حالة الخدمات.');
+  return data as AdminGenerationOverview;
+}
 export async function updateGenerationConfig(enabled: boolean) {
   const res = await fetch('/api/admin/generation/config', {
     method: 'PUT',

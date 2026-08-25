@@ -343,7 +343,7 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
               </button>
             )}
             <button
-              onClick={() => navigate('/admin/services')}
+              onClick={() => navigate('/admin/services?userId=' + encodeURIComponent(user.id))}
               className="rounded-xl bg-amber-50 px-4 py-2 text-xs font-bold text-amber-800"
             >
               إدارة الخدمات

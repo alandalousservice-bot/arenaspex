@@ -24,6 +24,7 @@ import { requireAuth, requireRole } from './middleware/requireAuth.js';
 import { reassignTeacher, reassignAllForInspector } from './assignmentService.js';
 import { canWriteRecord, resolveOwnerFieldValue } from './collectionAuth.js';
 import { canReadDistrictMessage, normalizeMessageText } from '../services/communicationRules.js';
+import { providerIsUsable } from './generationAccess.policy.js';
 import {
   resolveGenerationCredential,
   resolvePersonalGenerationCredential,
@@ -1882,6 +1883,71 @@ apiRouter.get('/admin/generation/config', requireRole('admin'), async (_req, res
   });
 });
 
+apiRouter.get('/admin/generation/overview', requireRole('admin'), async (_req, res) => {
+  try {
+    const [config, providers, users, accessRows] = await Promise.all([
+      prisma.generationServiceConfig.findUnique({ where: { id: 'default' } }),
+      allAIProviderRecords(),
+      prisma.user.findMany({
+        where: { role: { in: ['teacher', 'inspector', 'director', 'admin'] } },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          role: true,
+          status: true,
+          isApprovedByAdmin: true,
+        },
+        orderBy: [{ role: 'asc' }, { firstName: 'asc' }, { lastName: 'asc' }],
+      }),
+      prisma.userGenerationAccess.findMany({
+        select: {
+          userId: true,
+          enabled: true,
+          assistantEnabled: true,
+          gameSuggestionsEnabled: true,
+          provider: true,
+          credentialEnabled: true,
+          encryptedApiKey: true,
+          updatedAt: true,
+        },
+      }),
+    ]);
+    const accessByUser = new Map(accessRows.map((row) => [row.userId, row]));
+    const safeProviders = providers.map(({ apiKey: _apiKey, ...provider }) => provider);
+    const geminiFallback = providers.some(
+      (provider) => provider.type === 'gemini' && providerIsUsable(provider)
+    );
+    res.json({
+      success: true,
+      generationEnabled: config?.enabled ?? true,
+      providerConfigured: providers.some(providerIsUsable),
+      platformFallbackConfigured: geminiFallback,
+      providers: safeProviders,
+      accounts: users.map((user) => {
+        const row = accessByUser.get(user.id);
+        return {
+          ...user,
+          access: row
+            ? {
+                userId: row.userId,
+                enabled: row.enabled,
+                assistantEnabled: row.assistantEnabled,
+                gameSuggestionsEnabled: row.gameSuggestionsEnabled,
+                provider: row.provider,
+                credentialEnabled: row.credentialEnabled,
+                keyConfigured: Boolean(row.encryptedApiKey),
+                updatedAt: row.updatedAt,
+              }
+            : null,
+        };
+      }),
+    });
+  } catch {
+    res.status(500).json({ error: 'تعذر تحميل حالة الخدمات.' });
+  }
+});
 apiRouter.put('/admin/generation/config', requireRole('admin'), async (req, res) => {
   const enabled = req.body?.enabled === true;
   const config = await prisma.generationServiceConfig.upsert({
