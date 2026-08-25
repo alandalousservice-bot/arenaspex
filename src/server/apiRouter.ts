@@ -869,6 +869,242 @@ apiRouter.post('/educational-situations/:id/review', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------
+// -----------------------------------------------------------------------
+// Unified Admin resource moderation read model. Domain tables remain authoritative.
+const moderationStatuses = ['PENDING_APPROVAL', 'APPROVED', 'REJECTED'] as const;
+type ModerationResourceType = 'game' | 'situation';
+
+apiRouter.get('/admin/resource-approvals', requireRole('admin'), async (_req, res) => {
+  try {
+    const [games, situations] = await Promise.all([
+      prisma.pedagogicalGame.findMany({
+        where: { status: { in: [...moderationStatuses] } },
+        orderBy: { submittedAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          grade: true,
+          fieldId: true,
+          fieldName: true,
+          objectiveId: true,
+          objectiveText: true,
+          pedagogicalPurpose: true,
+          organization: true,
+          description: true,
+          rules: true,
+          equipment: true,
+          executionGuidance: true,
+          safetyGuidance: true,
+          progression: true,
+          status: true,
+          origin: true,
+          ownerId: true,
+          submittedAt: true,
+          approvedAt: true,
+          approvedById: true,
+          rejectedAt: true,
+          rejectedById: true,
+          rejectionReason: true,
+          createdAt: true,
+        },
+      }),
+      prisma.educationalSituation.findMany({
+        where: {
+          origin: { not: 'REFERENCE_SEED' },
+          ownerId: { not: null },
+          status: { in: [...moderationStatuses] },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          grade: true,
+          fieldId: true,
+          fieldName: true,
+          objectiveIds: true,
+          objectiveTexts: true,
+          sourceGoal: true,
+          organization: true,
+          equipment: true,
+          variations: true,
+          origin: true,
+          ownerId: true,
+          status: true,
+          approvedById: true,
+          approvedByRole: true,
+          approvedAt: true,
+          rejectedById: true,
+          rejectedByRole: true,
+          rejectedAt: true,
+          rejectionReason: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+    const ownerIds = [
+      ...new Set([
+        ...games.map((row) => row.ownerId),
+        ...situations.map((row) => row.ownerId).filter((id): id is string => Boolean(id)),
+      ]),
+    ];
+    const reviewerIds = [
+      ...new Set(
+        [
+          ...games.flatMap((row) => [row.approvedById, row.rejectedById]),
+          ...situations.flatMap((row) => [row.approvedById, row.rejectedById]),
+        ].filter((id): id is string => Boolean(id))
+      ),
+    ];
+    const people = await prisma.user.findMany({
+      where: { id: { in: [...new Set([...ownerIds, ...reviewerIds])] } },
+      select: { id: true, firstName: true, lastName: true, email: true, role: true },
+    });
+    const peopleById = new Map(people.map((person) => [person.id, person]));
+    const person = (id: string | null | undefined) => {
+      const value = id ? peopleById.get(id) : undefined;
+      return value
+        ? {
+            id: value.id,
+            name: `${value.firstName} ${value.lastName}`.trim(),
+            email: value.email,
+            role: value.role,
+          }
+        : null;
+    };
+    const items = [
+      ...games.map((row) => ({
+        id: row.id,
+        resourceType: 'game' as const,
+        title: row.title,
+        summary: row.description,
+        status: row.status,
+        source: 'USER_SUBMITTED_RESOURCE' as const,
+        submitter: person(row.ownerId),
+        submittedAt: row.submittedAt || row.createdAt,
+        reviewer: person(row.status === 'APPROVED' ? row.approvedById : row.rejectedById),
+        reviewedAt: row.status === 'APPROVED' ? row.approvedAt : row.rejectedAt,
+        rejectionReason: row.rejectionReason,
+        grade: row.grade,
+        fieldId: row.fieldId,
+        fieldName: row.fieldName,
+        objectiveId: row.objectiveId,
+        objectiveText: row.objectiveText,
+        details: {
+          pedagogicalPurpose: row.pedagogicalPurpose,
+          organization: row.organization,
+          description: row.description,
+          rules: row.rules,
+          equipment: row.equipment,
+          executionGuidance: row.executionGuidance,
+          safetyGuidance: row.safetyGuidance,
+          progression: row.progression,
+        },
+      })),
+      ...situations.map((row) => ({
+        id: row.id,
+        resourceType: 'situation' as const,
+        title: row.name,
+        summary: row.sourceGoal || row.organization,
+        status: row.status,
+        source: 'USER_SUBMITTED_RESOURCE' as const,
+        submitter: person(row.ownerId),
+        submittedAt: row.createdAt,
+        reviewer: person(row.status === 'APPROVED' ? row.approvedById : row.rejectedById),
+        reviewedAt: row.status === 'APPROVED' ? row.approvedAt : row.rejectedAt,
+        rejectionReason: row.rejectionReason,
+        grade: row.grade,
+        fieldId: row.fieldId,
+        fieldName: row.fieldName,
+        objectiveId: row.objectiveIds[0] || null,
+        objectiveText: row.objectiveTexts[0] || null,
+        details: {
+          sourceGoal: row.sourceGoal,
+          organization: row.organization,
+          equipment: row.equipment,
+          variations: row.variations,
+          objectiveIds: row.objectiveIds,
+          objectiveTexts: row.objectiveTexts,
+        },
+      })),
+    ].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+    res.json({
+      success: true,
+      items,
+      counts: {
+        pending: items.filter((item) => item.status === 'PENDING_APPROVAL').length,
+        approved: items.filter((item) => item.status === 'APPROVED').length,
+        rejected: items.filter((item) => item.status === 'REJECTED').length,
+        total: items.length,
+      },
+    });
+  } catch {
+    res.status(500).json({ error: 'تعذر تحميل مركز اعتمادات الموارد.' });
+  }
+});
+
+apiRouter.post(
+  '/admin/resource-approvals/:resourceType/:id/review',
+  requireRole('admin'),
+  async (req, res) => {
+    const resourceType = req.params.resourceType as ModerationResourceType;
+    const action = req.body?.action;
+    if (!['game', 'situation'].includes(resourceType) || !['approve', 'reject'].includes(action))
+      return res.status(400).json({ error: 'إجراء مراجعة غير صالح.' });
+    const rejectionReason =
+      typeof req.body?.rejectionReason === 'string' ? req.body.rejectionReason.trim() : '';
+    if (action === 'reject' && !rejectionReason)
+      return res.status(400).json({ error: 'سبب الرفض إلزامي.' });
+    const now = new Date();
+    if (resourceType === 'game') {
+      const result = await prisma.pedagogicalGame.updateMany({
+        where: { id: req.params.id, status: 'PENDING_APPROVAL' },
+        data:
+          action === 'approve'
+            ? { status: 'APPROVED', approved: true, approvedAt: now, approvedById: req.user!.id }
+            : {
+                status: 'REJECTED',
+                approved: false,
+                rejectedAt: now,
+                rejectedById: req.user!.id,
+                rejectionReason,
+              },
+      });
+      if (!result.count)
+        return res
+          .status(409)
+          .json({ error: 'المورد ليس بانتظار المراجعة أو تمت معالجته مسبقاً.' });
+    } else {
+      const result = await prisma.educationalSituation.updateMany({
+        where: {
+          id: req.params.id,
+          origin: { not: 'REFERENCE_SEED' },
+          ownerId: { not: null },
+          status: 'PENDING_APPROVAL',
+        },
+        data:
+          action === 'approve'
+            ? {
+                status: 'APPROVED',
+                approvedById: req.user!.id,
+                approvedByRole: 'admin',
+                approvedAt: now,
+              }
+            : {
+                status: 'REJECTED',
+                rejectedById: req.user!.id,
+                rejectedByRole: 'admin',
+                rejectedAt: now,
+                rejectionReason,
+              },
+      });
+      if (!result.count)
+        return res
+          .status(409)
+          .json({ error: 'المورد ليس بانتظار المراجعة أو تمت معالجته مسبقاً.' });
+    }
+    res.json({ success: true });
+  }
+);
 // 1. Users Collection — القراءة لأي مستخدم مسجّل دخول (بدون كلمات المرور)،
 //    الإنشاء/التعديل مقتصر على admin و inspector، الحذف على admin فقط
 // -----------------------------------------------------------------------

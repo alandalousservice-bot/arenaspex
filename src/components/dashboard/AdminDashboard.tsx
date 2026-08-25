@@ -30,7 +30,7 @@ import {
   AlertCircle,
   Plug,
 } from 'lucide-react';
-import { AISetting, AILog, KnowledgeItem, User } from '../../types/spex';
+import { AISetting, AILog, User } from '../../types/spex';
 import { INITIAL_DIRECTORATES } from '../../data/initialState';
 import {
   testApiKeyOnServer,
@@ -59,8 +59,6 @@ interface AdminDashboardProps {
   aiSettings: AISetting;
   onUpdateAISettings: (settings: AISetting) => void;
   aiLogs: AILog[];
-  knowledgeItems: KnowledgeItem[];
-  onApproveKnowledgeItem: (id: string) => void;
   users?: User[];
   onAddUser?: (user: Partial<User>) => void;
   onUpdateUser?: (user: User) => void;
@@ -73,8 +71,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   aiSettings,
   onUpdateAISettings,
   aiLogs,
-  knowledgeItems,
-  onApproveKnowledgeItem,
   users = [],
   onAddUser,
   onUpdateUser,
@@ -326,8 +322,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
   // Per-account API Key Management (Supervisor Dashboard Only)
-  const [editingApiKeyUser, setEditingApiKeyUser] = useState<User | null>(null);
-  const [tempApiKeyInput, setTempApiKeyInput] = useState('');
   const [testingUserId, setTestingUserId] = useState<string | null>(null);
   const [keyTestResults, setKeyTestResults] = useState<
     Record<string, { valid: boolean; message: string; quotaExhausted?: boolean }>
@@ -1529,55 +1523,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   ))}
                 </tbody>
               </table>
-            </div>
-          </div>
-
-          {/* Knowledge Bank Submissions Queue */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Layers className="w-4 h-4 text-blue-600" />
-              <span>مراجعة مقترحات بنك المعرفة التربوية</span>
-            </h3>
-
-            <div className="space-y-3">
-              {knowledgeItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-100 text-blue-800">
-                        {item.category === 'game'
-                          ? 'لعبة تربوية'
-                          : item.category === 'objective'
-                            ? 'هدف إجرائي'
-                            : 'وضعية تعلمية'}
-                      </span>
-                      <span className="text-xs font-bold text-slate-900">{item.title}</span>
-                    </div>
-                    <p className="text-xs text-slate-500 line-clamp-1">{item.description}</p>
-                    <span className="text-[10px] text-slate-400 block">
-                      المقترح بواسطة: {item.createdBy}
-                    </span>
-                  </div>
-
-                  <div>
-                    {item.approved ? (
-                      <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-xl">
-                        معتمد في البنك
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => onApproveKnowledgeItem(item.id)}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
-                      >
-                        اعتماد ونشر
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>

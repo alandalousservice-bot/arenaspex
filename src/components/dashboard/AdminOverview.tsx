@@ -16,6 +16,7 @@ import {
   fetchGeoDistricts,
   fetchManagedUsersFromDB,
   fetchPendingUsersFromDB,
+  fetchAdminModerationOverview,
 } from '../../services/api';
 
 interface AdminOverviewProps {
@@ -23,15 +24,13 @@ interface AdminOverviewProps {
   knowledgeItems?: KnowledgeItem[];
 }
 
-export const AdminOverview: React.FC<AdminOverviewProps> = ({
-  users = [],
-  knowledgeItems = [],
-}) => {
+export const AdminOverview: React.FC<AdminOverviewProps> = ({ users = [] }) => {
   const navigate = useNavigate();
   const [managedUsers, setManagedUsers] = useState<User[]>([]);
   const [pendingUsers, setPendingUsers] = useState<User[]>([]);
   const [serviceCount, setServiceCount] = useState(0);
   const [unassignedDistricts, setUnassignedDistricts] = useState(0);
+  const [moderationPendingCount, setModerationPendingCount] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -41,7 +40,8 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
       fetchGenerationAccess(),
       fetchGeoDistricts(''),
       fetchAllAssignments(),
-    ]).then(([managed, pending, access, districts, assignments]) => {
+      fetchAdminModerationOverview(),
+    ]).then(([managed, pending, access, districts, assignments, moderation]) => {
       if (!active) return;
       setManagedUsers(managed);
       setPendingUsers(pending);
@@ -52,6 +52,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
           .filter(Boolean)
       );
       setUnassignedDistricts(Math.max(0, districts.length - assignedDistricts.size));
+      setModerationPendingCount(moderation.counts.pending);
     });
     return () => {
       active = false;
@@ -111,11 +112,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({
     },
     {
       label: 'اعتمادات الموارد',
-      value: knowledgeItems.filter((item) =>
-        ['pending', 'PENDING', 'PENDING_APPROVAL'].includes(
-          String((item as KnowledgeItem & { status?: string }).status)
-        )
-      ).length,
+      value: moderationPendingCount,
       href: '/admin/approvals',
       icon: FileCheck2,
       tone: 'cyan',

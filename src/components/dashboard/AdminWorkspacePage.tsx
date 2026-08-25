@@ -8,6 +8,7 @@ import { AdminPendingUsersPage } from './AdminPendingUsersPage';
 import { AdminReportsPage } from './AdminReportsPage';
 import { AdminInspectorWorkspacePage } from './AdminInspectorWorkspacePage';
 import { AdminServicesPage } from './AdminServicesPage';
+import { AdminApprovalsPage } from './AdminApprovalsPage';
 import { KnowledgeEngineView } from '../knowledge/KnowledgeEngineView';
 import { AISetting, AILog, CommunityResource, KnowledgeItem, User } from '../../types/spex';
 
@@ -37,6 +38,7 @@ export const AdminWorkspacePage: React.FC<AdminWorkspacePageProps> = (props) => 
   if (pathname === '/admin/accounts') return <AdminAccountsPage />;
   if (pathname === '/admin/pending-users') return <AdminPendingUsersPage />;
   if (pathname === '/admin/services') return <AdminServicesPage />;
+  if (pathname === '/admin/approvals') return <AdminApprovalsPage />;
   if (pathname === '/admin/inspectors')
     return (
       <AdminInspectorWorkspacePage

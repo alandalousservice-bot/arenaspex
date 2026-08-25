@@ -862,6 +862,53 @@ export async function fetchPendingUsersFromDB(): Promise<AdminAccountDetail[]> {
   return result.users;
 }
 
+export interface AdminModerationItem {
+  id: string;
+  resourceType: 'game' | 'situation';
+  title: string;
+  summary?: string | null;
+  status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  source: 'USER_SUBMITTED_RESOURCE';
+  submitter: { id: string; name: string; email: string; role: string } | null;
+  submittedAt: string;
+  reviewer: { id: string; name: string; email: string; role: string } | null;
+  reviewedAt?: string | null;
+  rejectionReason?: string | null;
+  grade?: number | null;
+  fieldId?: string | null;
+  fieldName?: string | null;
+  objectiveId?: string | null;
+  objectiveText?: string | null;
+  details: Record<string, unknown>;
+}
+export interface AdminModerationOverview {
+  items: AdminModerationItem[];
+  counts: { pending: number; approved: number; rejected: number; total: number };
+}
+export async function fetchAdminModerationOverview(): Promise<AdminModerationOverview> {
+  const res = await fetch('/api/admin/resource-approvals');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل مركز اعتمادات الموارد.');
+  return data as AdminModerationOverview;
+}
+export async function reviewAdminModerationItem(
+  id: string,
+  resourceType: AdminModerationItem['resourceType'],
+  action: 'approve' | 'reject',
+  rejectionReason?: string
+) {
+  const res = await fetch(
+    `/api/admin/resource-approvals/${resourceType}/${encodeURIComponent(id)}/review`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...(rejectionReason ? { rejectionReason } : {}) }),
+    }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تنفيذ إجراء المراجعة.');
+  return data as { success: boolean };
+}
 export async function fetchAdminAccountsDirectory(): Promise<{
   success: boolean;
   users: AdminAccountDetail[];
