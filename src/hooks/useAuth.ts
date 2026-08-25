@@ -19,8 +19,16 @@ export type AuthView = 'landing' | 'login';
 // Never hydrate an unauthenticated browser with a demo account.  The session
 // is the only source of account data; this placeholder is intentionally empty.
 const EMPTY_SESSION_USER: User = {
-  id: '', username: '', spexId: '', firstName: '', lastName: '', email: '',
-  role: 'teacher', directorateId: '', districtId: '', status: 'inactive',
+  id: '',
+  username: '',
+  spexId: '',
+  firstName: '',
+  lastName: '',
+  email: '',
+  role: 'teacher',
+  directorateId: '',
+  districtId: '',
+  status: 'inactive',
 };
 
 export function useAuth() {
@@ -28,7 +36,9 @@ export function useAuth() {
   const [isCheckingSession, setIsCheckingSession] = useState<boolean>(true);
   const [isOfflineSession, setIsOfflineSession] = useState<boolean>(false);
   const [authView, setAuthView] = useState<AuthView>(() =>
-    typeof window !== 'undefined' && window.location.search.includes('reset_token=') ? 'login' : 'landing'
+    typeof window !== 'undefined' && window.location.search.includes('reset_token=')
+      ? 'login'
+      : 'landing'
   );
   const [currentUser, setCurrentUser] = useState<User>(EMPTY_SESSION_USER);
 
@@ -63,13 +73,17 @@ export function useAuth() {
       setIsCheckingSession(false);
       try {
         triggerKillSwitch();
-      } catch {}
+      } catch {
+        // Kill-switch activation is best-effort; preserve the existing session state if it fails.
+      }
       // حفظ المستخدم المعطل محلياً لعرض شاشته
       try {
         if (typeof localStorage !== 'undefined') {
           localStorage.setItem('spex_current_user', JSON.stringify(disabledUser));
         }
-      } catch {}
+      } catch {
+        // Persisting a disabled user locally is best-effort for the read-only screen.
+      }
       return;
     }
 
@@ -81,7 +95,9 @@ export function useAuth() {
         if (typeof localStorage !== 'undefined') {
           localStorage.setItem('spex_current_user', JSON.stringify(result.user));
         }
-      } catch {}
+      } catch {
+        // Persisting the authenticated user locally is best-effort session caching.
+      }
     } else {
       // check if result code is ACCOUNT_GONE -> clear local
       if ((result as any).code === 'ACCOUNT_GONE') {
@@ -89,7 +105,9 @@ export function useAuth() {
           if (typeof localStorage !== 'undefined') {
             localStorage.removeItem('spex_current_user');
           }
-        } catch {}
+        } catch {
+          // Removing stale local session data is best-effort cleanup.
+        }
       }
       setIsAuthenticated(false);
       setIsOfflineSession(false);
@@ -116,11 +134,14 @@ export function useAuth() {
 
     const startPolling = () => {
       if (pollingRef.current) window.clearInterval(pollingRef.current);
-      pollingRef.current = window.setInterval(() => {
-        if (navigator.onLine) {
-          checkSession();
-        }
-      }, 2 * 60 * 1000); // دقيقتان
+      pollingRef.current = window.setInterval(
+        () => {
+          if (navigator.onLine) {
+            checkSession();
+          }
+        },
+        2 * 60 * 1000
+      ); // دقيقتان
     };
 
     startPolling();
@@ -154,6 +175,6 @@ export function useAuth() {
     setAuthView,
     currentUser,
     setCurrentUser,
-    refreshSession: checkSession
+    refreshSession: checkSession,
   };
 }
