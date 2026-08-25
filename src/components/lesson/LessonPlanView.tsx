@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FileText, PenSquare, Plus, Printer, Save, Trash2, X } from 'lucide-react';
-import { EducationalSituation, LessonPlan, LessonPlanRow, User } from '../../types/spex';
+import { ClassRoom, EducationalSituation, LessonPlan, LessonPlanRow, User } from '../../types/spex';
 import {
   COMPLETE_ANNUAL_CURRICULUM,
   PE_FIELDS,
@@ -11,8 +11,14 @@ import {
   getUnifiedLessonRows,
   rebalanceLessonRows,
 } from '../../services/lessonPlan.generator.service';
-import { fetchAnnualPlans } from '../../services/api';
+import {
+  fetchAnnualPlans,
+  fetchTeacherPlanningSessions,
+  TeacherPlanningSession,
+} from '../../services/api';
 import { mergeSchedule, MergedScheduledLesson } from '../../services/schedule/scheduleMerge';
+import { canonicalReferenceSessions } from '../../services/teacherPlanning.service';
+import { getAcademicYearOptions, getCurrentAcademicYear } from '../../services/academicYear';
 import {
   exportLessonPlanToPdf,
   exportLessonPlanToWord,
@@ -35,6 +41,7 @@ interface LessonPlanViewProps {
   ) => void;
   onOpenCommandCenterForPlan?: (plan: LessonPlan) => void;
   currentUser?: User;
+  teacherClasses: ClassRoom[];
 }
 
 const LEVEL_KEYS: Record<string, string> = {
@@ -81,6 +88,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   onSaveLessonPlan,
   onDeleteLessonPlan,
   currentUser,
+  teacherClasses,
+  onOpenCommandCenterForPlan,
 }) => {
   const [selectedId, setSelectedId] = useState(activeLessonId || lessonPlans[0]?.id || '');
   const [showGenerator, setShowGenerator] = useState(false);
@@ -94,31 +103,68 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [sourceLabel, setSourceLabel] = useState<'actual' | 'fallback'>('fallback');
   const [generationError, setGenerationError] = useState('');
   const [draft, setDraft] = useState<LessonPlan | null>(null);
+  const [scheduledContext, setScheduledContext] = useState<{
+    session: TeacherPlanningSession;
+    reference: ReturnType<typeof canonicalReferenceSessions>[number];
+    classRoom: ClassRoom;
+  } | null>(null);
+  const [scheduledError, setScheduledError] = useState('');
+  const [scheduledLoading, setScheduledLoading] = useState(false);
+  const query = useMemo(() => new URLSearchParams(window.location.search), []);
+  const requestedClassId = query.get('classId') || '';
+  const requestedSessionId = query.get('classPlannedSessionId') || '';
+  const scheduledMode = Boolean(requestedSessionId);
   const sessions = useMemo(() => sessionsForLevel(levelName), [levelName]);
   const generatorSessions = useMemo<SourceSession[]>(
     () =>
-      scheduledLessons.map((scheduled) => ({
-        fieldId: scheduled.fieldId,
-        fieldName: scheduled.fieldName,
-        finalCompetency:
-          COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]
-            ?.finalCompetency || '',
-        segmentGoal:
-          COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]
-            ?.finalCompetency || '',
-        sessionNumber: scheduled.fieldSessionNumber,
-        globalNumber: scheduled.globalSessionNumber,
-        weekNumber: Math.ceil(scheduled.globalSessionNumber / 2),
-        type: scheduled.sessionType as LessonPlan['sessionType'],
-        typeLabel: scheduled.sessionTypeLabel,
-        objective: scheduled.wordingOverride || scheduled.targetObjective,
-        tools:
-          COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]
-            ?.suggestedTools || [],
-      })),
-    [scheduledLessons]
+      scheduledContext
+        ? [
+            {
+              fieldId: scheduledContext.reference.domainId,
+              fieldName:
+                PE_FIELDS.find((field) => field.id === scheduledContext.reference.domainId)?.name ||
+                scheduledContext.reference.domainId,
+              finalCompetency:
+                COMPLETE_ANNUAL_CURRICULUM[scheduledContext.reference.levelId]?.fields[
+                  scheduledContext.reference.domainId
+                ]?.finalCompetency || '',
+              segmentGoal: scheduledContext.reference.objective,
+              sessionNumber: scheduledContext.reference.fieldSessionNumber,
+              globalNumber: scheduledContext.reference.sequenceIndex,
+              weekNumber: Math.ceil(scheduledContext.reference.sequenceIndex / 2),
+              type: scheduledContext.reference.sessionType as LessonPlan['sessionType'],
+              typeLabel: scheduledContext.reference.sessionTypeLabel,
+              objective: scheduledContext.reference.objective,
+              tools:
+                COMPLETE_ANNUAL_CURRICULUM[scheduledContext.reference.levelId]?.fields[
+                  scheduledContext.reference.domainId
+                ]?.suggestedTools || [],
+            },
+          ]
+        : scheduledLessons.map((scheduled) => ({
+            fieldId: scheduled.fieldId,
+            fieldName: scheduled.fieldName,
+            finalCompetency:
+              COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]
+                ?.finalCompetency || '',
+            segmentGoal:
+              COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]
+                ?.finalCompetency || '',
+            sessionNumber: scheduled.fieldSessionNumber,
+            globalNumber: scheduled.globalSessionNumber,
+            weekNumber: Math.ceil(scheduled.globalSessionNumber / 2),
+            type: scheduled.sessionType as LessonPlan['sessionType'],
+            typeLabel: scheduled.sessionTypeLabel,
+            objective: scheduled.wordingOverride || scheduled.targetObjective,
+            tools:
+              COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]
+                ?.suggestedTools || [],
+          })),
+    [scheduledContext, scheduledLessons]
   );
-  const selected = lessonPlans.find((plan) => plan.id === selectedId) || lessonPlans[0];
+  const selected = scheduledMode
+    ? lessonPlans.find((plan) => plan.classPlannedSessionId === scheduledContext?.session.id)
+    : lessonPlans.find((plan) => plan.id === selectedId) || lessonPlans[0];
 
   useEffect(() => {
     setSessionIndex(0);
@@ -126,6 +172,84 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   useEffect(() => {
     if (activeLessonId) setSelectedId(activeLessonId);
   }, [activeLessonId]);
+  useEffect(() => {
+    if (!requestedSessionId) return;
+    const classRoom = teacherClasses.find((item) => item.id === requestedClassId);
+    if (!classRoom) {
+      setScheduledError('تعذر التحقق من القسم المرتبط بالحصة التشغيلية.');
+      return;
+    }
+    let cancelled = false;
+    setScheduledLoading(true);
+    setScheduledError('');
+    const requestedYear =
+      query.get('academicYearId') || localStorage.getItem('arenaspex:selectedAcademicYear') || '';
+    const years = requestedYear ? [requestedYear] : getAcademicYearOptions();
+    Promise.all(years.map((year) => fetchTeacherPlanningSessions(classRoom.id, year)))
+      .then((results) => {
+        if (cancelled) return;
+        const located = results
+          .flatMap((result) => result.sessions)
+          .find((item) => item.id === requestedSessionId);
+        const reference = located
+          ? canonicalReferenceSessions(classRoom.levelId).find(
+              (item) => item.referenceSessionId === located.referenceSessionId
+            )
+          : undefined;
+        if (!located || !reference || located.classId !== classRoom.id) {
+          setScheduledError(
+            !located
+              ? 'الحصة التشغيلية المطلوبة غير موجودة ضمن أقسامك.'
+              : 'تعذر تحميل المرجع البيداغوجي لهذه الحصة.'
+          );
+          return;
+        }
+        Promise.all([
+          fetchAnnualPlans({
+            teacherId: currentUser?.id,
+            kind: 'section_wording',
+            academicYearId: located.academicYearId,
+            levelId: classRoom.levelId,
+          }),
+          fetchAnnualPlans({
+            teacherId: currentUser?.id,
+            kind: 'schedule_dates',
+            academicYearId: located.academicYearId,
+            levelId: classRoom.levelId,
+          }),
+        ])
+          .then(([wordingResponse, scheduleResponse]) => {
+            if (cancelled) return;
+            const key = reference.domainId + '__' + reference.fieldSessionNumber;
+            const wording = wordingResponse.annualPlans?.[0]?.data?.overrides?.[key]?.objective;
+            const scheduleWording =
+              scheduleResponse.annualPlans?.[0]?.data?.overrides?.[key]?.objective;
+            setScheduledContext({
+              session: located,
+              reference: {
+                ...reference,
+                objective: wording || scheduleWording || reference.objective,
+              },
+              classRoom,
+            });
+          })
+          .catch(() => setScheduledContext({ session: located, reference, classRoom }));
+        const matchingLevel = Object.entries(LEVEL_KEYS).find(
+          ([, id]) => id === classRoom.levelId
+        )?.[0];
+        if (matchingLevel) setLevelName(matchingLevel);
+      })
+      .catch(() => {
+        if (!cancelled) setScheduledError('تعذر تحميل الحصة التشغيلية المطلوبة.');
+      })
+      .finally(() => {
+        if (!cancelled) setScheduledLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id, requestedClassId, requestedSessionId, teacherClasses, query]);
+
   useEffect(() => {
     if (!showBank) return;
     fetch('/api/educational-situations')
@@ -135,9 +259,14 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   }, [showBank]);
 
   useEffect(() => {
-    if (!showGenerator || !currentUser?.id) return;
+    if (!showGenerator || !currentUser?.id || scheduledContext) return;
     const levelId = LEVEL_KEYS[levelName];
-    const base = generateAnnualTimeDistribution(levelId, '2025-09-21', 0, '');
+    const base = generateAnnualTimeDistribution(
+      levelId,
+      `${getCurrentAcademicYear().slice(0, 4)}-09-01`,
+      0,
+      ''
+    );
     Promise.all([
       fetchAnnualPlans({ teacherId: currentUser.id, kind: 'schedule_dates', levelId }),
       fetchAnnualPlans({ teacherId: currentUser.id, kind: 'section_wording', levelId }),
@@ -159,7 +288,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         setScheduledLessons([]);
         setSourceLabel('fallback');
       });
-  }, [showGenerator, levelName, currentUser?.id]);
+  }, [showGenerator, levelName, currentUser?.id, scheduledContext]);
 
   const createPlan = () => {
     const source = (generatorSessions.length ? generatorSessions : sessions)[sessionIndex];
@@ -168,7 +297,18 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       return;
     }
     try {
-      const plan = autoGenerateLessonPlan(source, { levelName, teacher: currentUser, className: '' });
+      const plan = autoGenerateLessonPlan(source, {
+        levelName: scheduledContext?.classRoom.levelName || levelName,
+        teacher: currentUser,
+        className: scheduledContext?.classRoom.name || '',
+        classPlannedSessionId: scheduledContext?.session.id,
+        academicYearId: scheduledContext?.session.academicYearId,
+        classId: scheduledContext?.session.classId,
+        plannedStartTime: scheduledContext?.session.startTime,
+        venue: scheduledContext?.session.venue,
+        date: scheduledContext?.session.plannedDate.slice(0, 10),
+        durationMinutes: scheduledContext?.session.durationMinutes,
+      });
       if (!plan.lessonRows?.length) throw new Error('empty memo');
       onSaveLessonPlan(plan);
       setSelectedId(plan.id);
@@ -190,7 +330,12 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   };
   const saveEdit = () => {
     if (!draft) return;
-    const lessonRows = rebalanceLessonRows(draft.lessonRows || [], draft.durationMinutes);
+    const lessonRows = rebalanceLessonRows(
+      draft.lessonRows || [],
+      draft.classPlannedSessionId && scheduledContext
+        ? scheduledContext.session.durationMinutes
+        : draft.durationMinutes
+    );
     const equipmentNeeded = [
       ...new Set(draft.equipmentNeeded.map((item) => item.trim()).filter(Boolean)),
     ];
@@ -210,22 +355,55 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
           <h3 className="font-extrabold">توليد مذكرة من التوزيع السنوي</h3>
-          <button onClick={() => setShowGenerator(false)}><X className="h-5 w-5" /></button>
+          <button onClick={() => setShowGenerator(false)}>
+            <X className="h-5 w-5" />
+          </button>
         </div>
         <label className="mb-1 block text-sm font-bold">المستوى</label>
-        <select value={levelName} onChange={(event) => setLevelName(event.target.value)} className="mb-4 w-full rounded-xl border p-2">
-          {LEVELS.map((level) => <option key={level}>{level}</option>)}
-        </select>
-        <label className="mb-1 block text-sm font-bold">الحصة</label>
-        <select value={sessionIndex} onChange={(event) => setSessionIndex(Number(event.target.value))} className="w-full rounded-xl border p-2">
-          {(generatorSessions.length ? generatorSessions : sessions).map((session, index) => (
-            <option key={`${session.fieldId}-${session.sessionNumber}`} value={index}>الحصة {session.globalNumber}: {session.objective}</option>
+        <select
+          value={levelName}
+          onChange={(event) => setLevelName(event.target.value)}
+          className="mb-4 w-full rounded-xl border p-2"
+        >
+          {LEVELS.map((level) => (
+            <option key={level}>{level}</option>
           ))}
         </select>
-        <p className="mt-2 text-xs font-bold text-slate-600">المصدر: {sourceLabel === 'actual' ? 'التوزيع السنوي الفعلي للحصص' : 'احتياطي المنهاج الثابت (لا يوجد سجل توزيع فعلي)'}</p>
-        <p className="mt-3 text-xs text-slate-500">يؤخذ الهدف والكفاءة والميدان والوسائل من الحصة الحالية؛ يمكن تعديل المذكرة بعد توليدها.</p>
-        {generationError && <p role="alert" className="mt-3 rounded-lg bg-rose-50 p-2 text-xs font-bold text-rose-700">{generationError}</p>}
-        <button onClick={createPlan} className="mt-5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white">إنشاء المذكرة</button>
+        <label className="mb-1 block text-sm font-bold">الحصة</label>
+        <select
+          value={sessionIndex}
+          onChange={(event) => setSessionIndex(Number(event.target.value))}
+          className="w-full rounded-xl border p-2"
+        >
+          {(generatorSessions.length ? generatorSessions : sessions).map((session, index) => (
+            <option key={`${session.fieldId}-${session.sessionNumber}`} value={index}>
+              الحصة {session.globalNumber}: {session.objective}
+            </option>
+          ))}
+        </select>
+        <p className="mt-2 text-xs font-bold text-slate-600">
+          المصدر:{' '}
+          {sourceLabel === 'actual'
+            ? 'التوزيع السنوي الفعلي للحصص'
+            : 'احتياطي المنهاج الثابت (لا يوجد سجل توزيع فعلي)'}
+        </p>
+        <p className="mt-3 text-xs text-slate-500">
+          يؤخذ الهدف والكفاءة والميدان والوسائل من الحصة الحالية؛ يمكن تعديل المذكرة بعد توليدها.
+        </p>
+        {generationError && (
+          <p
+            role="alert"
+            className="mt-3 rounded-lg bg-rose-50 p-2 text-xs font-bold text-rose-700"
+          >
+            {generationError}
+          </p>
+        )}
+        <button
+          onClick={createPlan}
+          className="mt-5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white"
+        >
+          إنشاء المذكرة
+        </button>
       </div>
     </div>
   ) : null;
@@ -233,14 +411,38 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const plan = editing ? draft : selected;
   if (!plan) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
-        <p className="font-bold text-slate-600">لا توجد مذكرات بعد.</p>
-        <button
-          className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white"
-          onClick={() => { setGenerationError(''); setShowGenerator(true); }}
-        >
-          توليد مذكرة من التوزيع السنوي
-        </button>
+      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-8 text-center">
+        {scheduledLoading && (
+          <p className="font-bold text-slate-600">جارٍ تحميل الحصة التشغيلية...</p>
+        )}
+        {scheduledError && (
+          <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">
+            {scheduledError}
+          </p>
+        )}
+        {scheduledContext && (
+          <p className="font-bold text-slate-700">
+            حصة مبرمجة · {scheduledContext.classRoom.name} ·{' '}
+            {scheduledContext.session.plannedDate.slice(0, 10)} ·{' '}
+            {scheduledContext.session.durationMinutes} دقيقة
+          </p>
+        )}
+        {!scheduledError && !scheduledLoading && (
+          <p className="font-bold text-slate-600">
+            {scheduledContext ? 'لا توجد مذكرة محفوظة لهذه الحصة بعد.' : 'لا توجد مذكرات بعد.'}
+          </p>
+        )}
+        {!scheduledError && (
+          <button
+            className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white"
+            onClick={() => {
+              setGenerationError('');
+              setShowGenerator(true);
+            }}
+          >
+            إنشاء المذكرة
+          </button>
+        )}
         {generatorModal}
       </div>
     );
@@ -249,6 +451,11 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const setRows = (lessonRows: LessonPlanRow[]) =>
     setDraft((previous) => previous && { ...previous, lessonRows });
   const grade = LEVELS.indexOf(plan.levelName) + 1;
+  const isScheduled = Boolean(plan.classPlannedSessionId);
+  const effectiveDuration =
+    isScheduled && scheduledContext
+      ? scheduledContext.session.durationMinutes
+      : plan.durationMinutes;
   const fieldId =
     PE_FIELDS.find((field) => field.name === plan.fieldName)?.id ||
     sessionsForLevel(plan.levelName).find((s) => s.fieldName === plan.fieldName)?.fieldId ||
@@ -288,7 +495,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     const candidateRows = replaceRowId
       ? rows.map((row) => (row.id === replaceRowId ? { ...main, id: replaceRowId } : row))
       : [...rows, main];
-    const next = rebalanceLessonRows(candidateRows, plan.durationMinutes);
+    const next = rebalanceLessonRows(candidateRows, effectiveDuration);
     const equipmentNeeded = [
       ...new Set(next.flatMap((row) => row.situationSnapshot?.equipment || [])),
     ];
@@ -303,7 +510,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const removeSituation = (rowId: string) => {
     const next = rebalanceLessonRows(
       rows.filter((row) => row.id !== rowId),
-      plan.durationMinutes
+      effectiveDuration
     );
     const equipmentNeeded = [
       ...new Set(next.flatMap((row) => row.situationSnapshot?.equipment || [])),
@@ -327,12 +534,23 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         </div>
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => { setGenerationError(''); setShowGenerator(true); }}
+            onClick={() => {
+              setGenerationError('');
+              setShowGenerator(true);
+            }}
             className="flex items-center gap-1 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
           >
             <Plus className="h-4 w-4" />
             توليد مذكرة
           </button>
+          {!editing && onOpenCommandCenterForPlan && (
+            <button
+              onClick={() => onOpenCommandCenterForPlan(plan)}
+              className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white"
+            >
+              تشغيل في مركز القيادة
+            </button>
+          )}
           {!editing && (
             <>
               <button
@@ -416,12 +634,23 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         <div className="grid grid-cols-1 gap-px bg-slate-300 text-sm md:grid-cols-2">
           {[
             ['المؤسسة', plan.institutionName],
+            ['الوضع', isScheduled ? 'حصة مبرمجة' : 'مذكرة مرجعية/غير مرتبطة بحصة مبرمجة'],
+            ['القسم', plan.className],
+            ['السنة الدراسية', plan.academicYearId || '—'],
+            [
+              'التاريخ',
+              isScheduled && scheduledContext
+                ? scheduledContext.session.plannedDate.slice(0, 10)
+                : plan.date,
+            ],
+            ['الوقت', isScheduled ? plan.plannedStartTime || 'غير محدد' : '—'],
+            ['المكان', isScheduled ? plan.venue || 'غير محدد' : '—'],
             ['المستوى', plan.levelName],
             ['الكفاءة الختامية', plan.competencyTitle],
             ['الميدان', plan.fieldName],
             ['الهدف التعليمي', plan.sessionTitle],
             ['الأستاذ', plan.teacherName],
-            ['المدة', `${plan.durationMinutes} دقيقة`],
+            ['المدة', `${effectiveDuration} دقيقة`],
             ['رقم الحصة', String(plan.sessionGlobalNumber || '—')],
             ['الوسائل', plan.equipmentNeeded.join('، ')],
           ].map(([label, value]) => (
@@ -590,6 +819,30 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       <p className="text-xs text-slate-500">
         مجموع الزمن: {rows.reduce((sum, row) => sum + Number(row.durationMinutes || 0), 0)} دقيقة.
       </p>
+      {isScheduled && scheduledContext && (
+        <div className="flex flex-wrap gap-2 text-xs font-bold">
+          <button
+            onClick={() =>
+              window.location.assign(
+                `/planning?section=annual-distribution&classId=${encodeURIComponent(scheduledContext.classRoom.id)}&academicYearId=${encodeURIComponent(scheduledContext.session.academicYearId)}`
+              )
+            }
+            className="rounded-xl border border-slate-300 px-3 py-2"
+          >
+            التوزيع السنوي
+          </button>
+          <button
+            onClick={() =>
+              window.location.assign(
+                `/daily-notebook?classId=${encodeURIComponent(scheduledContext.classRoom.id)}&classPlannedSessionId=${encodeURIComponent(scheduledContext.session.id)}`
+              )
+            }
+            className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-blue-700"
+          >
+            الكراس اليومي
+          </button>
+        </div>
+      )}
 
       {generatorModal}
       {showBank && (

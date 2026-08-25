@@ -43,6 +43,8 @@ export interface LessonSession {
   endTime: string; // HH:mm
   sessionTitle: string;
   lessonPlanId?: string;
+  classPlannedSessionId?: string;
+  academicYearId?: string;
   educationalObjective: string;
   currentGameOrSituationTitle?: string;
   preparationObjective?: string;
@@ -626,6 +628,11 @@ export interface EducationalSituationSnapshot {
 export interface LessonPlan {
   id: string;
   dailyNotebookEntryId?: string;
+  classPlannedSessionId?: string;
+  academicYearId?: string;
+  classId?: string;
+  plannedStartTime?: string | null;
+  venue?: string | null;
   teacherId: string;
   institutionName: string; // اسم المدرسة الابتدائية
   teacherName: string; // اسم الأستاذ

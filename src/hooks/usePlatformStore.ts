@@ -42,6 +42,7 @@ import {
   approvePedagogicalGame,
   rejectPedagogicalGame,
   fetchStudentRoster,
+  updateTeacherPlanningSession,
 } from '../services/api';
 import {
   User,
@@ -698,31 +699,55 @@ export function usePlatformStore({
 
   const handleLaunchCommandCenterForPlan = (plan: LessonPlan) => {
     setActiveLessonPlanId(plan.id);
-    const targetClass = teacherClasses.find((c) => c.levelName === plan.levelName) ||
-      teacherClasses[0] || { id: 'c1', name: plan.className, levelName: plan.levelName };
-
-    const prepSecs = lessonTimingSettings.preparationMinutes * 60;
+    const scheduled = Boolean(plan.classPlannedSessionId);
+    const targetClass = scheduled
+      ? teacherClasses.find((item) => item.id === plan.classId)
+      : teacherClasses.find((item) => item.levelName === plan.levelName) || teacherClasses[0];
+    if (scheduled && !targetClass) return;
+    const resolvedClass = targetClass || {
+      id: plan.classId || 'c1',
+      name: plan.className,
+      levelName: plan.levelName,
+    };
+    const totalMinutes = scheduled
+      ? plan.durationMinutes
+      : lessonTimingSettings.preparationMinutes +
+        lessonTimingSettings.situation1Minutes +
+        lessonTimingSettings.situation2Minutes +
+        lessonTimingSettings.finalMinutes;
+    const preparationMinutes = scheduled
+      ? totalMinutes === 90
+        ? 15
+        : 10
+      : lessonTimingSettings.preparationMinutes;
+    const finalMinutes = scheduled ? 10 : lessonTimingSettings.finalMinutes;
+    const mainMinutes = Math.max(2, totalMinutes - preparationMinutes - finalMinutes);
+    const phaseDurations = {
+      preparation: preparationMinutes * 60,
+      situation1: Math.ceil((mainMinutes / 2) * 60),
+      situation2: Math.floor((mainMinutes / 2) * 60),
+      final: finalMinutes * 60,
+    };
     const newSession: LessonSession = {
-      id: `sess_${Date.now()}`,
+      id: 'sess_' + Date.now(),
       teacherId: currentUser.id,
-      classId: targetClass.id,
-      className: `${plan.levelName} (${plan.className || 'الفوج الأول'})`,
+      classId: resolvedClass.id,
+      className: resolvedClass.name,
+      classPlannedSessionId: plan.classPlannedSessionId,
+      academicYearId: plan.academicYearId,
       date: plan.date || new Date().toISOString().split('T')[0],
-      startTime: '08:00',
-      endTime: '09:00',
+      startTime: scheduled ? plan.plannedStartTime || 'غير محدد' : '08:00',
+      endTime: scheduled ? 'غير محدد' : '09:00',
       sessionTitle: plan.sessionTitle,
       lessonPlanId: plan.id,
       status: 'in_progress',
       currentPhase: 'preparation',
-      phaseRemainingSeconds: prepSecs,
+      phaseRemainingSeconds: phaseDurations.preparation,
       totalElapsedSeconds: 0,
       preparationObjective:
         plan.warmupPhase?.pedagogicalWarmupGame?.title ||
         'الإحماء العام والخاص وتجهيز التلاميذ بدﻧياً ونفسياً',
-      educationalObjective:
-        plan.generalObjective ||
-        plan.mainPhase?.learningSituation1?.description ||
-        'تطوير المهارات الحركية والتوافق البدني',
+      educationalObjective: plan.generalObjective || plan.sessionTitle,
       situation1Description:
         plan.mainPhase?.learningSituation1?.description ||
         'بناء التعلمات والتطبيق الحركي الفردي والجماعي',
@@ -732,29 +757,26 @@ export function usePlatformStore({
         'المنافسة المصغرة واللعب الموجه وفق القوانين',
       finalObjective:
         plan.coolDownPhase?.assessmentAndDialogue || 'العودة للهدوء وتفقد العتاد والتقويم الختامي',
-      phaseDurations: {
-        preparation: lessonTimingSettings.preparationMinutes * 60,
-        situation1: lessonTimingSettings.situation1Minutes * 60,
-        situation2: lessonTimingSettings.situation2Minutes * 60,
-        final: lessonTimingSettings.finalMinutes * 60,
-      },
-      actualPhaseSpent: {
-        preparation: 0,
-        situation1: 0,
-        situation2: 0,
-        final: 0,
-      },
+      phaseDurations,
+      actualPhaseSpent: { preparation: 0, situation1: 0, situation2: 0, final: 0 },
       startedAt: new Date().toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' }),
       isPaused: false,
       contingencyMode: 'normal',
     };
-
     setActiveLessonSession(newSession);
     setCurrentTab('lesson_command_center');
   };
 
   const handleUpdateLessonSession = (updated: Partial<LessonSession>) => {
     setActiveLessonSession((prev) => (prev ? { ...prev, ...updated } : null));
+  };
+
+  const handleCompletePlannedSession = async (
+    sessionId: string,
+    classId: string,
+    status: 'منجزة' | 'مؤجلة' | 'غير منجزة'
+  ) => {
+    await updateTeacherPlanningSession(classId, sessionId, { status });
   };
 
   const handleEndLessonSession = (log?: LessonExecutionLog) => {
@@ -765,6 +787,10 @@ export function usePlatformStore({
   };
 
   const handleAddNotebookEntry = (entry: Omit<DailyNotebookEntry, 'id'>) => {
+    if (entry.classPlannedSessionId) {
+      handleUpsertNotebookEntry(entry);
+      return;
+    }
     const newEntry: DailyNotebookEntry = {
       ...entry,
       id: `notebook_${Date.now()}`,
@@ -990,7 +1016,11 @@ export function usePlatformStore({
   };
 
   const handleSaveLessonPlan = (newPlan: LessonPlan) => {
-    setLessonPlans((prev) => [newPlan, ...prev]);
+    setLessonPlans((prev) =>
+      prev.some((plan) => plan.id === newPlan.id)
+        ? prev.map((plan) => (plan.id === newPlan.id ? newPlan : plan))
+        : [newPlan, ...prev]
+    );
     setActiveLessonPlanId(newPlan.id);
     syncLessonPlanToDB(newPlan);
   };
@@ -1458,6 +1488,7 @@ export function usePlatformStore({
     handleLaunchCommandCenterForPlan,
     handleUpdateLessonSession,
     handleEndLessonSession,
+    handleCompletePlannedSession,
     handleAddNotebookEntry,
     handleUpdateTimingSettings,
     handleToggleSound,

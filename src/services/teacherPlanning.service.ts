@@ -27,6 +27,7 @@ export interface CanonicalPlanningSession {
   learningSectionId: string;
   objectiveId: string | null;
   sequenceIndex: number;
+  fieldSessionNumber: number;
   sessionType: ScheduledAnnualSession['sessionType'];
   sessionTypeLabel: string;
   objective: string;
@@ -64,6 +65,7 @@ export function canonicalPlanningSessions(
       session.fieldId === 'intro' ? 'intro' : `${session.levelId}:${session.fieldId}`,
     objectiveId: session.objectiveGroupId || null,
     sequenceIndex: session.globalSessionNumber,
+    fieldSessionNumber: session.fieldSessionNumber,
     sessionType: session.sessionType,
     sessionTypeLabel: session.sessionTypeLabel,
     objective: session.targetObjective,

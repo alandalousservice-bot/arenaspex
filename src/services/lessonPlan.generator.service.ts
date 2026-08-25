@@ -26,7 +26,13 @@ export interface AutoGenerateContext {
   className?: string;
   teacher?: User;
   dailyNotebookEntryId?: string;
+  classPlannedSessionId?: string;
+  academicYearId?: string;
+  classId?: string;
+  plannedStartTime?: string | null;
+  venue?: string | null;
   date?: string;
+  durationMinutes?: number;
   previousSituationIds?: string[];
   situations?: EducationalSituation[];
 }
@@ -130,7 +136,10 @@ export function autoGenerateLessonPlan(
   session: AutoGenerateSessionSource,
   ctx: AutoGenerateContext
 ): LessonPlan {
-  const durationMinutes = lessonDurationForLevel(ctx.levelName);
+  const durationMinutes =
+    Number.isFinite(ctx.durationMinutes) && (ctx.durationMinutes || 0) > 0
+      ? Math.round(ctx.durationMinutes as number)
+      : lessonDurationForLevel(ctx.levelName);
   const preparationMinutes = durationMinutes === 90 ? 15 : 10;
   const closingMinutes = 10;
   const mainMinutes = durationMinutes - preparationMinutes - closingMinutes;
@@ -167,8 +176,15 @@ export function autoGenerateLessonPlan(
 
   // الحقول القديمة محفوظة للتوافق مع قرّاء السجلات والوحدات المشتركة فقط؛ الواجهة الجديدة لا تعرضها.
   return {
-    id: `lp_auto_${Date.now()}`,
+    id: ctx.classPlannedSessionId
+      ? `lp_session_${ctx.classPlannedSessionId}`
+      : `lp_auto_${Date.now()}`,
     dailyNotebookEntryId: ctx.dailyNotebookEntryId,
+    classPlannedSessionId: ctx.classPlannedSessionId,
+    academicYearId: ctx.academicYearId,
+    classId: ctx.classId,
+    plannedStartTime: ctx.plannedStartTime,
+    venue: ctx.venue,
     teacherId: teacher?.id || '',
     institutionName: teacher?.schoolName || 'المؤسسة التعليمية',
     teacherName: teacher ? `${teacher.firstName} ${teacher.lastName}` : 'أستاذ المادة',

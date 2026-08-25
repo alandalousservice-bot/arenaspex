@@ -172,6 +172,7 @@ export default function App() {
     handleLaunchCommandCenterForPlan,
     handleUpdateLessonSession,
     handleEndLessonSession,
+    handleCompletePlannedSession,
     handleAddNotebookEntry,
     handleUpdateTimingSettings,
     handleToggleSound,
@@ -427,6 +428,7 @@ export default function App() {
                 onDeleteLessonPlan={handleDeleteLessonPlan}
                 onUpdateLessonStatus={handleUpdateLessonStatus}
                 onOpenCommandCenterForPlan={handleLaunchCommandCenterForPlan}
+                teacherClasses={teacherClasses}
                 currentUser={currentUser}
               />
             )}
@@ -442,6 +444,7 @@ export default function App() {
                 onStartSession={handleStartLessonSession}
                 onUpdateSession={handleUpdateLessonSession}
                 onEndSession={handleEndLessonSession}
+                onCompletePlannedSession={handleCompletePlannedSession}
                 onUpdateTimingSettings={handleUpdateTimingSettings}
                 onNavigateToLessonPlans={() => navigateToTab('lesson_plans')}
                 onAddNotebookEntry={handleAddNotebookEntry}

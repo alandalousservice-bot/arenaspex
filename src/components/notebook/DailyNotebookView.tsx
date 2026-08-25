@@ -177,7 +177,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   });
   const openMemo = (session: TeacherPlanningSession, entry?: DailyNotebookEntry) => {
     window.location.assign(
-      `/lesson-plans?classId=${encodeURIComponent(session.classId)}&classPlannedSessionId=${encodeURIComponent(session.id)}${entry?.lessonPlanId ? `&lessonPlanId=${encodeURIComponent(entry.lessonPlanId)}` : ''}`
+      `/lesson-plans?classId=${encodeURIComponent(session.classId)}&classPlannedSessionId=${encodeURIComponent(session.id)}&academicYearId=${encodeURIComponent(session.academicYearId)}${entry?.lessonPlanId ? `&lessonPlanId=${encodeURIComponent(entry.lessonPlanId)}` : ''}`
     );
   };
   const shiftDate = (days: number) => {

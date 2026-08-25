@@ -1974,6 +1974,21 @@ function jsonCollectionRoutes(opts: {
     allowedCreateRoles,
   } = opts;
 
+  const validatePlannedLesson = async (item: Record<string, unknown>, user: { id: string }) => {
+    if (path !== 'lesson-plans' || typeof item.classPlannedSessionId !== 'string') return true;
+    if (typeof item.classId !== 'string' || typeof item.academicYearId !== 'string') return false;
+    const planned = await prisma.classPlannedSession.findFirst({
+      where: {
+        id: item.classPlannedSessionId,
+        classId: item.classId,
+        academicYearId: item.academicYearId,
+        teacherId: user.id,
+      },
+      select: { id: true },
+    });
+    return Boolean(planned);
+  };
+
   const validateNotebookSession = async (item: Record<string, unknown>, user: { id: string }) => {
     if (path !== 'notebook' || typeof item.classPlannedSessionId !== 'string') return true;
     if (typeof item.classId !== 'string' || typeof item.academicYearId !== 'string') return false;
@@ -2015,7 +2030,10 @@ function jsonCollectionRoutes(opts: {
     if (!item || !item.id) {
       return res.status(400).json({ error: 'بيانات غير مكتملة' });
     }
-    if (!(await validateNotebookSession(item as Record<string, unknown>, req.user!))) {
+    if (
+      !(await validatePlannedLesson(item as Record<string, unknown>, req.user!)) ||
+      !(await validateNotebookSession(item as Record<string, unknown>, req.user!))
+    ) {
       return res.status(403).json({ error: 'الحصة التشغيلية غير موجودة ضمن أقسامك.' });
     }
 
@@ -2036,6 +2054,15 @@ function jsonCollectionRoutes(opts: {
     const existing = await model.findUnique({ where: { id: item.id } });
     if (!canWrite(existing, req.user!)) {
       return res.status(403).json({ error: 'لا تملك الصلاحية لتعديل هذا العنصر.' });
+    }
+    if (path === 'lesson-plans' && existing) {
+      const existingData = (existing.data as Record<string, unknown>) || {};
+      if (
+        existingData.classPlannedSessionId &&
+        existingData.classPlannedSessionId !== item.classPlannedSessionId
+      ) {
+        return res.status(403).json({ error: 'لا يمكن نقل المذكرة إلى حصة تشغيلية أخرى.' });
+      }
     }
 
     const safeItem = transformCreate
@@ -2076,7 +2103,17 @@ function jsonCollectionRoutes(opts: {
       }
       for (const item of items) {
         if (!item.id) continue;
+        if (!(await validatePlannedLesson(item as Record<string, unknown>, req.user!))) continue;
         if (!(await validateNotebookSession(item as Record<string, unknown>, req.user!))) continue;
+        if (path === 'lesson-plans' && item.classPlannedSessionId) {
+          const existing = await model.findUnique({ where: { id: item.id } });
+          const existingData = (existing?.data as Record<string, unknown>) || {};
+          if (
+            existingData.classPlannedSessionId &&
+            existingData.classPlannedSessionId !== item.classPlannedSessionId
+          )
+            continue;
+        }
         if (path === 'inspector-notes' && req.user!.role === 'inspector') {
           const targetTeacherId = typeof item.teacherId === 'string' ? item.teacherId : '';
           const assignment = targetTeacherId
@@ -2142,6 +2179,7 @@ jsonCollectionRoutes({
   listKey: 'lessonPlans',
   batchBodyKey: 'lessonPlans',
   ownerField: 'ownerId',
+  transformCreate: (item, user) => ({ ...item, teacherId: user.id }),
   visibleTo: (row, user) => isStaff(user) || row.ownerId === user.id,
 });
 

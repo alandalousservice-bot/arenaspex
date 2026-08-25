@@ -22,7 +22,10 @@ import { CommandCenterWhistleConsole } from './commandCenter/CommandCenterWhistl
 import { CommandCenterActiveSession } from './commandCenter/CommandCenterActiveSession';
 import { CommandCenterFieldTools } from './commandCenter/CommandCenterFieldTools';
 import { CommandCenterModals } from './commandCenter/CommandCenterModals';
-import { buildSmartExecutionReport, computePhasePacing } from '../../services/lessonCommandCenter.service';
+import {
+  buildSmartExecutionReport,
+  computePhasePacing,
+} from '../../services/lessonCommandCenter.service';
 
 type FieldToolTab = 'guide' | 'attendance' | 'teams' | 'stopwatch' | 'coach' | 'notes';
 
@@ -36,6 +39,11 @@ interface LessonCommandCenterViewProps {
   onStartSession: (sessionData: Omit<LessonSession, 'id'>) => void;
   onUpdateSession: (updated: Partial<LessonSession>) => void;
   onEndSession: (executionLog?: LessonExecutionLog) => void;
+  onCompletePlannedSession?: (
+    sessionId: string,
+    classId: string,
+    status: 'منجزة' | 'مؤجلة' | 'غير منجزة'
+  ) => Promise<void> | void;
   onUpdateTimingSettings: (settings: LessonSessionTiming) => void;
   onNavigateToLessonPlans: () => void;
   onAddNotebookEntry?: (entry: Omit<DailyNotebookEntry, 'id'>) => void;
@@ -50,6 +58,7 @@ export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = (
   onStartSession,
   onUpdateSession,
   onEndSession,
+  onCompletePlannedSession,
   onUpdateTimingSettings,
   onNavigateToLessonPlans,
   onAddNotebookEntry,
@@ -89,11 +98,22 @@ export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = (
 
   // Auto-find matching lesson plan
   useEffect(() => {
+    if (currentSession) {
+      setSelectedClassId(currentSession.classId);
+      if (currentSession.lessonPlanId) setSelectedLessonPlanId(currentSession.lessonPlanId);
+    }
+  }, [currentSession, currentSession?.classPlannedSessionId]);
+
+  useEffect(() => {
+    if (currentSession?.classPlannedSessionId) return;
     if (selectedClassId) {
       const cls = teacherClasses.find((c) => c.id === selectedClassId);
       if (cls) {
         const matchingPlan = lessonPlans.find(
-          (lp) => lp.levelName === cls.levelId || lp.className === cls.name || lp.teacherId === cls.teacherId
+          (lp) =>
+            lp.levelName === cls.levelId ||
+            lp.className === cls.name ||
+            lp.teacherId === cls.teacherId
         );
         if (matchingPlan) {
           setSelectedLessonPlanId(matchingPlan.id);
@@ -102,11 +122,12 @@ export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = (
         }
       }
     }
-  }, [selectedClassId, teacherClasses, lessonPlans]);
+  }, [currentSession?.classPlannedSessionId, selectedClassId, teacherClasses, lessonPlans]);
 
-  const selectedPlan = lessonPlans.find((lp) => lp.id === selectedLessonPlanId) || lessonPlans[0] || null;
+  const selectedPlan =
+    lessonPlans.find((lp) => lp.id === selectedLessonPlanId) || lessonPlans[0] || null;
 
-  const handleFinishAndSave = () => {
+  const handleFinishAndSave = async () => {
     if (!currentSession) return;
     const durationMinutes = Math.round((currentSession.totalElapsedSeconds || 0) / 60) || 45;
 
@@ -114,18 +135,27 @@ export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = (
     const overruns = pacing
       .filter((p) => p.status === 'overrun')
       .map((p) => ({
-        phase: p.phase === 'preparation' ? 'المرحلة التحضيرية' : p.phase === 'situation1' ? 'الوضعية التعلمية 1' : p.phase === 'situation2' ? 'الوضعية التعلمية 2' : 'المرحلة الختامية',
+        phase:
+          p.phase === 'preparation'
+            ? 'المرحلة التحضيرية'
+            : p.phase === 'situation1'
+              ? 'الوضعية التعلمية 1'
+              : p.phase === 'situation2'
+                ? 'الوضعية التعلمية 2'
+                : 'المرحلة الختامية',
         minutes: Math.max(1, Math.round((p.spentSecs - p.plannedSecs) / 60)),
       }));
     const overrunTotalMins = overruns.reduce((sum, o) => sum + o.minutes, 0);
 
     const attendanceData = {
-      total: Object.keys(attendanceRecords).length > 0
-        ? Object.keys(attendanceRecords).length
-        : (students.filter((s) => s.classId === selectedClassId).length || 25),
-      present: Object.keys(attendanceRecords).length > 0
-        ? Object.values(attendanceRecords).filter((v) => v === 'present').length
-        : (students.filter((s) => s.classId === selectedClassId).length || 25),
+      total:
+        Object.keys(attendanceRecords).length > 0
+          ? Object.keys(attendanceRecords).length
+          : students.filter((s) => s.classId === selectedClassId).length || 25,
+      present:
+        Object.keys(attendanceRecords).length > 0
+          ? Object.values(attendanceRecords).filter((v) => v === 'present').length
+          : students.filter((s) => s.classId === selectedClassId).length || 25,
       absent: Object.values(attendanceRecords).filter((v) => v === 'absent').length,
       exempt: Object.values(attendanceRecords).filter((v) => v === 'exempt').length,
     };
@@ -133,9 +163,13 @@ export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = (
     const completionStatus: LessonExecutionLog['completionStatus'] =
       overrunTotalMins >= 2
         ? 'تجاوز زمني'
-        : (currentSession.totalElapsedSeconds || 0) > ((currentSession.phaseDurations?.preparation || 600) + (currentSession.phaseDurations?.situation1 || 1200) + (currentSession.phaseDurations?.situation2 || 1200) + (currentSession.phaseDurations?.final || 600))
-        ? 'تأخير بسيط'
-        : 'منجزة في الوقت';
+        : (currentSession.totalElapsedSeconds || 0) >
+            (currentSession.phaseDurations?.preparation || 600) +
+              (currentSession.phaseDurations?.situation1 || 1200) +
+              (currentSession.phaseDurations?.situation2 || 1200) +
+              (currentSession.phaseDurations?.final || 600)
+          ? 'تأخير بسيط'
+          : 'منجزة في الوقت';
 
     const notes = lessonNotesInput.trim() || undefined;
     const ratingsRecord = Object.keys(studentRatings).length > 0 ? studentRatings : undefined;
@@ -145,7 +179,8 @@ export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = (
       teacherId: currentSession.teacherId || 't_1',
       classId: currentSession.classId,
       className: currentSession.className,
-      lessonPlanTitle: currentSession.sessionTitle || currentSession.educationalObjective || 'حصة بيداغوجية',
+      lessonPlanTitle:
+        currentSession.sessionTitle || currentSession.educationalObjective || 'حصة بيداغوجية',
       date: new Date().toISOString().split('T')[0],
       actualStartTime: currentSession.startTime || '08:00',
       actualEndTime: new Date().toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' }),
@@ -168,17 +203,28 @@ export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = (
 
     setLastExecutionLog(log);
 
+    if (currentSession.classPlannedSessionId && onCompletePlannedSession) {
+      await onCompletePlannedSession(
+        currentSession.classPlannedSessionId,
+        currentSession.classId,
+        'منجزة'
+      );
+    }
+
     if (onAddNotebookEntry) {
       const attendanceRate = Math.round((attendanceData.present / attendanceData.total) * 100);
       onAddNotebookEntry({
         teacherId: currentSession.teacherId || 't_1',
         classId: currentSession.classId,
         className: currentSession.className,
-        levelName: 'التعليم الابتدائي / المتوسط',
-        executionDate: new Date().toISOString().split('T')[0],
-        timeSlot: '08:00 - 09:00',
-        segmentTitle: 'المقطع البيداغوجي المعتمد',
-        sessionTitle: currentSession.sessionTitle || 'حصة بيداغوجية',
+        classPlannedSessionId: currentSession.classPlannedSessionId,
+        academicYearId: currentSession.academicYearId,
+        levelName: teacherClasses.find((item) => item.id === currentSession.classId)?.levelName,
+        executionDate: currentSession.date,
+        timeSlot: currentSession.startTime || 'غير محدد',
+        segmentTitle: selectedPlan?.segmentTitle,
+        sessionTitle: currentSession.sessionTitle || selectedPlan?.sessionTitle || 'حصة بيداغوجية',
+        lessonPlanId: currentSession.lessonPlanId,
         status: 'منجزة',
         note: `تم الإنجاز الميداني بنجاح بنسبة حضور ${attendanceRate}%${overrunTotalMins > 0 ? ` مع تجاوز زمني ${overrunTotalMins} دقيقة` : ''}.`,
       });
@@ -215,7 +261,11 @@ export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = (
           selectedLessonPlanId={selectedLessonPlanId}
           onSelectLessonPlanId={setSelectedLessonPlanId}
           contingencyMode={contingencyMode}
-          onSelectContingencyMode={(mode) => setContingencyMode(mode as 'normal' | 'hot_weather' | 'equipment_shortage' | 'high_fatigue')}
+          onSelectContingencyMode={(mode) =>
+            setContingencyMode(
+              mode as 'normal' | 'hot_weather' | 'equipment_shortage' | 'high_fatigue'
+            )
+          }
           timingSettings={timingSettings}
           onStartSession={onStartSession}
           onNavigateToLessonPlans={onNavigateToLessonPlans}
@@ -250,7 +300,9 @@ export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = (
         currentPhase={currentSession?.currentPhase || 'preparation'}
         contingencyMode={contingencyMode}
         sessionTitle={currentSession?.sessionTitle || selectedPlan?.sessionTitle}
-        educationalObjective={currentSession?.educationalObjective || selectedPlan?.generalObjective}
+        educationalObjective={
+          currentSession?.educationalObjective || selectedPlan?.generalObjective
+        }
         studentRatings={studentRatings}
         onSetStudentRating={handleSetStudentRating}
         lessonNotesInput={lessonNotesInput}
