@@ -1146,6 +1146,19 @@ export const approveSchoolSuggestion = (id: string) =>
 export const rejectSchoolSuggestion = (id: string) =>
   postJSON(`/api/admin/suggestions/schools/${id}/reject`);
 
+export async function fetchAdminInspectorWorkspace() {
+  return getJSON('/api/admin/inspectors/workspace') as Promise<{
+    success: boolean;
+    inspectors?: any[];
+    districts?: any[];
+    teachers?: any[];
+    assignments?: any[];
+    error?: string;
+  }>;
+}
+
+export const createAdminAssignment = (teacherId: string, inspectorId: string) =>
+  postJSON('/api/admin/assignments', { teacherId, inspectorId });
 export const fetchAllAssignments = (status?: string) =>
   getJSON(`/api/admin/assignments${status ? `?status=${status}` : ''}`);
 export const reassignAllTeachers = () => postJSON('/api/admin/assignments/reassign-all');

@@ -6,7 +6,7 @@ import { AdminAccountDetailPage } from './AdminAccountDetailPage';
 import { AdminOverview } from './AdminOverview';
 import { AdminPendingUsersPage } from './AdminPendingUsersPage';
 import { AdminReportsPage } from './AdminReportsPage';
-import { AssignmentAdminPanel } from './AssignmentAdminPanel';
+import { AdminInspectorWorkspacePage } from './AdminInspectorWorkspacePage';
 import { KnowledgeEngineView } from '../knowledge/KnowledgeEngineView';
 import { AISetting, AILog, CommunityResource, KnowledgeItem, User } from '../../types/spex';
 
@@ -35,7 +35,14 @@ export const AdminWorkspacePage: React.FC<AdminWorkspacePageProps> = (props) => 
     return <AdminAccountDetailPage currentUser={props.currentUser} />;
   if (pathname === '/admin/accounts') return <AdminAccountsPage />;
   if (pathname === '/admin/pending-users') return <AdminPendingUsersPage />;
-  if (pathname === '/admin/inspectors') return <AssignmentAdminPanel />;
+  if (pathname === '/admin/inspectors')
+    return (
+      <AdminInspectorWorkspacePage
+        currentUser={props.currentUser}
+        onAddUser={props.onAddUser}
+        onUpdateUser={props.onUpdateUser}
+      />
+    );
   if (pathname === '/admin/reports') return <AdminReportsPage fallbackUsers={props.users} />;
   if (pathname === '/admin/curriculum')
     return (

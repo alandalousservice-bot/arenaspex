@@ -18,7 +18,7 @@ import {
   removeAssignment,
   acceptAssignment,
   rejectAssignment,
-  AssignmentError
+  AssignmentError,
 } from './assignmentService.js';
 
 export const assignmentRouter = Router();
@@ -37,7 +37,7 @@ assignmentRouter.get('/locations/directorates', async (req, res) => {
 assignmentRouter.get('/locations/directorates/:id/municipalities', async (req, res) => {
   const municipalities = await prisma.municipality.findMany({
     where: { directorateId: req.params.id },
-    orderBy: { name: 'asc' }
+    orderBy: { name: 'asc' },
   });
   res.json({ success: true, municipalities });
 });
@@ -45,7 +45,7 @@ assignmentRouter.get('/locations/directorates/:id/municipalities', async (req, r
 assignmentRouter.get('/locations/directorates/:id/districts', async (req, res) => {
   const districts = await prisma.inspectionDistrict.findMany({
     where: { directorateId: req.params.id },
-    orderBy: { districtNumber: 'asc' }
+    orderBy: { districtNumber: 'asc' },
   });
   res.json({ success: true, districts });
 });
@@ -53,7 +53,7 @@ assignmentRouter.get('/locations/directorates/:id/districts', async (req, res) =
 assignmentRouter.get('/locations/municipalities/:id/schools', async (req, res) => {
   const schools = await prisma.school.findMany({
     where: { municipalityId: req.params.id },
-    orderBy: { name: 'asc' }
+    orderBy: { name: 'asc' },
   });
   res.json({ success: true, schools });
 });
@@ -65,7 +65,7 @@ assignmentRouter.get('/locations/municipalities/:id/schools', async (req, res) =
 
 const suggestMunicipalitySchema = z.object({
   name: z.string().trim().min(2, 'اسم البلدية قصير جداً'),
-  directorateId: z.string().min(1)
+  directorateId: z.string().min(1),
 });
 
 assignmentRouter.post('/locations/municipalities/suggest', async (req, res) => {
@@ -73,23 +73,29 @@ assignmentRouter.post('/locations/municipalities/suggest', async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.errors[0]?.message || 'بيانات غير صحيحة.' });
   }
-  const directorate = await prisma.directorate.findUnique({ where: { id: parsed.data.directorateId } });
+  const directorate = await prisma.directorate.findUnique({
+    where: { id: parsed.data.directorateId },
+  });
   if (!directorate) {
     return res.status(404).json({ error: 'مديرية التربية المحددة غير موجودة.' });
   }
   const suggestion = await prisma.municipalitySuggestion.create({
-    data: { name: parsed.data.name, directorateId: parsed.data.directorateId, suggestedBy: req.user!.id }
+    data: {
+      name: parsed.data.name,
+      directorateId: parsed.data.directorateId,
+      suggestedBy: req.user!.id,
+    },
   });
   res.json({
     success: true,
     suggestion,
-    message: 'تم إرسال اقتراحك بنجاح، وسيتم إسناد إشرافك تلقائياً بمجرد اعتماد الإدارة له.'
+    message: 'تم إرسال اقتراحك بنجاح، وسيتم إسناد إشرافك تلقائياً بمجرد اعتماد الإدارة له.',
   });
 });
 
 const suggestSchoolSchema = z.object({
   name: z.string().trim().min(2, 'اسم المؤسسة قصير جداً'),
-  municipalityId: z.string().min(1)
+  municipalityId: z.string().min(1),
 });
 
 assignmentRouter.post('/locations/schools/suggest', async (req, res) => {
@@ -97,17 +103,23 @@ assignmentRouter.post('/locations/schools/suggest', async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.errors[0]?.message || 'بيانات غير صحيحة.' });
   }
-  const municipality = await prisma.municipality.findUnique({ where: { id: parsed.data.municipalityId } });
+  const municipality = await prisma.municipality.findUnique({
+    where: { id: parsed.data.municipalityId },
+  });
   if (!municipality) {
     return res.status(404).json({ error: 'البلدية المحددة غير موجودة.' });
   }
   const suggestion = await prisma.schoolSuggestion.create({
-    data: { name: parsed.data.name, municipalityId: parsed.data.municipalityId, suggestedBy: req.user!.id }
+    data: {
+      name: parsed.data.name,
+      municipalityId: parsed.data.municipalityId,
+      suggestedBy: req.user!.id,
+    },
   });
   res.json({
     success: true,
     suggestion,
-    message: 'تم إرسال اقتراحك بنجاح، وسيتم إسناد إشرافك تلقائياً بمجرد اعتماد الإدارة له.'
+    message: 'تم إرسال اقتراحك بنجاح، وسيتم إسناد إشرافك تلقائياً بمجرد اعتماد الإدارة له.',
   });
 });
 
@@ -128,7 +140,7 @@ const professionalDataSchema = z.object({
   birthDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'تاريخ الميلاد يجب أن يكون بصيغة YYYY-MM-DD')
-    .optional()
+    .optional(),
 });
 
 function remapHistoricDirectorateId(id?: string | null): string | null {
@@ -143,7 +155,15 @@ assignmentRouter.put('/teacher/professional-data', requireRole('teacher'), async
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.errors[0]?.message || 'بيانات غير صحيحة.' });
   }
-  const { directorateId: rawDirectorateId, municipalityId, institutionId, districtId, firstName, lastName, birthDate } = parsed.data;
+  const {
+    directorateId: rawDirectorateId,
+    municipalityId,
+    institutionId,
+    districtId,
+    firstName,
+    lastName,
+    birthDate,
+  } = parsed.data;
 
   const directorateId = remapHistoricDirectorateId(rawDirectorateId) || rawDirectorateId;
 
@@ -151,7 +171,9 @@ assignmentRouter.put('/teacher/professional-data', requireRole('teacher'), async
     prisma.directorate.findUnique({ where: { id: directorateId } }),
     prisma.municipality.findUnique({ where: { id: municipalityId } }),
     prisma.school.findUnique({ where: { id: institutionId } }),
-    districtId ? prisma.inspectionDistrict.findUnique({ where: { id: districtId } }) : Promise.resolve(null)
+    districtId
+      ? prisma.inspectionDistrict.findUnique({ where: { id: districtId } })
+      : Promise.resolve(null),
   ]);
 
   if (!directorate) return res.status(404).json({ error: 'مديرية التربية غير موجودة.' });
@@ -162,7 +184,9 @@ assignmentRouter.put('/teacher/professional-data', requireRole('teacher'), async
     return res.status(400).json({ error: 'المؤسسة المحددة لا تتبع البلدية المختارة.' });
   }
   if (districtId && district && district.directorateId !== directorateId) {
-    return res.status(400).json({ error: 'المقاطعة التفتيشية المحددة لا تتبع مديرية التربية المختارة.' });
+    return res
+      .status(400)
+      .json({ error: 'المقاطعة التفتيشية المحددة لا تتبع مديرية التربية المختارة.' });
   }
   if (districtId && !district) {
     return res.status(404).json({ error: 'المقاطعة التفتيشية غير موجودة.' });
@@ -202,7 +226,7 @@ assignmentRouter.put('/teacher/professional-data', requireRole('teacher'), async
 
   const updated = await prisma.user.update({
     where: { id: req.user!.id },
-    data: updateData
+    data: updateData,
   });
 
   // إذا لم يطلب المقاطعة ⇒ لا سجل إسناد إطلاقاً
@@ -218,7 +242,7 @@ assignmentRouter.put('/teacher/professional-data', requireRole('teacher'), async
       user: sanitizeUser(updated),
       assignment: null,
       inspector: null,
-      message: 'لم تطلب الإسناد بعد'
+      message: 'لم تطلب الإسناد بعد',
     });
   }
 
@@ -241,7 +265,7 @@ assignmentRouter.put('/teacher/professional-data', requireRole('teacher'), async
         ? 'تم استكمال بياناتك وربطك بمفتشك (مقبول سابقاً).'
         : assignment?.inspectorId
           ? 'تم حفظ بياناتك وإرسال طلب الإسناد إلى المفتش المختص بانتظار موافقته.'
-          : 'تم حفظ بياناتك بنجاح. لا يوجد حالياً مفتش مسجَّل لمقاطعتك، وسيتم الإسناد تلقائياً بمجرد توفره.'
+          : 'تم حفظ بياناتك بنجاح. لا يوجد حالياً مفتش مسجَّل لمقاطعتك، وسيتم الإسناد تلقائياً بمجرد توفره.',
   });
 });
 
@@ -250,7 +274,9 @@ assignmentRouter.put('/teacher/professional-data', requireRole('teacher'), async
 // -----------------------------------------------------------------------
 
 assignmentRouter.get('/teacher/assignment', requireRole('teacher'), async (req, res) => {
-  const assignment = await prisma.inspectorAssignment.findUnique({ where: { teacherId: req.user!.id } });
+  const assignment = await prisma.inspectorAssignment.findUnique({
+    where: { teacherId: req.user!.id },
+  });
   if (!assignment) {
     return res.json({ success: true, assignment: null, inspector: null });
   }
@@ -269,16 +295,26 @@ assignmentRouter.get('/teacher/inspection-feed', requireRole('teacher'), async (
   const assignment = await prisma.inspectorAssignment.findUnique({
     where: { teacherId: req.user!.id },
   });
-  const inspector = assignment?.inspectorId && ['Active', 'Changed'].includes(assignment.status)
-    ? await prisma.user.findFirst({
-        where: { id: assignment.inspectorId, role: 'inspector', status: 'active' },
-      })
-    : null;
+  const inspector =
+    assignment?.inspectorId && ['Active', 'Changed'].includes(assignment.status)
+      ? await prisma.user.findFirst({
+          where: { id: assignment.inspectorId, role: 'inspector', status: 'active' },
+        })
+      : null;
   if (!inspector) {
-    return res.json({ success: true, inspector: null, guidance: [], visits: [], counts: { guidance: 0, visits: 0, interactions: 0 } });
+    return res.json({
+      success: true,
+      inspector: null,
+      guidance: [],
+      visits: [],
+      counts: { guidance: 0, visits: 0, interactions: 0 },
+    });
   }
 
-  const teacher = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { districtId: true } });
+  const teacher = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: { districtId: true },
+  });
   const [notes, visits] = await Promise.all([
     prisma.inspectorNote.findMany({
       where: { authorId: inspector.id },
@@ -292,16 +328,26 @@ assignmentRouter.get('/teacher/inspection-feed', requireRole('teacher'), async (
   const guidance = notes
     .filter((row) => {
       const data = (row.data || {}) as Record<string, unknown>;
-      return data.teacherId === req.user!.id || (teacher?.districtId && data.districtId === teacher.districtId);
+      return (
+        data.teacherId === req.user!.id ||
+        (teacher?.districtId && data.districtId === teacher.districtId)
+      );
     })
     .map((row) => row.data);
-  const displayName = `${inspector.firstName || ''} ${inspector.lastName || ''}`.trim() || inspector.username || 'المفتش';
+  const displayName =
+    `${inspector.firstName || ''} ${inspector.lastName || ''}`.trim() ||
+    inspector.username ||
+    'المفتش';
   return res.json({
     success: true,
     inspector: { id: inspector.id, displayName },
     guidance,
     visits: visits.map((row) => row.data),
-    counts: { guidance: guidance.length, visits: visits.length, interactions: guidance.length + visits.length },
+    counts: {
+      guidance: guidance.length,
+      visits: visits.length,
+      interactions: guidance.length + visits.length,
+    },
   });
 });
 
@@ -313,7 +359,7 @@ assignmentRouter.get('/inspector/teachers', requireRole('inspector'), async (req
   const { municipalityId, institutionId } = req.query;
 
   const assignments = await prisma.inspectorAssignment.findMany({
-    where: { inspectorId: req.user!.id, status: { in: ['Active', 'Changed'] } }
+    where: { inspectorId: req.user!.id, status: { in: ['Active', 'Changed'] } },
   });
   const teacherIds = assignments.map((a) => a.teacherId);
 
@@ -321,9 +367,9 @@ assignmentRouter.get('/inspector/teachers', requireRole('inspector'), async (req
     where: {
       id: { in: teacherIds },
       ...(municipalityId ? { municipalityId: String(municipalityId) } : {}),
-      ...(institutionId ? { institutionId: String(institutionId) } : {})
+      ...(institutionId ? { institutionId: String(institutionId) } : {}),
     },
-    orderBy: { firstName: 'asc' }
+    orderBy: { firstName: 'asc' },
   });
   const acceptedIds = teachers.map((teacher) => teacher.id);
   const [visits, notes, classes, students] = await Promise.all([
@@ -332,8 +378,14 @@ assignmentRouter.get('/inspector/teachers', requireRole('inspector'), async (req
       orderBy: { createdAt: 'desc' },
     }),
     prisma.inspectorNote.findMany({ where: { authorId: req.user!.id } }),
-    prisma.studentClass.findMany({ where: { teacherId: { in: acceptedIds } }, select: { teacherId: true } }),
-    prisma.student.findMany({ where: { teacherId: { in: acceptedIds } }, select: { teacherId: true } }),
+    prisma.studentClass.findMany({
+      where: { teacherId: { in: acceptedIds } },
+      select: { teacherId: true },
+    }),
+    prisma.student.findMany({
+      where: { teacherId: { in: acceptedIds } },
+      select: { teacherId: true },
+    }),
   ]);
   const visitsByTeacher = new Map<string, typeof visits>();
   for (const visit of visits) {
@@ -342,50 +394,100 @@ assignmentRouter.get('/inspector/teachers', requireRole('inspector'), async (req
     visitsByTeacher.set(visit.teacherId, rows);
   }
   const classCounts = new Map<string, number>();
-  for (const item of classes) classCounts.set(item.teacherId, (classCounts.get(item.teacherId) || 0) + 1);
+  for (const item of classes)
+    classCounts.set(item.teacherId, (classCounts.get(item.teacherId) || 0) + 1);
   const noteCounts = new Map<string, number>();
   const studentCounts = new Map<string, number>();
-  for (const student of students) studentCounts.set(student.teacherId, (studentCounts.get(student.teacherId) || 0) + 1);
+  for (const student of students)
+    studentCounts.set(student.teacherId, (studentCounts.get(student.teacherId) || 0) + 1);
   for (const note of notes) {
-    const teacherId = typeof (note.data as Record<string, unknown>)?.teacherId === 'string'
-      ? String((note.data as Record<string, unknown>).teacherId)
-      : '';
-    if (acceptedIds.includes(teacherId)) noteCounts.set(teacherId, (noteCounts.get(teacherId) || 0) + 1);
+    const teacherId =
+      typeof (note.data as Record<string, unknown>)?.teacherId === 'string'
+        ? String((note.data as Record<string, unknown>).teacherId)
+        : '';
+    if (acceptedIds.includes(teacherId))
+      noteCounts.set(teacherId, (noteCounts.get(teacherId) || 0) + 1);
   }
   res.json({
     success: true,
     teachers: teachers.map((teacher) => ({
       ...sanitizeUser(teacher),
-      assignmentId: assignments.find((assignment) => assignment.teacherId === teacher.id)?.id || null,
+      assignmentId:
+        assignments.find((assignment) => assignment.teacherId === teacher.id)?.id || null,
       assignmentStatus: 'ACCEPTED',
-      assignmentDate: assignments.find((assignment) => assignment.teacherId === teacher.id)?.assignedAt || null,
+      assignmentDate:
+        assignments.find((assignment) => assignment.teacherId === teacher.id)?.assignedAt || null,
       classCount: classCounts.get(teacher.id) || 0,
       studentCount: studentCounts.get(teacher.id) || 0,
       visitCount: visitsByTeacher.get(teacher.id)?.length || 0,
       noteCount: noteCounts.get(teacher.id) || 0,
       lastVisitAt: visitsByTeacher.get(teacher.id)?.[0]?.createdAt || null,
-      followUpStatus: visitsByTeacher.get(teacher.id)?.length ? 'متابعة مستمرة' : 'لم تتم الزيارة بعد',
+      followUpStatus: visitsByTeacher.get(teacher.id)?.length
+        ? 'متابعة مستمرة'
+        : 'لم تتم الزيارة بعد',
     })),
   });
 });
 
-assignmentRouter.get('/inspector/teachers/:teacherId/follow-up', requireRole('inspector'), async (req, res) => {
-  const teacherId = req.params.teacherId;
-  const assignment = await prisma.inspectorAssignment.findUnique({ where: { teacherId } });
-  if (!assignment || assignment.inspectorId !== req.user!.id || !['Active', 'Changed'].includes(assignment.status)) {
-    return res.status(404).json({ error: 'الأستاذ غير موجود ضمن إسناداتك المقبولة.' });
+assignmentRouter.get(
+  '/inspector/teachers/:teacherId/follow-up',
+  requireRole('inspector'),
+  async (req, res) => {
+    const teacherId = req.params.teacherId;
+    const assignment = await prisma.inspectorAssignment.findUnique({ where: { teacherId } });
+    if (
+      !assignment ||
+      assignment.inspectorId !== req.user!.id ||
+      !['Active', 'Changed'].includes(assignment.status)
+    ) {
+      return res.status(404).json({ error: 'الأستاذ غير موجود ضمن إسناداتك المقبولة.' });
+    }
+    const [teacher, classes, students, visits, notes, plans] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: teacherId },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          schoolName: true,
+          institutionId: true,
+          status: true,
+        },
+      }),
+      prisma.studentClass.findMany({ where: { teacherId }, orderBy: { createdAt: 'asc' } }),
+      prisma.student.findMany({ where: { teacherId }, orderBy: { lastName: 'asc' } }),
+      prisma.inspectionVisitRecord.findMany({
+        where: { teacherId, inspectorId: req.user!.id },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.inspectorNote.findMany({
+        where: { authorId: req.user!.id },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.lessonPlan.findMany({
+        where: { ownerId: teacherId },
+        orderBy: { updatedAt: 'desc' },
+        take: 50,
+      }),
+    ]);
+    const guidance = notes
+      .filter((note) => (note.data as Record<string, unknown>)?.teacherId === teacherId)
+      .map((note) => note.data);
+    res.json({
+      success: true,
+      teacher,
+      assignment,
+      classes,
+      students,
+      visits: visits.map((row) => row.data),
+      guidance,
+      reports: visits.map((row) => row.data),
+      lessonPlans: plans.map((row) => ({ id: row.id, data: row.data, updatedAt: row.updatedAt })),
+    });
   }
-  const [teacher, classes, students, visits, notes, plans] = await Promise.all([
-    prisma.user.findUnique({ where: { id: teacherId }, select: { id: true, firstName: true, lastName: true, email: true, phone: true, schoolName: true, institutionId: true, status: true } }),
-    prisma.studentClass.findMany({ where: { teacherId }, orderBy: { createdAt: 'asc' } }),
-    prisma.student.findMany({ where: { teacherId }, orderBy: { lastName: 'asc' } }),
-    prisma.inspectionVisitRecord.findMany({ where: { teacherId, inspectorId: req.user!.id }, orderBy: { createdAt: 'desc' } }),
-    prisma.inspectorNote.findMany({ where: { authorId: req.user!.id }, orderBy: { createdAt: 'desc' } }),
-    prisma.lessonPlan.findMany({ where: { ownerId: teacherId }, orderBy: { updatedAt: 'desc' }, take: 50 }),
-  ]);
-  const guidance = notes.filter((note) => (note.data as Record<string, unknown>)?.teacherId === teacherId).map((note) => note.data);
-  res.json({ success: true, teacher, assignment, classes, students, visits: visits.map((row) => row.data), guidance, reports: visits.map((row) => row.data), lessonPlans: plans.map((row) => ({ id: row.id, data: row.data, updatedAt: row.updatedAt })) });
-});
+);
 
 assignmentRouter.get('/inspector/visits', requireRole('inspector'), async (req, res) => {
   const assignments = await prisma.inspectorAssignment.findMany({
@@ -402,95 +504,133 @@ assignmentRouter.get('/inspector/visits', requireRole('inspector'), async (req, 
 
 assignmentRouter.get('/inspector/summary', requireRole('inspector'), async (req, res) => {
   const inspectorId = req.user!.id;
-  const [accepted, pending, visits, notes, messages, games, situations, resources, broadcasts] = await Promise.all([
-    prisma.inspectorAssignment.count({ where: { inspectorId, status: { in: ['Active', 'Changed'] } } }),
-    prisma.inspectorAssignment.count({ where: { inspectorId, status: 'Pending' } }),
-    prisma.inspectionVisitRecord.count({ where: { inspectorId } }),
-    prisma.inspectorNote.count({ where: { authorId: inspectorId } }),
-    prisma.directMessage.count({ where: { recipientId: inspectorId, readAt: null } }),
-    prisma.pedagogicalGame.findMany({ select: { status: true } }),
-    prisma.educationalSituation.findMany({ select: { status: true } }),
-    prisma.communityResource.findMany({ select: { data: true } }),
-    prisma.districtMessage.count({ where: { authorId: inspectorId } }),
-  ]);
-  const pendingResources = games.filter((row) => row.status === 'PENDING_APPROVAL').length + situations.filter((row) => row.status === 'PENDING_APPROVAL').length + resources.filter((row) => ['PENDING', 'PENDING_REVIEW', 'PENDING_APPROVAL'].includes(String((row.data as Record<string, unknown>)?.status || ''))).length;
-  res.json({ success: true, summary: { teachersCount: accepted, pendingAssignmentsCount: pending, visitsCount: visits, guidanceCount: notes + broadcasts, unreadMessagesCount: messages, pendingApprovalsCount: pendingResources } });
+  const [accepted, pending, visits, notes, messages, games, situations, resources, broadcasts] =
+    await Promise.all([
+      prisma.inspectorAssignment.count({
+        where: { inspectorId, status: { in: ['Active', 'Changed'] } },
+      }),
+      prisma.inspectorAssignment.count({ where: { inspectorId, status: 'Pending' } }),
+      prisma.inspectionVisitRecord.count({ where: { inspectorId } }),
+      prisma.inspectorNote.count({ where: { authorId: inspectorId } }),
+      prisma.directMessage.count({ where: { recipientId: inspectorId, readAt: null } }),
+      prisma.pedagogicalGame.findMany({ select: { status: true } }),
+      prisma.educationalSituation.findMany({ select: { status: true } }),
+      prisma.communityResource.findMany({ select: { data: true } }),
+      prisma.districtMessage.count({ where: { authorId: inspectorId } }),
+    ]);
+  const pendingResources =
+    games.filter((row) => row.status === 'PENDING_APPROVAL').length +
+    situations.filter((row) => row.status === 'PENDING_APPROVAL').length +
+    resources.filter((row) =>
+      ['PENDING', 'PENDING_REVIEW', 'PENDING_APPROVAL'].includes(
+        String((row.data as Record<string, unknown>)?.status || '')
+      )
+    ).length;
+  res.json({
+    success: true,
+    summary: {
+      teachersCount: accepted,
+      pendingAssignmentsCount: pending,
+      visitsCount: visits,
+      guidanceCount: notes + broadcasts,
+      unreadMessagesCount: messages,
+      pendingApprovalsCount: pendingResources,
+    },
+  });
 });
 
 // PART B/B2 — قبل بوابة requireRole('admin') مباشرة: مسارات المفتش لقبول/رفض الإسناد
-assignmentRouter.get('/inspector/pending-assignments', requireRole('inspector'), async (req, res) => {
-  try {
-    const pending = await prisma.inspectorAssignment.findMany({
-      where: { inspectorId: req.user!.id, status: 'Pending' },
-      orderBy: { createdAt: 'desc' }
-    });
+assignmentRouter.get(
+  '/inspector/pending-assignments',
+  requireRole('inspector'),
+  async (req, res) => {
+    try {
+      const pending = await prisma.inspectorAssignment.findMany({
+        where: { inspectorId: req.user!.id, status: 'Pending' },
+        orderBy: { createdAt: 'desc' },
+      });
 
-    const teacherIds = pending.map((p) => p.teacherId);
-    const teachers = await prisma.user.findMany({ where: { id: { in: teacherIds } } });
-    const teacherMap = new Map(teachers.map((t) => [t.id, t]));
+      const teacherIds = pending.map((p) => p.teacherId);
+      const teachers = await prisma.user.findMany({ where: { id: { in: teacherIds } } });
+      const teacherMap = new Map(teachers.map((t) => [t.id, t]));
 
-    const result = pending.map((a) => {
-      const teacher = teacherMap.get(a.teacherId) as any;
-      // الكيان المعقم للأستاذ: الاسم، schoolName، municipality، الهاتف، البريد، تاريخ الطلب
-      const sterilized = teacher
-        ? {
-            id: teacher.id,
-            firstName: teacher.firstName,
-            lastName: teacher.lastName,
-            schoolName: teacher.schoolName,
-            municipality: teacher.municipality,
-            phone: teacher.phone,
-            email: teacher.email,
-            birthDate: teacher.birthDate || null,
-            createdAt: a.createdAt,
-            updatedAt: a.updatedAt
-          }
-        : null;
-      return {
-        ...a,
-        teacher: sterilized ? sanitizeUser(sterilized as any) : null
-      };
-    });
+      const result = pending.map((a) => {
+        const teacher = teacherMap.get(a.teacherId) as any;
+        // الكيان المعقم للأستاذ: الاسم، schoolName، municipality، الهاتف، البريد، تاريخ الطلب
+        const sterilized = teacher
+          ? {
+              id: teacher.id,
+              firstName: teacher.firstName,
+              lastName: teacher.lastName,
+              schoolName: teacher.schoolName,
+              municipality: teacher.municipality,
+              phone: teacher.phone,
+              email: teacher.email,
+              birthDate: teacher.birthDate || null,
+              createdAt: a.createdAt,
+              updatedAt: a.updatedAt,
+            }
+          : null;
+        return {
+          ...a,
+          teacher: sterilized ? sanitizeUser(sterilized as any) : null,
+        };
+      });
 
-    res.json({ success: true, assignments: result });
-  } catch (err) {
-    console.error('pending-assignments error:', err);
-    res.status(500).json({ success: false, error: 'تعذر جلب طلبات الإسناد المعلقة.' });
-  }
-});
-
-assignmentRouter.post('/inspector/assignments/:teacherId/accept', requireRole('inspector'), async (req, res) => {
-  const { teacherId } = req.params;
-  try {
-    const assignment = await acceptAssignment(teacherId, req.user!.id);
-    res.json({ success: true, assignment });
-  } catch (err: any) {
-    if (err instanceof AssignmentError) {
-      if (err.code === 'NOT_FOUND') return res.status(404).json({ success: false, error: err.message, code: err.code });
-      if (err.code === 'FORBIDDEN') return res.status(403).json({ success: false, error: err.message, code: err.code });
-      if (err.code === 'ALREADY_HANDLED') return res.status(409).json({ success: false, error: err.message, code: err.code });
+      res.json({ success: true, assignments: result });
+    } catch (err) {
+      console.error('pending-assignments error:', err);
+      res.status(500).json({ success: false, error: 'تعذر جلب طلبات الإسناد المعلقة.' });
     }
-    console.error('accept assignment error:', err);
-    res.status(500).json({ success: false, error: 'تعذر قبول الإسناد.' });
   }
-});
+);
 
-assignmentRouter.post('/inspector/assignments/:teacherId/reject', requireRole('inspector'), async (req, res) => {
-  const { teacherId } = req.params;
-  const { reason } = req.body as { reason?: string };
-  try {
-    const assignment = await rejectAssignment(teacherId, req.user!.id, reason);
-    res.json({ success: true, assignment });
-  } catch (err: any) {
-    if (err instanceof AssignmentError) {
-      if (err.code === 'NOT_FOUND') return res.status(404).json({ success: false, error: err.message, code: err.code });
-      if (err.code === 'FORBIDDEN') return res.status(403).json({ success: false, error: err.message, code: err.code });
-      if (err.code === 'ALREADY_HANDLED') return res.status(409).json({ success: false, error: err.message, code: err.code });
+assignmentRouter.post(
+  '/inspector/assignments/:teacherId/accept',
+  requireRole('inspector'),
+  async (req, res) => {
+    const { teacherId } = req.params;
+    try {
+      const assignment = await acceptAssignment(teacherId, req.user!.id);
+      res.json({ success: true, assignment });
+    } catch (err: any) {
+      if (err instanceof AssignmentError) {
+        if (err.code === 'NOT_FOUND')
+          return res.status(404).json({ success: false, error: err.message, code: err.code });
+        if (err.code === 'FORBIDDEN')
+          return res.status(403).json({ success: false, error: err.message, code: err.code });
+        if (err.code === 'ALREADY_HANDLED')
+          return res.status(409).json({ success: false, error: err.message, code: err.code });
+      }
+      console.error('accept assignment error:', err);
+      res.status(500).json({ success: false, error: 'تعذر قبول الإسناد.' });
     }
-    console.error('reject assignment error:', err);
-    res.status(500).json({ success: false, error: 'تعذر رفض الإسناد.' });
   }
-});
+);
+
+assignmentRouter.post(
+  '/inspector/assignments/:teacherId/reject',
+  requireRole('inspector'),
+  async (req, res) => {
+    const { teacherId } = req.params;
+    const { reason } = req.body as { reason?: string };
+    try {
+      const assignment = await rejectAssignment(teacherId, req.user!.id, reason);
+      res.json({ success: true, assignment });
+    } catch (err: any) {
+      if (err instanceof AssignmentError) {
+        if (err.code === 'NOT_FOUND')
+          return res.status(404).json({ success: false, error: err.message, code: err.code });
+        if (err.code === 'FORBIDDEN')
+          return res.status(403).json({ success: false, error: err.message, code: err.code });
+        if (err.code === 'ALREADY_HANDLED')
+          return res.status(409).json({ success: false, error: err.message, code: err.code });
+      }
+      console.error('reject assignment error:', err);
+      res.status(500).json({ success: false, error: 'تعذر رفض الإسناد.' });
+    }
+  }
+);
 
 // -----------------------------------------------------------------------
 // 6. صلاحيات الإدارة: إدارة الهيكل الإداري + اعتماد الاقتراحات + الإسناد الجماعي
@@ -498,7 +638,11 @@ assignmentRouter.post('/inspector/assignments/:teacherId/reject', requireRole('i
 
 assignmentRouter.use(requireRole('admin'));
 
-const directorateSchema = z.object({ id: z.string().min(1), name: z.string().trim().min(2), wilayaCode: z.string().optional() });
+const directorateSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(2),
+  wilayaCode: z.string().optional(),
+});
 assignmentRouter.post('/admin/directorates', async (req, res) => {
   const parsed = directorateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message });
@@ -506,12 +650,15 @@ assignmentRouter.post('/admin/directorates', async (req, res) => {
   const directorate = await prisma.directorate.upsert({
     where: { id },
     create: { id, name, wilayaCode },
-    update: { name, wilayaCode }
+    update: { name, wilayaCode },
   });
   res.json({ success: true, directorate });
 });
 
-const municipalitySchema = z.object({ name: z.string().trim().min(2), directorateId: z.string().min(1) });
+const municipalitySchema = z.object({
+  name: z.string().trim().min(2),
+  directorateId: z.string().min(1),
+});
 assignmentRouter.post('/admin/municipalities', async (req, res) => {
   const parsed = municipalitySchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message });
@@ -520,12 +667,21 @@ assignmentRouter.post('/admin/municipalities', async (req, res) => {
     const municipality = await prisma.municipality.create({ data: { name, directorateId } });
     res.json({ success: true, municipality });
   } catch (err: unknown) {
-    if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === 'P2002') return res.status(409).json({ error: 'هذه البلدية موجودة بالفعل ضمن هذه المديرية.' });
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code: string }).code === 'P2002'
+    )
+      return res.status(409).json({ error: 'هذه البلدية موجودة بالفعل ضمن هذه المديرية.' });
     res.status(500).json({ error: 'تعذر إنشاء البلدية.' });
   }
 });
 
-const schoolSchema = z.object({ name: z.string().trim().min(2), municipalityId: z.string().min(1) });
+const schoolSchema = z.object({
+  name: z.string().trim().min(2),
+  municipalityId: z.string().min(1),
+});
 assignmentRouter.post('/admin/schools', async (req, res) => {
   const parsed = schoolSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message });
@@ -534,7 +690,13 @@ assignmentRouter.post('/admin/schools', async (req, res) => {
     const school = await prisma.school.create({ data: { name, municipalityId } });
     res.json({ success: true, school });
   } catch (err: unknown) {
-    if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === 'P2002') return res.status(409).json({ error: 'هذه المؤسسة موجودة بالفعل ضمن هذه البلدية.' });
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code: string }).code === 'P2002'
+    )
+      return res.status(409).json({ error: 'هذه المؤسسة موجودة بالفعل ضمن هذه البلدية.' });
     res.status(500).json({ error: 'تعذر إنشاء المؤسسة.' });
   }
 });
@@ -542,19 +704,27 @@ assignmentRouter.post('/admin/schools', async (req, res) => {
 const districtSchema = z.object({
   name: z.string().trim().min(2),
   directorateId: z.string().min(1),
-  districtNumber: z.number().int().optional()
+  districtNumber: z.number().int().optional(),
 });
 assignmentRouter.post('/admin/districts', async (req, res) => {
   const parsed = districtSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message });
   try {
     const { name, directorateId, districtNumber } = parsed.data;
-    const district = await prisma.inspectionDistrict.create({ data: { name, directorateId, districtNumber } });
+    const district = await prisma.inspectionDistrict.create({
+      data: { name, directorateId, districtNumber },
+    });
     // اعتماد مقاطعة جديدة هو أحد نقاط إعادة الاحتساب المذكورة في المواصفة
     await bulkReassignAll();
     res.json({ success: true, district });
   } catch (err: unknown) {
-    if (typeof err === 'object' && err !== null && 'code' in err && (err as { code: string }).code === 'P2002') return res.status(409).json({ error: 'هذه المقاطعة موجودة بالفعل ضمن هذه المديرية.' });
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code: string }).code === 'P2002'
+    )
+      return res.status(409).json({ error: 'هذه المقاطعة موجودة بالفعل ضمن هذه المديرية.' });
     res.status(500).json({ error: 'تعذر إنشاء المقاطعة.' });
   }
 });
@@ -596,34 +766,51 @@ assignmentRouter.delete('/admin/districts/:id', async (req, res) => {
 // اعتماد/رفض الاقتراحات
 assignmentRouter.get('/admin/suggestions', async (req, res) => {
   const [municipalities, schools] = await Promise.all([
-    prisma.municipalitySuggestion.findMany({ where: { status: 'pending' }, orderBy: { createdAt: 'asc' } }),
-    prisma.schoolSuggestion.findMany({ where: { status: 'pending' }, orderBy: { createdAt: 'asc' } })
+    prisma.municipalitySuggestion.findMany({
+      where: { status: 'pending' },
+      orderBy: { createdAt: 'asc' },
+    }),
+    prisma.schoolSuggestion.findMany({
+      where: { status: 'pending' },
+      orderBy: { createdAt: 'asc' },
+    }),
   ]);
   res.json({ success: true, municipalities, schools });
 });
 
 assignmentRouter.post('/admin/suggestions/municipalities/:id/approve', async (req, res) => {
-  const suggestion = await prisma.municipalitySuggestion.findUnique({ where: { id: req.params.id } });
+  const suggestion = await prisma.municipalitySuggestion.findUnique({
+    where: { id: req.params.id },
+  });
   if (!suggestion || suggestion.status !== 'pending') {
     return res.status(404).json({ error: 'الاقتراح غير موجود أو تمت مراجعته بالفعل.' });
   }
   const municipality = await prisma.municipality.upsert({
-    where: { directorateId_name: { directorateId: suggestion.directorateId, name: suggestion.name } },
+    where: {
+      directorateId_name: { directorateId: suggestion.directorateId, name: suggestion.name },
+    },
     create: { name: suggestion.name, directorateId: suggestion.directorateId },
-    update: {}
+    update: {},
   });
   await prisma.municipalitySuggestion.update({
     where: { id: suggestion.id },
-    data: { status: 'approved', reviewedBy: req.user!.id, reviewedAt: new Date(), approvedMunicipalityId: municipality.id }
+    data: {
+      status: 'approved',
+      reviewedBy: req.user!.id,
+      reviewedAt: new Date(),
+      approvedMunicipalityId: municipality.id,
+    },
   });
   res.json({ success: true, municipality });
 });
 
 assignmentRouter.post('/admin/suggestions/municipalities/:id/reject', async (req, res) => {
-  const suggestion = await prisma.municipalitySuggestion.update({
-    where: { id: req.params.id },
-    data: { status: 'rejected', reviewedBy: req.user!.id, reviewedAt: new Date() }
-  }).catch(() => null);
+  const suggestion = await prisma.municipalitySuggestion
+    .update({
+      where: { id: req.params.id },
+      data: { status: 'rejected', reviewedBy: req.user!.id, reviewedAt: new Date() },
+    })
+    .catch(() => null);
   if (!suggestion) return res.status(404).json({ error: 'الاقتراح غير موجود.' });
   res.json({ success: true });
 });
@@ -634,32 +821,232 @@ assignmentRouter.post('/admin/suggestions/schools/:id/approve', async (req, res)
     return res.status(404).json({ error: 'الاقتراح غير موجود أو تمت مراجعته بالفعل.' });
   }
   const school = await prisma.school.upsert({
-    where: { municipalityId_name: { municipalityId: suggestion.municipalityId, name: suggestion.name } },
+    where: {
+      municipalityId_name: { municipalityId: suggestion.municipalityId, name: suggestion.name },
+    },
     create: { name: suggestion.name, municipalityId: suggestion.municipalityId },
-    update: {}
+    update: {},
   });
   await prisma.schoolSuggestion.update({
     where: { id: suggestion.id },
-    data: { status: 'approved', reviewedBy: req.user!.id, reviewedAt: new Date(), approvedSchoolId: school.id }
+    data: {
+      status: 'approved',
+      reviewedBy: req.user!.id,
+      reviewedAt: new Date(),
+      approvedSchoolId: school.id,
+    },
   });
   res.json({ success: true, school });
 });
 
 assignmentRouter.post('/admin/suggestions/schools/:id/reject', async (req, res) => {
-  const suggestion = await prisma.schoolSuggestion.update({
-    where: { id: req.params.id },
-    data: { status: 'rejected', reviewedBy: req.user!.id, reviewedAt: new Date() }
-  }).catch(() => null);
+  const suggestion = await prisma.schoolSuggestion
+    .update({
+      where: { id: req.params.id },
+      data: { status: 'rejected', reviewedBy: req.user!.id, reviewedAt: new Date() },
+    })
+    .catch(() => null);
   if (!suggestion) return res.status(404).json({ error: 'الاقتراح غير موجود.' });
   res.json({ success: true });
 });
 
+// Consolidated Inspector administration read model and validated Admin assignment creation.
+assignmentRouter.get('/admin/inspectors/workspace', requireRole('admin'), async (_req, res) => {
+  const [inspectors, districts, teachers, assignments] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: 'inspector' },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        status: true,
+        directorateId: true,
+        districtId: true,
+        eduDirectorateId: true,
+        eduDistrictId: true,
+        createdAt: true,
+        isPlatformOwner: true,
+        eduDirectorate: { select: { id: true, name: true } },
+        eduDistrict: { select: { id: true, name: true } },
+      },
+    }),
+    prisma.inspectionDistrict.findMany({
+      orderBy: [{ directorateId: 'asc' }, { districtNumber: 'asc' }, { name: 'asc' }],
+      include: { directorate: { select: { id: true, name: true } } },
+    }),
+    prisma.user.findMany({
+      where: { role: 'teacher' },
+      orderBy: { firstName: 'asc' },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        status: true,
+        directorateId: true,
+        districtId: true,
+        eduDirectorateId: true,
+        eduDistrictId: true,
+        schoolName: true,
+        createdAt: true,
+        teacherAssignment: {
+          select: { status: true, inspectorId: true, assignedAt: true, createdAt: true },
+        },
+      },
+    }),
+    prisma.inspectorAssignment.findMany({
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        teacher: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            status: true,
+            directorateId: true,
+            districtId: true,
+            eduDirectorateId: true,
+            eduDistrictId: true,
+            schoolName: true,
+          },
+        },
+        inspector: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            status: true,
+            directorateId: true,
+            districtId: true,
+            eduDirectorateId: true,
+            eduDistrictId: true,
+          },
+        },
+      },
+    }),
+  ]);
+  const countByInspector = new Map<string, { accepted: number; pending: number }>();
+  for (const row of assignments) {
+    if (!row.inspectorId) continue;
+    const counts = countByInspector.get(row.inspectorId) || { accepted: 0, pending: 0 };
+    if (['Active', 'Changed'].includes(row.status)) counts.accepted += 1;
+    if (row.status === 'Pending') counts.pending += 1;
+    countByInspector.set(row.inspectorId, counts);
+  }
+  const inspectorByDistrict = new Map<string, (typeof inspectors)[number]>();
+  for (const inspector of inspectors) {
+    const districtId = inspector.districtId || inspector.eduDistrictId;
+    if (districtId && inspector.status === 'active') inspectorByDistrict.set(districtId, inspector);
+  }
+  const districtRows = districts.map((district) => {
+    const inspector = inspectorByDistrict.get(district.id);
+    const counts = inspector
+      ? countByInspector.get(inspector.id) || { accepted: 0, pending: 0 }
+      : { accepted: 0, pending: 0 };
+    return {
+      id: district.id,
+      name: district.name,
+      districtNumber: district.districtNumber,
+      directorate: district.directorate,
+      inspector: inspector ? sanitizeUser(inspector) : null,
+      acceptedTeacherCount: counts.accepted,
+      pendingAssignmentCount: counts.pending,
+    };
+  });
+  res.json({
+    success: true,
+    inspectors: inspectors.map((inspector) => ({
+      ...sanitizeUser(inspector),
+      acceptedTeacherCount: countByInspector.get(inspector.id)?.accepted || 0,
+      pendingAssignmentCount: countByInspector.get(inspector.id)?.pending || 0,
+    })),
+    districts: districtRows,
+    teachers: teachers.map((teacher) => sanitizeUser(teacher)),
+    assignments: assignments.map((assignment) => ({
+      ...assignment,
+      teacher: assignment.teacher ? sanitizeUser(assignment.teacher) : null,
+      inspector: assignment.inspector ? sanitizeUser(assignment.inspector) : null,
+    })),
+  });
+});
+
+const adminAssignmentSchema = z.object({
+  teacherId: z.string().min(1),
+  inspectorId: z.string().min(1),
+});
+assignmentRouter.post('/admin/assignments', requireRole('admin'), async (req, res) => {
+  const parsed = adminAssignmentSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ success: false, error: 'الأستاذ والمفتش مطلوبان.' });
+  const { teacherId, inspectorId } = parsed.data;
+  const [teacher, inspector] = await Promise.all([
+    prisma.user.findUnique({ where: { id: teacherId } }),
+    prisma.user.findUnique({ where: { id: inspectorId } }),
+  ]);
+  if (!teacher || teacher.role !== 'teacher')
+    return res.status(404).json({ success: false, error: 'الأستاذ غير موجود.' });
+  if (!inspector || inspector.role !== 'inspector' || inspector.status !== 'active')
+    return res.status(400).json({ success: false, error: 'يجب اختيار مفتش نشط.' });
+  const teacherDirectorate = teacher.directorateId || teacher.eduDirectorateId || '';
+  const teacherDistrict = teacher.districtId || teacher.eduDistrictId || '';
+  const inspectorDirectorate = inspector.directorateId || inspector.eduDirectorateId || '';
+  const inspectorDistrict = inspector.districtId || inspector.eduDistrictId || '';
+  if (!teacherDirectorate || !teacherDistrict)
+    return res
+      .status(400)
+      .json({ success: false, error: 'لا يمكن تحديد مديرية أو مقاطعة الأستاذ.' });
+  if (teacherDirectorate !== inspectorDirectorate || teacherDistrict !== inspectorDistrict)
+    return res
+      .status(400)
+      .json({
+        success: false,
+        error: 'لا يمكن إسناد الأستاذ إلى مفتش من مديرية أو مقاطعة مختلفة.',
+      });
+  const district = await prisma.inspectionDistrict.findUnique({
+    where: { id: inspectorDistrict },
+    select: { directorateId: true },
+  });
+  if (!district || district.directorateId !== inspectorDirectorate)
+    return res
+      .status(400)
+      .json({ success: false, error: 'المقاطعة لا تنتمي إلى المديرية المحددة.' });
+  const occupied = await prisma.user.findFirst({
+    where: {
+      role: 'inspector',
+      status: 'active',
+      id: { not: inspector.id },
+      OR: [
+        { districtId: inspectorDistrict, directorateId: inspectorDirectorate },
+        { eduDistrictId: inspectorDistrict, eduDirectorateId: inspectorDirectorate },
+        { districtId: inspectorDistrict, eduDirectorateId: inspectorDirectorate },
+        { eduDistrictId: inspectorDistrict, directorateId: inspectorDirectorate },
+      ],
+    },
+    select: { id: true },
+  });
+  if (occupied)
+    return res.status(409).json({ success: false, error: 'المقاطعة مرتبطة بمفتش نشط آخر.' });
+  const assignment = await prisma.inspectorAssignment.upsert({
+    where: { teacherId },
+    create: { teacherId, inspectorId, status: 'Pending', assignedAt: null },
+    update: { inspectorId, status: 'Pending', assignedAt: null },
+  });
+  res.json({ success: true, assignment });
+});
 // عرض جميع سجلات الإسناد (لوحة تحكم الإدارة)
 assignmentRouter.get('/admin/assignments', async (req, res) => {
   const { status } = req.query;
   const assignments = await prisma.inspectorAssignment.findMany({
     where: status ? { status: String(status) } : undefined,
-    orderBy: { updatedAt: 'desc' }
+    orderBy: { updatedAt: 'desc' },
   });
   const userIds = Array.from(
     new Set(assignments.flatMap((a) => [a.teacherId, a.inspectorId].filter(Boolean) as string[]))
@@ -672,8 +1059,8 @@ assignmentRouter.get('/admin/assignments', async (req, res) => {
     assignments: assignments.map((a) => ({
       ...a,
       teacher: userMap.get(a.teacherId) || null,
-      inspector: a.inspectorId ? userMap.get(a.inspectorId) || null : null
-    }))
+      inspector: a.inspectorId ? userMap.get(a.inspectorId) || null : null,
+    })),
   });
 });
 
@@ -693,6 +1080,9 @@ assignmentRouter.post('/admin/assignments/:teacherId/remove', async (req, res) =
 // إعادة إسناد يدوية استثنائية لأستاذ واحد (بدل الانتظار للاحتساب التلقائي)
 assignmentRouter.post('/admin/assignments/:teacherId/reassign', async (req, res) => {
   const assignment = await reassignTeacher(req.params.teacherId);
-  if (!assignment) return res.status(404).json({ error: 'لم يتم العثور على أستاذ ببيانات مهنية مكتملة بهذا المعرّف.' });
+  if (!assignment)
+    return res
+      .status(404)
+      .json({ error: 'لم يتم العثور على أستاذ ببيانات مهنية مكتملة بهذا المعرّف.' });
   res.json({ success: true, assignment });
 });
