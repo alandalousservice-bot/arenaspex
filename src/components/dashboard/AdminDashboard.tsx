@@ -54,6 +54,9 @@ import {
   activateUserAccount,
 } from '../../services/api';
 
+export type AdminDashboardTab =
+  'users' | 'account_api_keys' | 'ai_engine' | 'audit_logs' | 'directorates';
+
 interface AdminDashboardProps {
   aiSettings: AISetting;
   onUpdateAISettings: (settings: AISetting) => void;
@@ -65,6 +68,7 @@ interface AdminDashboardProps {
   onUpdateUser?: (user: User) => void;
   onDeleteUser?: (userId: string) => void;
   isPlatformOwner?: boolean;
+  initialAdminTab?: AdminDashboardTab;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -78,10 +82,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onUpdateUser,
   onDeleteUser,
   isPlatformOwner = false,
+  initialAdminTab = 'users',
 }) => {
   const [activeAdminTab, setActiveAdminTab] = useState<
     'users' | 'account_api_keys' | 'ai_engine' | 'audit_logs' | 'directorates'
-  >('users');
+  >(initialAdminTab);
 
   // AI settings state
   const [provider, setProvider] = useState<AISetting['provider']>(aiSettings.provider);

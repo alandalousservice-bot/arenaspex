@@ -1,0 +1,64 @@
+import React from 'react';
+import { useLocation } from 'react-router-dom';
+import { AdminDashboard } from './AdminDashboard';
+import { AdminOverview } from './AdminOverview';
+import { AdminPendingUsersPage } from './AdminPendingUsersPage';
+import { AdminReportsPage } from './AdminReportsPage';
+import { AssignmentAdminPanel } from './AssignmentAdminPanel';
+import { KnowledgeEngineView } from '../knowledge/KnowledgeEngineView';
+import { AISetting, AILog, CommunityResource, KnowledgeItem, User } from '../../types/spex';
+
+interface AdminWorkspacePageProps {
+  currentUser: User;
+  aiSettings: AISetting;
+  onUpdateAISettings: (settings: AISetting) => void;
+  aiLogs: AILog[];
+  knowledgeItems: KnowledgeItem[];
+  onApproveKnowledgeItem: (id: string) => void;
+  onRejectKnowledgeItem?: (id: string, reason: string) => void;
+  onAddKnowledgeItem: (item: Partial<KnowledgeItem>) => void;
+  onUpdateKnowledgeItem?: (id: string, patch: Partial<KnowledgeItem>) => void;
+  onSubmitKnowledgeItem?: (id: string) => void;
+  onDeleteKnowledgeItem?: (id: string) => void;
+  users: User[];
+  onAddUser: (user: Partial<User>) => void;
+  onUpdateUser: (user: User) => void;
+  onDeleteUser: (id: string) => void;
+  communityResources?: CommunityResource[];
+}
+
+export const AdminWorkspacePage: React.FC<AdminWorkspacePageProps> = (props) => {
+  const { pathname } = useLocation();
+  if (pathname === '/admin/pending-users') return <AdminPendingUsersPage />;
+  if (pathname === '/admin/inspectors') return <AssignmentAdminPanel />;
+  if (pathname === '/admin/reports') return <AdminReportsPage fallbackUsers={props.users} />;
+  if (pathname === '/admin/curriculum')
+    return (
+      <KnowledgeEngineView
+        knowledgeItems={props.knowledgeItems}
+        onAddKnowledgeItem={props.onAddKnowledgeItem}
+        onUpdateKnowledgeItem={props.onUpdateKnowledgeItem}
+        onSubmitKnowledgeItem={props.onSubmitKnowledgeItem}
+        onDeleteKnowledgeItem={props.onDeleteKnowledgeItem}
+        onApproveKnowledgeItem={props.onApproveKnowledgeItem}
+        onRejectKnowledgeItem={props.onRejectKnowledgeItem}
+        currentUser={props.currentUser}
+        communityResources={props.communityResources}
+      />
+    );
+  const initialAdminTab =
+    pathname === '/admin/services'
+      ? 'account_api_keys'
+      : pathname === '/admin/approvals'
+        ? 'audit_logs'
+        : 'users';
+  if (pathname === '/admin')
+    return <AdminOverview users={props.users} knowledgeItems={props.knowledgeItems} />;
+  return (
+    <AdminDashboard
+      {...props}
+      isPlatformOwner={Boolean(props.currentUser.isPlatformOwner)}
+      initialAdminTab={initialAdminTab}
+    />
+  );
+};

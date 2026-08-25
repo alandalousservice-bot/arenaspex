@@ -29,13 +29,17 @@ const InspectorDashboard = lazy(() =>
   }))
 );
 const InspectorWorkspacePage = lazy(() =>
-  import('./components/dashboard/InspectorWorkspacePage').then((m) => ({ default: m.InspectorWorkspacePage }))
+  import('./components/dashboard/InspectorWorkspacePage').then((m) => ({
+    default: m.InspectorWorkspacePage,
+  }))
 );
 const DirectorDashboard = lazy(() =>
   import('./components/dashboard/DirectorDashboard').then((m) => ({ default: m.DirectorDashboard }))
 );
-const AdminDashboard = lazy(() =>
-  import('./components/dashboard/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
+const AdminWorkspacePage = lazy(() =>
+  import('./components/dashboard/AdminWorkspacePage').then((m) => ({
+    default: m.AdminWorkspacePage,
+  }))
 );
 const AnnualPlanView = lazy(() =>
   import('./components/curriculum/AnnualPlanView').then((m) => ({ default: m.AnnualPlanView }))
@@ -125,7 +129,8 @@ export default function App() {
   const urlTab = pathToTab(location.pathname);
   const currentTab: NavTab = urlTab ?? defaultTabForRole(currentUser.role);
   const inspectorTeacherId = location.pathname.match(/^\/inspector\/teachers\/([^/]+)$/)?.[1];
-  const inspectorTeacherContext = new URLSearchParams(location.search).get('teacherId') || inspectorTeacherId;
+  const inspectorTeacherContext =
+    new URLSearchParams(location.search).get('teacherId') || inspectorTeacherId;
 
   /** نقطة التنقل الموحدة: كل تغيير تبويب أصبح تغييراً لعنوان URL */
   const navigateToTab = (tab: NavTab) => {
@@ -530,34 +535,40 @@ export default function App() {
               />
             )}
 
-            {currentUser.role === 'inspector' && activeTab.startsWith('inspector_') && activeTab !== 'inspector_portal' && (
-              <InspectorWorkspacePage
-                module={activeTab as any}
-                inspector={currentUser}
-                teachers={assignedTeachers}
-                notes={inspectorNotes}
-                visits={inspectionVisits}
-                broadcasts={broadcasts}
-                directMessages={directMessages}
-                classes={teacherClasses}
-                students={allStudents}
-                weeklySchedule={weeklySchedule}
-                lessonPlans={lessonPlans}
-                dailyNotebook={dailyNotebook}
-                communityResources={communityResources}
-                onNavigate={navigateToTab}
-                onRefreshTeachers={refreshAssignedTeachers}
-                onAddNote={handleAddInspectorNote}
-                onAddVisit={handleAddInspectionVisit}
-                onRefreshVisits={refreshInspectionVisits}
-                onAddBroadcast={handleAddBroadcast}
-                onAddDirectMessage={handleAddDirectMessageFromInspector}
-                onToggleApproveResource={handleToggleApproveResource}
-                teacherId={inspectorTeacherContext}
-                onOpenTeacher={(teacherId) => navigate(`/inspector/teachers/${encodeURIComponent(teacherId)}`)}
-                onNavigateWithTeacher={(tab, teacherId) => navigate(`${tabToPath(tab)}?teacherId=${encodeURIComponent(teacherId)}`)}
-              />
-            )}
+            {currentUser.role === 'inspector' &&
+              activeTab.startsWith('inspector_') &&
+              activeTab !== 'inspector_portal' && (
+                <InspectorWorkspacePage
+                  module={activeTab as any}
+                  inspector={currentUser}
+                  teachers={assignedTeachers}
+                  notes={inspectorNotes}
+                  visits={inspectionVisits}
+                  broadcasts={broadcasts}
+                  directMessages={directMessages}
+                  classes={teacherClasses}
+                  students={allStudents}
+                  weeklySchedule={weeklySchedule}
+                  lessonPlans={lessonPlans}
+                  dailyNotebook={dailyNotebook}
+                  communityResources={communityResources}
+                  onNavigate={navigateToTab}
+                  onRefreshTeachers={refreshAssignedTeachers}
+                  onAddNote={handleAddInspectorNote}
+                  onAddVisit={handleAddInspectionVisit}
+                  onRefreshVisits={refreshInspectionVisits}
+                  onAddBroadcast={handleAddBroadcast}
+                  onAddDirectMessage={handleAddDirectMessageFromInspector}
+                  onToggleApproveResource={handleToggleApproveResource}
+                  teacherId={inspectorTeacherContext}
+                  onOpenTeacher={(teacherId) =>
+                    navigate(`/inspector/teachers/${encodeURIComponent(teacherId)}`)
+                  }
+                  onNavigateWithTeacher={(tab, teacherId) =>
+                    navigate(`${tabToPath(tab)}?teacherId=${encodeURIComponent(teacherId)}`)
+                  }
+                />
+              )}
 
             {activeTab === 'director_portal' && (
               <DirectorDashboard
@@ -574,18 +585,31 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'admin_portal' && (
-              <AdminDashboard
+            {(activeTab === 'admin_portal' ||
+              activeTab === 'admin_accounts' ||
+              activeTab === 'admin_pending_users' ||
+              activeTab === 'admin_inspectors' ||
+              activeTab === 'admin_services' ||
+              activeTab === 'admin_approvals' ||
+              activeTab === 'admin_curriculum' ||
+              activeTab === 'admin_reports') && (
+              <AdminWorkspacePage
+                currentUser={currentUser}
                 aiSettings={aiSettings}
                 onUpdateAISettings={(s) => setAiSettings(s)}
                 aiLogs={aiLogs}
                 knowledgeItems={knowledgeItems}
                 onApproveKnowledgeItem={handleApproveKnowledgeItem}
+                onRejectKnowledgeItem={handleRejectKnowledgeItem}
+                onAddKnowledgeItem={handleAddKnowledgeItem}
+                onUpdateKnowledgeItem={handleUpdateKnowledgeItem}
+                onSubmitKnowledgeItem={handleSubmitKnowledgeItem}
+                onDeleteKnowledgeItem={handleDeleteKnowledgeItem}
                 users={allUsersList}
                 onAddUser={handleAddUser}
                 onUpdateUser={handleUpdateUser}
                 onDeleteUser={handleDeleteUser}
-                isPlatformOwner={Boolean(currentUser.isPlatformOwner)}
+                communityResources={communityResources}
               />
             )}
 

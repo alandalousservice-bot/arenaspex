@@ -17,6 +17,8 @@ import {
   ShieldCheck,
   Building2,
   FileSpreadsheet,
+  Key,
+  CheckCircle2,
   Settings,
   ChevronLeft,
   Sparkles,
@@ -25,6 +27,7 @@ import {
   Clock,
   Timer,
   Users,
+  UserCheck,
 } from 'lucide-react';
 import { UserRole } from '../../types/spex';
 
@@ -51,6 +54,13 @@ export type NavTab =
   | 'inspector_communication'
   | 'director_portal'
   | 'admin_portal'
+  | 'admin_accounts'
+  | 'admin_pending_users'
+  | 'admin_inspectors'
+  | 'admin_services'
+  | 'admin_approvals'
+  | 'admin_curriculum'
+  | 'admin_reports'
   | 'reports'
   | 'settings';
 
@@ -137,11 +147,31 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                 unreadInspectorNotesCount > 0 ? `${unreadInspectorNotesCount} ملاحظة` : undefined,
             },
             { id: 'inspector_teachers' as NavTab, label: 'متابعة الأساتذة بالمقاطعة', icon: Users },
-            { id: 'inspector_approvals' as NavTab, label: 'مركز اعتمادات الموارد', icon: BrainCircuit },
-            { id: 'inspector_visits' as NavTab, label: 'تقارير وتوجيهات المعاينات', icon: FileSpreadsheet },
-            { id: 'inspector_curriculum' as NavTab, label: 'التدقيق البيداغوجي للمنهاج', icon: BookMarked },
-            { id: 'inspector_guidance' as NavTab, label: 'التوجيهات والندوات التربوية', icon: Calendar },
-            { id: 'inspector_communication' as NavTab, label: 'التواصل المباشر مع الأستاذ', icon: Users },
+            {
+              id: 'inspector_approvals' as NavTab,
+              label: 'مركز اعتمادات الموارد',
+              icon: BrainCircuit,
+            },
+            {
+              id: 'inspector_visits' as NavTab,
+              label: 'تقارير وتوجيهات المعاينات',
+              icon: FileSpreadsheet,
+            },
+            {
+              id: 'inspector_curriculum' as NavTab,
+              label: 'التدقيق البيداغوجي للمنهاج',
+              icon: BookMarked,
+            },
+            {
+              id: 'inspector_guidance' as NavTab,
+              label: 'التوجيهات والندوات التربوية',
+              icon: Calendar,
+            },
+            {
+              id: 'inspector_communication' as NavTab,
+              label: 'التواصل المباشر مع الأستاذ',
+              icon: Users,
+            },
             {
               id: 'professional_hub' as NavTab,
               label: 'التواصل المهني',
@@ -179,7 +209,14 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
       return {
         title: 'إدارة النظام وقواعد البيانات',
         items: [
-          { id: 'admin_portal' as NavTab, label: 'لوحة التحكم والاشتراكات', icon: Building2 },
+          { id: 'admin_portal' as NavTab, label: 'الرئيسية', icon: Building2 },
+          { id: 'admin_accounts' as NavTab, label: 'إدارة الحسابات', icon: Users },
+          { id: 'admin_pending_users' as NavTab, label: 'طلبات تفعيل الحسابات', icon: UserCheck },
+          { id: 'admin_inspectors' as NavTab, label: 'المفتشون والإسنادات', icon: ShieldCheck },
+          { id: 'admin_services' as NavTab, label: 'الخدمات المساعدة', icon: Key },
+          { id: 'admin_approvals' as NavTab, label: 'اعتمادات الموارد', icon: CheckCircle2 },
+          { id: 'admin_curriculum' as NavTab, label: 'المناهج والمراجع', icon: BookMarked },
+          { id: 'admin_reports' as NavTab, label: 'الإحصاءات والتقارير', icon: FileSpreadsheet },
           {
             id: 'professional_hub' as NavTab,
             label: 'التواصل المهني',
