@@ -9,6 +9,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Header } from './components/layout/Header';
 import { Sidebar, NavTab } from './components/layout/Sidebar';
 import { AuthScreen } from './components/auth/AuthScreen';
+import { AdminLoginPage } from './components/auth/AdminLoginPage';
 import { LandingScreen } from './components/landing/LandingScreen';
 import { PendingApprovalViewerScreen } from './components/auth/PendingApprovalViewerScreen';
 import { useAuth } from './hooks/useAuth';
@@ -265,11 +266,12 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    const logoutPath = currentUser.role === 'admin' ? '/admin/login' : '/login';
     setIsAuthenticated(false);
     localStorage.removeItem('spex_current_user');
     logoutRequest();
     setAuthView('login');
-    navigate('/login', { replace: true });
+    navigate(logoutPath, { replace: true });
   };
 
   const handleSwitchUser = (user: User) => {
@@ -297,6 +299,18 @@ export default function App() {
             setAuthView('login');
             navigate('/login');
           }}
+          onGoToAdminLogin={() => {
+            setAuthView('login');
+            navigate('/admin/login');
+          }}
+        />
+      );
+    }
+    if (location.pathname === '/admin/login') {
+      return (
+        <AdminLoginPage
+          onLoginSuccess={handleLoginSuccess}
+          onBackToProfessionalLogin={() => navigate('/login')}
         />
       );
     }

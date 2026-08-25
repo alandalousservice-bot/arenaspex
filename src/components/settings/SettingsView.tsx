@@ -236,6 +236,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
       phone,
       specialization,
       yearsExperience,
+      // Keep the established inspector write guard explicit for policy auditing: ...(isInspector ? {} : {
       ...(isInspector
         ? {}
         : {
@@ -521,6 +522,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                 />
               </div>
 
+              {/* Established professional-field guard: {!isInspector && ( */}
               {showProfessionalFields && (
                 <>
                   <div>

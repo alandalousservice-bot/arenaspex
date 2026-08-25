@@ -8,7 +8,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Lock,
   User,
-  KeyRound,
   UserPlus,
   LogIn,
   HelpCircle,
@@ -75,7 +74,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [resetDone, setResetDone] = useState(false);
-  const canRegister = selectedRole === 'teacher' || selectedRole === 'inspector';
+  const canRegister = selectedRole === 'teacher';
 
   useEffect(() => {
     if (!canRegister && activeForm === 'register') setActiveForm('login');
@@ -173,7 +172,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
       return;
     }
     setIsSubmitting(true);
-    const result = await loginRequest(email.trim(), password);
+    const result = await loginRequest(email.trim(), password, 'professional');
     setIsSubmitting(false);
     if (!result.success || !result.user) {
       setErrorMsg(result.error || 'تعذر تسجيل الدخول.');
@@ -231,11 +230,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
     const requestedRole =
       activeForm === 'register'
         ? 'teacher'
-        : selectedRole === 'admin'
-          ? 'admin'
-          : selectedRole === 'inspector'
-            ? 'inspector'
-            : 'teacher';
+        : selectedRole === 'inspector'
+          ? 'inspector'
+          : 'teacher';
     const result = await googleLoginRequest(credential, requestedRole);
     setIsSubmitting(false);
     if (!result.success || !result.user) {
@@ -331,7 +328,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
           <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block text-center">
             اختر صفك المهني لتوجيه شاشة الدخول:
           </label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => {
@@ -371,27 +368,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               </div>
               <p className="text-[10px] text-slate-400 leading-tight">
                 زيارات التفتيش والمتابعة الميدانية للأساتذة
-              </p>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedRole('admin');
-                setErrorMsg('');
-              }}
-              className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
-                selectedRole === 'admin'
-                  ? 'bg-purple-600/20 border-purple-500 text-white ring-2 ring-purple-500/40 shadow-lg'
-                  : 'bg-slate-900/80 border-slate-700/80 text-slate-300 hover:border-slate-500 hover:bg-slate-800/80'
-              }`}
-            >
-              <div className="flex items-center justify-between w-full mb-1">
-                <span className="text-xs font-black text-purple-400">مشرف المنظومة</span>
-                <KeyRound className="w-4 h-4 text-purple-400" />
-              </div>
-              <p className="text-[10px] text-slate-400 leading-tight">
-                إدارة الحسابات، المناهج، والاشتراكات
               </p>
             </button>
           </div>
@@ -486,7 +462,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               >
                 <option value="teacher">أستاذ التربية البدنية (مرحلة ابتدائية)</option>
                 <option value="inspector">مفتش التربية البدنية والرياضية</option>
-                <option value="admin">مشرف المنظومة الرقمية</option>
               </select>
             </div>
             <button

@@ -27,6 +27,7 @@ export const authRouter = Router();
 const loginSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(1),
+  portal: z.enum(['professional', 'admin']).optional().default('professional'),
 });
 
 const registerSchema = z.object({
@@ -137,7 +138,7 @@ authRouter.post('/login', async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: 'يرجى إدخال بريد إلكتروني صحيح وكلمة مرور.' });
   }
-  const { email, password } = parsed.data;
+  const { email, password, portal } = parsed.data;
 
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
 
@@ -150,6 +151,20 @@ authRouter.post('/login', async (req, res) => {
   const validPassword = await verifyPassword(password, user.passwordHash);
   if (!validPassword) {
     return res.status(401).json({ error: genericError });
+  }
+
+  if (portal === 'admin' && user.role !== 'admin') {
+    return res
+      .status(403)
+      .json({
+        error: 'هذا الحساب غير مخول للدخول إلى إدارة المنظومة.',
+        code: 'AUTH_PORTAL_MISMATCH',
+      });
+  }
+  if (portal === 'professional' && user.role === 'admin') {
+    return res
+      .status(403)
+      .json({ error: 'يرجى استخدام بوابة الدخول المناسبة لحسابك.', code: 'AUTH_PORTAL_MISMATCH' });
   }
 
   if (user.status !== 'active' || !user.isApprovedByAdmin) {
@@ -211,6 +226,9 @@ async function findOrCreateGoogleUser(
   }
 
   if (user) {
+    if (user.role === 'admin' && requestedRole !== 'admin') {
+      return { kind: 'forbidden' as const };
+    }
     // ربط Google تلقائياً حتى للحسابات المعلقة — يسمح بالدخول المباشر عبر Google لأي بريد
     if (!user.googleId) {
       try {

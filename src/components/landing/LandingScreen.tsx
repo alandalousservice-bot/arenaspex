@@ -18,9 +18,10 @@ import {
 
 interface LandingScreenProps {
   onGoToLogin: () => void;
+  onGoToAdminLogin: () => void;
 }
 
-export const LandingScreen: React.FC<LandingScreenProps> = ({ onGoToLogin }) => {
+export const LandingScreen: React.FC<LandingScreenProps> = ({ onGoToLogin, onGoToAdminLogin }) => {
   const scrollToFeatures = () => {
     const el = document.getElementById('platform-features');
     if (el) {
@@ -65,6 +66,12 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onGoToLogin }) => 
 
           {/* Login Action CTA Header */}
           <div className="flex items-center gap-3">
+            <button
+              onClick={onGoToAdminLogin}
+              className="px-3 py-2 rounded-xl border border-purple-500/30 text-purple-200 hover:bg-purple-500/10 font-bold text-[11px] transition-all"
+            >
+              دخول إدارة المنظومة
+            </button>
             <button
               onClick={onGoToLogin}
               className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-extrabold text-xs shadow-lg shadow-emerald-500/25 transition-all transform hover:-translate-y-0.5 flex items-center gap-2 cursor-pointer"

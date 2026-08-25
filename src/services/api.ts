@@ -24,12 +24,18 @@ export interface AuthResult {
   code?: string;
 }
 
-export async function loginRequest(email: string, password: string): Promise<AuthResult> {
+export type LoginPortal = 'professional' | 'admin';
+
+export async function loginRequest(
+  email: string,
+  password: string,
+  portal: LoginPortal = 'professional'
+): Promise<AuthResult> {
   try {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, portal }),
     });
     const data = await res.json();
     if (!res.ok) {
