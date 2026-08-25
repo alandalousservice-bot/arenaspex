@@ -887,8 +887,28 @@ apiRouter.get('/admin/users/pending', requireRole('admin'), async (_req, res) =>
       OR: [{ status: 'pending_approval' }, { isApprovedByAdmin: false }],
     },
     orderBy: { createdAt: 'asc' },
+    include: {
+      eduDirectorate: { select: { name: true } },
+      eduDistrict: { select: { name: true } },
+      eduSchool: { select: { name: true, municipality: { select: { name: true } } } },
+    },
   });
-  res.json({ success: true, users: users.map((user) => sanitizeUser(user)) });
+  res.json({
+    success: true,
+    users: users.map((user) => {
+      const safe = sanitizeUser(user as any) as any;
+      const { eduDirectorate, eduDistrict, eduSchool, ...base } = safe;
+      return {
+        ...base,
+        adminAffiliation: {
+          directorateName: eduDirectorate?.name || undefined,
+          districtName: eduDistrict?.name || undefined,
+          institutionName: eduSchool?.name || user.schoolName || undefined,
+          municipalityName: eduSchool?.municipality?.name || user.municipality || undefined,
+        },
+      };
+    }),
+  });
 });
 
 apiRouter.get('/admin/users', requireRole('admin'), async (_req, res) => {
@@ -994,11 +1014,9 @@ apiRouter.post('/admin/users/:id/activate', requireRole('admin'), async (req, re
     try {
       await enforceRoleAssignment(assignment, existing);
     } catch (error) {
-      return res
-        .status(400)
-        .json({
-          error: error instanceof Error ? error.message : 'يرجى استكمال مديرية ومقاطعة المفتش.',
-        });
+      return res.status(400).json({
+        error: error instanceof Error ? error.message : 'يرجى استكمال مديرية ومقاطعة المفتش.',
+      });
     }
   }
   const user = await prisma.user.update({

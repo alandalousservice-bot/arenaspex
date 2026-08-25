@@ -34,6 +34,7 @@ const registerSchema = z.object({
   lastName: z.string().trim().min(2, 'اللقب يجب أن يكون حرفين على الأقل'),
   email: z.string().trim().email('يرجى إدخال بريد إلكتروني صحيح'),
   password: z.string().min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
+  // Public registration is always a pending Teacher; Inspector provisioning is Admin-only.
   role: z.enum(['teacher', 'inspector']).optional().default('teacher'),
   schoolName: z.string().optional(),
   municipality: z.string().optional(),
@@ -73,7 +74,7 @@ authRouter.post('/register', async (req, res) => {
     eduSchoolId,
     municipalityId,
   } = parsed.data;
-  const role = requestedRole === 'inspector' ? 'inspector' : 'teacher';
+  const role = 'teacher';
   const lowerEmail = email.toLowerCase();
 
   const existingUser = await prisma.user.findUnique({ where: { email: lowerEmail } });
@@ -88,7 +89,7 @@ authRouter.post('/register', async (req, res) => {
   const userId = `usr_${crypto.randomUUID()}`;
 
   // ترمية الأكواد التاريخية de_19→setif_de
-  const normalizedEduDir = role === 'inspector' ? null : remapHistoricDirectorateId(eduDirectorateId || null);
+  const normalizedEduDir = remapHistoricDirectorateId(eduDirectorateId || null);
   const normalizedLegacyDir = normalizedEduDir || '';
 
   try {
@@ -103,16 +104,16 @@ authRouter.post('/register', async (req, res) => {
         passwordHash,
         role,
         phone: phone || null,
-        schoolName: role === 'inspector' ? null : schoolName || null,
-        municipality: role === 'inspector' ? null : municipality || null,
+        schoolName: schoolName || null,
+        municipality: municipality || null,
         directorateId: normalizedLegacyDir,
-        districtId: role === 'inspector' ? '' : eduDistrictId || '',
-        institutionId: role === 'inspector' ? null : eduSchoolId || null,
-        municipalityId: role === 'inspector' ? null : municipalityId || null,
+        districtId: eduDistrictId || '',
+        institutionId: eduSchoolId || null,
+        municipalityId: municipalityId || null,
         eduDirectorateId: normalizedEduDir,
         eduDistrictId: null,
         eduSchoolId: null,
-        specialization: role === 'inspector' ? 'مفتش التربية البدنية والرياضية' : 'أستاذ التربية البدنية والرياضية - الطور الابتدائي',
+        specialization: 'أستاذ التربية البدنية والرياضية - الطور الابتدائي',
         yearsExperience: null,
         status: 'pending_approval',
         isApprovedByAdmin: false,
@@ -182,7 +183,7 @@ const googleAuthSchema = z.object({
   role: z.enum(['teacher', 'inspector', 'director', 'admin']).optional(),
 });
 
-const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher', 'inspector']);
+const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher']);
 
 /**
  * منطق Google الموحّد (يخدم مسارَي /google و /google/gsi-callback):
@@ -234,7 +235,8 @@ async function findOrCreateGoogleUser(
   }
 
   // إنشاء أول للحساب عبر Google — معتمد للأدوار البيداغوجية فقط وبانتظار تفعيل المشرف
-  const role = requestedRole && GOOGLE_SELF_REGISTER_ROLES.has(requestedRole) ? requestedRole : 'teacher';
+  const role =
+    requestedRole && GOOGLE_SELF_REGISTER_ROLES.has(requestedRole) ? requestedRole : 'teacher';
   const passwordHash = await hashPassword(crypto.randomBytes(24).toString('hex')); // غير قابلة للاستعمال إطلاقاً
   const spexId = `SPX-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
@@ -297,7 +299,9 @@ authRouter.post('/google', async (req, res) => {
   const outcome = await findOrCreateGoogleUser(profile, parsed.data.role);
 
   if (outcome.kind === 'forbidden') {
-    return res.status(403).json({ error: 'حساب Google غير مرتبط بحساب مشرف موجود. اطلب إنشاء الحساب من مالك المنصة.' });
+    return res
+      .status(403)
+      .json({ error: 'حساب Google غير مرتبط بحساب مشرف موجود. اطلب إنشاء الحساب من مالك المنصة.' });
   }
 
   // السماح لأي مستخدم بالتسجيل مباشرة عبر Google — حتى الحساب المعلق يدخل لوضع المشاهدة بدل 403

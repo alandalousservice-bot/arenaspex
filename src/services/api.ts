@@ -818,15 +818,25 @@ export async function fetchUsersFromDB() {
   }
 }
 
-export async function fetchPendingUsersFromDB(): Promise<User[]> {
+export async function fetchAdminPendingAccounts(): Promise<{
+  success: boolean;
+  users: AdminAccountDetail[];
+  error?: string;
+}> {
   try {
     const res = await fetch('/api/admin/users/pending');
-    if (!res.ok) return [];
     const data = await res.json();
-    return Array.isArray(data.users) ? data.users : [];
+    return res.ok
+      ? { success: true, users: Array.isArray(data.users) ? data.users : [] }
+      : { success: false, users: [], error: data.error || 'تعذر تحميل طلبات التفعيل.' };
   } catch {
-    return [];
+    return { success: false, users: [], error: 'تعذر الاتصال بخادم الحسابات.' };
   }
+}
+
+export async function fetchPendingUsersFromDB(): Promise<AdminAccountDetail[]> {
+  const result = await fetchAdminPendingAccounts();
+  return result.users;
 }
 
 export async function fetchAdminAccountsDirectory(): Promise<{

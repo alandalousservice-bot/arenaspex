@@ -200,7 +200,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
       lastName: lastName.trim(),
       email: email.trim(),
       password,
-      role: selectedRole === 'inspector' ? 'inspector' : 'teacher',
+      role: 'teacher',
       schoolName:
         schoolName.trim() ||
         (eduSchoolId ? geoSchools.find((s) => s.id === eduSchoolId)?.name : '') ||
@@ -229,7 +229,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
     setErrorMsg('');
     setIsSubmitting(true);
     const requestedRole =
-      selectedRole === 'admin' ? 'admin' : selectedRole === 'inspector' ? 'inspector' : 'teacher';
+      activeForm === 'register'
+        ? 'teacher'
+        : selectedRole === 'admin'
+          ? 'admin'
+          : selectedRole === 'inspector'
+            ? 'inspector'
+            : 'teacher';
     const result = await googleLoginRequest(credential, requestedRole);
     setIsSubmitting(false);
     if (!result.success || !result.user) {
@@ -692,17 +698,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
 
             <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-300">نوع الحساب</label>
-                <select
-                  value={selectedRole}
-                  onChange={(e) => setSelectedRole(e.target.value as UserRole)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-2 text-[11px] text-white focus:outline-none focus:border-purple-500"
-                >
-                  <option value="teacher">أستاذ التربية البدنية</option>
-                  <option value="inspector">مفتش بيداغوجي</option>
-                </select>
-              </div>
-              <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-300">رقم الهاتف للتفعيل</label>
                 <input
                   type="text"
@@ -741,8 +736,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                   text="signup_with"
                 />
                 <p className="text-[10px] text-slate-500 text-center leading-relaxed">
-                  الحسابات الجديدة تُنشأ كحساب {selectedRole === 'inspector' ? 'مفتش' : 'أستاذ'}{' '}
-                  معلّق بانتظار تفعيل مشرف المنظومة قبل الاستفادة من الخدمات.
+                  الحسابات العامة الجديدة تُنشأ كحساب أستاذ معلّق بانتظار تفعيل مشرف المنظومة قبل
+                  الاستفادة من الخدمات.
                 </p>
               </div>
             )}
