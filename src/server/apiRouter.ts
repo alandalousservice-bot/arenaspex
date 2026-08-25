@@ -25,6 +25,8 @@ import { reassignTeacher, reassignAllForInspector } from './assignmentService.js
 import { canWriteRecord, resolveOwnerFieldValue } from './collectionAuth.js';
 import { canReadDistrictMessage, normalizeMessageText } from '../services/communicationRules.js';
 import { providerIsUsable } from './generationAccess.policy.js';
+import { teacherAttendanceRouter } from './attendanceRouter.js';
+import { findActiveMedicalExemption } from './medicalExemption.service.js';
 import { buildClassPlannedSessionSeeds } from '../services/teacherPlanning.service.js';
 import {
   isCanonicalAcademicYearId,
@@ -76,6 +78,7 @@ apiRouter.get('/health', (req, res) => {
 
 // كل ما يلي يتطلب تسجيل دخول صالح
 apiRouter.use(requireAuth);
+apiRouter.use(teacherAttendanceRouter);
 
 const academicYearIdSchema = z
   .string()
@@ -535,6 +538,10 @@ apiRouter.put(
       where: { id: req.params.studentId, teacherId: req.user!.id, classId: session.classId },
     });
     if (!student) return res.status(403).json({ error: 'التلميذ غير موجود ضمن القسم المحدد.' });
+    if (await findActiveMedicalExemption(student.id, session.assessedAt))
+      return res
+        .status(409)
+        .json({ error: 'لا يمكن تعديل تقويم تلميذ لديه إعفاء طبي نشط بتاريخ جلسة التقويم.' });
     const existing = await prisma.studentAssessment.findUnique({
       where: {
         assessmentSessionId_studentId: { assessmentSessionId: session.id, studentId: student.id },
@@ -583,6 +590,10 @@ apiRouter.put(
       where: { id: req.params.studentId, teacherId: req.user!.id, classId: session.classId },
     });
     if (!student) return res.status(403).json({ error: 'التلميذ غير موجود ضمن القسم المحدد.' });
+    if (await findActiveMedicalExemption(student.id, session.assessedAt))
+      return res
+        .status(409)
+        .json({ error: 'لا يمكن تعديل معيار تلميذ لديه إعفاء طبي نشط بتاريخ جلسة التقويم.' });
     const studentAssessment = await prisma.studentAssessment.findUnique({
       where: {
         assessmentSessionId_studentId: { assessmentSessionId: session.id, studentId: student.id },

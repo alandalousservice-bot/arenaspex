@@ -71,8 +71,10 @@ model User {
   studentClasses StudentClass[]
   plannedSessions ClassPlannedSession[] @relation("TeacherPlannedSessions")
   assessmentSessions AssessmentSession[]
+  attendanceRecords StudentAttendance[] @relation("TeacherAttendance")
+  medicalExemptions MedicalExemption[] @relation("TeacherMedicalExemptions")
 
-  // نظام الإسناد التلقائي للأساتذة إلى المفتشين
+// نظام الإسناد التلقائي للأساتذة إلى المفتشين
   teacherAssignment    InspectorAssignment?  @relation("TeacherAssignment")
   inspectorAssignments InspectorAssignment[] @relation("InspectorAssignments")
 
@@ -101,6 +103,8 @@ model Student {
   updatedAt     DateTime @updatedAt
   teacher       User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   studentAssessments StudentAssessment[]
+  attendanceRecords StudentAttendance[]
+  medicalExemptions MedicalExemption[]
 
   @@unique([institutionId, matricule])
   @@index([teacherId, classId])
@@ -117,6 +121,7 @@ model StudentClass {
   updatedAt     DateTime @updatedAt
   teacher       User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   plannedSessions ClassPlannedSession[]
+  attendanceRecords StudentAttendance[]
   assessmentSessions AssessmentSession[]
 
   @@index([teacherId])
@@ -141,6 +146,7 @@ model ClassPlannedSession {
   teacher User         @relation("TeacherPlannedSessions", fields: [teacherId], references: [id], onDelete: Cascade)
   class   StudentClass @relation(fields: [classId], references: [id], onDelete: Cascade)
   assessmentSession AssessmentSession?
+  attendanceRecords StudentAttendance[]
 
   @@unique([classId, academicYearId, referenceSessionId])
   @@index([teacherId])
@@ -149,6 +155,46 @@ model ClassPlannedSession {
 }
 
 // -----------------------------------------------------------------------
+model StudentAttendance {
+  id                    String   @id
+  teacherId             String
+  classId               String
+  studentId             String
+  classPlannedSessionId String
+  academicYearId        String
+  status                String?
+  note                  String?
+  recordedAt            DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  teacher             User                @relation("TeacherAttendance", fields: [teacherId], references: [id], onDelete: Cascade)
+  class               StudentClass        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student             Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classPlannedSession ClassPlannedSession @relation(fields: [classPlannedSessionId], references: [id], onDelete: Cascade)
+
+  @@unique([classPlannedSessionId, studentId])
+  @@index([teacherId, classId, academicYearId])
+  @@index([studentId])
+}
+
+model MedicalExemption {
+  id        String   @id
+  teacherId String
+  studentId String
+  issuedOn  DateTime
+  expiresOn DateTime?
+  reason    String?
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teacher User    @relation("TeacherMedicalExemptions", fields: [teacherId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId, studentId])
+  @@index([studentId, issuedOn, expiresOn])
+}
 // نظام الإسناد التلقائي للأساتذة إلى المفتشين
 // Directorates / Municipalities / Schools / InspectionDistricts هي الهيكل
 // الإداري الرسمي، وتُدار من طرف الإدارة (admin) عبر مسارات مخصصة، بينما

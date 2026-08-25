@@ -1,12 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart3, BookOpenCheck, FileText, Save, Target, Users } from 'lucide-react';
+import {
+  BarChart3,
+  BookOpenCheck,
+  CalendarCheck,
+  FileText,
+  Save,
+  ShieldAlert,
+  Target,
+  Users,
+} from 'lucide-react';
 import { canonicalReferenceSessions } from '../../services/teacherPlanning.service';
 import {
   createOrReuseTeacherAssessmentSession,
   fetchTeacherAssessmentSession,
   fetchTeacherAssessmentSessions,
+  fetchTeacherAttendance,
+  fetchTeacherMedicalExemptions,
   fetchTeacherPlanningSessions,
   fetchTeacherStudentAssessmentHistory,
+  saveTeacherAttendance,
+  createTeacherMedicalExemption,
   upsertTeacherCriterionResult,
   upsertTeacherStudentAssessment,
   type TeacherPlanningSession,
@@ -24,6 +37,9 @@ import type {
   StudentAssessmentDto,
   StudentAssessmentHistoryDto,
   TeacherAssessmentType,
+  AttendanceStatus,
+  MedicalExemptionDto,
+  TeacherAttendanceDto,
   User,
 } from '../../types/spex';
 
@@ -33,7 +49,7 @@ interface AssessmentNotebookViewProps {
   students: Student[];
 }
 
-type NotebookSection = 'competency' | 'marks' | 'results' | 'reports';
+type NotebookSection = 'competency' | 'marks' | 'attendance' | 'exemptions' | 'results' | 'reports';
 type CriterionCode = 'C1' | 'C2' | 'C3' | 'C4';
 type Draft = {
   criteria: Record<CriterionCode, AssessmentGrade | ''>;
@@ -115,6 +131,25 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
   const [manualDomainId, setManualDomainId] = useState('f_locomotion');
   const [savingStudentId, setSavingStudentId] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [plannedSessions, setPlannedSessions] = useState<TeacherPlanningSession[]>([]);
+  const [attendanceSessionId, setAttendanceSessionId] = useState(requestedPlannedSessionId);
+  const [attendanceData, setAttendanceData] = useState<TeacherAttendanceDto | null>(null);
+  const [attendanceDrafts, setAttendanceDrafts] = useState<
+    Record<string, { status: AttendanceStatus | ''; note: string }>
+  >({});
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceError, setAttendanceError] = useState('');
+  const [attendanceSaveError, setAttendanceSaveError] = useState('');
+  const [exemptions, setExemptions] = useState<MedicalExemptionDto[]>([]);
+  const [exemptionsLoading, setExemptionsLoading] = useState(false);
+  const [exemptionsError, setExemptionsError] = useState('');
+  const [exemptionStudentId, setExemptionStudentId] = useState('');
+  const [exemptionIssuedOn, setExemptionIssuedOn] = useState(new Date().toISOString().slice(0, 10));
+  const [exemptionExpiresOn, setExemptionExpiresOn] = useState('');
+  const [exemptionReason, setExemptionReason] = useState('');
+  const [exemptionNote, setExemptionNote] = useState('');
+  const [exemptionSaving, setExemptionSaving] = useState(false);
+  const [exemptionSaveError, setExemptionSaveError] = useState('');
 
   const activeClass = ownedClasses.find((item) => item.id === selectedClassId) || null;
   const classStudents = useMemo(
@@ -238,6 +273,134 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
     reloadNonce,
   ]);
 
+  useEffect(() => {
+    if (!selectedClassId) return;
+    let active = true;
+    fetchTeacherPlanningSessions(selectedClassId, academicYearId)
+      .then((response) => {
+        if (active) setPlannedSessions(response.sessions);
+      })
+      .catch(() => {
+        if (active) setPlannedSessions([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [academicYearId, selectedClassId]);
+
+  useEffect(() => {
+    if (section !== 'attendance' || !attendanceSessionId) return;
+    let active = true;
+    setAttendanceLoading(true);
+    setAttendanceError('');
+    fetchTeacherAttendance(attendanceSessionId)
+      .then((response) => {
+        if (!active) return;
+        setAttendanceData(response);
+        const next: Record<string, { status: AttendanceStatus | ''; note: string }> = {};
+        response.students.forEach((student) => {
+          next[student.id] = {
+            status: student.attendance?.status || '',
+            note: student.attendance?.note || '',
+          };
+        });
+        setAttendanceDrafts(next);
+      })
+      .catch((caught) => {
+        if (active)
+          setAttendanceError(
+            caught instanceof Error ? caught.message : 'تعذر تحميل دفتر المناداة.'
+          );
+      })
+      .finally(() => {
+        if (active) setAttendanceLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [attendanceSessionId, section]);
+
+  useEffect(() => {
+    if (section !== 'exemptions' || !selectedClassId) return;
+    let active = true;
+    setExemptionsLoading(true);
+    setExemptionsError('');
+    fetchTeacherMedicalExemptions(selectedClassId)
+      .then((response) => {
+        if (active) setExemptions(response.exemptions);
+      })
+      .catch((caught) => {
+        if (active)
+          setExemptionsError(
+            caught instanceof Error ? caught.message : 'تعذر تحميل الإعفاءات الطبية.'
+          );
+      })
+      .finally(() => {
+        if (active) setExemptionsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [section, selectedClassId]);
+
+  const saveAttendance = async () => {
+    if (!attendanceSessionId) return;
+    const records = Object.entries(attendanceDrafts)
+      .filter(([, draft]) => draft.status)
+      .map(([studentId, draft]) => ({
+        studentId,
+        status: draft.status as AttendanceStatus,
+        note: draft.note.trim() || null,
+      }));
+    if (!records.length) {
+      setAttendanceSaveError('اختر حالة واحدة على الأقل ثم احفظ.');
+      return;
+    }
+    setAttendanceSaveError('');
+    setAttendanceLoading(true);
+    try {
+      await saveTeacherAttendance(attendanceSessionId, records);
+      const refreshed = await fetchTeacherAttendance(attendanceSessionId);
+      setAttendanceData(refreshed);
+      const next: Record<string, { status: AttendanceStatus | ''; note: string }> = {};
+      refreshed.students.forEach((student) => {
+        next[student.id] = {
+          status: student.attendance?.status || '',
+          note: student.attendance?.note || '',
+        };
+      });
+      setAttendanceDrafts(next);
+    } catch (caught) {
+      setAttendanceSaveError(caught instanceof Error ? caught.message : 'تعذر حفظ دفتر المناداة.');
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
+
+  const saveExemption = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedClassId || !exemptionStudentId) return;
+    setExemptionSaving(true);
+    setExemptionSaveError('');
+    try {
+      const response = await createTeacherMedicalExemption(selectedClassId, {
+        studentId: exemptionStudentId,
+        issuedOn: exemptionIssuedOn,
+        expiresOn: exemptionExpiresOn || null,
+        reason: exemptionReason.trim() || null,
+        note: exemptionNote.trim() || null,
+      });
+      setExemptions((current) => [response.exemption, ...current]);
+      setExemptionStudentId('');
+      setExemptionReason('');
+      setExemptionNote('');
+      setExemptionExpiresOn('');
+    } catch (caught) {
+      setExemptionSaveError(caught instanceof Error ? caught.message : 'تعذر حفظ الإعفاء الطبي.');
+    } finally {
+      setExemptionSaving(false);
+    }
+  };
   useEffect(() => {
     const next: Record<string, Draft> = {};
     classStudents.forEach((student) => {
@@ -456,11 +619,13 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
             </label>
           </div>
         </div>
-        <nav className="mt-5 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1 md:grid-cols-4">
+        <nav className="mt-5 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1 md:grid-cols-3 lg:grid-cols-6">
           {(
             [
               ['competency', 'تقويم الكفاءات', Target],
               ['marks', 'العلامات', FileText],
+              ['attendance', 'الحضور والمناداة', CalendarCheck],
+              ['exemptions', 'الإعفاءات', ShieldAlert],
               ['results', 'نتائج القسم', BarChart3],
               ['reports', 'تقارير التلميذ', Users],
             ] as const
@@ -739,6 +904,241 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
               );
             })}
           </div>
+        </section>
+      )}
+
+      {section === 'attendance' && (
+        <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 font-extrabold">
+                <CalendarCheck className="h-5 w-5 text-blue-600" />
+                الحضور والمناداة
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">
+                الحضور مستقل عن تقويم الكفاءات. لا تُنشأ حالة «حاضر» قبل حفظ الأستاذ.
+              </p>
+            </div>
+            <select
+              value={attendanceSessionId}
+              onChange={(event) => setAttendanceSessionId(event.target.value)}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold"
+            >
+              <option value="">اختر حصة تشغيلية</option>
+              {plannedSessions.map((session) => (
+                <option key={session.id} value={session.id}>
+                  {session.plannedDate.slice(0, 10)} · {session.startTime || 'غير محدد'}
+                </option>
+              ))}
+            </select>
+          </div>
+          {plannedSessions.length === 0 && (
+            <p className="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500">
+              لا توجد حصص تشغيلية مهيأة لهذه السنة.
+            </p>
+          )}
+          {attendanceError && (
+            <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{attendanceError}</p>
+          )}
+          {attendanceSaveError && (
+            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+              {attendanceSaveError}
+            </p>
+          )}
+          {attendanceLoading && (
+            <p className="text-sm text-slate-500">جارٍ تحميل الحضور المحفوظ...</p>
+          )}
+          {attendanceData && !attendanceLoading && (
+            <>
+              <div className="flex flex-wrap justify-between gap-2 rounded-2xl bg-blue-50 p-3 text-xs font-bold text-blue-900">
+                <span>تاريخ الحصة: {attendanceData.session.plannedDate.slice(0, 10)}</span>
+                <span>غير المسجلين لا يدخلون في إحصاء الحضور.</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-[760px] w-full text-right text-xs">
+                  <thead>
+                    <tr className="bg-slate-100">
+                      <th className="p-3">التلميذ</th>
+                      <th className="p-3">الحالة</th>
+                      <th className="p-3">ملاحظة</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {attendanceData.students.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="p-8 text-center text-slate-500">
+                          لا يوجد تلاميذ حقيقيون في هذا القسم.
+                        </td>
+                      </tr>
+                    ) : (
+                      attendanceData.students.map((student) => {
+                        const draft = attendanceDrafts[student.id] || { status: '', note: '' };
+                        return (
+                          <tr key={student.id}>
+                            <td className="p-3 font-extrabold">
+                              {student.firstName} {student.lastName}
+                              {student.medicallyExempt && (
+                                <span className="mr-2 rounded-lg bg-purple-50 px-2 py-1 text-[10px] text-purple-700">
+                                  إعفاء نشط
+                                </span>
+                              )}
+                              {!student.attendance && (
+                                <span className="mr-2 text-[10px] text-slate-400">غير مسجل</span>
+                              )}
+                            </td>
+                            <td className="p-2">
+                              <select
+                                value={draft.status}
+                                onChange={(event) =>
+                                  setAttendanceDrafts((current) => ({
+                                    ...current,
+                                    [student.id]: {
+                                      ...draft,
+                                      status: event.target.value as AttendanceStatus | '',
+                                    },
+                                  }))
+                                }
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-bold"
+                              >
+                                <option value="">غير مسجل</option>
+                                <option value="حاضر">حاضر</option>
+                                <option value="غائب">غائب</option>
+                                <option value="غائب بمبرر">غائب بمبرر</option>
+                                <option value="معفى">معفى</option>
+                              </select>
+                            </td>
+                            <td className="p-2">
+                              <input
+                                value={draft.note}
+                                onChange={(event) =>
+                                  setAttendanceDrafts((current) => ({
+                                    ...current,
+                                    [student.id]: { ...draft, note: event.target.value },
+                                  }))
+                                }
+                                placeholder="ملاحظة اختيارية"
+                                className="w-full rounded-xl border border-slate-200 px-3 py-2"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <button
+                onClick={() => void saveAttendance()}
+                disabled={attendanceLoading}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+              >
+                حفظ الحضور المحدد
+              </button>
+            </>
+          )}
+        </section>
+      )}
+
+      {section === 'exemptions' && (
+        <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-5">
+          <div>
+            <h2 className="flex items-center gap-2 font-extrabold">
+              <ShieldAlert className="h-5 w-5 text-rose-600" />
+              الإعفاءات الطبية
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              بيانات minimal ومحدودة للأستاذ ولا تتحول إلى نتيجة تقويم.
+            </p>
+          </div>
+          {exemptionsError && (
+            <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{exemptionsError}</p>
+          )}
+          {exemptionSaveError && (
+            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+              {exemptionSaveError}
+            </p>
+          )}
+          <form
+            onSubmit={saveExemption}
+            className="grid gap-3 rounded-2xl bg-slate-50 p-4 md:grid-cols-5"
+          >
+            <select
+              required
+              value={exemptionStudentId}
+              onChange={(event) => setExemptionStudentId(event.target.value)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
+            >
+              <option value="">اختر التلميذ</option>
+              {classStudents.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.firstName} {student.lastName}
+                </option>
+              ))}
+            </select>
+            <label className="text-xs font-bold">
+              يبدأ في
+              <input
+                required
+                type="date"
+                value={exemptionIssuedOn}
+                onChange={(event) => setExemptionIssuedOn(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2"
+              />
+            </label>
+            <label className="text-xs font-bold">
+              ينتهي في
+              <input
+                type="date"
+                value={exemptionExpiresOn}
+                onChange={(event) => setExemptionExpiresOn(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2"
+              />
+            </label>
+            <input
+              value={exemptionReason}
+              onChange={(event) => setExemptionReason(event.target.value)}
+              placeholder="سبب مختصر اختياري"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
+            />
+            <button
+              type="submit"
+              disabled={exemptionSaving}
+              className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+            >
+              {exemptionSaving ? 'حفظ...' : 'حفظ الإعفاء'}
+            </button>
+            <textarea
+              value={exemptionNote}
+              onChange={(event) => setExemptionNote(event.target.value)}
+              placeholder="ملاحظة اختيارية غير تشخيصية"
+              className="md:col-span-5 min-h-16 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
+            />
+          </form>
+          {exemptionsLoading ? (
+            <p className="text-sm text-slate-500">جارٍ تحميل الإعفاءات...</p>
+          ) : exemptions.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+              لا توجد إعفاءات محفوظة لهذا القسم.
+            </p>
+          ) : (
+            <div className="grid gap-2">
+              {exemptions.map((exemption) => (
+                <article
+                  key={exemption.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-100 p-4 text-xs"
+                >
+                  <strong>
+                    {exemption.student?.firstName} {exemption.student?.lastName}
+                  </strong>
+                  <span>
+                    {exemption.issuedOn.slice(0, 10)} →{' '}
+                    {exemption.expiresOn?.slice(0, 10) || 'مفتوح'}
+                  </span>
+                  <span className="text-slate-600">{exemption.reason || 'دون سبب مسجل'}</span>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
       )}
 

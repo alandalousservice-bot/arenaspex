@@ -49,6 +49,7 @@ interface LessonCommandCenterViewProps {
   onNavigateToLessonPlans: () => void;
   onAddNotebookEntry?: (entry: Omit<DailyNotebookEntry, 'id'>) => void;
   onOpenAssessment?: () => void;
+  onOpenAttendance?: () => void;
 }
 
 export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = ({
@@ -65,6 +66,7 @@ export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = (
   onNavigateToLessonPlans,
   onAddNotebookEntry,
   onOpenAssessment,
+  onOpenAttendance,
 }) => {
   const [selectedClassId, setSelectedClassId] = useState<string>(teacherClasses[0]?.id || '');
   const [selectedLessonPlanId, setSelectedLessonPlanId] = useState<string>('');
@@ -260,6 +262,15 @@ export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = (
             <Target className="h-4 w-4" /> فتح دفتر التقويم
           </button>
         )}
+
+      {onOpenAttendance && selectedPlan && selectedPlan.classPlannedSessionId && (
+        <button
+          onClick={onOpenAttendance}
+          className="mb-3 flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700"
+        >
+          <Target className="h-4 w-4" /> تسجيل الحضور
+        </button>
+      )}
 
       {/* Whistle Console */}
       <CommandCenterWhistleConsole

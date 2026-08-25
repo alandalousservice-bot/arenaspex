@@ -19,6 +19,9 @@ import {
   CriterionResultDto,
   TeacherAssessmentType,
   AssessmentGrade,
+  AttendanceStatus,
+  MedicalExemptionDto,
+  TeacherAttendanceDto,
 } from '../types/spex';
 import type { AnnualPlan, AnnualPlanKind, AnnualPlanObjectiveOverride } from '../types/spex';
 import { offlinePost, offlineDelete } from '../lib/offline';
@@ -713,6 +716,79 @@ export interface AssessmentSessionResponse {
   reused?: boolean;
 }
 
+export async function fetchTeacherAttendance(sessionId: string): Promise<TeacherAttendanceDto> {
+  const res = await fetch(
+    `/api/teacher/planned-sessions/${encodeURIComponent(sessionId)}/attendance`
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل دفتر المناداة.');
+  return data as TeacherAttendanceDto;
+}
+
+export async function saveTeacherAttendance(
+  sessionId: string,
+  records: Array<{ studentId: string; status: AttendanceStatus; note?: string | null }>
+): Promise<{ success: boolean; records: TeacherAttendanceDto['students'] }> {
+  const res = await fetch(
+    `/api/teacher/planned-sessions/${encodeURIComponent(sessionId)}/attendance`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ records }),
+    }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر حفظ دفتر المناداة.');
+  return data as { success: boolean; records: TeacherAttendanceDto['students'] };
+}
+
+export async function fetchTeacherMedicalExemptions(
+  classId: string
+): Promise<{ success: boolean; exemptions: MedicalExemptionDto[] }> {
+  const res = await fetch(`/api/teacher/classes/${encodeURIComponent(classId)}/exemptions`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل الإعفاءات الطبية.');
+  return data as { success: boolean; exemptions: MedicalExemptionDto[] };
+}
+
+export async function createTeacherMedicalExemption(
+  classId: string,
+  input: {
+    studentId: string;
+    issuedOn: string;
+    expiresOn?: string | null;
+    reason?: string | null;
+    note?: string | null;
+  }
+): Promise<{ success: boolean; exemption: MedicalExemptionDto }> {
+  const res = await fetch(`/api/teacher/classes/${encodeURIComponent(classId)}/exemptions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر حفظ الإعفاء الطبي.');
+  return data as { success: boolean; exemption: MedicalExemptionDto };
+}
+
+export async function updateTeacherMedicalExemption(
+  exemptionId: string,
+  input: {
+    issuedOn?: string;
+    expiresOn?: string | null;
+    reason?: string | null;
+    note?: string | null;
+  }
+): Promise<{ success: boolean; exemption: MedicalExemptionDto }> {
+  const res = await fetch(`/api/teacher/exemptions/${encodeURIComponent(exemptionId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحديث الإعفاء الطبي.');
+  return data as { success: boolean; exemption: MedicalExemptionDto };
+}
 export async function fetchTeacherAssessmentSessions(
   classId: string,
   academicYearId: string

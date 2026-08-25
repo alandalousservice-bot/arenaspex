@@ -847,6 +847,40 @@ export interface StudentAssessmentHistoryDto {
   session: AssessmentSessionDto;
   result: StudentAssessmentDto | null;
 }
+export type AttendanceStatus = 'حاضر' | 'غائب' | 'غائب بمبرر' | 'معفى';
+
+export interface TeacherAttendanceRecordDto {
+  id: string;
+  status: AttendanceStatus | null;
+  note: string | null;
+  recordedAt: string | null;
+}
+
+export interface TeacherAttendanceStudentDto {
+  id: string;
+  firstName: string;
+  lastName: string;
+  attendance: TeacherAttendanceRecordDto | null;
+  medicallyExempt: boolean;
+}
+
+export interface TeacherAttendanceDto {
+  success: boolean;
+  session: { id: string; classId: string; academicYearId: string; plannedDate: string };
+  students: TeacherAttendanceStudentDto[];
+}
+
+export interface MedicalExemptionDto {
+  id: string;
+  studentId: string;
+  student?: { id: string; firstName: string; lastName: string };
+  issuedOn: string;
+  expiresOn: string | null;
+  reason: string | null;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 export interface CriterionResultDto {
   id: string;
   studentAssessmentId: string;

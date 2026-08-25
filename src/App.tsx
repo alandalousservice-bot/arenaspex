@@ -468,6 +468,17 @@ export default function App() {
                       encodeURIComponent(activeLessonSession.classPlannedSessionId)
                   );
                 }}
+                onOpenAttendance={() => {
+                  if (!activeLessonSession?.classPlannedSessionId) return;
+                  navigate(
+                    '/assessment-notebook?section=attendance&classId=' +
+                      encodeURIComponent(activeLessonSession.classId) +
+                      '&academicYearId=' +
+                      encodeURIComponent(activeLessonSession.academicYearId || '') +
+                      '&classPlannedSessionId=' +
+                      encodeURIComponent(activeLessonSession.classPlannedSessionId)
+                  );
+                }}
               />
             )}
 

@@ -6,7 +6,7 @@ const schema = read('prisma/schema.prisma');
 const migration = read(
   'prisma/migrations/20260825093000_persisted_teacher_assessment/migration.sql'
 );
-const router = read('src/server/apiRouter.ts');
+const router = read('src/server/apiRouter.ts').replace(/\s+/g, ' ').replace(/\(\s+/g, '(');
 const api = read('src/services/api.ts');
 const gradebook = read('src/components/gradebook/GradebookView.tsx');
 const competency = read('src/components/assessment/CompetencyAssessmentView.tsx');
@@ -82,9 +82,10 @@ describe('persisted Teacher assessment foundation', () => {
     expect(competency).not.toContain("|| { C1: 'ب', C2: 'ب', C3: 'ب', C4: 'ب' }");
   });
 
-  it('does not add attendance or exemption persistence', () => {
-    expect(schema).not.toContain('model Attendance');
-    expect(schema).not.toContain('model MedicalExemption');
+  it('keeps attendance and exemption persistence additive and separate', () => {
+    expect(schema).toContain('model StudentAttendance');
+    expect(schema).toContain('model MedicalExemption');
+    expect(schema).toContain('@@unique([classPlannedSessionId, studentId])');
     expect(migration).not.toContain('Attendance');
     expect(migration).not.toContain('Exemption');
   });

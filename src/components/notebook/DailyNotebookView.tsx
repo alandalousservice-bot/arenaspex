@@ -430,6 +430,25 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                         <Target className="h-3.5 w-3.5" /> فتح التقويم
                       </button>
                     )}
+                  {reference &&
+                    (reference.sessionType === 'تقويم تشخيصي' ||
+                      reference.sessionType === 'تقويم تحصيلي') && (
+                      <button
+                        onClick={() =>
+                          window.location.assign(
+                            '/assessment-notebook?section=attendance&classId=' +
+                              encodeURIComponent(session.classId) +
+                              '&academicYearId=' +
+                              encodeURIComponent(session.academicYearId) +
+                              '&classPlannedSessionId=' +
+                              encodeURIComponent(session.id)
+                          )
+                        }
+                        className="flex items-center gap-1 rounded-xl bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700"
+                      >
+                        <Target className="h-3.5 w-3.5" /> تسجيل الحضور
+                      </button>
+                    )}
                 </div>
               </div>
             </article>
