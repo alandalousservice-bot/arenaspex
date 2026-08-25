@@ -17,7 +17,9 @@ describe('persisted Teacher attendance and medical exemptions', () => {
   });
 
   it('exposes consolidated protected batch attendance and exemption routes', () => {
-    const router = read('src/server/attendanceRouter.ts');
+    const router = read('src/server/attendanceRouter.ts')
+      .replace(/\s+/g, ' ')
+      .replace(/\(\s+/g, '(');
     expect(router).toContain(
       "teacherAttendanceRouter.get('/teacher/planned-sessions/:sessionId/attendance'"
     );
