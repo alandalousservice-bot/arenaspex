@@ -1,6 +1,5 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { AdminDashboard } from './AdminDashboard';
 import { AdminAccountsPage } from './AdminAccountsPage';
 import { AdminAccountDetailPage } from './AdminAccountDetailPage';
 import { AdminOverview } from './AdminOverview';
@@ -50,19 +49,5 @@ export const AdminWorkspacePage: React.FC<AdminWorkspacePageProps> = (props) => 
   if (pathname === '/admin/reports') return <AdminReportsPage />;
   if (pathname === '/admin/curriculum')
     return <AdminCurriculumPage knowledgeItems={props.knowledgeItems} />;
-  const initialAdminTab =
-    pathname === '/admin/services'
-      ? 'account_api_keys'
-      : pathname === '/admin/approvals'
-        ? 'audit_logs'
-        : 'users';
-  if (pathname === '/admin')
-    return <AdminOverview users={props.users} knowledgeItems={props.knowledgeItems} />;
-  return (
-    <AdminDashboard
-      {...props}
-      isPlatformOwner={Boolean(props.currentUser.isPlatformOwner)}
-      initialAdminTab={initialAdminTab}
-    />
-  );
+  return <AdminOverview users={props.users} knowledgeItems={props.knowledgeItems} />;
 };

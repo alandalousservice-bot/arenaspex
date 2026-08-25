@@ -17,10 +17,17 @@ import {
   EyeOff,
   KeyRound,
   Mail,
-  AlertCircle
+  AlertCircle,
 } from 'lucide-react';
 import { User } from '../../types/spex';
-import { getStoredApiKey, setStoredApiKey, testApiKeyOnServer, googleLinkRequest, googleUnlinkRequest, fetchGeoDistricts } from '../../services/api';
+import {
+  getStoredApiKey,
+  setStoredApiKey,
+  testApiKeyOnServer,
+  googleLinkRequest,
+  googleUnlinkRequest,
+  fetchGeoDistricts,
+} from '../../services/api';
 import { GoogleSignInButton } from '../auth/GoogleSignInButton';
 
 interface SettingsViewProps {
@@ -59,7 +66,7 @@ const ALL_ALGERIAN_DIRECTORATES = [
   { id: 'ghardaia_de', name: 'مديرية التربية لولاية غرداية (47)' },
   { id: 'relizane_de', name: 'مديرية التربية لولاية غليزان (48)' },
   { id: 'touggourt_de', name: 'مديرية التربية لولاية تقرت (55)' },
-  { id: 'other_de', name: 'مديرية تربية أخرى...' }
+  { id: 'other_de', name: 'مديرية تربية أخرى...' },
 ];
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdateUser }) => {
@@ -88,6 +95,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
 
   const [savedSuccess, setSavedSuccess] = useState(false);
   const isInspector = currentUser.role === 'inspector';
+  const isAdmin = currentUser.role === 'admin';
+  const showProfessionalFields = !isInspector && !isAdmin;
 
   useEffect(() => {
     if (!isInspector || !directorateId || !districtId) {
@@ -95,12 +104,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
       return;
     }
     let active = true;
-    void fetchGeoDistricts(directorateId).then((result: any) => {
-      if (!active) return;
-      const district = (result?.districts || result || []).find((item: any) => item.id === districtId);
-      setDistrictName(district?.name || '');
-    }).catch(() => { if (active) setDistrictName(''); });
-    return () => { active = false; };
+    void fetchGeoDistricts(directorateId)
+      .then((result: any) => {
+        if (!active) return;
+        const district = (result?.districts || result || []).find(
+          (item: any) => item.id === districtId
+        );
+        setDistrictName(district?.name || '');
+      })
+      .catch(() => {
+        if (active) setDistrictName('');
+      });
+    return () => {
+      active = false;
+    };
   }, [isInspector, directorateId, districtId]);
 
   // Custom API Key per Account (Dedicated AI Agent / Pedagogical Engine Key)
@@ -109,7 +126,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
   });
   const [showApiKey, setShowApiKey] = useState(false);
   const [keyTestLoading, setKeyTestLoading] = useState(false);
-  const [keyTestFeedback, setKeyTestFeedback] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
+  const [keyTestFeedback, setKeyTestFeedback] = useState<{
+    message: string;
+    type: 'success' | 'warning' | 'error';
+  } | null>(null);
 
   useEffect(() => {
     if (currentUser.customApiKey) {
@@ -122,7 +142,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
     if (!customApiKeyInput.trim()) {
       setKeyTestFeedback({
         message: 'يرجى إدخال مفتاح API Key أولاً لفحصه واختبار الاتصال.',
-        type: 'warning'
+        type: 'warning',
       });
       return;
     }
@@ -136,17 +156,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
     if (result.valid) {
       setKeyTestFeedback({
         message: result.message,
-        type: 'success'
+        type: 'success',
       });
     } else if (result.quotaExhausted) {
       setKeyTestFeedback({
         message: result.message,
-        type: 'warning'
+        type: 'warning',
       });
     } else {
       setKeyTestFeedback({
         message: result.message,
-        type: 'error'
+        type: 'error',
       });
     }
   };
@@ -165,11 +185,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
       return;
     }
     onUpdateUser(result.user);
-    setGoogleMsg({ type: 'success', text: 'تم ربط حساب Google بنجاح! يمكنك الآن الدخول به مباشرة دون كلمة مرور.' });
+    setGoogleMsg({
+      type: 'success',
+      text: 'تم ربط حساب Google بنجاح! يمكنك الآن الدخول به مباشرة دون كلمة مرور.',
+    });
   };
 
   const handleUnlinkGoogle = async () => {
-    if (!window.confirm('هل تريد فك الربط مع حساب Google؟ ستعود إلى الدخول بكلمة المرور فقط.')) return;
+    if (!window.confirm('هل تريد فك الربط مع حساب Google؟ ستعود إلى الدخول بكلمة المرور فقط.'))
+      return;
     setGoogleMsg({ type: '', text: '' });
     setIsGoogleBusy(true);
     const result = await googleUnlinkRequest();
@@ -200,7 +224,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
     }
 
     // Save API key locally and on user object (admin only)
-    const isAdminUser = currentUser.role === 'admin';
+    const isAdminUser = isAdmin;
     const trimmedKey = customApiKeyInput.trim();
     if (isAdminUser) setStoredApiKey(trimmedKey);
 
@@ -212,16 +236,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
       phone,
       specialization,
       yearsExperience,
-      ...(isInspector ? {} : {
-        schoolName,
-        municipality,
-        directorateId: directorateId === 'other_de' && customDirectorateName ? customDirectorateName : directorateId,
-        districtId: districtId === 'custom' && customDistrictName ? customDistrictName : districtId,
-      }),
+      ...(isInspector
+        ? {}
+        : {
+            ...(showProfessionalFields
+              ? {
+                  schoolName,
+                  municipality,
+                  directorateId:
+                    directorateId === 'other_de' && customDirectorateName
+                      ? customDirectorateName
+                      : directorateId,
+                  districtId:
+                    districtId === 'custom' && customDistrictName ? customDistrictName : districtId,
+                }
+              : {}),
+          }),
       ...(isAdminUser
         ? { customApiKey: trimmedKey, apiKeyStatus: trimmedKey ? 'active' : 'not_set' }
         : {}),
-      ...(newPassword ? { password: newPassword } : {})
+      ...(newPassword ? { password: newPassword } : {}),
     };
 
     onUpdateUser(updatedUser);
@@ -233,21 +267,34 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
 
   // Find current directorate display name
   const selectedDirObj = ALL_ALGERIAN_DIRECTORATES.find((d) => d.id === directorateId);
-  const directorateDisplayName = selectedDirObj ? selectedDirObj.name : (directorateId || 'غير محددة');
+  const directorateDisplayName = selectedDirObj
+    ? selectedDirObj.name
+    : directorateId || 'غير محددة';
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-200">
       {/* Header */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs">
         <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">
-          {isInspector ? 'إعدادات الحساب والأمان والانتساب الإداري' : 'إعدادات الحساب والأمان والانتساب المهني'}
+          {isInspector
+            ? 'إعدادات الحساب والأمان والانتساب الإداري'
+            : isAdmin
+              ? 'إعدادات الحساب والأمان'
+              : 'إعدادات الحساب والأمان والانتساب المهني'}
         </span>
         <h2 className="text-xl font-extrabold text-slate-900 mt-1 flex items-center gap-2">
           <SettingsIcon className="w-5 h-5 text-blue-600" />
-          <span>{isInspector ? 'إدارة حساب المفتش وبياناته الشخصية وأمان الحساب' : 'إدارة حساب الأستاذ وتعديل البريد الإلكتروني وكلمة المرور وبيانات المؤسسة'}</span>
+          <span>
+            {isInspector
+              ? 'إدارة حساب المفتش وبياناته الشخصية وأمان الحساب'
+              : isAdmin
+                ? 'إدارة حساب المشرف وبياناته الشخصية وأمان الحساب'
+                : 'إدارة حساب الأستاذ وتعديل البريد الإلكتروني وكلمة المرور وبيانات المؤسسة'}
+          </span>
         </h2>
         <p className="text-xs text-slate-500 mt-0.5">
-          يمكنك تعديل بيانات الاعتماد الرسمية، البريد الإلكتروني، كلمة السر، بيانات المدرسة والمقاطعة. يتم حفظ التغييرات مباشرة في قاعدة بيانات المنصة.
+          يمكنك تعديل بيانات الاعتماد الرسمية والبريد الإلكتروني وكلمة السر والبيانات المناسبة
+          لدورك. يتم حفظ التغييرات مباشرة في قاعدة بيانات المنصة.
         </p>
       </div>
 
@@ -276,7 +323,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                 </label>
                 <input
                   type="email"
-                  required={!isInspector}
+                  required={!isInspector && !isAdmin}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full p-2.5 rounded-xl border border-slate-300 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-bold text-slate-900 bg-white"
@@ -334,7 +381,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
             </h3>
 
             {googleMsg.text && (
-              <div className={`p-3 rounded-xl border text-xs font-bold ${googleMsg.type === 'error' ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+              <div
+                className={`p-3 rounded-xl border text-xs font-bold ${googleMsg.type === 'error' ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}
+              >
                 {googleMsg.text}
               </div>
             )}
@@ -343,7 +392,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                 <p className="text-slate-700 font-bold">
                   ✅ حسابك مربوط بحساب Google — يمكنك الدخول فوراً عبر الزر بدون كلمة مرور.
-                  <span className="block text-[10px] text-slate-400 font-normal mt-1 dir-ltr text-right">Google ID: {currentUser.googleId.slice(0, 10)}…</span>
+                  <span className="block text-[10px] text-slate-400 font-normal mt-1 dir-ltr text-right">
+                    Google ID: {currentUser.googleId.slice(0, 10)}…
+                  </span>
                 </p>
                 <button
                   type="button"
@@ -357,72 +408,78 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
             ) : (
               <div className="space-y-2">
                 <p className="text-[11px] text-slate-500 leading-relaxed">
-                  اربط حسابك بحساب Google يحمل <strong>نفس بريدك الإلكتروني المسجل</strong> لتتمكن لاحقاً من الدخول بنقرة واحدة من شاشة الدخول.
+                  اربط حسابك بحساب Google يحمل <strong>نفس بريدك الإلكتروني المسجل</strong> لتتمكن
+                  لاحقاً من الدخول بنقرة واحدة من شاشة الدخول.
                 </p>
-                <GoogleSignInButton onCredential={handleLinkGoogle} text="continue_with" disabled={isGoogleBusy} />
+                <GoogleSignInButton
+                  onCredential={handleLinkGoogle}
+                  text="continue_with"
+                  disabled={isGoogleBusy}
+                />
               </div>
             )}
           </div>
 
           {/* Section 1.6: Custom Gemini API Key — admin only */}
           {currentUser.role === 'admin' && (
-          <div className="space-y-3 p-4 rounded-2xl bg-indigo-50/60 border border-indigo-200/80">
-            <h3 className="text-sm font-extrabold text-slate-900 border-b border-indigo-200/80 pb-2 flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-indigo-600" />
-                <span>1.6 مفتاح الذكاء الاصطناعي المخصص (Gemini API Key)</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowApiKey(!showApiKey)}
-                className="text-[11px] text-indigo-600 font-bold hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                <span>{showApiKey ? 'إخفاء المفتاح' : 'إظهار المفتاح'}</span>
-              </button>
-            </h3>
+            <div className="space-y-3 p-4 rounded-2xl bg-indigo-50/60 border border-indigo-200/80">
+              <h3 className="text-sm font-extrabold text-slate-900 border-b border-indigo-200/80 pb-2 flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-indigo-600" />
+                  <span>1.6 مفتاح الذكاء الاصطناعي المخصص (Gemini API Key)</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="text-[11px] text-indigo-600 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  <span>{showApiKey ? 'إخفاء المفتاح' : 'إظهار المفتاح'}</span>
+                </button>
+              </h3>
 
-            <p className="text-[11px] text-slate-600">
-              يمكنك ربط مفتاح Gemini API جديد خاص بحسابك لتوليد المذكرات البيداغوجية والخطط التوجيهية بدون قيود الاستخدام العام.
-            </p>
+              <p className="text-[11px] text-slate-600">
+                يمكنك ربط مفتاح Gemini API جديد خاص بحسابك لتوليد المذكرات البيداغوجية والخطط
+                التوجيهية بدون قيود الاستخدام العام.
+              </p>
 
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type={showApiKey ? 'text' : 'password'}
-                value={customApiKeyInput}
-                onChange={(e) => setCustomApiKeyInput(e.target.value)}
-                placeholder="AIzaSy..."
-                className="flex-1 p-2.5 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 font-mono text-xs bg-white"
-              />
-              <button
-                type="button"
-                onClick={handleTestKeyConnection}
-                disabled={keyTestLoading}
-                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl disabled:opacity-50 cursor-pointer text-xs shrink-0"
-              >
-                {keyTestLoading ? 'جاري الفحص...' : 'فحص واختبار المفتاح'}
-              </button>
-            </div>
-
-            {keyTestFeedback && (
-              <div
-                className={`p-3 rounded-xl font-bold flex items-center gap-2 text-xs ${
-                  keyTestFeedback.type === 'success'
-                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
-                    : keyTestFeedback.type === 'warning'
-                    ? 'bg-amber-50 border border-amber-200 text-amber-800'
-                    : 'bg-rose-50 border border-rose-200 text-rose-800'
-                }`}
-              >
-                {keyTestFeedback.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
-                )}
-                <span>{keyTestFeedback.message}</span>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type={showApiKey ? 'text' : 'password'}
+                  value={customApiKeyInput}
+                  onChange={(e) => setCustomApiKeyInput(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="flex-1 p-2.5 rounded-xl border border-indigo-200 outline-none focus:border-indigo-500 font-mono text-xs bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={handleTestKeyConnection}
+                  disabled={keyTestLoading}
+                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl disabled:opacity-50 cursor-pointer text-xs shrink-0"
+                >
+                  {keyTestLoading ? 'جاري الفحص...' : 'فحص واختبار المفتاح'}
+                </button>
               </div>
-            )}
-          </div>
+
+              {keyTestFeedback && (
+                <div
+                  className={`p-3 rounded-xl font-bold flex items-center gap-2 text-xs ${
+                    keyTestFeedback.type === 'success'
+                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                      : keyTestFeedback.type === 'warning'
+                        ? 'bg-amber-50 border border-amber-200 text-amber-800'
+                        : 'bg-rose-50 border border-rose-200 text-rose-800'
+                  }`}
+                >
+                  {keyTestFeedback.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                  )}
+                  <span>{keyTestFeedback.message}</span>
+                </div>
+              )}
+            </div>
           )}
           <div className="space-y-4">
             <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
@@ -464,28 +521,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                 />
               </div>
 
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">التخصص والصفة المهنية</label>
-                <input
-                  type="text"
-                  value={specialization}
-                  onChange={(e) => setSpecialization(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-medium"
-                  placeholder="مثال: أستاذ التربية البدنية والرياضية للتعليم الابتدائي"
-                />
-              </div>
+              {showProfessionalFields && (
+                <>
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      التخصص والصفة المهنية
+                    </label>
+                    <input
+                      type="text"
+                      value={specialization}
+                      onChange={(e) => setSpecialization(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-medium"
+                      placeholder="مثال: أستاذ التربية البدنية والرياضية للتعليم الابتدائي"
+                    />
+                  </div>
 
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">سنوات الخبرة المهنية</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={32}
-                  value={yearsExperience}
-                  onChange={(e) => setYearsExperience(Number(e.target.value))}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-medium"
-                />
-              </div>
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      سنوات الخبرة المهنية
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={32}
+                      value={yearsExperience}
+                      onChange={(e) => setYearsExperience(Number(e.target.value))}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-medium"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -502,7 +567,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                 </div>
                 <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
                   <span className="font-bold text-slate-600 block mb-1">المقاطعة التفتيشية</span>
-                  <span className="font-extrabold text-slate-900">{districtName || districtId || 'غير محددة'}</span>
+                  <span className="font-extrabold text-slate-900">
+                    {districtName || districtId || 'غير محددة'}
+                  </span>
                 </div>
               </div>
               {(!directorateId || !districtId) && (
@@ -514,121 +581,135 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
           )}
 
           {/* Section 3: Administrative & School Assignment */}
-          {!isInspector && (
-          <div className="space-y-4 pt-2">
-            <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-emerald-600" />
-              <span>3. بيانات التعيين والمقاطعة ومديرية التربية</span>
-            </h3>
+          {!isInspector && showProfessionalFields && (
+            <div className="space-y-4 pt-2">
+              <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-emerald-600" />
+                <span>3. بيانات التعيين والمقاطعة ومديرية التربية</span>
+              </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1.5">
-                  <School className="w-3.5 h-3.5 text-blue-600" />
-                  <span>اسم المدرسة الابتدائية / مكان العمل</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={schoolName}
-                  onChange={(e) => setSchoolName(e.target.value)}
-                  placeholder="مثال: مدرسة الشهيد مزيان عمار "
-                  className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-medium bg-slate-50/50"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-rose-500" />
-                  <span>بلدية العمل والولاية</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={municipality}
-                  onChange={(e) => setMunicipality(e.target.value)}
-                  placeholder="مثال: عين أزال - سطيف"
-                  className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-medium bg-slate-50/50"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">مديرية التربية لولاية</label>
-                <select
-                  value={directorateId}
-                  onChange={(e) => setDirectorateId(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-bold bg-white"
-                >
-                  {ALL_ALGERIAN_DIRECTORATES.map((dir) => (
-                    <option key={dir.id} value={dir.id}>
-                      {dir.name}
-                    </option>
-                  ))}
-                </select>
-                {directorateId === 'other_de' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1.5">
+                    <School className="w-3.5 h-3.5 text-blue-600" />
+                    <span>اسم المدرسة الابتدائية / مكان العمل</span>
+                  </label>
                   <input
                     type="text"
                     required
-                    value={customDirectorateName}
-                    onChange={(e) => setCustomDirectorateName(e.target.value)}
-                    placeholder="اكتب اسم مديرية التربية متبوعاً بالولاية..."
-                    className="w-full mt-2 p-2.5 rounded-xl border border-amber-300 outline-none focus:border-blue-500 font-medium"
+                    value={schoolName}
+                    onChange={(e) => setSchoolName(e.target.value)}
+                    placeholder="مثال: مدرسة الشهيد مزيان عمار "
+                    className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-medium bg-slate-50/50"
                   />
-                )}
-              </div>
+                </div>
 
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">المقاطعة التفتيشية المنسوب إليها</label>
-                <select
-                  value={districtId}
-                  onChange={(e) => setDistrictId(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-bold bg-white"
-                >
-                  <option value="dist_setif_7">المقاطعة 07 - عين أزال (سطيف)</option>
-                  <option value="dist_setif_1">المقاطعة 01 - سطيف </option>
-                  <option value="dist_setif_2">المقاطعة 02 - سطيف </option>
-                  <option value="dist_setif_5">المقاطعة 03 - سطيف </option>
-                  <option value="dist_setif_2">المقاطعة 04 - سطيف </option>
-                  <option value="dist_setif_2">المقاطعة 05 - سطيف </option>
-                  <option value="dist_setif_2">المقاطعة 06 - سطيف </option>
-                  <option value="dist_setif_2">المقاطعة 08 - سطيف </option>
-                  <option value="dist_setif_2">المقاطعة 09 - سطيف </option>
-                  <option value="dist_setif_2">المقاطعة 10 - سطيف </option>
-                  <option value="custom">مقاطعة أخرى (كتابة يدوية)...</option>
-                </select>
-                {districtId === 'custom' && (
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-rose-500" />
+                    <span>بلدية العمل والولاية</span>
+                  </label>
                   <input
                     type="text"
                     required
-                    value={customDistrictName}
-                    onChange={(e) => setCustomDistrictName(e.target.value)}
-                    placeholder="اكتب اسم المقاطعة التفتيشية..."
-                    className="w-full mt-2 p-2.5 rounded-xl border border-amber-300 outline-none focus:border-blue-500 font-medium"
+                    value={municipality}
+                    onChange={(e) => setMunicipality(e.target.value)}
+                    placeholder="مثال: عين أزال - سطيف"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-medium bg-slate-50/50"
                   />
-                )}
-              </div>
-            </div>
+                </div>
 
-            {/* Active Assignment Preview Card */}
-            <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 space-y-2 text-emerald-950 mt-2">
-              <div className="flex items-center gap-2 font-black text-xs">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>ملخص الانتساب الرسمي المنشور في التقارير والمذكرات:</span>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    مديرية التربية لولاية
+                  </label>
+                  <select
+                    value={directorateId}
+                    onChange={(e) => setDirectorateId(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-bold bg-white"
+                  >
+                    {ALL_ALGERIAN_DIRECTORATES.map((dir) => (
+                      <option key={dir.id} value={dir.id}>
+                        {dir.name}
+                      </option>
+                    ))}
+                  </select>
+                  {directorateId === 'other_de' && (
+                    <input
+                      type="text"
+                      required
+                      value={customDirectorateName}
+                      onChange={(e) => setCustomDirectorateName(e.target.value)}
+                      placeholder="اكتب اسم مديرية التربية متبوعاً بالولاية..."
+                      className="w-full mt-2 p-2.5 rounded-xl border border-amber-300 outline-none focus:border-blue-500 font-medium"
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    المقاطعة التفتيشية المنسوب إليها
+                  </label>
+                  <select
+                    value={districtId}
+                    onChange={(e) => setDistrictId(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-bold bg-white"
+                  >
+                    <option value="dist_setif_7">المقاطعة 07 - عين أزال (سطيف)</option>
+                    <option value="dist_setif_1">المقاطعة 01 - سطيف </option>
+                    <option value="dist_setif_2">المقاطعة 02 - سطيف </option>
+                    <option value="dist_setif_5">المقاطعة 03 - سطيف </option>
+                    <option value="dist_setif_2">المقاطعة 04 - سطيف </option>
+                    <option value="dist_setif_2">المقاطعة 05 - سطيف </option>
+                    <option value="dist_setif_2">المقاطعة 06 - سطيف </option>
+                    <option value="dist_setif_2">المقاطعة 08 - سطيف </option>
+                    <option value="dist_setif_2">المقاطعة 09 - سطيف </option>
+                    <option value="dist_setif_2">المقاطعة 10 - سطيف </option>
+                    <option value="custom">مقاطعة أخرى (كتابة يدوية)...</option>
+                  </select>
+                  {districtId === 'custom' && (
+                    <input
+                      type="text"
+                      required
+                      value={customDistrictName}
+                      onChange={(e) => setCustomDistrictName(e.target.value)}
+                      placeholder="اكتب اسم المقاطعة التفتيشية..."
+                      className="w-full mt-2 p-2.5 rounded-xl border border-amber-300 outline-none focus:border-blue-500 font-medium"
+                    />
+                  )}
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
-                <div>🏫 <strong>المدرسة:</strong> {schoolName || 'لم تحدد'}</div>
-                <div>📍 <strong>البلدية:</strong> {municipality || 'لم تحدد'}</div>
-                <div>🏛️ <strong>المديرية:</strong> {directorateDisplayName}</div>
-                <div>🛡️ <strong>المقاطعة:</strong> {districtId === 'custom' ? customDistrictName : districtId}</div>
+
+              {/* Active Assignment Preview Card */}
+              <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 space-y-2 text-emerald-950 mt-2">
+                <div className="flex items-center gap-2 font-black text-xs">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>ملخص الانتساب الرسمي المنشور في التقارير والمذكرات:</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
+                  <div>
+                    🏫 <strong>المدرسة:</strong> {schoolName || 'لم تحدد'}
+                  </div>
+                  <div>
+                    📍 <strong>البلدية:</strong> {municipality || 'لم تحدد'}
+                  </div>
+                  <div>
+                    🏛️ <strong>المديرية:</strong> {directorateDisplayName}
+                  </div>
+                  <div>
+                    🛡️ <strong>المقاطعة:</strong>{' '}
+                    {districtId === 'custom' ? customDistrictName : districtId}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
           )}
 
           <div className="pt-4 flex items-center justify-between border-t border-slate-100 flex-wrap gap-3">
             {savedSuccess ? (
               <span className="text-xs font-bold text-emerald-700 bg-emerald-100/80 px-3 py-1.5 rounded-xl border border-emerald-300 flex items-center gap-1.5 animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> تم حفظ التغييرات والبريد الإلكتروني وكلمة المرور بنجاح في قاعدة البيانات!
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> تم حفظ التغييرات والبريد
+                الإلكتروني وكلمة المرور بنجاح في قاعدة البيانات!
               </span>
             ) : (
               <span className="text-[11px] text-slate-400">
