@@ -25,6 +25,7 @@ import { reassignTeacher, reassignAllForInspector } from './assignmentService.js
 import { canWriteRecord, resolveOwnerFieldValue } from './collectionAuth.js';
 import { canReadDistrictMessage, normalizeMessageText } from '../services/communicationRules.js';
 import { providerIsUsable } from './generationAccess.policy.js';
+import { buildClassPlannedSessionSeeds } from '../services/teacherPlanning.service.js';
 import {
   resolveGenerationCredential,
   resolvePersonalGenerationCredential,
@@ -71,6 +72,166 @@ apiRouter.get('/health', (req, res) => {
 
 // كل ما يلي يتطلب تسجيل دخول صالح
 apiRouter.use(requireAuth);
+
+const classPlanningQuerySchema = z.object({
+  academicYearId: z.string().trim().min(1),
+});
+
+const classPlanningInitializeSchema = z.object({
+  academicYearId: z.string().trim().min(1),
+  planningStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+const classPlanningUpdateSchema = z.object({
+  plannedDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  startTime: z.string().trim().max(20).nullable().optional(),
+  venue: z.string().trim().max(200).nullable().optional(),
+  operationalNote: z.string().trim().max(2000).nullable().optional(),
+  status: z.enum(['مبرمجة', 'منجزة', 'مؤجلة', 'غير منجزة']).optional(),
+});
+
+function classPlannedSessionView(row: {
+  id: string;
+  teacherId: string;
+  classId: string;
+  academicYearId: string;
+  referenceSessionId: string;
+  plannedDate: Date;
+  durationMinutes: number;
+  status: string;
+  startTime: string | null;
+  venue: string | null;
+  operationalNote: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: row.id,
+    teacherId: row.teacherId,
+    classId: row.classId,
+    academicYearId: row.academicYearId,
+    referenceSessionId: row.referenceSessionId,
+    plannedDate: row.plannedDate.toISOString().slice(0, 10),
+    durationMinutes: row.durationMinutes,
+    status: row.status,
+    startTime: row.startTime,
+    venue: row.venue,
+    operationalNote: row.operationalNote,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+apiRouter.get(
+  '/teacher/planning/classes/:classId/sessions',
+  requireRole('teacher'),
+  async (req, res) => {
+    const parsed = classPlanningQuerySchema.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ error: 'السنة الدراسية مطلوبة.' });
+    const classRecord = await prisma.studentClass.findFirst({
+      where: { id: req.params.classId, teacherId: req.user!.id },
+    });
+    if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+    const rows = await prisma.classPlannedSession.findMany({
+      where: {
+        classId: classRecord.id,
+        teacherId: req.user!.id,
+        academicYearId: parsed.data.academicYearId,
+      },
+      orderBy: [{ plannedDate: 'asc' }, { id: 'asc' }],
+    });
+    res.json({
+      success: true,
+      class: {
+        id: classRecord.id,
+        name: classRecord.name,
+        levelId: classRecord.levelId,
+        institutionId: classRecord.institutionId,
+      },
+      sessions: rows.map(classPlannedSessionView),
+    });
+  }
+);
+
+apiRouter.post(
+  '/teacher/planning/classes/:classId/sessions/initialize',
+  requireRole('teacher'),
+  async (req, res) => {
+    const parsed = classPlanningInitializeSchema.safeParse(req.body);
+    if (!parsed.success)
+      return res
+        .status(400)
+        .json({ error: 'السنة الدراسية وتاريخ بداية التخطيط مطلوبان بصيغة صحيحة.' });
+    const classRecord = await prisma.studentClass.findFirst({
+      where: { id: req.params.classId, teacherId: req.user!.id },
+    });
+    if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+    const seeds = buildClassPlannedSessionSeeds(
+      req.user!.id,
+      classRecord.id,
+      parsed.data.academicYearId,
+      classRecord.levelId,
+      parsed.data.planningStartDate
+    );
+    if (!seeds.length)
+      return res.status(400).json({ error: 'تعذر إنشاء تسلسل المنهاج لهذا المستوى.' });
+    await prisma.classPlannedSession.createMany({ data: seeds, skipDuplicates: true });
+    const rows = await prisma.classPlannedSession.findMany({
+      where: {
+        classId: classRecord.id,
+        teacherId: req.user!.id,
+        academicYearId: parsed.data.academicYearId,
+      },
+      orderBy: [{ plannedDate: 'asc' }, { id: 'asc' }],
+    });
+    res
+      .status(201)
+      .json({
+        success: true,
+        initialized: seeds.length,
+        class: {
+          id: classRecord.id,
+          name: classRecord.name,
+          levelId: classRecord.levelId,
+          institutionId: classRecord.institutionId,
+        },
+        sessions: rows.map(classPlannedSessionView),
+      });
+  }
+);
+
+apiRouter.patch(
+  '/teacher/planning/classes/:classId/sessions/:sessionId',
+  requireRole('teacher'),
+  async (req, res) => {
+    const parsed = classPlanningUpdateSchema.safeParse(req.body);
+    if (!parsed.success || !Object.keys(parsed.data).length)
+      return res.status(400).json({ error: 'لا توجد تعديلات تشغيلية صالحة.' });
+    const existing = await prisma.classPlannedSession.findFirst({
+      where: { id: req.params.sessionId, classId: req.params.classId, teacherId: req.user!.id },
+    });
+    if (!existing) return res.status(404).json({ error: 'الحصة التشغيلية غير موجودة ضمن أقسامك.' });
+    const data: {
+      plannedDate?: Date;
+      startTime?: string | null;
+      venue?: string | null;
+      operationalNote?: string | null;
+      status?: string;
+    } = {};
+    if (parsed.data.plannedDate !== undefined)
+      data.plannedDate = new Date(`${parsed.data.plannedDate}T00:00:00.000Z`);
+    if (parsed.data.startTime !== undefined) data.startTime = parsed.data.startTime;
+    if (parsed.data.venue !== undefined) data.venue = parsed.data.venue;
+    if (parsed.data.operationalNote !== undefined)
+      data.operationalNote = parsed.data.operationalNote;
+    if (parsed.data.status !== undefined) data.status = parsed.data.status;
+    const saved = await prisma.classPlannedSession.update({ where: { id: existing.id }, data });
+    res.json({ success: true, session: classPlannedSessionView(saved) });
+  }
+);
 
 apiRouter.post('/students/import/preview', async (req, res) => {
   try {
@@ -1274,14 +1435,12 @@ apiRouter.get('/admin/reports/overview', requireRole('admin'), async (req, res) 
             assignments.filter((a) => a.status === status).length,
           ])
         ),
-        pending: pending
-          .slice(0, 25)
-          .map((a) => ({
-            id: a.id,
-            teacherId: a.teacherId,
-            inspectorId: a.inspectorId,
-            updatedAt: a.updatedAt,
-          })),
+        pending: pending.slice(0, 25).map((a) => ({
+          id: a.id,
+          teacherId: a.teacherId,
+          inspectorId: a.inspectorId,
+          updatedAt: a.updatedAt,
+        })),
         workload: activeInspectors.map((i) => ({
           id: i.id,
           accepted: accepted.filter((a) => a.inspectorId === i.id).length,

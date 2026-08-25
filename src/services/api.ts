@@ -593,6 +593,91 @@ export async function confirmStudentRosterImport(
   };
 }
 
+export type ClassPlannedSessionStatus = 'مبرمجة' | 'منجزة' | 'مؤجلة' | 'غير منجزة';
+
+export interface TeacherPlanningSession {
+  id: string;
+  teacherId: string;
+  classId: string;
+  academicYearId: string;
+  referenceSessionId: string;
+  plannedDate: string;
+  durationMinutes: number;
+  status: ClassPlannedSessionStatus;
+  startTime: string | null;
+  venue: string | null;
+  operationalNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeacherPlanningClassContext {
+  id: string;
+  name: string;
+  levelId: string;
+  institutionId: string | null;
+}
+
+export interface TeacherPlanningSessionsResponse {
+  success: boolean;
+  class: TeacherPlanningClassContext;
+  sessions: TeacherPlanningSession[];
+}
+
+export async function fetchTeacherPlanningSessions(
+  classId: string,
+  academicYearId: string
+): Promise<TeacherPlanningSessionsResponse> {
+  const query = new URLSearchParams({ academicYearId });
+  const res = await fetch(
+    `/api/teacher/planning/classes/${encodeURIComponent(classId)}/sessions?${query.toString()}`
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل توزيع القسم.');
+  return data as TeacherPlanningSessionsResponse;
+}
+
+export async function initializeTeacherPlanningSessions(
+  classId: string,
+  academicYearId: string,
+  planningStartDate: string
+): Promise<TeacherPlanningSessionsResponse & { initialized: number }> {
+  const res = await fetch(
+    `/api/teacher/planning/classes/${encodeURIComponent(classId)}/sessions/initialize`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ academicYearId, planningStartDate }),
+    }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر إنشاء توزيع القسم.');
+  return data as TeacherPlanningSessionsResponse & { initialized: number };
+}
+
+export async function updateTeacherPlanningSession(
+  classId: string,
+  sessionId: string,
+  updates: Partial<
+    Pick<
+      TeacherPlanningSession,
+      'plannedDate' | 'startTime' | 'venue' | 'operationalNote' | 'status'
+    >
+  >
+): Promise<{ success: boolean; session: TeacherPlanningSession }> {
+  const res = await fetch(
+    `/api/teacher/planning/classes/${encodeURIComponent(classId)}/sessions/${encodeURIComponent(sessionId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحديث الحصة التشغيلية.');
+  return data as { success: boolean; session: TeacherPlanningSession };
+}
+
 export async function fetchStudentRoster() {
   const response = await fetch('/api/students/roster');
   const data = await response.json();
