@@ -70,6 +70,7 @@ model User {
   students Student[]
   studentClasses StudentClass[]
   plannedSessions ClassPlannedSession[] @relation("TeacherPlannedSessions")
+  assessmentSessions AssessmentSession[]
 
   // نظام الإسناد التلقائي للأساتذة إلى المفتشين
   teacherAssignment    InspectorAssignment?  @relation("TeacherAssignment")
@@ -99,6 +100,7 @@ model Student {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   teacher       User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  studentAssessments StudentAssessment[]
 
   @@unique([institutionId, matricule])
   @@index([teacherId, classId])
@@ -115,6 +117,7 @@ model StudentClass {
   updatedAt     DateTime @updatedAt
   teacher       User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   plannedSessions ClassPlannedSession[]
+  assessmentSessions AssessmentSession[]
 
   @@index([teacherId])
   @@index([institutionId])
@@ -137,6 +140,7 @@ model ClassPlannedSession {
 
   teacher User         @relation("TeacherPlannedSessions", fields: [teacherId], references: [id], onDelete: Cascade)
   class   StudentClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  assessmentSession AssessmentSession?
 
   @@unique([classId, academicYearId, referenceSessionId])
   @@index([teacherId])
@@ -296,6 +300,65 @@ model PasswordResetToken {
 // مفهرسة إضافية للاستعلامات الشائعة والصلاحيات.
 // -----------------------------------------------------------------------
 
+model AssessmentSession {
+  id                    String   @id
+  teacherId             String
+  classId               String
+  academicYearId        String
+  classPlannedSessionId String?  @unique
+  assessmentType        String
+  gradeLevelId          String
+  domainId              String
+  finalCompetencyId     String?
+  title                 String?
+  assessedAt            DateTime
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  teacher               User                @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class                 StudentClass        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classPlannedSession   ClassPlannedSession? @relation(fields: [classPlannedSessionId], references: [id], onDelete: SetNull)
+  studentAssessments    StudentAssessment[]
+
+  @@index([teacherId, classId, academicYearId])
+  @@index([classPlannedSessionId])
+}
+
+model StudentAssessment {
+  id                  String   @id
+  assessmentSessionId String
+  studentId           String
+  masteryLevel        String?
+  numericMark         Float?
+  note                String?
+  assessedAt          DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  assessmentSession AssessmentSession @relation(fields: [assessmentSessionId], references: [id], onDelete: Cascade)
+  student           Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  criterionResults  CriterionResult[]
+
+  @@unique([assessmentSessionId, studentId])
+  @@index([assessmentSessionId])
+  @@index([studentId])
+}
+
+model CriterionResult {
+  id                  String   @id
+  studentAssessmentId String
+  criterionId         String
+  masteryLevel        String?
+  note                String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  studentAssessment StudentAssessment @relation(fields: [studentAssessmentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentAssessmentId, criterionId])
+  @@index([studentAssessmentId])
+  @@index([criterionId])
+}
 model LessonPlan {
   id        String   @id
   ownerId   String?

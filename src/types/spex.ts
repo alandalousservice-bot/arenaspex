@@ -135,8 +135,8 @@ export interface GradeAuditLog {
   studentName: string;
   classId: string;
   term: 'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث';
-  suggestedMark: number;
-  previousFinalMark?: number;
+  suggestedMark: number | null;
+  previousFinalMark?: number | null;
   newFinalMark: number;
   changedByTeacherName: string;
   changeDate: string;
@@ -149,18 +149,18 @@ export interface GradeRecord {
   studentId: string;
   classId: string;
   term: 'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث';
-  behaviorRating: 'ممتاز' | 'جيد' | 'متوسط' | 'ضعيف';
-  behaviorScore: number; // derived from behaviorRating & behaviorWeight
+  behaviorRating: 'ممتاز' | 'جيد' | 'متوسط' | 'ضعيف' | null;
+  behaviorScore: number | null; // derived from behaviorRating & behaviorWeight
   behaviorNotes?: string;
-  participationRating: 'ممتاز' | 'جيد' | 'متوسط' | 'ضعيف';
-  participationScore: number; // derived from participationRating & participationWeight
-  attendanceScore: number; // derived from attendance records & attendanceWeight
+  participationRating: 'ممتاز' | 'جيد' | 'متوسط' | 'ضعيف' | null;
+  participationScore: number | null; // derived from participationRating & participationWeight
+  attendanceScore: number | null; // derived from attendance records & attendanceWeight
   unexcusedAbsencesCount?: number;
   excusedAbsencesCount?: number;
-  competencyRating: 'تمكن ممتاز' | 'تمكن جيد' | 'تمكن متوسط' | 'تمكن جزئي';
-  competencyScore: number; // derived from assessment session indicators & competencyWeight
-  suggestedMark: number; // calculated out of 10
-  finalMark: number; // out of 10 (Teacher Final Decision)
+  competencyRating: 'تمكن ممتاز' | 'تمكن جيد' | 'تمكن متوسط' | 'تمكن جزئي' | null;
+  competencyScore: number | null; // derived from assessment session indicators & competencyWeight
+  suggestedMark: number | null; // calculated out of 10
+  finalMark: number | null; // out of 10 (Teacher Final Decision)
   isApprovedByTeacher: boolean;
   adjustmentReason?: string;
   updatedAt: string;
@@ -811,6 +811,47 @@ export interface CompetencyAssessmentSession {
   results: StudentAssessmentResult[];
 }
 
+export type TeacherAssessmentType =
+  'تشخيصية' | 'تعلمية' | 'إدماجية' | 'تقويمية' | 'تقويم تشخيصي' | 'تقويم تحصيلي';
+
+export interface AssessmentSessionDto {
+  id: string;
+  teacherId: string;
+  classId: string;
+  academicYearId: string;
+  classPlannedSessionId?: string | null;
+  assessmentType: TeacherAssessmentType;
+  gradeLevelId: string;
+  domainId: string;
+  finalCompetencyId?: string | null;
+  title?: string | null;
+  assessedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StudentAssessmentDto {
+  id: string;
+  assessmentSessionId: string;
+  studentId: string;
+  masteryLevel: AssessmentGrade | null;
+  numericMark: number | null;
+  note: string | null;
+  assessedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  criterionResults: CriterionResultDto[];
+}
+
+export interface CriterionResultDto {
+  id: string;
+  studentAssessmentId: string;
+  criterionId: string;
+  masteryLevel: AssessmentGrade | null;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 // Inspector Module
 export interface InspectorNote {
   id: string;

@@ -244,6 +244,344 @@ apiRouter.patch(
   }
 );
 
+const assessmentTypeSchema = z.enum([
+  'تشخيصية',
+  'تعلمية',
+  'إدماجية',
+  'تقويمية',
+  'تقويم تشخيصي',
+  'تقويم تحصيلي',
+]);
+const masteryLevelSchema = z.enum(['أ', 'ب', 'ج', 'د']);
+const assessmentSessionCreateSchema = z.object({
+  id: z.string().trim().min(1).max(160).optional(),
+  classId: z.string().trim().min(1).max(160),
+  academicYearId: z.string().regex(/^\d{4}-\d{4}$/),
+  classPlannedSessionId: z.string().trim().min(1).max(160).nullable().optional(),
+  assessmentType: assessmentTypeSchema,
+  gradeLevelId: z.string().regex(/^lvl_p[1-5]$/),
+  domainId: z.string().trim().min(1).max(160),
+  finalCompetencyId: z.string().trim().max(200).nullable().optional(),
+  title: z.string().trim().max(200).nullable().optional(),
+  assessedAt: z.coerce.date(),
+});
+const assessmentQuerySchema = z.object({
+  classId: z.string().trim().min(1),
+  academicYearId: z.string().regex(/^\d{4}-\d{4}$/),
+});
+const studentAssessmentSchema = z.object({
+  masteryLevel: masteryLevelSchema.nullable().optional(),
+  numericMark: z.number().finite().min(0).max(10).nullable().optional(),
+  note: z.string().max(4000).nullable().optional(),
+  assessedAt: z.coerce.date().nullable().optional(),
+});
+const criterionResultSchema = z.object({
+  masteryLevel: masteryLevelSchema.nullable().optional(),
+  note: z.string().max(4000).nullable().optional(),
+});
+
+type AssessmentSessionRow = {
+  id: string;
+  teacherId: string;
+  classId: string;
+  academicYearId: string;
+  classPlannedSessionId: string | null;
+  assessmentType: string;
+  gradeLevelId: string;
+  domainId: string;
+  finalCompetencyId: string | null;
+  title: string | null;
+  assessedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+};
+type StudentAssessmentRow = {
+  id: string;
+  assessmentSessionId: string;
+  studentId: string;
+  masteryLevel: string | null;
+  numericMark: number | null;
+  note: string | null;
+  assessedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+type CriterionResultRow = {
+  id: string;
+  studentAssessmentId: string;
+  criterionId: string;
+  masteryLevel: string | null;
+  note: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function assessmentSessionView(row: AssessmentSessionRow) {
+  return {
+    id: row.id,
+    teacherId: row.teacherId,
+    classId: row.classId,
+    academicYearId: row.academicYearId,
+    classPlannedSessionId: row.classPlannedSessionId,
+    assessmentType: row.assessmentType,
+    gradeLevelId: row.gradeLevelId,
+    domainId: row.domainId,
+    finalCompetencyId: row.finalCompetencyId,
+    title: row.title,
+    assessedAt: row.assessedAt.toISOString(),
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+function criterionResultView(row: CriterionResultRow) {
+  return {
+    id: row.id,
+    studentAssessmentId: row.studentAssessmentId,
+    criterionId: row.criterionId,
+    masteryLevel: row.masteryLevel,
+    note: row.note,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+function studentAssessmentView(
+  row: StudentAssessmentRow & { criterionResults?: CriterionResultRow[] }
+) {
+  return {
+    id: row.id,
+    assessmentSessionId: row.assessmentSessionId,
+    studentId: row.studentId,
+    masteryLevel: row.masteryLevel,
+    numericMark: row.numericMark,
+    note: row.note,
+    assessedAt: row.assessedAt?.toISOString() || null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+    criterionResults: (row.criterionResults || []).map(criterionResultView),
+  };
+}
+function criterionIdForSession(raw: string, session: AssessmentSessionRow): string | null {
+  const value = raw.trim();
+  if (/^C[1-4]$/.test(value))
+    return `criterion:${session.gradeLevelId}:${session.domainId}:${session.finalCompetencyId || 'none'}:${value}`;
+  const prefix = `criterion:${session.gradeLevelId}:${session.domainId}:${session.finalCompetencyId || 'none'}:`;
+  return value.startsWith(prefix) && /^criterion:[^:]+:[^:]+:[^:]+:C[1-4]$/.test(value)
+    ? value
+    : null;
+}
+async function ownedAssessmentSession(sessionId: string, teacherId: string) {
+  return prisma.assessmentSession.findFirst({ where: { id: sessionId, teacherId } });
+}
+
+apiRouter.get('/teacher/assessment-sessions', requireRole('teacher'), async (req, res) => {
+  const parsed = assessmentQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: 'القسم والسنة الدراسية مطلوبان.' });
+  const classRecord = await prisma.studentClass.findFirst({
+    where: { id: parsed.data.classId, teacherId: req.user!.id },
+  });
+  if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+  const rows = await prisma.assessmentSession.findMany({
+    where: {
+      teacherId: req.user!.id,
+      classId: classRecord.id,
+      academicYearId: parsed.data.academicYearId,
+    },
+    orderBy: [{ assessedAt: 'desc' }, { id: 'asc' }],
+  });
+  res.json({ success: true, sessions: rows.map(assessmentSessionView) });
+});
+
+apiRouter.post('/teacher/assessment-sessions', requireRole('teacher'), async (req, res) => {
+  const parsed = assessmentSessionCreateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'بيانات جلسة التقويم غير صحيحة.' });
+  const input = parsed.data;
+  const classRecord = await prisma.studentClass.findFirst({
+    where: { id: input.classId, teacherId: req.user!.id },
+  });
+  if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+  if (classRecord.levelId !== input.gradeLevelId)
+    return res.status(400).json({ error: 'المستوى الدراسي لا يطابق القسم.' });
+  let planned = null;
+  if (input.classPlannedSessionId) {
+    planned = await prisma.classPlannedSession.findFirst({
+      where: {
+        id: input.classPlannedSessionId,
+        classId: input.classId,
+        teacherId: req.user!.id,
+        academicYearId: input.academicYearId,
+      },
+    });
+    if (!planned)
+      return res.status(403).json({ error: 'الحصة التشغيلية غير موجودة ضمن قسمك وسنتك الدراسية.' });
+  }
+  const existing = input.id
+    ? await prisma.assessmentSession.findFirst({ where: { id: input.id, teacherId: req.user!.id } })
+    : input.classPlannedSessionId
+      ? await prisma.assessmentSession.findUnique({
+          where: { classPlannedSessionId: input.classPlannedSessionId },
+        })
+      : null;
+  if (existing) {
+    if (
+      existing.teacherId !== req.user!.id ||
+      existing.classId !== input.classId ||
+      existing.academicYearId !== input.academicYearId
+    )
+      return res.status(403).json({ error: 'جلسة التقويم غير متاحة ضمن نطاقك.' });
+    if (existing.classPlannedSessionId !== (input.classPlannedSessionId || null))
+      return res.status(409).json({ error: 'لا يمكن نقل جلسة التقويم إلى حصة تشغيلية أخرى.' });
+    return res.json({ success: true, reused: true, session: assessmentSessionView(existing) });
+  }
+  const created = await prisma.assessmentSession.create({
+    data: {
+      id: input.id || `assessment_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      teacherId: req.user!.id,
+      classId: input.classId,
+      academicYearId: input.academicYearId,
+      classPlannedSessionId: planned?.id || null,
+      assessmentType: input.assessmentType,
+      gradeLevelId: input.gradeLevelId,
+      domainId: input.domainId,
+      finalCompetencyId: input.finalCompetencyId || null,
+      title: input.title || null,
+      assessedAt: input.assessedAt,
+    },
+  });
+  res.status(201).json({ success: true, reused: false, session: assessmentSessionView(created) });
+});
+
+apiRouter.get(
+  '/teacher/assessment-sessions/:sessionId',
+  requireRole('teacher'),
+  async (req, res) => {
+    const session = await prisma.assessmentSession.findFirst({
+      where: { id: req.params.sessionId, teacherId: req.user!.id },
+      include: {
+        studentAssessments: { include: { criterionResults: true }, orderBy: { studentId: 'asc' } },
+      },
+    });
+    if (!session) return res.status(404).json({ error: 'جلسة التقويم غير موجودة ضمن سجلاتك.' });
+    res.json({
+      success: true,
+      session: assessmentSessionView(session),
+      results: session.studentAssessments.map(studentAssessmentView),
+    });
+  }
+);
+
+apiRouter.get(
+  '/teacher/assessment-sessions/:sessionId/results',
+  requireRole('teacher'),
+  async (req, res) => {
+    const session = await ownedAssessmentSession(req.params.sessionId, req.user!.id);
+    if (!session) return res.status(404).json({ error: 'جلسة التقويم غير موجودة ضمن سجلاتك.' });
+    const results = await prisma.studentAssessment.findMany({
+      where: { assessmentSessionId: session.id },
+      include: { criterionResults: true },
+      orderBy: { studentId: 'asc' },
+    });
+    res.json({ success: true, results: results.map(studentAssessmentView) });
+  }
+);
+
+apiRouter.put(
+  '/teacher/assessment-sessions/:sessionId/students/:studentId',
+  requireRole('teacher'),
+  async (req, res) => {
+    const parsed = studentAssessmentSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'بيانات نتيجة التلميذ غير صحيحة.' });
+    const session = await ownedAssessmentSession(req.params.sessionId, req.user!.id);
+    if (!session) return res.status(404).json({ error: 'جلسة التقويم غير موجودة ضمن سجلاتك.' });
+    const student = await prisma.student.findFirst({
+      where: { id: req.params.studentId, teacherId: req.user!.id, classId: session.classId },
+    });
+    if (!student) return res.status(403).json({ error: 'التلميذ غير موجود ضمن القسم المحدد.' });
+    const existing = await prisma.studentAssessment.findUnique({
+      where: {
+        assessmentSessionId_studentId: { assessmentSessionId: session.id, studentId: student.id },
+      },
+    });
+    const values = parsed.data;
+    const update: {
+      masteryLevel?: string | null;
+      numericMark?: number | null;
+      note?: string | null;
+      assessedAt?: Date | null;
+    } = {};
+    if ('masteryLevel' in values) update.masteryLevel = values.masteryLevel ?? null;
+    if ('numericMark' in values) update.numericMark = values.numericMark ?? null;
+    if ('note' in values) update.note = values.note ?? null;
+    if ('assessedAt' in values) update.assessedAt = values.assessedAt ?? null;
+    const saved = await prisma.studentAssessment.upsert({
+      where: {
+        assessmentSessionId_studentId: { assessmentSessionId: session.id, studentId: student.id },
+      },
+      create: {
+        id: `student_assessment_${session.id}_${student.id}`,
+        assessmentSessionId: session.id,
+        studentId: student.id,
+        masteryLevel: values.masteryLevel ?? null,
+        numericMark: values.numericMark ?? null,
+        note: values.note ?? null,
+        assessedAt: values.assessedAt ?? null,
+      },
+      update,
+      include: { criterionResults: true },
+    });
+    res.json({ success: true, created: !existing, result: studentAssessmentView(saved) });
+  }
+);
+
+apiRouter.put(
+  '/teacher/assessment-sessions/:sessionId/students/:studentId/criteria/:criterionId',
+  requireRole('teacher'),
+  async (req, res) => {
+    const parsed = criterionResultSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'بيانات معيار التقويم غير صحيحة.' });
+    const session = await ownedAssessmentSession(req.params.sessionId, req.user!.id);
+    if (!session) return res.status(404).json({ error: 'جلسة التقويم غير موجودة ضمن سجلاتك.' });
+    const student = await prisma.student.findFirst({
+      where: { id: req.params.studentId, teacherId: req.user!.id, classId: session.classId },
+    });
+    if (!student) return res.status(403).json({ error: 'التلميذ غير موجود ضمن القسم المحدد.' });
+    const studentAssessment = await prisma.studentAssessment.findUnique({
+      where: {
+        assessmentSessionId_studentId: { assessmentSessionId: session.id, studentId: student.id },
+      },
+    });
+    if (!studentAssessment)
+      return res.status(404).json({ error: 'يجب إنشاء نتيجة التلميذ قبل حفظ المعيار.' });
+    const criterionId = criterionIdForSession(req.params.criterionId, session);
+    if (!criterionId) return res.status(400).json({ error: 'معرّف المعيار غير معتمد.' });
+    const existing = await prisma.criterionResult.findUnique({
+      where: {
+        studentAssessmentId_criterionId: { studentAssessmentId: studentAssessment.id, criterionId },
+      },
+    });
+    const values = parsed.data;
+    const saved = await prisma.criterionResult.upsert({
+      where: {
+        studentAssessmentId_criterionId: { studentAssessmentId: studentAssessment.id, criterionId },
+      },
+      create: {
+        id: `criterion_result_${studentAssessment.id}_${criterionId.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+        studentAssessmentId: studentAssessment.id,
+        criterionId,
+        masteryLevel: values.masteryLevel ?? null,
+        note: values.note ?? null,
+      },
+      update: {
+        ...(Object.prototype.hasOwnProperty.call(values, 'masteryLevel')
+          ? { masteryLevel: values.masteryLevel ?? null }
+          : {}),
+        ...(Object.prototype.hasOwnProperty.call(values, 'note')
+          ? { note: values.note ?? null }
+          : {}),
+      },
+    });
+    res.json({ success: true, created: !existing, result: criterionResultView(saved) });
+  }
+);
 apiRouter.post('/students/import/preview', async (req, res) => {
   try {
     const filename = String(req.body?.filename || '').toLowerCase();

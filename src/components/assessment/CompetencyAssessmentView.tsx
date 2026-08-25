@@ -25,10 +25,16 @@ import {
   MapPin,
   School,
   Check,
-  BookOpen
+  BookOpen,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { CompetencyAssessmentSession, AssessmentGrade, Student, User, ClassRoom } from '../../types/spex';
+import {
+  CompetencyAssessmentSession,
+  AssessmentGrade,
+  Student,
+  User,
+  ClassRoom,
+} from '../../types/spex';
 
 interface CompetencyAssessmentViewProps {
   assessmentSessions?: CompetencyAssessmentSession[];
@@ -36,133 +42,168 @@ interface CompetencyAssessmentViewProps {
   currentUser?: User;
   classes?: ClassRoom[];
   students?: Student[];
-  onAddClass?: (newClassData: { name: string; levelId: string; studentCount: number; municipality?: string; schoolName?: string }) => string;
+  onAddClass?: (newClassData: {
+    name: string;
+    levelId: string;
+    studentCount: number;
+    municipality?: string;
+    schoolName?: string;
+  }) => string;
 }
 
 // 1. Matrix of 15 Final Competencies across 5 Levels and 3 Domains
-const COMPETENCY_MATRIX: Record<string, Record<string, { title: string; timing: string; target: string; track: string }>> = {
-  'lvl_p1': {
-    'f_locomotion': {
+const COMPETENCY_MATRIX: Record<
+  string,
+  Record<string, { title: string; timing: string; target: string; track: string }>
+> = {
+  lvl_p1: {
+    f_locomotion: {
       title: 'يتخذ وضعيات وهيئات طبيعية لها علاقة مع محيطه المباشر',
       timing: 'ديسمبر (نهاية الميدان الأول)',
       target: 'تكييف هيئة الجسم مع المحيط والمحافظة على التوازن أثناء التنقل والوقوف.',
-      track: 'مسلك حركي فني: التنقل المتوازن بين معالم محددة، الجري بغير اتجاه، التوقف المتوازن عند الإشارة الصوتية، والرمي الخفيف نحو هدف واسع.'
+      track:
+        'مسلك حركي فني: التنقل المتوازن بين معالم محددة، الجري بغير اتجاه، التوقف المتوازن عند الإشارة الصوتية، والرمي الخفيف نحو هدف واسع.',
     },
-    'f_basic_moves': {
+    f_basic_moves: {
       title: 'ينفذ حركات قاعدية مبنية على تكامل وظائف جسمه',
       timing: 'فيفري (نهاية الميدان الثاني)',
       target: 'جودة الأداء الحركي الأساسي والربط والتنسيق بين حركات الجري والوثب.',
-      track: 'مسلك فني: الجري المستقيم لمسافة 10 أمتار + الوثب بقدمين داخل طوقين متتاليين + دحرجة جانبية بسيطة + رمي كرة خفيفة بالأيدين.'
+      track:
+        'مسلك فني: الجري المستقيم لمسافة 10 أمتار + الوثب بقدمين داخل طوقين متتاليين + دحرجة جانبية بسيطة + رمي كرة خفيفة بالأيدين.',
     },
-    'f_structuring': {
+    f_structuring: {
       title: 'يستغل فضاء الممارسة ومعالمه للتشكل والتنقل المنتظم',
       timing: 'ماي (نهاية الميدان الثالث)',
       target: 'التشكل والتنقل المنتظم والاحترام التفاعلي لفضاء اللعب والزملاء.',
-      track: 'وضعية مشكلة جماعية: لعبة التموقع والتنقل المنتظم بين معالم الملعب (دوائر/خطوط) والمشاركة الفعالة ضمن نادٍ تربوي.'
-    }
+      track:
+        'وضعية مشكلة جماعية: لعبة التموقع والتنقل المنتظم بين معالم الملعب (دوائر/خطوط) والمشاركة الفعالة ضمن نادٍ تربوي.',
+    },
   },
-  'lvl_p2': {
-    'f_locomotion': {
+  lvl_p2: {
+    f_locomotion: {
       title: 'يعدل في الوقت المناسب وضعياته وتنقلاته من موقف لآخر',
       timing: 'ديسمبر (نهاية الميدان الأول)',
       target: 'التعديل الفوري للوضعية والتنقل حسب إكراهات الموقف وفضاء الممارسة.',
-      track: 'مسلك فني: الجري السريع وتغيير الاتجاه عند العوائق + الوثب والتوقف المتوازن + تعديل وضعية المدافعة أثناء اللعب.'
+      track:
+        'مسلك فني: الجري السريع وتغيير الاتجاه عند العوائق + الوثب والتوقف المتوازن + تعديل وضعية المدافعة أثناء اللعب.',
     },
-    'f_basic_moves': {
+    f_basic_moves: {
       title: 'ينفذ حركات طبيعية بسيطة في وضعيات متنوعة',
       timing: 'فيفري (نهاية الميدان الثاني)',
       target: 'تنفيذ الحركات الطبيعية (جري، وثب، رمي) بدقة وفي وضعيات فضائية مختلفة.',
-      track: 'مسلك فني: الجري وتجاوز 3 حواجز منخفضة (15سم) + الوثب الطويل من الثبات + رمي الكرة الزنية نحو مربعات ترقيمية.'
+      track:
+        'مسلك فني: الجري وتجاوز 3 حواجز منخفضة (15سم) + الوثب الطويل من الثبات + رمي الكرة الزنية نحو مربعات ترقيمية.',
     },
-    'f_structuring': {
+    f_structuring: {
       title: 'يحدد الأسلوب والفضاء المناسبين لاستعمال أداة',
       timing: 'ماي (نهاية الميدان الثالث)',
       target: 'استعمال الأدوات الرياضية بأسلوب مناسب وتحديد المسافات الشاغرة.',
-      track: 'وضعية مشكلة ألعاب مضرب/كرة: تمرير واستلام الأداة في المساحة الفارغة والتحرك السريع لتلقي التمريرة.'
-    }
+      track:
+        'وضعية مشكلة ألعاب مضرب/كرة: تمرير واستلام الأداة في المساحة الفارغة والتحرك السريع لتلقي التمريرة.',
+    },
   },
-  'lvl_p3': {
-    'f_locomotion': {
+  lvl_p3: {
+    f_locomotion: {
       title: 'يركب جملة من العمليات وينفذها وفق ما يتطلبه الموقف',
       timing: 'ديسمبر (نهاية الميدان الأول)',
       target: 'تركيب السلسلة الحركية والربط السلس بين التنقل والقفز والتوازن.',
-      track: 'مسلك فني مركب: تسلسل حركي يبدأ بالجري المتعرج + الدحرجة الأمامية أو الجسر + الوثب العمودي والتوازن على مقعد ثبات.'
+      track:
+        'مسلك فني مركب: تسلسل حركي يبدأ بالجري المتعرج + الدحرجة الأمامية أو الجسر + الوثب العمودي والتوازن على مقعد ثبات.',
     },
-    'f_basic_moves': {
+    f_basic_moves: {
       title: 'ينجز حركات قاعدية متعلقة بالجري والرمي',
       timing: 'فيفري (نهاية الميدان الثاني)',
       target: 'إنجاز المهارات الحركية القاعدية للجري والرمي مع المحافظة على اندفاع الحركة.',
-      track: 'مسلك ألعاب القوى: الجري السريع 20 أمتار + رمي الكرة الصولجانية/السهمية باليد الفاعلة لأقصى مسافة ممكنة من النطاق المخصص.'
+      track:
+        'مسلك ألعاب القوى: الجري السريع 20 أمتار + رمي الكرة الصولجانية/السهمية باليد الفاعلة لأقصى مسافة ممكنة من النطاق المخصص.',
     },
-    'f_structuring': {
+    f_structuring: {
       title: 'يبني تصرفاته القاعدية لتنظيم تدخلاته حسب الموقف',
       timing: 'ماي (نهاية الميدان الثالث)',
       target: 'بناء التصرفات والتفاعل التكتيكي البسيط مع عناصر الفريق والمنافس.',
-      track: 'مواجهة كروية/ألعاب مبسطة 4 ضد 4: اتخاذ القرار بالتحرك بالكرة أو بدونها وتنظيم خطوط اللعب وتغطية الثغرات.'
-    }
+      track:
+        'مواجهة كروية/ألعاب مبسطة 4 ضد 4: اتخاذ القرار بالتحرك بالكرة أو بدونها وتنظيم خطوط اللعب وتغطية الثغرات.',
+    },
   },
-  'lvl_p4': {
-    'f_locomotion': {
-      title: 'ينجز فردياً وجماعياً حركات قاعدية تتعلق بالوثب والرمي مدافعة على ترابطها بما يتماشى وفضاء الممارسة',
+  lvl_p4: {
+    f_locomotion: {
+      title:
+        'ينجز فردياً وجماعياً حركات قاعدية تتعلق بالوثب والرمي مدافعة على ترابطها بما يتماشى وفضاء الممارسة',
       timing: 'ديسمبر (نهاية الميدان الأول)',
       target: 'المحافظة على الترابط الحركي الفردي والجماعي والتلاؤم مع أبعاد فضاء الممارسة.',
-      track: 'مسلك فني تتابعي: الوثب الطويل المترابط + الرمي الموجه في مناطق محددة + الجري الجماعي للتتابع والتسليم.'
+      track:
+        'مسلك فني تتابعي: الوثب الطويل المترابط + الرمي الموجه في مناطق محددة + الجري الجماعي للتتابع والتسليم.',
     },
-    'f_basic_moves': {
+    f_basic_moves: {
       title: 'يؤدي حركات قاعدية متعلقة بالوثب والرمي ويحافظ على مراحلها وفق فضاء الممارسة المتاح',
       timing: 'فيفري (نهاية الميدان الثاني)',
       target: 'المحافظة على المراحل الفنية للحركة (الاندفاع، الارتقاء، الطيران، الهبوط/الرمي).',
-      track: 'مسلك ألعاب القوى: الجري الاقتضابي (الاقتراب) + الوثب الطويل بحساب الخطوات + الرمي بقوة وسلاسة مع التوازن.'
+      track:
+        'مسلك ألعاب القوى: الجري الاقتضابي (الاقتراب) + الوثب الطويل بحساب الخطوات + الرمي بقوة وسلاسة مع التوازن.',
     },
-    'f_structuring': {
+    f_structuring: {
       title: 'يبني الحركات القاعدية التي تضمن مواجهة الموقف بما يتماشى وفضاء الممارسة',
       timing: 'ماي (نهاية الميدان الثالث)',
       target: 'المواجهة الجماعية والتطبيق التكتيكي للمهارات الرياضية في الألعاب الجماعية.',
-      track: 'وضعية مباراة مبسطة 5 ضد 5: الانتشار الفضائي، تبادل التمرير السريع، بناء الهجمة، والتغطية الدفاعية المنتظمة.'
-    }
+      track:
+        'وضعية مباراة مبسطة 5 ضد 5: الانتشار الفضائي، تبادل التمرير السريع، بناء الهجمة، والتغطية الدفاعية المنتظمة.',
+    },
   },
-  'lvl_p5': {
-    'f_locomotion': {
-      title: 'ينجز عمليات فردية وجماعية مبنية على حركات قاعدية ويحافظ على ترابطها ويلائم وضعية جسمه حسب الموقف',
+  lvl_p5: {
+    f_locomotion: {
+      title:
+        'ينجز عمليات فردية وجماعية مبنية على حركات قاعدية ويحافظ على ترابطها ويلائم وضعية جسمه حسب الموقف',
       timing: 'ديسمبر (نهاية الميدان الأول)',
       target: 'التحكم التام في إنجاز وسلاسة العمليات الفردية والجماعية وتعديل الهيئة تلقائياً.',
-      track: 'مسلك فني متقدم: الجري المتزايد، الارتقاء الجانبي، التوازن على مقعد سويدي، والتحول السريع من وضعية الهجوم إلى الدفاع.'
+      track:
+        'مسلك فني متقدم: الجري المتزايد، الارتقاء الجانبي، التوازن على مقعد سويدي، والتحول السريع من وضعية الهجوم إلى الدفاع.',
     },
-    'f_basic_moves': {
+    f_basic_moves: {
       title: 'ينجز حركات قاعدية متعلقة بالجري والوثب والرمي بطريقة سليمة',
       timing: 'فيفري (نهاية الميدان الثاني)',
       target: 'السلامة الفنية والأداء الرياضي السليم لحركات الجري والوثب والرمي.',
-      track: 'اختبار ثلاثي لألعاب القوى: جري السرعة 30م + الوثب الطويل بالإشارة بحشو الرمل + رمي الكرة الثقيلة 1كغ.'
+      track:
+        'اختبار ثلاثي لألعاب القوى: جري السرعة 30م + الوثب الطويل بالإشارة بحشو الرمل + رمي الكرة الثقيلة 1كغ.',
     },
-    'f_structuring': {
+    f_structuring: {
       title: 'يمارس بعض الرياضات الجماعية وفق مبادئ اللعبة والتقنيات الأساسية',
       timing: 'ماي (نهاية الميدان الثالث)',
       target: 'الممارسة الرياضية المنظمة واحترام القوانين والتقنيات الأساسية للعبة الجماعية.',
-      track: 'مباراة رياضية جماعية رسمية (كرة يد/سلة/قدم مبسطة) وفق قوانين ومبادئ اللعبة والتمركز والنواحي التكتيكية.'
-    }
-  }
+      track:
+        'مباراة رياضية جماعية رسمية (كرة يد/سلة/قدم مبسطة) وفق قوانين ومبادئ اللعبة والتمركز والنواحي التكتيكية.',
+    },
+  },
 };
 
 // 2. The 4 Fixed Criteria according to the ministry evaluation framework
 const OFFICIAL_CRITERIA = [
   { code: 'C1', name: 'المعيار 1: اختيار الوضعيات والتصرفات المناسبة للموقف (المعرفي / الملائمة)' },
-  { code: 'C2', name: 'المعيار 2: التحكم في التنفيذ والمحافظة على التوازن وسريان الحركة (الحركي / الأداء)' },
-  { code: 'C3', name: 'المعيار 3: ضبط معالم فضاء الممارسة وتعديل الوضعية حسب الفضاء (الفضائي / البيئي)' },
-  { code: 'C4', name: 'المعيار 4: المساهمة الفعالة ضمن المجموعة وتنفيذ السلسلة المطلوبة (الاجتماعي / الجماعي)' },
+  {
+    code: 'C2',
+    name: 'المعيار 2: التحكم في التنفيذ والمحافظة على التوازن وسريان الحركة (الحركي / الأداء)',
+  },
+  {
+    code: 'C3',
+    name: 'المعيار 3: ضبط معالم فضاء الممارسة وتعديل الوضعية حسب الفضاء (الفضائي / البيئي)',
+  },
+  {
+    code: 'C4',
+    name: 'المعيار 4: المساهمة الفعالة ضمن المجموعة وتنفيذ السلسلة المطلوبة (الاجتماعي / الجماعي)',
+  },
 ];
 
 const LEVEL_NAMES: Record<string, string> = {
-  'lvl_p1': 'السنة الأولى ابتدائي (1AP)',
-  'lvl_p2': 'السنة الثانية ابتدائي (2AP)',
-  'lvl_p3': 'السنة الثالثة ابتدائي (3AP)',
-  'lvl_p4': 'السنة الرابعة ابتدائي (4AP)',
-  'lvl_p5': 'السنة الخامسة ابتدائي (5AP)',
+  lvl_p1: 'السنة الأولى ابتدائي (1AP)',
+  lvl_p2: 'السنة الثانية ابتدائي (2AP)',
+  lvl_p3: 'السنة الثالثة ابتدائي (3AP)',
+  lvl_p4: 'السنة الرابعة ابتدائي (4AP)',
+  lvl_p5: 'السنة الخامسة ابتدائي (5AP)',
 };
 
 const FIELD_NAMES: Record<string, { name: string; tag: string }> = {
-  'f_locomotion': { name: 'الميدان الأول: الوضعيات والتنقلات', tag: 'ديسمبر' },
-  'f_basic_moves': { name: 'الميدان الثاني: الحركات القاعدية', tag: 'فيفري' },
-  'f_structuring': { name: 'الميدان الثالث: الهيكلة والبناء', tag: 'ماي' }
+  f_locomotion: { name: 'الميدان الأول: الوضعيات والتنقلات', tag: 'ديسمبر' },
+  f_basic_moves: { name: 'الميدان الثاني: الحركات القاعدية', tag: 'فيفري' },
+  f_structuring: { name: 'الميدان الثالث: الهيكلة والبناء', tag: 'ماي' },
 };
 
 export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> = ({
@@ -171,7 +212,7 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
   currentUser,
   classes: propsClasses,
   students: propsStudents,
-  onAddClass
+  onAddClass,
 }) => {
   // Local Classes and Students fallback
   const [localClasses, setLocalClasses] = useState<ClassRoom[]>(propsClasses || []);
@@ -192,7 +233,9 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
   const [newClassName, setNewClassName] = useState('1 ابتدائي 2');
   const [newLevelId, setNewLevelId] = useState('lvl_p1');
   const [newStudentCount, setNewStudentCount] = useState(28);
-  const [newSchoolName, setNewSchoolName] = useState(currentUser?.schoolName || 'مدرسة الشهيد بالخيري عبد القادر');
+  const [newSchoolName, setNewSchoolName] = useState(
+    currentUser?.schoolName || 'مدرسة الشهيد بالخيري عبد القادر'
+  );
   const [newMunicipality, setNewMunicipality] = useState(currentUser?.municipality || 'عين أزال');
 
   // Filter classes available for selected level
@@ -225,35 +268,57 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
 
   // Helper score mapping for average calculation
   const gradeScoreMap: Record<AssessmentGrade, number> = {
-    'أ': 4,
-    'ب': 3,
-    'ج': 2,
-    'د': 1
+    أ: 4,
+    ب: 3,
+    ج: 2,
+    د: 1,
   };
 
   const calculateStudentLevel = (grades: Record<string, AssessmentGrade>) => {
-    const values = Object.values(grades).map((g) => gradeScoreMap[g] || 3);
-    const avg = values.reduce((a, b) => a + b, 0) / (values.length || 1);
+    const values = Object.values(grades)
+      .map((g) => gradeScoreMap[g])
+      .filter((score): score is number => score !== undefined);
+    if (!values.length) return null;
+    const avg = values.reduce((a, b) => a + b, 0) / values.length;
 
-    if (avg >= 3.5) return { label: 'تملك أقصى (أ)', code: 'أ', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
-    if (avg >= 2.5) return { label: 'تملك مقبول (ب)', code: 'ب', color: 'bg-blue-100 text-blue-800 border-blue-300' };
-    if (avg >= 1.8) return { label: 'تملك جزئي (ج)', code: 'ج', color: 'bg-amber-100 text-amber-800 border-amber-300' };
-    return { label: 'تملك محدود (د)', code: 'د', color: 'bg-rose-100 text-rose-800 border-rose-300' };
+    if (avg >= 3.5)
+      return {
+        label: 'تملك أقصى (أ)',
+        code: 'أ',
+        color: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+      };
+    if (avg >= 2.5)
+      return {
+        label: 'تملك مقبول (ب)',
+        code: 'ب',
+        color: 'bg-blue-100 text-blue-800 border-blue-300',
+      };
+    if (avg >= 1.8)
+      return {
+        label: 'تملك جزئي (ج)',
+        code: 'ج',
+        color: 'bg-amber-100 text-amber-800 border-amber-300',
+      };
+    return {
+      label: 'تملك محدود (د)',
+      code: 'د',
+      color: 'bg-rose-100 text-rose-800 border-rose-300',
+    };
   };
 
   const handleGradeChange = (studentId: string, criterionCode: string, grade: AssessmentGrade) => {
     setStudentGradesMap((prev) => {
       const sessionMap = prev[sessionKey] || {};
-      const studentCurrentGrades = sessionMap[studentId] || { C1: 'ب', C2: 'ب', C3: 'ب', C4: 'ب' };
+      const studentCurrentGrades = sessionMap[studentId] || {};
       return {
         ...prev,
         [sessionKey]: {
           ...sessionMap,
           [studentId]: {
             ...studentCurrentGrades,
-            [criterionCode]: grade
-          }
-        }
+            [criterionCode]: grade,
+          },
+        },
       };
     });
   };
@@ -265,7 +330,7 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
     });
     setStudentGradesMap((prev) => ({
       ...prev,
-      [sessionKey]: updated
+      [sessionKey]: updated,
     }));
   };
 
@@ -280,7 +345,7 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
         levelId: newLevelId,
         studentCount: Number(newStudentCount) || 25,
         schoolName: newSchoolName,
-        municipality: newMunicipality
+        municipality: newMunicipality,
       });
       setSelectedLevelId(newLevelId);
       setSelectedClassId(createdId);
@@ -292,7 +357,7 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
         teacherId: currentUser?.id || '',
         levelId: newLevelId,
         name: newClassName.trim(),
-        studentCount: 0
+        studentCount: 0,
       };
       setLocalClasses((prev) => [...prev, createdClass]);
 
@@ -311,27 +376,27 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
 
   // Stats calculation for Chart
   const stats = useMemo(() => {
-    const counts = { 'أ': 0, 'ب': 0, 'ج': 0, 'د': 0 };
+    const counts = { أ: 0, ب: 0, ج: 0, د: 0 };
 
     activeStudents.forEach((std) => {
-      const grades = currentSessionGrades[std.id] || { C1: 'ب', C2: 'ب', C3: 'ب', C4: 'ب' };
+      const grades = currentSessionGrades[std.id] || {};
       const res = calculateStudentLevel(grades);
-      counts[res.code as keyof typeof counts] = (counts[res.code as keyof typeof counts] || 0) + 1;
+      if (res) counts[res.code] = (counts[res.code] || 0) + 1;
     });
 
     return [
       { name: 'أ (تملك أقصى)', count: counts['أ'], color: '#10b981' },
       { name: 'ب (تملك مقبول)', count: counts['ب'], color: '#3b82f6' },
       { name: 'ج (تملك جزئي)', count: counts['ج'], color: '#f59e0b' },
-      { name: 'د (تملك محدود)', count: counts['د'], color: '#f43f5e' }
+      { name: 'د (تملك محدود)', count: counts['د'], color: '#f43f5e' },
     ];
   }, [activeStudents, currentSessionGrades]);
 
   // Students requiring remediation (grade 'د')
   const remediationStudents = useMemo(() => {
     return activeStudents.filter((std) => {
-      const grades = currentSessionGrades[std.id] || { C1: 'ب', C2: 'ب', C3: 'ب', C4: 'ب' };
-      return calculateStudentLevel(grades).code === 'د';
+      const grades = currentSessionGrades[std.id] || {};
+      return calculateStudentLevel(grades)?.code === 'د';
     });
   }, [activeStudents, currentSessionGrades]);
 
@@ -341,15 +406,25 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
     <div className="space-y-6 animate-in fade-in duration-200 print:space-y-3">
       {/* Printable Header - Visible ONLY in Print */}
       <div className="hidden print:block text-center border-b-2 border-slate-900 pb-3 mb-4 space-y-1">
-        <h3 className="text-sm font-black text-slate-900">الجمهورية الجزائرية الديمقراطية الشعبية</h3>
-        <h4 className="text-xs font-bold text-slate-700">وزارة التربية الوطنية - مديرية التربية لولاية سطيف</h4>
+        <h3 className="text-sm font-black text-slate-900">
+          الجمهورية الجزائرية الديمقراطية الشعبية
+        </h3>
+        <h4 className="text-xs font-bold text-slate-700">
+          وزارة التربية الوطنية - مديرية التربية لولاية سطيف
+        </h4>
         <h5 className="text-xs font-extrabold text-blue-900 mt-1">
           شبكة تقويم الكفاءة الختامية وحصة التقويم التحصيلي الرسمية ({LEVEL_NAMES[selectedLevelId]})
         </h5>
         <div className="flex justify-between text-[11px] font-bold text-slate-600 pt-2 px-2">
-          <span>المؤسسة: {currentUser?.schoolName || newSchoolName || 'مدرسة الشهيد بالخيري عبد القادر'}</span>
-          <span>القسم: {activeClassObj?.name} | الميدان: {FIELD_NAMES[selectedFieldId]?.name}</span>
-          <span>البلدية: {newMunicipality} | التاريخ: {new Date().toLocaleDateString('ar-DZ')}</span>
+          <span>
+            المؤسسة: {currentUser?.schoolName || newSchoolName || 'مدرسة الشهيد بالخيري عبد القادر'}
+          </span>
+          <span>
+            القسم: {activeClassObj?.name} | الميدان: {FIELD_NAMES[selectedFieldId]?.name}
+          </span>
+          <span>
+            البلدية: {newMunicipality} | التاريخ: {new Date().toLocaleDateString('ar-DZ')}
+          </span>
         </div>
       </div>
 
@@ -372,7 +447,8 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
             <span>شبكة تقويم الكفاءات الختامية وحصص التقويم التحصيلي</span>
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
-            تقويم لجميع الأقسام (س1 إلى س5) في نهاية كل الميادين مع إمكانية إسناد وإضافة أقسام جديدة للأستاذ
+            تقويم لجميع الأقسام (س1 إلى س5) في نهاية كل الميادين مع إمكانية إسناد وإضافة أقسام جديدة
+            للأستاذ
           </p>
         </div>
 
@@ -423,7 +499,9 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
                   }`}
                 >
                   <span>{lvlName}</span>
-                  <span className={`text-[10px] font-normal ${active ? 'text-teal-100' : 'text-slate-400'}`}>
+                  <span
+                    className={`text-[10px] font-normal ${active ? 'text-teal-100' : 'text-slate-400'}`}
+                  >
                     ({countForLevel} قسم مسند)
                   </span>
                 </button>
@@ -514,7 +592,8 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
                 الهدف الأسمى المباشر لحصة التقويم التحصيلي
               </span>
               <h3 className="text-base sm:text-lg font-black text-white">
-                الكفاءة الختامية المستهدفة ({LEVEL_NAMES[selectedLevelId]}) — قسم: {activeClassObj?.name}
+                الكفاءة الختامية المستهدفة ({LEVEL_NAMES[selectedLevelId]}) — قسم:{' '}
+                {activeClassObj?.name}
               </h3>
             </div>
           </div>
@@ -526,7 +605,9 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
 
         {/* Competency Statement */}
         <div className="p-4 bg-white/10 rounded-2xl border border-white/15 backdrop-blur-xs space-y-1">
-          <span className="text-xs text-blue-200 font-bold block">نص الكفاءة الختامية بالمنهاج:</span>
+          <span className="text-xs text-blue-200 font-bold block">
+            نص الكفاءة الختامية بالمنهاج:
+          </span>
           <p className="text-sm sm:text-base font-extrabold text-yellow-300 leading-relaxed">
             « {currentCompetency.title} »
           </p>
@@ -535,12 +616,16 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
         {/* Position Target & Technical Track */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
           <div className="p-3 bg-white/5 rounded-xl border border-white/10">
-            <span className="font-extrabold text-teal-300 block mb-1">الموقف الاستهدافي المباشر:</span>
+            <span className="font-extrabold text-teal-300 block mb-1">
+              الموقف الاستهدافي المباشر:
+            </span>
             <p className="text-slate-200 leading-relaxed">{currentCompetency.target}</p>
           </div>
 
           <div className="p-3 bg-white/5 rounded-xl border border-white/10">
-            <span className="font-extrabold text-amber-300 block mb-1">وسيلة القياس الرسمية (المسلك الفني):</span>
+            <span className="font-extrabold text-amber-300 block mb-1">
+              وسيلة القياس الرسمية (المسلك الفني):
+            </span>
             <p className="text-slate-200 leading-relaxed">{currentCompetency.track}</p>
           </div>
         </div>
@@ -562,7 +647,10 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
           <div className="h-44 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 'bold', fill: '#334155' }} />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 11, fontWeight: 'bold', fill: '#334155' }}
+                />
                 <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#334155' }} />
                 <Tooltip />
                 <Bar dataKey="count" radius={[8, 8, 0, 0]}>
@@ -646,7 +734,8 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-[11px] p-3 bg-slate-50 rounded-2xl border border-slate-200">
           {OFFICIAL_CRITERIA.map((crit) => (
             <div key={crit.code} className="font-bold text-slate-700">
-              <span className="text-teal-700 font-extrabold">{crit.code}:</span> {crit.name.split(':')[1]}
+              <span className="text-teal-700 font-extrabold">{crit.code}:</span>{' '}
+              {crit.name.split(':')[1]}
             </div>
           ))}
         </div>
@@ -658,21 +747,31 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
                 <th className="p-3">رقم التسجيل</th>
                 <th className="p-3">اسم ولقب التلميذ</th>
                 <th className="p-3">الجنس</th>
-                <th className="p-3 text-center" title={OFFICIAL_CRITERIA[0].name}>C1 الملائمة</th>
-                <th className="p-3 text-center" title={OFFICIAL_CRITERIA[1].name}>C2 الأداء الحركي</th>
-                <th className="p-3 text-center" title={OFFICIAL_CRITERIA[2].name}>C3 الفضاء والتوازن</th>
-                <th className="p-3 text-center" title={OFFICIAL_CRITERIA[3].name}>C4 التنسيق والمجموعة</th>
+                <th className="p-3 text-center" title={OFFICIAL_CRITERIA[0].name}>
+                  C1 الملائمة
+                </th>
+                <th className="p-3 text-center" title={OFFICIAL_CRITERIA[1].name}>
+                  C2 الأداء الحركي
+                </th>
+                <th className="p-3 text-center" title={OFFICIAL_CRITERIA[2].name}>
+                  C3 الفضاء والتوازن
+                </th>
+                <th className="p-3 text-center" title={OFFICIAL_CRITERIA[3].name}>
+                  C4 التنسيق والمجموعة
+                </th>
                 <th className="p-3 text-center">درجة التحكم النهائي للكفاءة</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
               {activeStudents.map((std) => {
-                const grades = currentSessionGrades[std.id] || { C1: 'ب', C2: 'ب', C3: 'ب', C4: 'ب' };
+                const grades = currentSessionGrades[std.id] || {};
                 const levelRes = calculateStudentLevel(grades);
 
                 return (
                   <tr key={std.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-3 font-mono text-slate-400 font-bold">{std.registrationNumber}</td>
+                    <td className="p-3 font-mono text-slate-400 font-bold">
+                      {std.registrationNumber}
+                    </td>
                     <td className="p-3 font-extrabold text-slate-900">
                       {std.firstName} {std.lastName}
                     </td>
@@ -680,22 +779,25 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
 
                     {/* Selector for C1 to C4 */}
                     {['C1', 'C2', 'C3', 'C4'].map((cCode) => {
-                      const cur = grades[cCode] || 'ب';
+                      const cur = grades[cCode];
                       return (
                         <td key={cCode} className="p-3 text-center">
                           <select
-                            value={cur}
-                            onChange={(e) => handleGradeChange(std.id, cCode, e.target.value as AssessmentGrade)}
+                            value={cur || ''}
+                            onChange={(e) =>
+                              handleGradeChange(std.id, cCode, e.target.value as AssessmentGrade)
+                            }
                             className={`p-1.5 rounded-lg font-black text-xs outline-none cursor-pointer border transition-all ${
                               cur === 'أ'
                                 ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                 : cur === 'ب'
-                                ? 'bg-blue-100 text-blue-800 border-blue-300'
-                                : cur === 'ج'
-                                ? 'bg-amber-100 text-amber-800 border-amber-300'
-                                : 'bg-rose-100 text-rose-800 border-rose-300'
+                                  ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                  : cur === 'ج'
+                                    ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                    : 'bg-rose-100 text-rose-800 border-rose-300'
                             }`}
                           >
+                            <option value="">غير مقوّم</option>
                             <option value="أ">أ (أقصى)</option>
                             <option value="ب">ب (مقبول)</option>
                             <option value="ج">ج (جزئي)</option>
@@ -706,9 +808,17 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
                     })}
 
                     <td className="p-3 text-center">
-                      <span className={`px-3 py-1.5 rounded-xl font-bold text-xs border ${levelRes.color}`}>
-                        {levelRes.label}
-                      </span>
+                      {levelRes ? (
+                        <span
+                          className={`px-3 py-1.5 rounded-xl font-bold text-xs border ${levelRes.color}`}
+                        >
+                          {levelRes.label}
+                        </span>
+                      ) : (
+                        <span className="px-3 py-1.5 rounded-xl font-bold text-xs border border-slate-200 text-slate-500">
+                          غير مقوّم
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -728,11 +838,16 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
             </h3>
           </div>
           <p className="text-xs text-rose-700 leading-relaxed">
-            تم رصد <strong className="underline">{remediationStudents.length} تلاميذ</strong> في هذا القسم يحتاجون حصص معالجة بيداغوجية موجهة لتدارك نقائص المسلك الفني قبل نهاية الفصل الدراسي:
+            تم رصد <strong className="underline">{remediationStudents.length} تلاميذ</strong> في هذا
+            القسم يحتاجون حصص معالجة بيداغوجية موجهة لتدارك نقائص المسلك الفني قبل نهاية الفصل
+            الدراسي:
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
             {remediationStudents.map((s) => (
-              <span key={s.id} className="px-3 py-1 bg-white border border-rose-300 text-rose-900 rounded-xl text-xs font-bold shadow-xs">
+              <span
+                key={s.id}
+                className="px-3 py-1 bg-white border border-rose-300 text-rose-900 rounded-xl text-xs font-bold shadow-xs"
+              >
                 {s.firstName} {s.lastName} ({s.registrationNumber})
               </span>
             ))}
@@ -762,8 +877,12 @@ export const CompetencyAssessmentView: React.FC<CompetencyAssessmentViewProps> =
                   <School className="w-5 h-5" />
                 </span>
                 <div>
-                  <h3 className="text-base font-extrabold text-slate-900">إسناد قسم جديد للأستاذ</h3>
-                  <p className="text-xs text-slate-500">تحديد اسم القسم والمستوى الدراسي المعني ميدانياً</p>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    إسناد قسم جديد للأستاذ
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    تحديد اسم القسم والمستوى الدراسي المعني ميدانياً
+                  </p>
                 </div>
               </div>
 

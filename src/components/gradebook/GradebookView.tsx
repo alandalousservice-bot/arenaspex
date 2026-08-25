@@ -205,73 +205,50 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     'تمكن جزئي': 0.45,
   };
 
-  // Helper to compute or get grade record for a student
+  // Unassessed students have an empty transient view model; no result is persisted until teacher action.
   const getStudentGrade = (studentId: string): GradeRecord => {
-    if (gradeRecords[studentId]) {
-      return gradeRecords[studentId];
-    }
-
-    // Default auto-generated record for uninitialized student
-    const defaultBehavior: 'ممتاز' | 'جيد' | 'متوسط' | 'ضعيف' = 'ممتاز';
-    const defaultParticipation: 'ممتاز' | 'جيد' | 'متوسط' | 'ضعيف' = 'جيد';
-    const defaultCompetency: 'تمكن ممتاز' | 'تمكن جيد' | 'تمكن متوسط' | 'تمكن جزئي' = 'تمكن جيد';
-
-    const bScore = Number(
-      (weights.behaviorWeight * RATING_MULTIPLIERS[defaultBehavior]).toFixed(2)
+    return (
+      gradeRecords[studentId] || {
+        id: `gr_${studentId}`,
+        studentId,
+        classId: activeClass.id,
+        term: selectedTerm,
+        behaviorRating: null,
+        behaviorScore: null,
+        participationRating: null,
+        participationScore: null,
+        attendanceScore: null,
+        unexcusedAbsencesCount: 0,
+        excusedAbsencesCount: 0,
+        competencyRating: null,
+        competencyScore: null,
+        suggestedMark: null,
+        finalMark: null,
+        isApprovedByTeacher: false,
+        updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      }
     );
-    const pScore = Number(
-      (weights.participationWeight * RATING_MULTIPLIERS[defaultParticipation]).toFixed(2)
-    );
-    const cScore = Number(
-      (weights.competencyWeight * RATING_MULTIPLIERS[defaultCompetency]).toFixed(2)
-    );
-    const attScore = weights.attendanceWeight;
-
-    const suggested = Number((bScore + pScore + cScore + attScore).toFixed(1));
-
-    return {
-      id: `gr_${studentId}`,
-      studentId,
-      classId: activeClass.id,
-      term: selectedTerm,
-      behaviorRating: defaultBehavior,
-      behaviorScore: bScore,
-      participationRating: defaultParticipation,
-      participationScore: pScore,
-      attendanceScore: attScore,
-      unexcusedAbsencesCount: 0,
-      excusedAbsencesCount: 0,
-      competencyRating: defaultCompetency,
-      competencyScore: cScore,
-      suggestedMark: Math.min(10, suggested),
-      finalMark: Math.min(10, suggested),
-      isApprovedByTeacher: false,
-      updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
-    };
   };
-
-  // Recalculate suggested mark for a student based on current ratings & weights
+  // Marks remain unset until the teacher has supplied all assessed components.
   const calculateSuggestedMark = (
     rec: Partial<GradeRecord>,
     currentWeights: EvaluationWeights
-  ): number => {
-    const bMult = RATING_MULTIPLIERS[rec.behaviorRating || 'ممتاز'] || 1.0;
-    const pMult = RATING_MULTIPLIERS[rec.participationRating || 'جيد'] || 0.85;
-    const cMult = RATING_MULTIPLIERS[rec.competencyRating || 'تمكن جيد'] || 0.85;
+  ): number | null => {
+    if (!rec.behaviorRating || !rec.participationRating || !rec.competencyRating) return null;
+    const bMult = RATING_MULTIPLIERS[rec.behaviorRating];
+    const pMult = RATING_MULTIPLIERS[rec.participationRating];
+    const cMult = RATING_MULTIPLIERS[rec.competencyRating];
+    if (bMult === undefined || pMult === undefined || cMult === undefined) return null;
 
     const bScore = currentWeights.behaviorWeight * bMult;
     const pScore = currentWeights.participationWeight * pMult;
     const cScore = currentWeights.competencyWeight * cMult;
-
-    // Attendance calculation: max - (unexcused * deduction)
     const unexcused = rec.unexcusedAbsencesCount || 0;
     const attScore = Math.max(
       0,
       currentWeights.attendanceWeight - unexcused * currentWeights.unexcusedDeduction
     );
-
-    const total = bScore + pScore + cScore + attScore;
-    return Number(Math.min(10, Math.max(0, total)).toFixed(1));
+    return Number(Math.min(10, Math.max(0, bScore + pScore + cScore + attScore)).toFixed(1));
   };
 
   // Update a student's grade record
@@ -286,14 +263,24 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
       ...updates,
     };
 
-    // Recompute components if ratings changed
-    const bMult = RATING_MULTIPLIERS[updatedRecord.behaviorRating] || 1.0;
-    const pMult = RATING_MULTIPLIERS[updatedRecord.participationRating] || 0.85;
-    const cMult = RATING_MULTIPLIERS[updatedRecord.competencyRating] || 0.85;
-
-    updatedRecord.behaviorScore = Number((weights.behaviorWeight * bMult).toFixed(2));
-    updatedRecord.participationScore = Number((weights.participationWeight * pMult).toFixed(2));
-    updatedRecord.competencyScore = Number((weights.competencyWeight * cMult).toFixed(2));
+    // Recompute only components explicitly supplied by the teacher.
+    updatedRecord.behaviorScore = updatedRecord.behaviorRating
+      ? Number(
+          (weights.behaviorWeight * RATING_MULTIPLIERS[updatedRecord.behaviorRating]).toFixed(2)
+        )
+      : null;
+    updatedRecord.participationScore = updatedRecord.participationRating
+      ? Number(
+          (
+            weights.participationWeight * RATING_MULTIPLIERS[updatedRecord.participationRating]
+          ).toFixed(2)
+        )
+      : null;
+    updatedRecord.competencyScore = updatedRecord.competencyRating
+      ? Number(
+          (weights.competencyWeight * RATING_MULTIPLIERS[updatedRecord.competencyRating]).toFixed(2)
+        )
+      : null;
 
     // Recompute suggested mark
     const newSuggested = calculateSuggestedMark(updatedRecord, weights);
@@ -347,6 +334,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     classStudents.forEach((std) => {
       const rec = getStudentGrade(std.id);
       const newSuggested = calculateSuggestedMark(rec, weights);
+      if (newSuggested === null) return;
       updatedMap[std.id] = {
         ...rec,
         suggestedMark: newSuggested,
@@ -367,7 +355,8 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     const updatedMap: Record<string, GradeRecord> = { ...gradeRecords };
 
     classStudents.forEach((std) => {
-      const rec = getStudentGrade(std.id);
+      const rec = gradeRecords[std.id];
+      if (!rec) return;
       updatedMap[std.id] = {
         ...rec,
         isApprovedByTeacher: true,
@@ -381,7 +370,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
 
   // Analytics & Statistics for Active Class
   const classStats = useMemo(() => {
-    const currentClassGrades = classStudents.map((std) => getStudentGrade(std.id));
+    const currentClassGrades = classStudents
+      .map((std) => getStudentGrade(std.id))
+      .filter((grade): grade is GradeRecord & { finalMark: number } => grade.finalMark !== null);
 
     if (currentClassGrades.length === 0) {
       return {
@@ -1108,7 +1099,10 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                         const isExempt = exemptionsList.some(
                           (ex) => ex.studentId === std.id && ex.classId === activeClass.id
                         );
-                        const isModified = rec.finalMark !== rec.suggestedMark;
+                        const isModified =
+                          rec.finalMark !== null &&
+                          rec.suggestedMark !== null &&
+                          rec.finalMark !== rec.suggestedMark;
 
                         return (
                           <tr
@@ -1142,7 +1136,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                             {/* Behavior Selector & Score */}
                             <td className="p-2 text-center bg-blue-50/20">
                               <select
-                                value={rec.behaviorRating}
+                                value={rec.behaviorRating || ''}
                                 onChange={(e) =>
                                   handleUpdateGradeRecord(std.id, {
                                     behaviorRating: e.target.value as any,
@@ -1150,32 +1144,35 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                                 }
                                 className="w-full text-center py-1 px-1.5 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-500 cursor-pointer"
                               >
+                                <option value="">غير مقوّم</option>
                                 <option value="ممتاز">ممتاز (2.0)</option>
                                 <option value="جيد">جيد (1.7)</option>
                                 <option value="متوسط">متوسط (1.3)</option>
                                 <option value="ضعيف">ضعيف (0.8)</option>
                               </select>
                               <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-                                {rec.behaviorScore} / {weights.behaviorWeight}
+                                {rec.behaviorScore ?? '—'} / {weights.behaviorWeight}
                               </span>
                             </td>
 
                             {/* Attendance Score */}
                             <td className="p-2 text-center bg-blue-50/20">
                               <span className="font-extrabold text-slate-900 block text-xs">
-                                {rec.attendanceScore} / {weights.attendanceWeight}
+                                {rec.attendanceScore ?? '—'} / {weights.attendanceWeight}
                               </span>
                               <span className="text-[9px] text-slate-500 block">
-                                {rec.unexcusedAbsencesCount && rec.unexcusedAbsencesCount > 0
-                                  ? `خصم ${rec.unexcusedAbsencesCount} غياب`
-                                  : 'حضور كامل ✓'}
+                                {rec.attendanceScore === null
+                                  ? 'غير مقوّم'
+                                  : rec.unexcusedAbsencesCount && rec.unexcusedAbsencesCount > 0
+                                    ? `خصم ${rec.unexcusedAbsencesCount} غياب`
+                                    : 'حضور كامل ✓'}
                               </span>
                             </td>
 
                             {/* Participation Selector & Score */}
                             <td className="p-2 text-center bg-blue-50/20">
                               <select
-                                value={rec.participationRating}
+                                value={rec.participationRating || ''}
                                 onChange={(e) =>
                                   handleUpdateGradeRecord(std.id, {
                                     participationRating: e.target.value as any,
@@ -1183,20 +1180,21 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                                 }
                                 className="w-full text-center py-1 px-1.5 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-500 cursor-pointer"
                               >
+                                <option value="">غير مقوّم</option>
                                 <option value="ممتاز">ممتاز (2.0)</option>
                                 <option value="جيد">جيد (1.7)</option>
                                 <option value="متوسط">متوسط (1.3)</option>
                                 <option value="ضعيف">ضعيف (0.8)</option>
                               </select>
                               <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-                                {rec.participationScore} / {weights.participationWeight}
+                                {rec.participationScore ?? '—'} / {weights.participationWeight}
                               </span>
                             </td>
 
                             {/* Competency Mastery Selector & Score */}
                             <td className="p-2 text-center bg-blue-50/20">
                               <select
-                                value={rec.competencyRating}
+                                value={rec.competencyRating || ''}
                                 onChange={(e) =>
                                   handleUpdateGradeRecord(std.id, {
                                     competencyRating: e.target.value as any,
@@ -1204,13 +1202,14 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                                 }
                                 className="w-full text-center py-1 px-1.5 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-500 cursor-pointer"
                               >
+                                <option value="">غير مقوّم</option>
                                 <option value="تمكن ممتاز">تمكن ممتاز (5.0)</option>
                                 <option value="تمكن جيد">تمكن جيد (4.25)</option>
                                 <option value="تمكن متوسط">تمكن متوسط (3.25)</option>
                                 <option value="تمكن جزئي">تمكن جزئي (2.25)</option>
                               </select>
                               <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-                                {rec.competencyScore} / {weights.competencyWeight}
+                                {rec.competencyScore ?? '—'} / {weights.competencyWeight}
                               </span>
                             </td>
 
@@ -1218,7 +1217,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                             <td className="p-3 text-center bg-indigo-50/40 border-x border-indigo-100 font-mono font-black text-indigo-900 text-sm">
                               <div className="flex items-center justify-center gap-1">
                                 <Sparkles className="w-3 h-3 text-indigo-600 fill-indigo-600" />
-                                <span>{rec.suggestedMark}</span>
+                                <span>{rec.suggestedMark ?? 'غير مقوّم'}</span>
                               </div>
                             </td>
 
@@ -1229,7 +1228,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                                 min="0"
                                 max="10"
                                 step="0.25"
-                                value={rec.finalMark}
+                                value={rec.finalMark ?? ''}
                                 onChange={(e) => {
                                   const val = parseFloat(e.target.value);
                                   if (!isNaN(val)) {

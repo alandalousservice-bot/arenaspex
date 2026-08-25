@@ -10,7 +10,15 @@
 // Real Authentication — يستبدل المقارنة المحلية لكلمة المرور في المتصفح
 // الجلسة محفوظة في كوكي httpOnly، لذا لا حاجة لتخزين أي رمز يدوياً هنا
 // -----------------------------------------------------------------------
-import { User, KnowledgeItem } from '../types/spex';
+import {
+  User,
+  KnowledgeItem,
+  AssessmentSessionDto,
+  StudentAssessmentDto,
+  CriterionResultDto,
+  TeacherAssessmentType,
+  AssessmentGrade,
+} from '../types/spex';
 import type { AnnualPlan, AnnualPlanKind, AnnualPlanObjectiveOverride } from '../types/spex';
 import { offlinePost, offlineDelete } from '../lib/offline';
 
@@ -685,6 +693,107 @@ export async function fetchStudentRoster() {
   return data as { classes: unknown[]; students: unknown[] };
 }
 
+export interface CreateAssessmentSessionInput {
+  id?: string;
+  classId: string;
+  academicYearId: string;
+  classPlannedSessionId?: string | null;
+  assessmentType: TeacherAssessmentType;
+  gradeLevelId: string;
+  domainId: string;
+  finalCompetencyId?: string | null;
+  title?: string | null;
+  assessedAt: string;
+}
+
+export interface AssessmentSessionResponse {
+  success: boolean;
+  session: AssessmentSessionDto;
+  reused?: boolean;
+}
+
+export async function fetchTeacherAssessmentSessions(
+  classId: string,
+  academicYearId: string
+): Promise<{ success: boolean; sessions: AssessmentSessionDto[] }> {
+  const res = await fetch(
+    `/api/teacher/assessment-sessions?classId=${encodeURIComponent(classId)}&academicYearId=${encodeURIComponent(academicYearId)}`
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل جلسات التقويم.');
+  return data as { success: boolean; sessions: AssessmentSessionDto[] };
+}
+
+export async function createOrReuseTeacherAssessmentSession(
+  input: CreateAssessmentSessionInput
+): Promise<AssessmentSessionResponse> {
+  const res = await fetch('/api/teacher/assessment-sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر إنشاء جلسة التقويم.');
+  return data as AssessmentSessionResponse;
+}
+
+export async function fetchTeacherAssessmentSession(
+  sessionId: string
+): Promise<{ success: boolean; session: AssessmentSessionDto; results: StudentAssessmentDto[] }> {
+  const res = await fetch(`/api/teacher/assessment-sessions/${encodeURIComponent(sessionId)}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل جلسة التقويم.');
+  return data as {
+    success: boolean;
+    session: AssessmentSessionDto;
+    results: StudentAssessmentDto[];
+  };
+}
+
+export async function fetchTeacherAssessmentResults(
+  sessionId: string
+): Promise<{ success: boolean; results: StudentAssessmentDto[] }> {
+  const res = await fetch(
+    `/api/teacher/assessment-sessions/${encodeURIComponent(sessionId)}/results`
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل نتائج التقويم.');
+  return data as { success: boolean; results: StudentAssessmentDto[] };
+}
+
+export async function upsertTeacherStudentAssessment(
+  sessionId: string,
+  studentId: string,
+  input: {
+    masteryLevel?: AssessmentGrade | null;
+    numericMark?: number | null;
+    note?: string | null;
+    assessedAt?: string | null;
+  }
+): Promise<{ success: boolean; created: boolean; result: StudentAssessmentDto }> {
+  const res = await fetch(
+    `/api/teacher/assessment-sessions/${encodeURIComponent(sessionId)}/students/${encodeURIComponent(studentId)}`,
+    { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر حفظ نتيجة التلميذ.');
+  return data as { success: boolean; created: boolean; result: StudentAssessmentDto };
+}
+
+export async function upsertTeacherCriterionResult(
+  sessionId: string,
+  studentId: string,
+  criterionId: string,
+  input: { masteryLevel?: AssessmentGrade | null; note?: string | null }
+): Promise<{ success: boolean; created: boolean; result: CriterionResultDto }> {
+  const res = await fetch(
+    `/api/teacher/assessment-sessions/${encodeURIComponent(sessionId)}/students/${encodeURIComponent(studentId)}/criteria/${encodeURIComponent(criterionId)}`,
+    { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر حفظ معيار التقويم.');
+  return data as { success: boolean; created: boolean; result: CriterionResultDto };
+}
 type ApiRecord = Record<string, unknown>;
 
 function asApiRecord(value: unknown): ApiRecord {
