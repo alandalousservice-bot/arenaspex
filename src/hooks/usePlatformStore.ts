@@ -67,10 +67,7 @@ import {
   CommunityNotification,
   PersonalLibraryItem,
 } from '../types/spex';
-import {
-  INITIAL_AI_SETTINGS,
-  INITIAL_BROADCASTS,
-} from '../data/initialState';
+import { INITIAL_AI_SETTINGS, INITIAL_BROADCASTS } from '../data/initialState';
 import { INITIAL_KNOWLEDGE_BANK } from '../data/knowledgeBankData';
 
 const LEGACY_DEMO_USER_IDS = new Set(['usr_admin_1', 'usr_teacher_1', 'usr_inspector_1']);
@@ -105,8 +102,7 @@ export function usePlatformStore({
   // User-scoped Data Initialization & State Management
   const [teacherClasses, setTeacherClasses] = useState<ClassRoom[]>(() => {
     if (!currentUser?.id) return [];
-    const saved =
-      localStorage.getItem(`spex_teacher_classes_${currentUser.id}`);
+    const saved = localStorage.getItem(`spex_teacher_classes_${currentUser.id}`);
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -119,8 +115,7 @@ export function usePlatformStore({
 
   const [allStudents, setAllStudents] = useState<Student[]>(() => {
     if (!currentUser?.id) return [];
-    const saved =
-      localStorage.getItem(`spex_all_students_${currentUser.id}`);
+    const saved = localStorage.getItem(`spex_all_students_${currentUser.id}`);
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -133,8 +128,7 @@ export function usePlatformStore({
 
   const [dailyNotebook, setDailyNotebook] = useState<DailyNotebookEntry[]>(() => {
     if (!currentUser?.id) return [];
-    const saved =
-      localStorage.getItem(`spex_daily_notebook_${currentUser.id}`);
+    const saved = localStorage.getItem(`spex_daily_notebook_${currentUser.id}`);
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -159,8 +153,7 @@ export function usePlatformStore({
 
   const [lessonPlans, setLessonPlans] = useState<LessonPlan[]>(() => {
     if (!currentUser?.id) return [];
-    const saved =
-      localStorage.getItem(`spex_lesson_plans_${currentUser.id}`);
+    const saved = localStorage.getItem(`spex_lesson_plans_${currentUser.id}`);
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -221,8 +214,7 @@ export function usePlatformStore({
 
   const [inspectorNotes, setInspectorNotes] = useState<InspectorNote[]>(() => {
     if (!currentUser?.id) return [];
-    const saved =
-      localStorage.getItem(`spex_inspector_notes_${currentUser.id}`);
+    const saved = localStorage.getItem(`spex_inspector_notes_${currentUser.id}`);
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -264,21 +256,38 @@ export function usePlatformStore({
   useEffect(() => {
     let active = true;
     if (currentUser.role === 'teacher') {
-      void fetchTeacherInspectionFeed().then((feed) => {
-        if (active) setTeacherInspectorFeed({ inspector: feed.inspector || null, guidance: feed.guidance || [], visits: feed.visits || [] });
-      }).catch(() => {
-        if (active) setTeacherInspectorFeed({ inspector: null, guidance: [], visits: [] });
-      });
+      void fetchTeacherInspectionFeed()
+        .then((feed) => {
+          if (active)
+            setTeacherInspectorFeed({
+              inspector: feed.inspector || null,
+              guidance: feed.guidance || [],
+              visits: feed.visits || [],
+            });
+        })
+        .catch(() => {
+          if (active) setTeacherInspectorFeed({ inspector: null, guidance: [], visits: [] });
+        });
     } else {
       setTeacherInspectorFeed({ inspector: null, guidance: [], visits: [] });
     }
     if (currentUser.role === 'inspector') {
-      void fetchMyAssignedTeachers().then((rows) => { if (active) setAssignedTeachers(rows || []); }).catch(() => { if (active) setAssignedTeachers([]); });
-      void refreshInspectionVisits().catch(() => { if (active) setInspectionVisits([]); });
+      void fetchMyAssignedTeachers()
+        .then((rows) => {
+          if (active) setAssignedTeachers(rows || []);
+        })
+        .catch(() => {
+          if (active) setAssignedTeachers([]);
+        });
+      void refreshInspectionVisits().catch(() => {
+        if (active) setInspectionVisits([]);
+      });
     } else {
       setAssignedTeachers([]);
     }
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [currentUser.id, currentUser.role, refreshInspectionVisits]);
 
   const [assessmentSessions, setAssessmentSessions] = useState<CompetencyAssessmentSession[]>(
@@ -515,7 +524,9 @@ export function usePlatformStore({
           setAllUsersList((prev) => {
             const map = new Map();
             prev.forEach((u) => map.set(u.id, u));
-            dbUsers.filter((u: any) => !LEGACY_DEMO_USER_IDS.has(u.id)).forEach((u: any) => map.set(u.id, u));
+            dbUsers
+              .filter((u: any) => !LEGACY_DEMO_USER_IDS.has(u.id))
+              .forEach((u: any) => map.set(u.id, u));
             return Array.from(map.values());
           });
         }
@@ -805,6 +816,23 @@ export function usePlatformStore({
     deleteLessonPlanFromDB(lessonId);
   };
 
+  const handleUpsertNotebookEntry = (entry: Omit<DailyNotebookEntry, 'id'>) => {
+    setDailyNotebook((prev) => {
+      const index = entry.classPlannedSessionId
+        ? prev.findIndex((item) => item.classPlannedSessionId === entry.classPlannedSessionId)
+        : -1;
+      const nextEntry: DailyNotebookEntry = {
+        ...entry,
+        id: index >= 0 ? prev[index].id : `notebook_${Date.now()}`,
+      };
+      const next =
+        index >= 0
+          ? prev.map((item, itemIndex) => (itemIndex === index ? nextEntry : item))
+          : [nextEntry, ...prev];
+      syncNotebookEntryToDB(nextEntry);
+      return next;
+    });
+  };
   const handleDeleteNotebookEntry = (entryId: string) => {
     setDailyNotebook((prev) => prev.filter((e) => e.id !== entryId));
     deleteNotebookEntryFromDB(entryId);
@@ -812,7 +840,12 @@ export function usePlatformStore({
 
   // User Management Handlers for Admin
   const handleAddUser = async (userPartial: Partial<User>) => {
-    if (!userPartial.firstName?.trim() || !userPartial.lastName?.trim() || !userPartial.email?.trim() || !userPartial.password) {
+    if (
+      !userPartial.firstName?.trim() ||
+      !userPartial.lastName?.trim() ||
+      !userPartial.email?.trim() ||
+      !userPartial.password
+    ) {
       window.alert('يرجى إدخال الاسم واللقب والبريد وكلمة المرور قبل إنشاء الحساب.');
       return;
     }
@@ -828,11 +861,16 @@ export function usePlatformStore({
       password: userPartial.password || '',
       role: userPartial.role || 'teacher',
       phone: userPartial.phone?.trim() || undefined,
-      schoolName: userPartial.role === 'inspector' ? undefined : userPartial.schoolName?.trim() || undefined,
-      municipality: userPartial.role === 'inspector' ? undefined : userPartial.municipality?.trim() || undefined,
+      schoolName:
+        userPartial.role === 'inspector' ? undefined : userPartial.schoolName?.trim() || undefined,
+      municipality:
+        userPartial.role === 'inspector'
+          ? undefined
+          : userPartial.municipality?.trim() || undefined,
       directorateId: userPartial.directorateId || '',
       districtId: userPartial.role === 'inspector' ? userPartial.districtId || '' : '',
-      institutionId: userPartial.role === 'inspector' ? undefined : userPartial.institutionId || undefined,
+      institutionId:
+        userPartial.role === 'inspector' ? undefined : userPartial.institutionId || undefined,
       specialization: userPartial.specialization?.trim() || undefined,
       yearsExperience: userPartial.yearsExperience,
       status: userPartial.status || 'active',
@@ -1096,7 +1134,9 @@ export function usePlatformStore({
     return true;
   };
 
-  const handleAddInspectionVisit = async (visitPartial: Partial<InspectionVisit>): Promise<boolean> => {
+  const handleAddInspectionVisit = async (
+    visitPartial: Partial<InspectionVisit>
+  ): Promise<boolean> => {
     const visit: InspectionVisit = {
       id: `visit_${Date.now()}`,
       inspectorId: currentUser.id,
@@ -1429,6 +1469,7 @@ export function usePlatformStore({
     handleDeleteStudent,
     handleDeleteLessonPlan,
     handleDeleteNotebookEntry,
+    handleUpsertNotebookEntry,
     handleAddWeeklySlot,
     handleDeleteWeeklySlot,
     handleUpdateNotebookStatus,

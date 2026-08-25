@@ -5,8 +5,15 @@
  * تمت إعادة هيكلة هذا الملف: العرض مقسّم إلى مكونات فرعية صغيرة تحت ./teacher،
  * والمنطق الحسابي منقول إلى services/hooks. لا تغيير في السلوك أو المخرجات.
  */
-import React from 'react';
-import { User, DailyNotebookEntry, LessonPlan, InspectorNote, InspectionVisit } from '../../types/spex';
+import React, { useEffect, useState } from 'react';
+import {
+  User,
+  DailyNotebookEntry,
+  LessonPlan,
+  InspectorNote,
+  InspectionVisit,
+  ClassRoom,
+} from '../../types/spex';
 import { NavTab } from '../layout/Sidebar';
 import { useTeacherDashboardStats } from '../../hooks/useTeacherDashboardStats';
 import { TeacherHeroBanner } from './teacher/TeacherHeroBanner';
@@ -14,10 +21,13 @@ import { TeacherKpiGrid } from './teacher/TeacherKpiGrid';
 import { DailyScheduleList } from './teacher/DailyScheduleList';
 import { InspectorFeedPanel } from './teacher/InspectorFeedPanel';
 import { QuickAccessPanel } from './teacher/QuickAccessPanel';
+import { fetchTeacherPlanningSessions, TeacherPlanningSession } from '../../services/api';
+import { getCurrentAcademicYear } from '../../services/academicYear';
 
 interface TeacherDashboardProps {
   user: User;
   dailyNotebook: DailyNotebookEntry[];
+  teacherClasses: ClassRoom[];
   lessonPlans: LessonPlan[];
   inspectorNotes: InspectorNote[];
   inspectionVisits?: InspectionVisit[];
@@ -30,6 +40,7 @@ interface TeacherDashboardProps {
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   user,
   dailyNotebook,
+  teacherClasses,
   lessonPlans,
   inspectorNotes,
   inspectionVisits = [],
@@ -38,15 +49,48 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   onOpenAIGenerator,
   onUpdateNotebookStatus,
 }) => {
-  const {
-    completedCount,
-    delayedCount,
-    totalSessions,
-    executionPercentage,
-    schoolName,
-    municipality,
-    districtLabel,
-  } = useTeacherDashboardStats(user, dailyNotebook);
+  const [todaySessions, setTodaySessions] = useState<TeacherPlanningSession[]>([]);
+  const [academicYearId, setAcademicYearId] = useState(getCurrentAcademicYear);
+  const notebookStats = useTeacherDashboardStats(user, dailyNotebook);
+  const today = new Date().toISOString().slice(0, 10);
+
+  useEffect(() => {
+    const storedYear = window.localStorage.getItem('arenaspex:selectedAcademicYear');
+    const selectedYear =
+      storedYear && /^\d{4}-\d{4}$/.test(storedYear) ? storedYear : getCurrentAcademicYear();
+    setAcademicYearId(selectedYear);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all(
+      teacherClasses.map((teacherClass) =>
+        fetchTeacherPlanningSessions(teacherClass.id, academicYearId)
+      )
+    )
+      .then((responses) => {
+        if (active)
+          setTodaySessions(
+            responses
+              .flatMap((response) => response.sessions)
+              .filter((session) => session.plannedDate.slice(0, 10) === today)
+          );
+      })
+      .catch(() => {
+        if (active) setTodaySessions([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [academicYearId, teacherClasses, today]);
+
+  const completedCount = todaySessions.filter((session) => session.status === 'منجزة').length;
+  const delayedCount = todaySessions.filter((session) => session.status === 'مؤجلة').length;
+  const totalSessions = todaySessions.length;
+  const executionPercentage = totalSessions
+    ? Math.round((completedCount / totalSessions) * 100)
+    : 0;
+  const { schoolName, municipality, districtLabel } = notebookStats;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -72,6 +116,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <DailyScheduleList
           dailyNotebook={dailyNotebook}
+          plannedSessions={todaySessions}
           onNavigateTab={onNavigateTab}
           onUpdateNotebookStatus={onUpdateNotebookStatus}
         />
@@ -81,7 +126,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             inspectorNotes={inspectorNotes}
             inspectionVisits={inspectionVisits}
             inspectorDisplayName={inspectorDisplayName}
-            onOpenChatWithInspector={inspectorDisplayName ? () => onNavigateTab('professional_hub') : undefined}
+            onOpenChatWithInspector={
+              inspectorDisplayName ? () => onNavigateTab('professional_hub') : undefined
+            }
           />
           <QuickAccessPanel onNavigateTab={onNavigateTab} />
         </div>

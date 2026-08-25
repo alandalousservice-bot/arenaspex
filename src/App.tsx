@@ -182,6 +182,7 @@ export default function App() {
     handleDeleteStudent,
     handleDeleteLessonPlan,
     handleDeleteNotebookEntry,
+    handleUpsertNotebookEntry,
     handleUpdateNotebookStatus,
     handleUpdateLessonStatus,
     handleSaveLessonPlan,
@@ -391,6 +392,7 @@ export default function App() {
               <TeacherDashboard
                 user={currentUser}
                 dailyNotebook={dailyNotebook}
+                teacherClasses={teacherClasses}
                 lessonPlans={lessonPlans}
                 inspectorNotes={teacherInspectorFeed.guidance}
                 inspectionVisits={teacherInspectorFeed.visits}
@@ -407,12 +409,13 @@ export default function App() {
 
             {activeTab === 'daily_notebook' && (
               <DailyNotebookView
+                currentUser={currentUser}
+                teacherClasses={teacherClasses}
                 notebookEntries={dailyNotebook}
                 lessonPlans={lessonPlans}
-                onUpdateStatus={handleUpdateNotebookStatus}
+                onPersistNotebookEntry={handleUpsertNotebookEntry}
                 onOpenLessonPlan={(id) => handleOpenLessonPlan(id)}
                 onOpenAIGeneratorForSession={() => navigateToTab('lesson_plans')}
-                onDeleteEntry={handleDeleteNotebookEntry}
               />
             )}
 

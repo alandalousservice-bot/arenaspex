@@ -1,12 +1,13 @@
 import React from 'react';
 import { Clock, ArrowUpRight, FileText } from 'lucide-react';
 import { DailyNotebookEntry } from '../../../types/spex';
+import { TeacherPlanningSession } from '../../../services/api';
 import { NavTab } from '../../layout/Sidebar';
 import { NOTEBOOK_STATUS } from '../../../constants/teacherDashboard.constants';
-import { resolveSessionTitle } from '../../../services/teacherDashboard.service';
 
 interface DailyScheduleListProps {
   dailyNotebook: DailyNotebookEntry[];
+  plannedSessions?: TeacherPlanningSession[];
   onNavigateTab: (tab: NavTab) => void;
   onUpdateNotebookStatus?: (entryId: string, status: 'منجزة' | 'مؤجلة' | 'غير منجزة') => void;
 }
@@ -43,6 +44,7 @@ const STATUS_TOGGLES: Array<{
 
 export const DailyScheduleList: React.FC<DailyScheduleListProps> = ({
   dailyNotebook,
+  plannedSessions = [],
   onNavigateTab,
   onUpdateNotebookStatus,
 }) => {
@@ -66,58 +68,93 @@ export const DailyScheduleList: React.FC<DailyScheduleListProps> = ({
       </div>
 
       <div className="divide-y divide-slate-100">
-        {dailyNotebook.map((entry) => (
-          <div
-            key={entry.id}
-            className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/80 px-3 rounded-2xl transition-colors"
-          >
-            <div className="space-y-1">
+        {plannedSessions.length > 0 &&
+          plannedSessions.map((session) => (
+            <div
+              key={session.id}
+              className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/80 px-3 rounded-2xl transition-colors"
+            >
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700">
+                    {session.startTime || 'غير محدد'}
+                  </span>
+                  <span className="text-xs font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
+                    {session.classId}
+                  </span>
+                </div>
+                <h4 className="text-xs font-bold text-slate-900">حصة تشغيلية مخططة</h4>
+                <p className="text-[11px] text-slate-500">
+                  {session.durationMinutes} دقيقة · {session.venue || 'المكان غير محدد'}
+                </p>
+              </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700">
-                  {entry.timeSlot}
+                <span className="px-2 py-1 rounded-lg bg-slate-100 text-[10px] font-extrabold">
+                  {session.status}
                 </span>
-                <span className="text-xs font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
-                  {entry.className}
-                </span>
+                <button
+                  onClick={() => onNavigateTab('daily_notebook')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>الكراس</span>
+                </button>
               </div>
-              <h4 className="text-xs font-bold text-slate-900">
-                {resolveSessionTitle(entry.sessionId)}
-              </h4>
-              {entry.note && (
-                <p className="text-[11px] text-slate-500 italic">ملاحظة: {entry.note}</p>
-              )}
             </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-                {STATUS_TOGGLES.map((toggle) => (
-                  <button
-                    key={toggle.status}
-                    onClick={() =>
-                      onUpdateNotebookStatus && onUpdateNotebookStatus(entry.id, toggle.status)
-                    }
-                    className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
-                      entry.status === toggle.status
-                        ? toggle.activeClassName
-                        : toggle.inactiveClassName
-                    }`}
-                    title={toggle.title}
-                  >
-                    {toggle.label}
-                  </button>
-                ))}
+          ))}
+        {plannedSessions.length === 0 &&
+          dailyNotebook.map((entry) => (
+            <div
+              key={entry.id}
+              className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/80 px-3 rounded-2xl transition-colors"
+            >
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700">
+                    {entry.timeSlot}
+                  </span>
+                  <span className="text-xs font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
+                    {entry.className}
+                  </span>
+                </div>
+                <h4 className="text-xs font-bold text-slate-900">
+                  {entry.sessionTitle || 'الحصة التشغيلية المحفوظة'}
+                </h4>
+                {entry.note && (
+                  <p className="text-[11px] text-slate-500 italic">ملاحظة: {entry.note}</p>
+                )}
               </div>
 
-              <button
-                onClick={() => onNavigateTab('lesson_plans')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs transition-all cursor-pointer"
-              >
-                <FileText className="w-3.5 h-3.5" />
-                <span>المذكرة</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                  {STATUS_TOGGLES.map((toggle) => (
+                    <button
+                      key={toggle.status}
+                      onClick={() =>
+                        onUpdateNotebookStatus && onUpdateNotebookStatus(entry.id, toggle.status)
+                      }
+                      className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                        entry.status === toggle.status
+                          ? toggle.activeClassName
+                          : toggle.inactiveClassName
+                      }`}
+                      title={toggle.title}
+                    >
+                      {toggle.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => onNavigateTab('lesson_plans')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>المذكرة</span>
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
       </div>
     </div>
   );

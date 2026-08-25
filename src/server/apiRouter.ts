@@ -1974,6 +1974,20 @@ function jsonCollectionRoutes(opts: {
     allowedCreateRoles,
   } = opts;
 
+  const validateNotebookSession = async (item: Record<string, unknown>, user: { id: string }) => {
+    if (path !== 'notebook' || typeof item.classPlannedSessionId !== 'string') return true;
+    if (typeof item.classId !== 'string' || typeof item.academicYearId !== 'string') return false;
+    const planned = await prisma.classPlannedSession.findFirst({
+      where: {
+        id: item.classPlannedSessionId,
+        classId: item.classId,
+        academicYearId: item.academicYearId,
+        teacherId: user.id,
+      },
+      select: { id: true },
+    });
+    return Boolean(planned);
+  };
   const canWrite = (existing: DbRecord | null, user: { id: string; role: string }) =>
     canWriteRecord(existing, user, ownerField);
 
@@ -2000,6 +2014,9 @@ function jsonCollectionRoutes(opts: {
     const item = req.body[bodyKey];
     if (!item || !item.id) {
       return res.status(400).json({ error: 'بيانات غير مكتملة' });
+    }
+    if (!(await validateNotebookSession(item as Record<string, unknown>, req.user!))) {
+      return res.status(403).json({ error: 'الحصة التشغيلية غير موجودة ضمن أقسامك.' });
     }
 
     if (path === 'inspector-notes' && req.user!.role === 'inspector') {
@@ -2059,6 +2076,7 @@ function jsonCollectionRoutes(opts: {
       }
       for (const item of items) {
         if (!item.id) continue;
+        if (!(await validateNotebookSession(item as Record<string, unknown>, req.user!))) continue;
         if (path === 'inspector-notes' && req.user!.role === 'inspector') {
           const targetTeacherId = typeof item.teacherId === 'string' ? item.teacherId : '';
           const assignment = targetTeacherId

@@ -556,6 +556,8 @@ export interface AnnualPlan {
 export interface DailyNotebookEntry {
   id: string;
   teacherId: string;
+  classPlannedSessionId?: string;
+  academicYearId?: string;
   sessionId?: string;
   segmentId?: string;
   classId: string;
