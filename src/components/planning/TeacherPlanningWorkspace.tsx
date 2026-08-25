@@ -9,7 +9,14 @@ import {
   updateTeacherPlanningSession,
   TeacherPlanningSession,
 } from '../../services/api';
-import { canonicalPlanningSessions } from '../../services/teacherPlanning.service';
+import { canonicalReferenceSessions } from '../../services/teacherPlanning.service';
+import {
+  formatAcademicYearLabel,
+  getAcademicYearOptions,
+  getCurrentAcademicYear,
+  isCanonicalAcademicYearId,
+  isPlanningStartDateConsistent,
+} from '../../services/academicYear';
 import type { ClassRoom, User } from '../../types/spex';
 import type { PlanningSection } from '../../lib/routes';
 
@@ -18,7 +25,7 @@ interface TeacherPlanningWorkspaceProps {
   classes: ClassRoom[];
 }
 
-const ACADEMIC_YEAR_ID = '2025-2026';
+const ACADEMIC_YEAR_PREFERENCE_KEY = 'arenaspex:selectedAcademicYear';
 const sectionLabels: Record<PlanningSection, string> = {
   'annual-plan': 'المخطط السنوي',
   segments: 'المقاطع التعليمية',
@@ -47,6 +54,11 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     requestedSection && sectionLabels[requestedSection] ? requestedSection : 'annual-plan'
   );
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id || '');
+  const [academicYearId, setAcademicYearId] = useState(() => {
+    const stored = window.localStorage.getItem(ACADEMIC_YEAR_PREFERENCE_KEY) || '';
+    return isCanonicalAcademicYearId(stored) ? stored : getCurrentAcademicYear();
+  });
+  const academicYearOptions = useMemo(() => getAcademicYearOptions(), []);
   const [planningStartDate, setPlanningStartDate] = useState('');
   const [week, setWeek] = useState('');
   const [sessions, setSessions] = useState<TeacherPlanningSession[]>([]);
@@ -56,11 +68,8 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
 
   const selectedClass = classes.find((item) => item.id === selectedClassId);
   const referenceSessions = useMemo(
-    () =>
-      selectedClass && planningStartDate
-        ? canonicalPlanningSessions(selectedClass.levelId, planningStartDate)
-        : [],
-    [selectedClass, planningStartDate]
+    () => (selectedClass ? canonicalReferenceSessions(selectedClass.levelId) : []),
+    [selectedClass]
   );
   const referencesById = useMemo(
     () => new Map(referenceSessions.map((item) => [item.referenceSessionId, item])),
@@ -75,7 +84,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     let cancelled = false;
     setLoading(true);
     setError('');
-    fetchTeacherPlanningSessions(selectedClassId, ACADEMIC_YEAR_ID)
+    fetchTeacherPlanningSessions(selectedClassId, academicYearId)
       .then((result) => {
         if (!cancelled) setSessions(result.sessions);
       })
@@ -88,7 +97,18 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     return () => {
       cancelled = true;
     };
-  }, [selectedClassId, section]);
+  }, [selectedClassId, section, academicYearId]);
+
+  useEffect(() => {
+    window.localStorage.setItem(ACADEMIC_YEAR_PREFERENCE_KEY, academicYearId);
+  }, [academicYearId]);
+
+  const changeAcademicYear = (next: string) => {
+    setAcademicYearId(next);
+    setPlanningStartDate('');
+    setSessions([]);
+    setError('');
+  };
 
   const changeSection = (next: PlanningSection) => {
     setSection(next);
@@ -97,12 +117,16 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
 
   const initialize = async () => {
     if (!selectedClassId || !planningStartDate) return;
+    if (!isPlanningStartDateConsistent(academicYearId, planningStartDate)) {
+      setError('تاريخ بداية التوزيع يجب أن يقع ضمن السنة الدراسية المحددة.');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
       const result = await initializeTeacherPlanningSessions(
         selectedClassId,
-        ACADEMIC_YEAR_ID,
+        academicYearId,
         planningStartDate
       );
       setSessions(result.sessions);
@@ -153,6 +177,20 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
               مرجع بيداغوجي موحد وتوزيع تشغيلي محفوظ لكل قسم.
             </p>
           </div>
+          <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
+            السنة الدراسية
+            <select
+              value={academicYearId}
+              onChange={(event) => changeAcademicYear(event.target.value)}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+            >
+              {academicYearOptions.map((option) => (
+                <option key={option} value={option}>
+                  {formatAcademicYearLabel(option)}
+                </option>
+              ))}
+            </select>
+          </label>
           {operationalView && (
             <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
               القسم
@@ -190,6 +228,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
       {section === 'annual-plan' && (
         <AnnualPlanView
           currentUser={currentUser}
+          academicYearId={academicYearId}
           onNavigateToAnnualSchedule={() => changeSection('annual-distribution')}
         />
       )}
@@ -239,7 +278,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
                 disabled={!planningStartDate || loading}
                 className="flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
               >
-                <RefreshCw className="h-4 w-4" /> تهيئة التوزيع المحفوظ
+                <RefreshCw className="h-4 w-4" /> إنشاء التوزيع السنوي
               </button>
               {section === 'weekly' && (
                 <label className="text-xs font-bold text-slate-600">
@@ -262,12 +301,13 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
           )}
           {!loading && sessions.length === 0 && (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-600">
-              اختر تاريخ بداية صريحاً ثم اضغط «تهيئة التوزيع المحفوظ» لبدء هذا القسم.
+              لا يوجد توزيع لهذا القسم في السنة الدراسية المحددة. اختر تاريخ بداية التوزيع ثم اضغط
+              «إنشاء التوزيع السنوي».
             </div>
           )}
           {!loading && sessions.length > 0 && visibleSessions.length === 0 && (
             <div className="rounded-2xl bg-white p-6 text-center text-sm text-slate-600">
-              لا توجد حصص محفوظة في هذا الأسبوع.
+              لا يوجد توزيع لهذا القسم في السنة الدراسية المحددة.
             </div>
           )}
           <div className="grid gap-3">

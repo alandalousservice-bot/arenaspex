@@ -3,6 +3,7 @@ import {
   generateAnnualTimeDistribution,
   ScheduledAnnualSession,
 } from '../data/algerianCurriculum';
+import { getCurrentAcademicYear } from './academicYear';
 
 export interface ClassPlannedSessionSeed {
   id: string;
@@ -69,6 +70,11 @@ export function canonicalPlanningSessions(
     plannedDate: session.scheduledDate,
     durationMinutes: session.durationMinutes,
   }));
+}
+
+export function canonicalReferenceSessions(levelId: string): CanonicalPlanningSession[] {
+  const startYear = getCurrentAcademicYear().slice(0, 4);
+  return canonicalPlanningSessions(levelId, startYear + '-09-01');
 }
 
 export function buildClassPlannedSessionSeeds(

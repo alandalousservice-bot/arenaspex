@@ -27,6 +27,10 @@ import { canReadDistrictMessage, normalizeMessageText } from '../services/commun
 import { providerIsUsable } from './generationAccess.policy.js';
 import { buildClassPlannedSessionSeeds } from '../services/teacherPlanning.service.js';
 import {
+  isCanonicalAcademicYearId,
+  isPlanningStartDateConsistent,
+} from '../services/academicYear.js';
+import {
   resolveGenerationCredential,
   resolvePersonalGenerationCredential,
   resolvePlatformFallbackCredential,
@@ -73,14 +77,23 @@ apiRouter.get('/health', (req, res) => {
 // كل ما يلي يتطلب تسجيل دخول صالح
 apiRouter.use(requireAuth);
 
+const academicYearIdSchema = z
+  .string()
+  .trim()
+  .refine(isCanonicalAcademicYearId, 'السنة الدراسية يجب أن تكون بصيغة YYYY-YYYY متتالية.');
+
 const classPlanningQuerySchema = z.object({
-  academicYearId: z.string().trim().min(1),
+  academicYearId: academicYearIdSchema,
 });
 
-const classPlanningInitializeSchema = z.object({
-  academicYearId: z.string().trim().min(1),
-  planningStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-});
+const classPlanningInitializeSchema = z
+  .object({
+    academicYearId: academicYearIdSchema,
+    planningStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  })
+  .refine((value) => isPlanningStartDateConsistent(value.academicYearId, value.planningStartDate), {
+    message: 'تاريخ بداية التوزيع يجب أن يقع ضمن السنة الدراسية المحددة.',
+  });
 
 const classPlanningUpdateSchema = z.object({
   plannedDate: z
@@ -187,19 +200,17 @@ apiRouter.post(
       },
       orderBy: [{ plannedDate: 'asc' }, { id: 'asc' }],
     });
-    res
-      .status(201)
-      .json({
-        success: true,
-        initialized: seeds.length,
-        class: {
-          id: classRecord.id,
-          name: classRecord.name,
-          levelId: classRecord.levelId,
-          institutionId: classRecord.institutionId,
-        },
-        sessions: rows.map(classPlannedSessionView),
-      });
+    res.status(201).json({
+      success: true,
+      initialized: seeds.length,
+      class: {
+        id: classRecord.id,
+        name: classRecord.name,
+        levelId: classRecord.levelId,
+        institutionId: classRecord.institutionId,
+      },
+      sessions: rows.map(classPlannedSessionView),
+    });
   }
 );
 
@@ -2325,7 +2336,11 @@ apiRouter.get('/db/annual-plans', async (req, res) => {
 
   const where: Record<string, unknown> = {};
   if (kind) where.kind = String(kind);
-  if (academicYearId) where.academicYearId = String(academicYearId);
+  if (academicYearId) {
+    if (!isCanonicalAcademicYearId(String(academicYearId)))
+      return res.status(400).json({ error: 'السنة الدراسية يجب أن تكون بصيغة YYYY-YYYY متتالية.' });
+    where.academicYearId = String(academicYearId);
+  }
   if (levelId) where.levelId = String(levelId);
 
   if (user.role === 'teacher') {
@@ -2377,7 +2392,7 @@ const annualPlanOverrideValueSchema = z
 const annualPlanUpsertSchema = z.object({
   id: z.string().optional(),
   teacherId: z.string().min(1),
-  academicYearId: z.string().min(1),
+  academicYearId: academicYearIdSchema,
   levelId: z.string().min(1),
   kind: z.enum(['plan', 'schedule', 'plan_components', 'section_wording', 'schedule_dates']),
   data: z.object({

@@ -37,12 +37,12 @@ import { PE_LEVELS } from '../../data/algerianCurriculum';
 import { User } from '../../types/spex';
 import { useCurriculumOverrides } from '../../hooks/useCurriculumOverrides';
 import { fetchAnnualPlans } from '../../services/api';
-
-const ACADEMIC_YEAR_LABEL = '2025 / 2026';
+import { formatAcademicYearLabel, getCurrentAcademicYear } from '../../services/academicYear';
 
 interface AnnualPlanViewProps {
   currentUser: User;
   onNavigateToAnnualSchedule?: () => void;
+  academicYearId?: string;
 }
 
 type EditValues = {
@@ -125,7 +125,10 @@ function buildOverridesFromEditValues(editValues: EditValues) {
   return overrides;
 }
 
-export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({ currentUser }) => {
+export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
+  currentUser,
+  academicYearId = getCurrentAcademicYear(),
+}) => {
   const [selectedLevelId, setSelectedLevelId] = useState<string>('lvl_p1');
   const [isEditing, setIsEditing] = useState(false);
   const [editValues, setEditValues] = useState<EditValues | null>(null);
@@ -136,6 +139,7 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({ currentUser }) =
       currentUser,
       levelId: selectedLevelId,
       kind: 'annual_plan_new',
+      academicYearId,
     });
 
   const referenceLevel: AnnualPlanLevel =
@@ -149,6 +153,7 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({ currentUser }) =
         const res = await fetchAnnualPlans({
           teacherId: currentUser.id,
           kind: 'annual_plan_new' as any,
+          academicYearId,
         });
         if (res.success && res.annualPlans && res.annualPlans.length > 0) {
           const sorted = [...res.annualPlans].sort(
@@ -164,7 +169,7 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({ currentUser }) =
         // Saved-plan auto-detection is best-effort; retain the reference fallback on failure.
       }
     })();
-  }, [currentUser.id, currentUser.role, autoDetected]);
+  }, [currentUser.id, currentUser.role, autoDetected, academicYearId]);
 
   const hasCustomization = !!record;
   const isCleared =
@@ -338,7 +343,9 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({ currentUser }) =
           <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
           <div>
             <span className="block text-slate-500 font-bold">السنة الدراسية</span>
-            <span className="block font-extrabold text-slate-900">{ACADEMIC_YEAR_LABEL}</span>
+            <span className="block font-extrabold text-slate-900">
+              {formatAcademicYearLabel(academicYearId)}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">

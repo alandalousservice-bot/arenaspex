@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnnualPlan, AnnualPlanKind, AnnualPlanObjectiveOverride, User } from '../types/spex';
 import { approveAnnualPlan, fetchAnnualPlans, saveAnnualPlan } from '../services/api';
+import { getCurrentAcademicYear } from '../services/academicYear';
 
-const DEFAULT_ACADEMIC_YEAR = '2025-2026';
+const DEFAULT_ACADEMIC_YEAR = getCurrentAcademicYear();
 
 /** مفتاح تخصيص على مستوى الحصة: `${fieldId}__${fieldSessionNumber}` */
 export function lessonKey(fieldId: string, sessionNumber: number): string {
@@ -31,9 +32,10 @@ export function useCurriculumOverrides({
   teacherId,
   levelId,
   kind,
-  academicYearId = DEFAULT_ACADEMIC_YEAR
+  academicYearId = DEFAULT_ACADEMIC_YEAR,
 }: UseCurriculumOverridesOptions) {
-  const effectiveTeacherId = teacherId || (currentUser.role === 'teacher' ? currentUser.id : undefined);
+  const effectiveTeacherId =
+    teacherId || (currentUser.role === 'teacher' ? currentUser.id : undefined);
 
   const [record, setRecord] = useState<AnnualPlan | null>(null);
   const [values, setValues] = useState<Record<string, AnnualPlanObjectiveOverride>>({});
@@ -45,7 +47,12 @@ export function useCurriculumOverrides({
     if (!effectiveTeacherId) return;
     setIsLoading(true);
     setError(null);
-    const res = await fetchAnnualPlans({ teacherId: effectiveTeacherId, kind, levelId, academicYearId });
+    const res = await fetchAnnualPlans({
+      teacherId: effectiveTeacherId,
+      kind,
+      levelId,
+      academicYearId,
+    });
     if (res.success && res.annualPlans && res.annualPlans.length > 0) {
       const found = res.annualPlans[0];
       setRecord(found);
@@ -68,7 +75,11 @@ export function useCurriculumOverrides({
   }, []);
 
   const persist = useCallback(
-    async (nextValues: Record<string, AnnualPlanObjectiveOverride>, note?: string, allowEmpty = false) => {
+    async (
+      nextValues: Record<string, AnnualPlanObjectiveOverride>,
+      note?: string,
+      allowEmpty = false
+    ) => {
       if (!effectiveTeacherId) return { success: false, error: 'لا يوجد أستاذ محدَّد.' };
       setIsSaving(true);
       setError(null);
@@ -78,11 +89,16 @@ export function useCurriculumOverrides({
         if (kind === 'annual_plan_new' || allowEmpty) {
           cleaned[key] = v;
         } else {
-          const hasContent = Object.values(v).some((x) => (Array.isArray(x) ? x.length > 0 : Boolean(x)));
+          const hasContent = Object.values(v).some((x) =>
+            Array.isArray(x) ? x.length > 0 : Boolean(x)
+          );
           if (hasContent) cleaned[key] = v;
         }
       });
-      const isFullyCleared = kind === 'annual_plan_new' && Object.keys(nextValues).length > 0 && Object.keys(cleaned).length === 0;
+      const isFullyCleared =
+        kind === 'annual_plan_new' &&
+        Object.keys(nextValues).length > 0 &&
+        Object.keys(cleaned).length === 0;
       const finalOverrides = isFullyCleared ? { __cleared: { isCleared: true } as any } : cleaned;
 
       const res = await saveAnnualPlan({
@@ -91,7 +107,7 @@ export function useCurriculumOverrides({
         academicYearId,
         levelId,
         kind,
-        data: { overrides: finalOverrides, note } as any
+        data: { overrides: finalOverrides, note } as any,
       });
       setIsSaving(false);
       if (res.success && res.annualPlan) {
@@ -106,7 +122,10 @@ export function useCurriculumOverrides({
   );
 
   /** يحفظ كل التعديلات المحلية الحالية */
-  const save = useCallback((note?: string, allowEmpty = false) => persist(values, note, allowEmpty), [persist, values]);
+  const save = useCallback(
+    (note?: string, allowEmpty = false) => persist(values, note, allowEmpty),
+    [persist, values]
+  );
 
   /** يحفظ تخصيصات محددة مباشرة (للمخطط السنوي الجديد) */
   const saveAll = useCallback(
@@ -195,6 +214,6 @@ export function useCurriculumOverrides({
     restoreOriginal,
     approve,
     reload: load,
-    isLockedForTeacher
+    isLockedForTeacher,
   };
 }

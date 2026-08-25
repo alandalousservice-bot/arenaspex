@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnnualPlan, AnnualPlanKind, User } from '../types/spex';
 import { approveAnnualPlan, fetchAnnualPlans, saveAnnualPlan } from '../services/api';
+import { getCurrentAcademicYear } from '../services/academicYear';
 
-const DEFAULT_ACADEMIC_YEAR = '2025-2026';
+const DEFAULT_ACADEMIC_YEAR = getCurrentAcademicYear();
 
 /** مفتاح كل هدف ضمن المستوى الدراسي: `${fieldId}__${fieldSessionNumber}` */
 export function objectiveKey(fieldId: string, sessionNumber: number): string {
@@ -28,9 +29,10 @@ export function useAnnualPlanObjectives({
   teacherId,
   levelId,
   kind,
-  academicYearId = DEFAULT_ACADEMIC_YEAR
+  academicYearId = DEFAULT_ACADEMIC_YEAR,
 }: UseAnnualPlanObjectivesOptions) {
-  const effectiveTeacherId = teacherId || (currentUser.role === 'teacher' ? currentUser.id : undefined);
+  const effectiveTeacherId =
+    teacherId || (currentUser.role === 'teacher' ? currentUser.id : undefined);
 
   const [record, setRecord] = useState<AnnualPlan | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -42,7 +44,12 @@ export function useAnnualPlanObjectives({
     if (!effectiveTeacherId) return;
     setIsLoading(true);
     setError(null);
-    const res = await fetchAnnualPlans({ teacherId: effectiveTeacherId, kind, levelId, academicYearId });
+    const res = await fetchAnnualPlans({
+      teacherId: effectiveTeacherId,
+      kind,
+      levelId,
+      academicYearId,
+    });
     if (res.success && res.annualPlans && res.annualPlans.length > 0) {
       const found = res.annualPlans[0];
       setRecord(found);
@@ -79,7 +86,7 @@ export function useAnnualPlanObjectives({
             .filter(([, text]) => text && text.trim().length > 0)
             .map(([key, text]) => [key, { objective: text.trim() }])
         ),
-        note
+        note,
       };
       const res = await saveAnnualPlan({
         id: record?.id,
@@ -87,7 +94,7 @@ export function useAnnualPlanObjectives({
         academicYearId,
         levelId,
         kind,
-        data: dataPayload
+        data: dataPayload,
       });
       setIsSaving(false);
       if (res.success && res.annualPlan) {
@@ -124,6 +131,6 @@ export function useAnnualPlanObjectives({
     approve,
     reload: load,
     /** هل يوجد اقتراح من المفتش ينتظر الأستاذ الاطلاع عليه (بحالة مقترح أو معتمد) */
-    isLockedForTeacher
+    isLockedForTeacher,
   };
 }
