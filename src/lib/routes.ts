@@ -18,6 +18,7 @@ export const AUTH_PATHS = {
 /** NavTab → مسار URL */
 export const TAB_PATHS: Record<NavTab, string> = {
   dashboard: '/dashboard',
+  planning: '/planning',
   annual_plan: '/annual-plan',
   annual_schedule: '/annual-schedule',
   weekly_schedule: '/weekly-schedule',
@@ -69,9 +70,29 @@ export function pathToTab(pathname: string): NavTab | null {
     pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
   // Deep links to the retired standalone bank now open the unified knowledge bank.
   if (normalized === '/educational-situations') return 'knowledge_engine';
+  if (
+    ['/annual-plan', '/annual-schedule', '/weekly-schedule', '/learning-segments'].includes(
+      normalized
+    )
+  )
+    return 'planning';
   if (/^\/inspector\/teachers\/[^/]+$/.test(normalized)) return 'inspector_teachers';
   if (/^\/admin\/accounts\/[^/]+$/.test(normalized)) return 'admin_accounts';
   return PATH_TO_TAB[normalized] ?? null;
+}
+
+export type PlanningSection = 'annual-plan' | 'segments' | 'annual-distribution' | 'weekly';
+
+export function planningSectionForPath(pathname: string): PlanningSection | null {
+  const normalized =
+    pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  const legacy: Record<string, PlanningSection> = {
+    '/annual-plan': 'annual-plan',
+    '/learning-segments': 'segments',
+    '/annual-schedule': 'annual-distribution',
+    '/weekly-schedule': 'weekly',
+  };
+  return legacy[normalized] ?? null;
 }
 
 /** تبويب البداية الافتراضي حسب دور المستخدم (نفس منطق getEffectiveTab سابقاً) */
@@ -87,10 +108,7 @@ export const ROLE_TABS: Record<UserRole, NavTab[]> = {
   teacher: [
     'dashboard',
     'professional_hub',
-    'annual_plan',
-    'annual_schedule',
-    'weekly_schedule',
-    'learning_segments',
+    'planning',
     'daily_notebook',
     'lesson_plans',
     'lesson_command_center',

@@ -4,19 +4,22 @@
  */
 
 import React, { useState } from 'react';
-import { Layers, Search, BookOpen, Clock, CheckCircle2, ShieldCheck, Tag } from 'lucide-react';
-import {
-  PE_LEVELS,
-  PE_FIELDS,
-  COMPLETE_ANNUAL_CURRICULUM
-} from '../../data/algerianCurriculum';
+import { Layers, Search, BookOpen, Clock, CheckCircle2 } from 'lucide-react';
+import { PE_LEVELS, PE_FIELDS, COMPLETE_ANNUAL_CURRICULUM } from '../../data/algerianCurriculum';
 
-export const LearningSegmentsView: React.FC = () => {
+interface LearningSegmentsViewProps {
+  onNavigateToDistribution?: (levelId: string) => void;
+}
+
+export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
+  onNavigateToDistribution,
+}) => {
   const [selectedLevelId, setSelectedLevelId] = useState<string>('lvl_p1');
   const [selectedFieldId, setSelectedFieldId] = useState<string>('all');
   const [searchVal, setSearchVal] = useState('');
 
-  const currentLevelCurriculum = COMPLETE_ANNUAL_CURRICULUM[selectedLevelId] || COMPLETE_ANNUAL_CURRICULUM['lvl_p1'];
+  const currentLevelCurriculum =
+    COMPLETE_ANNUAL_CURRICULUM[selectedLevelId] || COMPLETE_ANNUAL_CURRICULUM['lvl_p1'];
 
   const filteredFields = Object.values(currentLevelCurriculum.fields).filter((field) => {
     const matchesField = selectedFieldId === 'all' || field.fieldId === selectedFieldId;
@@ -44,21 +47,33 @@ export const LearningSegmentsView: React.FC = () => {
           </p>
         </div>
 
-        <div className="relative w-full sm:w-64">
-          <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
-          <input
-            type="text"
-            value={searchVal}
-            onChange={(e) => setSearchVal(e.target.value)}
-            placeholder="ابحث في الأهداف والمقاطع..."
-            className="w-full pl-3 pr-9 py-2 text-xs bg-slate-50 rounded-xl border border-slate-200 focus:border-blue-500 outline-none"
-          />
+        <div className="flex items-center gap-2">
+          {onNavigateToDistribution && (
+            <button
+              onClick={() => onNavigateToDistribution(selectedLevelId)}
+              className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
+            >
+              فتح التوزيع السنوي
+            </button>
+          )}
+          <div className="relative w-full sm:w-64">
+            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
+            <input
+              type="text"
+              value={searchVal}
+              onChange={(e) => setSearchVal(e.target.value)}
+              placeholder="ابحث في الأهداف والمقاطع..."
+              className="w-full pl-3 pr-9 py-2 text-xs bg-slate-50 rounded-xl border border-slate-200 focus:border-blue-500 outline-none"
+            />
+          </div>
         </div>
       </div>
 
       {/* Level Selection Bar */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        <span className="text-xs font-bold text-slate-500 whitespace-nowrap ml-2">اختر المستوى الدراسي:</span>
+        <span className="text-xs font-bold text-slate-500 whitespace-nowrap ml-2">
+          اختر المستوى الدراسي:
+        </span>
         {PE_LEVELS.map((lvl) => {
           const isSelected = lvl.id === selectedLevelId;
           return (
@@ -116,7 +131,9 @@ export const LearningSegmentsView: React.FC = () => {
                 <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg">
                   المقطع التعلمي: {field.fieldName}
                 </span>
-                <h3 className="text-base font-extrabold text-slate-900 mt-2">{field.finalCompetency}</h3>
+                <h3 className="text-base font-extrabold text-slate-900 mt-2">
+                  {field.finalCompetency}
+                </h3>
               </div>
 
               <span className="text-xs font-bold text-slate-500 flex items-center gap-1 shrink-0">
@@ -171,7 +188,9 @@ export const LearningSegmentsView: React.FC = () => {
 
             {/* 10 Sessions List */}
             <div className="pt-2 border-t border-slate-100 space-y-2">
-              <span className="text-xs font-bold text-slate-800 block">سيرورة الحصص التعلمية للمقطع (10 حصص):</span>
+              <span className="text-xs font-bold text-slate-800 block">
+                سيرورة الحصص التعلمية للمقطع (10 حصص):
+              </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2">
                 {field.sessionsList.map((sess) => (
                   <div
@@ -180,15 +199,16 @@ export const LearningSegmentsView: React.FC = () => {
                       sess.type === 'تقويم تشخيصي'
                         ? 'bg-amber-50 border-amber-200'
                         : sess.type === 'إدماجية'
-                        ? 'bg-purple-50 border-purple-200'
-                        : sess.type === 'تقويم تحصيلي'
-                        ? 'bg-emerald-50 border-emerald-200'
-                        : 'bg-slate-50 border-slate-200'
+                          ? 'bg-purple-50 border-purple-200'
+                          : sess.type === 'تقويم تحصيلي'
+                            ? 'bg-emerald-50 border-emerald-200'
+                            : 'bg-slate-50 border-slate-200'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-extrabold text-[10px] text-slate-900">
-                        حصة {sess.sessionNumber < 10 ? '0' + sess.sessionNumber : sess.sessionNumber}
+                        حصة{' '}
+                        {sess.sessionNumber < 10 ? '0' + sess.sessionNumber : sess.sessionNumber}
                       </span>
                       <span className="text-[10px] font-bold text-slate-600">{sess.typeLabel}</span>
                     </div>

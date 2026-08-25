@@ -72,18 +72,19 @@ describe('class-scoped Teacher planning sessions', () => {
     const schema = read('prisma/schema.prisma');
     const router = read('src/server/apiRouter.ts');
     const migration = read('prisma/migrations/20260825090000_class_planned_sessions/migration.sql');
+    const routerContract = router.replace(/\s+/g, ' ').replace(/\(\s+/g, '(');
     expect(schema).toContain('model ClassPlannedSession');
     expect(schema).toContain('@@unique([classId, academicYearId, referenceSessionId])');
     expect(migration).toContain('CREATE TABLE "ClassPlannedSession"');
-    expect(router).toContain("apiRouter.get('/teacher/planning/classes/:classId/sessions'");
-    expect(router).toContain(
+    expect(routerContract).toContain("apiRouter.get('/teacher/planning/classes/:classId/sessions'");
+    expect(routerContract).toContain(
       "apiRouter.post('/teacher/planning/classes/:classId/sessions/initialize'"
     );
-    expect(router).toContain(
+    expect(routerContract).toContain(
       "apiRouter.patch('/teacher/planning/classes/:classId/sessions/:sessionId'"
     );
-    expect(router).toContain('teacherId: req.user!.id');
-    expect(router).toContain(
+    expect(routerContract).toContain('teacherId: req.user!.id');
+    expect(routerContract).toContain(
       'classPlannedSession.createMany({ data: seeds, skipDuplicates: true })'
     );
   });

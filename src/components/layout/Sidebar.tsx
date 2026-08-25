@@ -7,8 +7,6 @@ import React from 'react';
 import {
   LayoutDashboard,
   Calendar,
-  CalendarCheck,
-  Layers,
   BookMarked,
   FileText,
   BrainCircuit,
@@ -24,7 +22,6 @@ import {
   Sparkles,
   X,
   Menu,
-  Clock,
   Timer,
   Users,
   UserCheck,
@@ -33,6 +30,7 @@ import { UserRole } from '../../types/spex';
 
 export type NavTab =
   | 'dashboard'
+  | 'planning'
   | 'annual_plan'
   | 'annual_schedule'
   | 'weekly_schedule'
@@ -106,10 +104,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
               badge: 'فضاء موحّد',
               highlight: true,
             },
-            { id: 'annual_plan' as NavTab, label: 'المخطط السنوي للمناهج', icon: Calendar },
-            { id: 'annual_schedule' as NavTab, label: 'التوزيع السنوي للحصص', icon: CalendarCheck },
-            { id: 'weekly_schedule' as NavTab, label: 'التوزيع الأسبوعي للحصص', icon: Clock },
-            { id: 'learning_segments' as NavTab, label: 'المقاطع التعليمية', icon: Layers },
+            { id: 'planning' as NavTab, label: 'التخطيط البيداغوجي', icon: Calendar },
             {
               id: 'daily_notebook' as NavTab,
               label: 'الكراس اليومي',

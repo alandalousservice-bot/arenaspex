@@ -15,7 +15,13 @@ import { PendingApprovalViewerScreen } from './components/auth/PendingApprovalVi
 import { useAuth } from './hooks/useAuth';
 import { usePlatformStore } from './hooks/usePlatformStore';
 import { logoutRequest } from './services/api';
-import { tabToPath, pathToTab, defaultTabForRole, resolveTabForRole } from './lib/routes';
+import {
+  tabToPath,
+  pathToTab,
+  defaultTabForRole,
+  resolveTabForRole,
+  planningSectionForPath,
+} from './lib/routes';
 import { User } from './types/spex';
 import { INITIAL_DIRECTORATES } from './data/initialState';
 import { registerOnlineFlush } from './lib/offline';
@@ -42,22 +48,9 @@ const AdminWorkspacePage = lazy(() =>
     default: m.AdminWorkspacePage,
   }))
 );
-const AnnualPlanView = lazy(() =>
-  import('./components/curriculum/AnnualPlanView').then((m) => ({ default: m.AnnualPlanView }))
-);
-const AnnualScheduleView = lazy(() =>
-  import('./components/curriculum/AnnualScheduleView').then((m) => ({
-    default: m.AnnualScheduleView,
-  }))
-);
-const WeeklyScheduleView = lazy(() =>
-  import('./components/schedule/WeeklyScheduleView').then((m) => ({
-    default: m.WeeklyScheduleView,
-  }))
-);
-const LearningSegmentsView = lazy(() =>
-  import('./components/curriculum/LearningSegmentsView').then((m) => ({
-    default: m.LearningSegmentsView,
+const TeacherPlanningWorkspace = lazy(() =>
+  import('./components/planning/TeacherPlanningWorkspace').then((m) => ({
+    default: m.TeacherPlanningWorkspace,
   }))
 );
 const DailyNotebookView = lazy(() =>
@@ -189,8 +182,6 @@ export default function App() {
     handleDeleteStudent,
     handleDeleteLessonPlan,
     handleDeleteNotebookEntry,
-    handleAddWeeklySlot,
-    handleDeleteWeeklySlot,
     handleUpdateNotebookStatus,
     handleUpdateLessonStatus,
     handleSaveLessonPlan,
@@ -238,6 +229,11 @@ export default function App() {
   // → يُصحَّح تلقائياً إلى الرابط المناسب (replace حتى لا يُلوَّث السجل)
   useEffect(() => {
     if (!isAuthenticated) return;
+    const legacyPlanningSection = planningSectionForPath(location.pathname);
+    if (legacyPlanningSection) {
+      navigate('/planning?section=' + legacyPlanningSection, { replace: true });
+      return;
+    }
     const fromUrl = pathToTab(location.pathname);
     if (!fromUrl) {
       navigate(tabToPath(defaultTabForRole(currentUser.role)), { replace: true });
@@ -405,33 +401,9 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'annual_plan' && (
-              <AnnualPlanView
-                currentUser={currentUser}
-                onNavigateToAnnualSchedule={() => navigateToTab('annual_schedule')}
-              />
+            {activeTab === 'planning' && (
+              <TeacherPlanningWorkspace currentUser={currentUser} classes={teacherClasses} />
             )}
-
-            {activeTab === 'annual_schedule' && (
-              <AnnualScheduleView
-                currentUser={currentUser}
-                onNavigateToAnnualPlan={() => navigateToTab('annual_plan')}
-              />
-            )}
-
-            {activeTab === 'weekly_schedule' && (
-              <WeeklyScheduleView
-                scheduleSlots={weeklySchedule}
-                onAddSlot={handleAddWeeklySlot}
-                onDeleteSlot={handleDeleteWeeklySlot}
-                teacherName={`${currentUser.firstName} ${currentUser.lastName}`}
-                schoolName={currentUser.schoolName || 'المدرسة الابتدائية'}
-                teacherClasses={teacherClasses}
-                currentUser={currentUser}
-              />
-            )}
-
-            {activeTab === 'learning_segments' && <LearningSegmentsView />}
 
             {activeTab === 'daily_notebook' && (
               <DailyNotebookView
