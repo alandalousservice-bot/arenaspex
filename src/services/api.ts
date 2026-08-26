@@ -1456,15 +1456,16 @@ export const saveTeacherProfessionalData = (payload: TeacherProfessionalData) =>
 
 export const fetchMyAssignment = () => getJSON('/api/teacher/assignment');
 
-export const fetchMyAssignedTeachers = (filters?: {
+export const fetchMyAssignedTeachers = async (filters?: {
   municipalityId?: string;
   institutionId?: string;
-}) => {
+}): Promise<User[]> => {
   const params = new URLSearchParams();
   if (filters?.municipalityId) params.set('municipalityId', filters.municipalityId);
   if (filters?.institutionId) params.set('institutionId', filters.institutionId);
   const qs = params.toString();
-  return getJSON(`/api/inspector/teachers${qs ? `?${qs}` : ''}`);
+  const data = await getJSON(`/api/inspector/teachers${qs ? `?${qs}` : ''}`);
+  return Array.isArray(data.teachers) ? data.teachers : [];
 };
 
 export async function fetchInspectorSummary() {
