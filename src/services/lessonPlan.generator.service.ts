@@ -68,6 +68,13 @@ function situationEquipment(fieldId: string): string[] {
   return ['أقماع', 'شواخص', 'سلم أرضي'];
 }
 
+function executableSituationContent(situation: EducationalSituation): string {
+  const equipment = situation.equipment.length
+    ? ` الوسائل المستعملة: ${situation.equipment.join('، ')}.`
+    : '';
+  return `الموقف: ${situation.name}. ${situation.organization.trim()}${equipment}`.trim();
+}
+
 function buildMainRows(
   session: AutoGenerateSessionSource,
   mainMinutes: number,
@@ -101,7 +108,7 @@ function buildMainRows(
       id: `main-${index + 1}`,
       phase: 'المرحلة الرئيسية',
       learningContent: session.objective,
-      executionContent: `${situation.name}: ${situation.organization}`,
+      executionContent: executableSituationContent(situation),
       durationMinutes: minutes[index],
       guidance: situation.variations || 'احترام التنظيم والتعليمات.',
       situationSnapshot: snapshotSituation(situation),
@@ -112,7 +119,7 @@ function buildMainRows(
     { length: count },
     (_, index) => Math.floor(mainMinutes / count) + (index < mainMinutes % count ? 1 : 0)
   );
-  const tools = situationEquipment(session.fieldId);
+  const tools = session.tools.length ? session.tools : situationEquipment(session.fieldId);
 
   return minutes.map((durationMinutes, index) => ({
     id: `main-${index + 1}`,
@@ -157,20 +164,21 @@ export function autoGenerateLessonPlan(
     {
       id: 'preparation',
       phase: 'المرحلة التحضيرية',
-      learningContent: 'تهيئة الجسم والاستعداد للنشاط المرتبط بهدف الحصة.',
+      learningContent: 'تنظيم المتعلمين وتهيئة الجسم والميدان للنشاط.',
       executionContent:
-        'تنظيم القسم، إحماء تدريجي، تحريك المفاصل، والاستماع لتعليمات الحصة قبل الانطلاق.',
+        'ينظم الأستاذ المتعلمين في أفواج، يتأكد من سلامة الميدان والمسافات، ثم يقود إحماءً تدريجياً وتحريكاً للمفاصل قبل شرح الإشارة وقواعد التنفيذ.',
       durationMinutes: preparationMinutes,
-      guidance: 'تنظيم جيد وهدوء، تسخين تدريجي، احترام المسافة والإنصات للتوجيهات.',
+      guidance: 'التنظيم الجيد، التأكد من السلامة، احترام المسافة، والإنصات للإشارة.',
     },
     ...mainRows,
     {
       id: 'closing',
       phase: 'المرحلة الختامية',
-      learningContent: 'العودة إلى الحالة الطبيعية وتثبيت التعلم المنجز.',
-      executionContent: 'مشي هادئ وتمارين تنفس واسترخاء، ثم مناقشة قصيرة حول ما أنجزه المتعلمون.',
+      learningContent: 'العودة التدريجية للحالة الطبيعية وتقويم التعلم.',
+      executionContent:
+        'يمشي المتعلمون ببطء ويؤدون تمارين تنفس واسترخاء، ثم يجيبون عن سؤال تقويمي مرتبط بهدف الحصة قبل تنظيم الصف وجمع الوسائل.',
       durationMinutes: closingMinutes,
-      guidance: 'مشاركة الجميع في المناقشة واحترام آراء الزملاء.',
+      guidance: 'التهدئة التدريجية، مشاركة الجميع، جمع الوسائل بأمان، واحترام آراء الزملاء.',
     },
   ];
 
@@ -186,8 +194,8 @@ export function autoGenerateLessonPlan(
     plannedStartTime: ctx.plannedStartTime,
     venue: ctx.venue,
     teacherId: teacher?.id || '',
-    institutionName: teacher?.schoolName || 'المؤسسة التعليمية',
-    teacherName: teacher ? `${teacher.firstName} ${teacher.lastName}` : 'أستاذ المادة',
+    institutionName: teacher?.schoolName || '',
+    teacherName: teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : '',
     levelName: ctx.levelName,
     className: ctx.className || '',
     fieldName: session.fieldName,
