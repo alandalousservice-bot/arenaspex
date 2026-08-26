@@ -8,11 +8,11 @@ describe('unified Teacher assessment notebook', () => {
   it('routes the unified notebook and preserves legacy assessment links', () => {
     expect(tabToPath('assessment_notebook')).toBe('/assessment-notebook');
     expect(pathToTab('/assessment-notebook')).toBe('assessment_notebook');
-    expect(pathToTab('/assessment')).toBe('assessment_notebook');
-    expect(pathToTab('/gradebook')).toBe('assessment_notebook');
+    expect(pathToTab('/assessment')).toBe('competency_assessment');
+    expect(pathToTab('/gradebook')).toBe('gradebook');
     expect(ROLE_TABS.teacher).toContain('assessment_notebook');
-    expect(ROLE_TABS.teacher).not.toContain('competency_assessment');
-    expect(ROLE_TABS.teacher).not.toContain('gradebook');
+    expect(ROLE_TABS.teacher).toContain('competency_assessment');
+    expect(ROLE_TABS.teacher).toContain('gradebook');
   });
 
   it('uses persisted sessions and explicit null/unassessed UI values', () => {

@@ -236,10 +236,6 @@ export default function App() {
   // → يُصحَّح تلقائياً إلى الرابط المناسب (replace حتى لا يُلوَّث السجل)
   useEffect(() => {
     if (!isAuthenticated) return;
-    if (location.pathname === '/assessment' || location.pathname === '/gradebook') {
-      navigate('/assessment-notebook' + location.search, { replace: true });
-      return;
-    }
     const legacyPlanningSection = planningSectionForPath(location.pathname);
     if (legacyPlanningSection) {
       navigate('/planning?section=' + legacyPlanningSection, { replace: true });
