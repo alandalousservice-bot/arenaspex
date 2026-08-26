@@ -4,7 +4,6 @@
  */
 import 'dotenv/config';
 import path from 'path';
-import { execSync } from 'child_process';
 import express from 'express';
 // يحوّل أي رفض (rejection) من معالجات Express غير المتزامنة إلى معالج الأخطاء
 // العام بدل إسقاط عملية الخادم بأكملها (مشكلة معروفة في Express 4).
@@ -30,18 +29,6 @@ process.on('uncaughtException', (err) => {
 });
 
 const rootDir = process.cwd();
-
-// Database migrations are explicit in production. Optional startup migration is opt-in.
-// Seeding is NEVER performed automatically on every server restart.
-if (process.env.DATABASE_URL && process.env.RUN_DB_MIGRATIONS_ON_STARTUP === 'true') {
-  try {
-    console.log('⚡ SPEX DB: Running Prisma migrations (startup opt-in)...');
-    execSync('npx prisma migrate deploy', { stdio: 'inherit' });
-  } catch (err) {
-    console.error('❌ SPEX DB migration failed:', (err as Error).message || err);
-    process.exit(1);
-  }
-}
 
 async function startServer() {
   const app = express();
@@ -147,11 +134,15 @@ async function startServer() {
       err?.code === 'P1017';
 
     if (isNeonTerminating) {
-      console.warn('⚠️ SPEX DB: Transient Neon termination (E57P01) caught in error handler — responding 503 to trigger client retry, server stays alive:', msg.slice(0, 200));
+      console.warn(
+        '⚠️ SPEX DB: Transient Neon termination (E57P01) caught in error handler — responding 503 to trigger client retry, server stays alive:',
+        msg.slice(0, 200)
+      );
       return res.status(503).json({
-        error: 'قاعدة البيانات تعيد التشغيل مؤقتاً (Neon scale-to-zero). يرجى إعادة المحاولة بعد لحظات.',
+        error:
+          'قاعدة البيانات تعيد التشغيل مؤقتاً (Neon scale-to-zero). يرجى إعادة المحاولة بعد لحظات.',
         code: 'DB_RETRYABLE',
-        retryable: true
+        retryable: true,
       });
     }
 
@@ -160,7 +151,9 @@ async function startServer() {
   });
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ SPEX server running on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
+    console.log(
+      `✅ SPEX server running on port ${PORT} (${process.env.NODE_ENV || 'development'})`
+    );
     verifyDatabaseConnection();
   });
 }
@@ -176,7 +169,7 @@ async function verifyDatabaseConnection() {
     console.log('✅ SPEX DB: PostgreSQL connection verified.');
 
     // فحص جاهزية المخطط: بدون جدول User لا يعمل أي تسجيل دخول — لكننا لا نهجّر تلقائياً
-    // هنا (الهجرات إما عبر render:build أو RUN_DB_MIGRATIONS_ON_STARTUP=true)
+    // هنا. تُطبّق الهجرات مرة واحدة أثناء نشر Render عبر render:build.
     try {
       await prisma.$queryRaw`SELECT 1 FROM "User" LIMIT 1`;
     } catch (schemaErr: unknown) {
@@ -184,8 +177,7 @@ async function verifyDatabaseConnection() {
       if (code === 'P2021' || code === 'P2022') {
         console.error(
           '⚠️ SPEX DB: الجداول/الأعمدة غير مكتملة — هجرات Prisma لم تُطبَّق على هذه القاعدة بعد.\n' +
-            '   الحل: فعّل RUN_DB_MIGRATIONS_ON_STARTUP=true في متغيرات البيئة (يُهجّر عند كل إقلاع بأمان)،\n' +
-            '   أو اضبط Build Command على: npm run render:build (يُهجّر أثناء البناء)، ثم أعد النشر.'
+            '   الحل: اضبط Build Command على: npm run render:build (يُهجّر أثناء البناء)، ثم أعد النشر.'
         );
       }
     }
@@ -205,7 +197,7 @@ async function verifyDatabaseConnection() {
   } catch (err) {
     console.error(
       '❌ SPEX DB: تعذّر الاتصال بقاعدة البيانات. تحقق من DATABASE_URL في Render Dashboard → Environment ' +
-        '(يفضل رابط Neon المباشر بدون -pooler).',
+        '(تأكد من ضبط DATABASE_URL كرابط Neon pooled صالح).',
       (err as Error).message || err
     );
   }

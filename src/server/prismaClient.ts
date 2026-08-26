@@ -7,39 +7,7 @@
  * - يحافظ على عميل واحد (singleton) لتفادي استنزاف الاتصالات أثناء HMR
  */
 
-function resolveDatabaseUrl(raw: string): string {
-  const at = raw.lastIndexOf('@');
-  if (at === -1) return raw;
-  const suffix = raw.slice(at + 1);
-  const slashIdx = suffix.indexOf('/');
-  const authority = slashIdx === -1 ? suffix : suffix.slice(0, slashIdx);
-  const query = slashIdx === -1 ? '' : suffix.slice(slashIdx);
-  const host = authority.split(':')[0];
-  const isNeonPooled =
-    host.endsWith('.neon.tech') && (host.includes('-pooler.') || host.includes('.pooler.'));
-  if (!isNeonPooled) return raw;
-  const directHost = host.replace('-pooler.', '.').replace('.pooler.', '.');
-  return raw.slice(0, at + 1) + authority.replace(host, directHost) + query;
-}
-
-function enrichDatabaseUrl(raw: string): string {
-  // إضافة معاملات مساعدة للاستقرار مع Neon + Prisma
-  // - connect_timeout و pool_timeout لتفادي التعليق الطويل
-  // - لا نضيف pgbouncer=true لأننا حولنا بالفعل إلى الرابط المباشر لتفادي 25006
-  try {
-    const url = new URL(raw);
-    const params = url.searchParams;
-    if (!params.has('connect_timeout')) params.set('connect_timeout', '15');
-    if (!params.has('pool_timeout')) params.set('pool_timeout', '20');
-    // تقليل حجم الـ statement cache لتفادي مشاكل PgBouncer إن عاد المستخدم لاستخدام pooler يدوياً
-    // (لا يضر مع الرابط المباشر)
-    if (!params.has('statement_cache_size')) params.set('statement_cache_size', '0');
-    return url.toString();
-  } catch {
-    // إن فشل تحليل URL (نادر)، نرجع الخام
-    return raw;
-  }
-}
+import { getRuntimeDatabaseUrl } from './runtimeDatabaseUrl.js';
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -48,17 +16,8 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-const RESOLVED_URL = resolveDatabaseUrl(process.env.DATABASE_URL);
-if (RESOLVED_URL !== process.env.DATABASE_URL) {
-  console.warn(
-    '[DB] ⚠️ رصد رابط Neon المُجمَّع (pooler) في DATABASE_URL — تم التحويل تلقائياً إلى الرابط المباشر لضمان الكتابة.'
-  );
-  console.warn(
-    '[DB] ⚠️ يُنصح بتحديث DATABASE_URL في Render Dashboard → Environment بالرابط المباشر (بدون -pooler) لإزالة هذا التحويل، أو استخدام الرابط المجمّع مع ?pgbouncer=true&connection_limit=1'
-  );
-}
-
-const DATABASE_URL = enrichDatabaseUrl(RESOLVED_URL);
+const DATABASE_URL = getRuntimeDatabaseUrl(process.env.DATABASE_URL);
+console.log('[DB] Neon pooled runtime connection configured.');
 
 import { PrismaClient } from '@prisma/client';
 
@@ -70,7 +29,6 @@ function isRetryableDbError(err: any): boolean {
   return (
     msg.includes('terminating connection due to administrator command') ||
     msg.includes('E57P01') ||
-    msg.includes('57P01') ||
     msg.includes('57P01') ||
     msg.includes('Closed') ||
     msg.includes("Can't reach database server") ||

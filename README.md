@@ -17,7 +17,7 @@ Google، وبوابات المفتش والمدير والمشرف — **بوا�
 
 ```bash
 npm install                     # أول مرة (يشغّل prisma generate تلقائياً)
-cp .env.example .env            # املأ DATABASE_URL و JWT_SECRET على الأقل
+cp .env.example .env            # املأ DATABASE_URL و DIRECT_DATABASE_URL و JWT_SECRET
 npx prisma migrate deploy       # تطبيق مخطط قاعدة البيانات
 npm run db:seed                 # إنشاء SUPER_ADMIN (إن عرّفت SUPER_ADMIN_EMAIL/PASSWORD)
 npm run dev                     # http://localhost:3000
@@ -37,12 +37,16 @@ npm run dev                     # http://localhost:3000
 
 ملف `render.yaml` جاهز كنظام Blueprint: الأمران هما
 `npm run render:build` (تثبيت + prisma generate + migrate deploy + seed + build)
-و`npm run render:start`. المتغيرات الإلزامية: `DATABASE_URL` و`JWT_SECRET`.
+و`npm run render:start`. المتغيرات الإلزامية: `DATABASE_URL` و`DIRECT_DATABASE_URL` و`JWT_SECRET`.
+
+في Render/Neon، اضبط `DATABASE_URL` على رابط Neon pooled الذي يحتوي على `-pooler` لتشغيل
+Prisma أثناء الطلبات، واضبط `DIRECT_DATABASE_URL` على رابط Neon direct الصريح بدون `-pooler`
+للهجرات والوصول الإداري. لا يُعاد اشتقاق أي رابط تلقائياً.
 
 > ⚠️ **إن أنشأت الخدمة يدوياً (بدون Blueprint)** فاضبط Build Command على
 > `npm run render:build` (وليس `npm run build`) — فالأخير لا يطبّق هجرات قاعدة
-> البيانات فيفشل كل دخول بأخطاء `P2021/P2022`. البديل: أضف المتغير
-> `RUN_DB_MIGRATIONS_ON_STARTUP=true` فيُطبَّق `prisma migrate deploy` عند كل إقلاع.
+> البيانات فيفشل كل دخول بأخطاء `P2021/P2022`. لا تُشغّل الهجرات عند كل إقلاع؛ اجعل
+> خطوة البناء هي مسار الهجرة الوحيد.
 > حساب المشرف الأول يُنشأ آلياً من `SUPER_ADMIN_EMAIL` + `SUPER_ADMIN_PASSWORD` أثناء البناء.
 الاختيارية وآثارها موثقة تفصيلياً في `.env.example` (الذكاء الاصطناعي متعدد المزودين
 مع تشفير المفاتيح في القاعدة، بريد Resend لاسترجاع كلمة المرور، Google OAuth…).

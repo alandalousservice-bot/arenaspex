@@ -14,6 +14,8 @@ services:
       # Neon PostgreSQL
       - key: DATABASE_URL
         sync: false
+      - key: DIRECT_DATABASE_URL
+        sync: false
 
       # Application
       - key: APP_URL
@@ -24,9 +26,6 @@ services:
         generateValue: true
       - key: SETUP_SECRET
         generateValue: true
-      - key: RUN_DB_MIGRATIONS_ON_STARTUP
-        value: "false"
-
       # First admin account (created via `npm run db:seed` from Render Shell)
       - key: SUPER_ADMIN_EMAIL
         sync: false
