@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs';
 
 const dashboard = readFileSync('src/components/dashboard/InspectorDashboard.tsx', 'utf8');
 const teacherHook = readFileSync('src/hooks/useTeacher.ts', 'utf8');
-const teacherList = readFileSync('src/components/dashboard/inspector/InspectorTeacherList.tsx', 'utf8');
+const teacherList = readFileSync(
+  'src/components/dashboard/inspector/InspectorTeacherList.tsx',
+  'utf8'
+);
 
 describe('Inspector dashboard null safety', () => {
   it('normalizes missing teachers and renders an empty state', () => {
@@ -20,5 +23,12 @@ describe('Inspector dashboard null safety', () => {
 
   it('keeps a controlled message for a missing inspector profile', () => {
     expect(dashboard).toContain('بيانات حساب المفتش غير مكتملة');
+  });
+
+  it('does not dereference a missing inspector in the effect dependency or body', () => {
+    expect(dashboard).toContain('if (!inspectorId) return;');
+    expect(dashboard).toContain('const inspectorId = inspector?.id;');
+    expect(dashboard).toContain('}, [inspectorId]);');
+    expect(dashboard).not.toContain('}, [inspector.id]);');
   });
 });
