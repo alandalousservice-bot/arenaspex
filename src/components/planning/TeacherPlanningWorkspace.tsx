@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Calendar, CalendarDays, RefreshCw, Save, BookOpen, NotebookPen } from 'lucide-react';
 import { AnnualPlanView } from '../curriculum/AnnualPlanView';
 import { LearningSegmentsView } from '../curriculum/LearningSegmentsView';
+import { AnnualDistributionCalendar } from '../curriculum/AnnualDistributionCalendar';
 import { PE_LEVELS } from '../../data/algerianCurriculum';
 import {
   fetchTeacherPlanningSessions,
@@ -293,7 +294,22 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
         </div>
       )}
 
-      {operationalView && selectedClass && (
+      {section === 'annual-distribution' && selectedClass && (
+        <AnnualDistributionCalendar
+          selectedClass={selectedClass}
+          academicYearId={academicYearId}
+          planningStartDate={planningStartDate}
+          sessions={sessions}
+          loading={loading}
+          saving={saving}
+          error={error}
+          onPlanningStartDateChange={setPlanningStartDate}
+          onInitialize={() => void initialize()}
+          onUpdateDate={(session, plannedDate) => void updateSession(session, { plannedDate })}
+        />
+      )}
+
+      {section === 'weekly' && selectedClass && (
         <section className="space-y-4">
           <div className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-end sm:justify-between">
             <div>

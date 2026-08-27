@@ -46,4 +46,16 @@ describe('unified Teacher planning workspace', () => {
     expect(workspace).toContain('weekStart(localDate(session.plannedDate)) === week');
     expect(workspace).toContain('classPlannedSessionId=${session.id}');
   });
+
+  it('uses the classic annual calendar presentation without changing weekly planning', () => {
+    const calendar = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
+    expect(calendar).toContain('الشهر');
+    expect(calendar).toContain('التاريخ');
+    expect(calendar).toContain('نوع الحصة');
+    expect(calendar).toContain('الميدان');
+    expect(calendar).toContain('ALGERIAN_SCHOOL_HOLIDAYS_2025_2026');
+    expect(calendar).toContain('classPlannedSessionId');
+    expect(read('src/services/api.ts')).toContain('referenceSessionId');
+    expect(calendar).not.toContain('الهدف التعلمي');
+  });
 });
