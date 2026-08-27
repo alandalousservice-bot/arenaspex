@@ -72,29 +72,32 @@ export function referenceSessionIdFor(session: ScheduledAnnualSession): string {
 
 export function canonicalPlanningSessions(
   levelId: string,
-  planningStartDate: string
+  planningStartDate: string,
+  academicYearId?: string
 ): CanonicalPlanningSession[] {
   const curriculum = COMPLETE_ANNUAL_CURRICULUM[levelId];
   const grade = gradeFromLevelId(levelId);
   if (!curriculum || !grade || !/^\d{4}-\d{2}-\d{2}$/.test(planningStartDate)) return [];
 
-  return generateAnnualTimeDistribution(levelId, planningStartDate, 0, '').map((session) => ({
-    referenceSessionId: referenceSessionIdFor(session),
-    levelId: session.levelId,
-    grade,
-    domainId: session.fieldId,
-    learningSectionId:
-      session.fieldId === 'intro' ? 'intro' : `${session.levelId}:${session.fieldId}`,
-    objectiveId: session.objectiveGroupId || null,
-    objectiveGroupId: session.objectiveGroupId || null,
-    sequenceIndex: session.globalSessionNumber,
-    fieldSessionNumber: session.fieldSessionNumber,
-    sessionType: session.sessionType,
-    sessionTypeLabel: session.sessionTypeLabel,
-    objective: session.targetObjective,
-    plannedDate: session.scheduledDate,
-    durationMinutes: session.durationMinutes,
-  }));
+  return generateAnnualTimeDistribution(levelId, planningStartDate, 0, '', academicYearId).map(
+    (session) => ({
+      referenceSessionId: referenceSessionIdFor(session),
+      levelId: session.levelId,
+      grade,
+      domainId: session.fieldId,
+      learningSectionId:
+        session.fieldId === 'intro' ? 'intro' : `${session.levelId}:${session.fieldId}`,
+      objectiveId: session.objectiveGroupId || null,
+      objectiveGroupId: session.objectiveGroupId || null,
+      sequenceIndex: session.globalSessionNumber,
+      fieldSessionNumber: session.fieldSessionNumber,
+      sessionType: session.sessionType,
+      sessionTypeLabel: session.sessionTypeLabel,
+      objective: session.targetObjective,
+      plannedDate: session.scheduledDate,
+      durationMinutes: session.durationMinutes,
+    })
+  );
 }
 
 export function isValidPlanningDate(value: string): boolean {
@@ -123,7 +126,7 @@ export function buildClassPlannedSessionSeeds(
   levelId: string,
   planningStartDate: string
 ): ClassPlannedSessionSeed[] {
-  return canonicalPlanningSessions(levelId, planningStartDate).map((session) => ({
+  return canonicalPlanningSessions(levelId, planningStartDate, academicYearId).map((session) => ({
     id: `cps_${classId}_${academicYearId}_${session.referenceSessionId}`,
     teacherId,
     classId,

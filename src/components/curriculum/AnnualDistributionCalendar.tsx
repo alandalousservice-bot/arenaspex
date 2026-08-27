@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
 import { BookOpen, CalendarDays, NotebookPen, Printer, RefreshCw } from 'lucide-react';
+import { PE_FIELDS, PE_LEVELS } from '../../data/algerianCurriculum';
 import {
-  ALGERIAN_SCHOOL_HOLIDAYS_2025_2026,
-  PE_FIELDS,
-  PE_LEVELS,
-} from '../../data/algerianCurriculum';
+  academicYearForDate,
+  getCalendarEventsForDisplay,
+  type AcademicCalendarEvent,
+} from '../../data/academicCalendars';
 import type { ClassRoom, User } from '../../types/spex';
 import type { TeacherPlanningReference, TeacherPlanningSession } from '../../services/api';
 
@@ -42,8 +43,12 @@ export type AnnualCalendarRow =
   | {
       kind: 'holiday';
       date: string;
-      holiday: (typeof ALGERIAN_SCHOOL_HOLIDAYS_2025_2026)[number];
+      holiday: AcademicCalendarEvent;
     };
+
+export type AnnualCompactRow =
+  | { kind: 'lesson'; date: string; sessions: TeacherPlanningSession[] }
+  | { kind: 'holiday'; date: string; holiday: AcademicCalendarEvent };
 
 export function buildAnnualCalendarRows(sessions: TeacherPlanningSession[]): AnnualCalendarRow[] {
   const lessonRows: AnnualCalendarRow[] = sessions.map((session) => ({
@@ -53,12 +58,63 @@ export function buildAnnualCalendarRows(sessions: TeacherPlanningSession[]): Ann
   }));
   const firstDate = sessions[0]?.plannedDate || '';
   const lastDate = sessions.at(-1)?.plannedDate || '';
-  const holidayRows: AnnualCalendarRow[] = ALGERIAN_SCHOOL_HOLIDAYS_2025_2026.filter(
-    (holiday) => !lastDate || holiday.startDate <= lastDate
+  const holidayRows: AnnualCalendarRow[] = getCalendarEventsForDisplay(
+    academicYearForDate(firstDate)
   )
+    .filter((holiday) => !lastDate || holiday.startDate <= lastDate)
     .filter((holiday) => !firstDate || holiday.endDate >= firstDate)
     .map((holiday) => ({ kind: 'holiday', date: holiday.startDate, holiday }));
   return [...lessonRows, ...holidayRows].sort(
+    (a, b) => a.date.localeCompare(b.date) || (a.kind === 'holiday' ? -1 : 1)
+  );
+}
+
+function weekStart(value: string): string {
+  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
+  date.setDate(date.getDate() - date.getDay());
+  return date.toISOString().slice(0, 10);
+}
+
+function dayDistance(first: string, second: string): number {
+  return Math.round(
+    (new Date(`${second.slice(0, 10)}T00:00:00`).getTime() -
+      new Date(`${first.slice(0, 10)}T00:00:00`).getTime()) /
+      86400000
+  );
+}
+
+export function buildAnnualCompactRows(
+  sessions: TeacherPlanningSession[],
+  levelId: string
+): AnnualCompactRow[] {
+  const grade = Number(levelId.replace('lvl_p', ''));
+  const sorted = [...sessions].sort(
+    (a, b) => a.plannedDate.localeCompare(b.plannedDate) || a.id.localeCompare(b.id)
+  );
+  const lessonRows: AnnualCompactRow[] = [];
+  for (let index = 0; index < sorted.length; index += 1) {
+    const current = sorted[index];
+    const next = sorted[index + 1];
+    const canPair =
+      grade >= 1 &&
+      grade <= 3 &&
+      current.reference?.sessionType === 'تعلمية' &&
+      next?.reference?.sessionType === 'تعلمية' &&
+      current.reference?.objectiveGroupId &&
+      current.reference.objectiveGroupId === next.reference?.objectiveGroupId &&
+      weekStart(current.plannedDate) === weekStart(next.plannedDate) &&
+      dayDistance(current.plannedDate, next.plannedDate) <= 6;
+    lessonRows.push({
+      kind: 'lesson',
+      date: current.plannedDate,
+      sessions: canPair ? [current, next] : [current],
+    });
+    if (canPair) index += 1;
+  }
+  const holidays = buildAnnualCalendarRows(sessions)
+    .filter((row): row is Extract<AnnualCalendarRow, { kind: 'holiday' }> => row.kind === 'holiday')
+    .map((row) => ({ kind: 'holiday' as const, date: row.date, holiday: row.holiday }));
+  return [...lessonRows, ...holidays].sort(
     (a, b) => a.date.localeCompare(b.date) || (a.kind === 'holiday' ? -1 : 1)
   );
 }
@@ -88,6 +144,115 @@ function monthName(value: string): string {
   return MONTHS[month - 1] || value.slice(0, 7);
 }
 
+function AnnualDistributionCompactTable({ rows }: { rows: AnnualCompactRow[] }) {
+  return (
+    <div className="annual-distribution-compact-table hidden print:block">
+      <table className="w-full border-collapse text-right">
+        <thead className="bg-slate-900 text-white">
+          <tr>
+            <th className="w-[14%] p-2">الشهر</th>
+            <th className="w-[24%] p-2">الأسبوع / الفترة</th>
+            <th className="w-[18%] p-2">الحصص</th>
+            <th className="w-[20%] p-2">نوع الحصة</th>
+            <th className="w-[24%] p-2">الميدان</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => {
+            if (row.kind === 'holiday') {
+              return (
+                <tr
+                  key={`print-holiday-${row.holiday.startDate}`}
+                  className={holidayTone(row.holiday.name)}
+                >
+                  <td colSpan={5} className="border-y border-current/10 p-2 font-extrabold">
+                    عطلة: {row.holiday.name} · من {displayDate(row.holiday.startDate)} إلى{' '}
+                    {displayDate(row.holiday.endDate)}
+                  </td>
+                </tr>
+              );
+            }
+            const firstSession = row.sessions[0];
+            const fieldId = firstSession.reference?.domainId || 'intro';
+            const fieldName =
+              fieldId === 'intro'
+                ? '—'
+                : firstSession.reference?.fieldName ||
+                  PE_FIELDS.find((field) => field.id === fieldId)?.name ||
+                  '—';
+            const previous = rows[index - 1];
+            const showMonth =
+              !previous ||
+              previous.kind === 'holiday' ||
+              monthName(previous.date) !== monthName(row.date);
+            const showField =
+              !previous ||
+              previous.kind === 'holiday' ||
+              previous.sessions[0].reference?.domainId !== fieldId;
+            const monthSpan = showMonth
+              ? rows
+                  .slice(index)
+                  .findIndex(
+                    (candidate) =>
+                      candidate.kind === 'holiday' ||
+                      monthName(candidate.date) !== monthName(row.date)
+                  ) || rows.length - index
+              : 0;
+            const fieldSpan = showField
+              ? rows
+                  .slice(index)
+                  .findIndex(
+                    (candidate) =>
+                      candidate.kind === 'holiday' ||
+                      candidate.sessions[0].reference?.domainId !== fieldId
+                  ) || rows.length - index
+              : 0;
+            return (
+              <tr
+                key={row.sessions.map((session) => session.id).join('-')}
+                className="break-inside-avoid"
+              >
+                {showMonth && (
+                  <td
+                    rowSpan={monthSpan}
+                    className="border p-2 align-top font-extrabold text-slate-700"
+                  >
+                    {monthName(row.date)}
+                  </td>
+                )}
+                <td className="border p-2 font-mono font-bold">
+                  {displayDate(row.date)}
+                  {row.sessions.length > 1
+                    ? ` → ${displayDate(row.sessions.at(-1)?.plannedDate || row.date)}`
+                    : ''}
+                </td>
+                <td className="border p-2 font-bold">
+                  {row.sessions.map((session) => session.reference?.sequenceIndex || '—').join('-')}
+                </td>
+                <td className="border p-2">
+                  <span
+                    className={`rounded px-1.5 py-0.5 font-bold ${typeTone(firstSession.reference)}`}
+                  >
+                    {firstSession.reference?.sessionTypeLabel || 'نوع حصة غير متاح'}
+                  </span>
+                </td>
+                {showField && (
+                  <td
+                    rowSpan={fieldSpan}
+                    className="border p-2 align-middle font-extrabold text-slate-700"
+                  >
+                    {fieldName}
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProps> = ({
   currentUser,
   selectedClass,
@@ -102,6 +267,10 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
   onUpdateDate,
 }) => {
   const calendarRows = useMemo(() => buildAnnualCalendarRows(sessions), [sessions]);
+  const compactRows = useMemo(
+    () => buildAnnualCompactRows(sessions, selectedClass.levelId),
+    [selectedClass.levelId, sessions]
+  );
   const levelName =
     PE_LEVELS.find((level) => level.id === selectedClass.levelId)?.name || selectedClass.levelId;
   const teacherName = `${currentUser.firstName} ${currentUser.lastName}`.trim();
@@ -174,7 +343,9 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
             </div>
           </header>
 
-          <div className="annual-distribution-table overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs print:overflow-visible print:shadow-none">
+          <AnnualDistributionCompactTable rows={compactRows} />
+
+          <div className="annual-distribution-table overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs print:hidden">
             <table className="w-full min-w-[720px] text-right text-xs print:min-w-0">
               <caption className="border-b border-slate-200 bg-slate-50 p-4 text-right text-sm font-extrabold text-slate-900 print:hidden">
                 التوزيع السنوي للحصص التعليمية — {selectedClass.name} — {academicYearId}
@@ -191,7 +362,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
               <tbody className="divide-y divide-slate-100">
                 {(() => {
                   let lastMonth = '';
-                  return calendarRows.map((row) => {
+                  return calendarRows.map((row, index) => {
                     if (row.kind === 'holiday') {
                       return (
                         <tr
@@ -209,6 +380,21 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
                     const currentMonth = monthName(row.date);
                     const showMonth = currentMonth !== lastMonth;
                     lastMonth = currentMonth;
+                    const fieldId = reference?.domainId || 'intro';
+                    const previous = calendarRows[index - 1];
+                    const showField =
+                      !previous ||
+                      previous.kind === 'holiday' ||
+                      previous.session.reference?.domainId !== fieldId;
+                    const fieldSpan = showField
+                      ? calendarRows
+                          .slice(index)
+                          .findIndex(
+                            (candidate) =>
+                              candidate.kind === 'holiday' ||
+                              candidate.session.reference?.domainId !== fieldId
+                          ) || calendarRows.length - index
+                      : 0;
                     return (
                       <tr key={row.session.id} className="break-inside-avoid hover:bg-slate-50">
                         <td className="p-3 font-extrabold text-slate-700">
@@ -240,13 +426,18 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
                             {reference?.sessionTypeLabel || 'نوع حصة غير متاح'}
                           </span>
                         </td>
-                        <td className="p-3 font-bold text-slate-700">
-                          {reference?.domainId === 'intro'
-                            ? '—'
-                            : reference?.fieldName ||
-                              PE_FIELDS.find((field) => field.id === reference?.domainId)?.name ||
-                              '—'}
-                        </td>
+                        {showField && (
+                          <td
+                            rowSpan={fieldSpan}
+                            className="p-3 align-middle font-bold text-slate-700"
+                          >
+                            {fieldId === 'intro'
+                              ? '—'
+                              : reference?.fieldName ||
+                                PE_FIELDS.find((field) => field.id === fieldId)?.name ||
+                                '—'}
+                          </td>
+                        )}
                         <td className="flex gap-2 p-3 print:hidden">
                           <a
                             href={`/lesson-plans?classId=${encodeURIComponent(row.session.classId)}&classPlannedSessionId=${encodeURIComponent(row.session.id)}&academicYearId=${encodeURIComponent(row.session.academicYearId)}`}

@@ -6,6 +6,7 @@ import {
   isPlanningStartDateConsistent,
 } from '../src/services/academicYear';
 import { buildClassPlannedSessionSeeds } from '../src/services/teacherPlanning.service';
+import { getAcademicCalendar, getCalendarEventsForDisplay } from '../src/data/academicCalendars';
 
 describe('canonical academic year utility', () => {
   it('resolves the September-to-August boundary deterministically', () => {
@@ -40,7 +41,8 @@ describe('canonical academic year utility', () => {
 
   it('rejects a stale start date for the selected year', () => {
     expect(isPlanningStartDateConsistent('2026-2027', '2025-09-21')).toBe(false);
-    expect(isPlanningStartDateConsistent('2026-2027', '2026-09-01')).toBe(true);
+    expect(isPlanningStartDateConsistent('2026-2027', '2026-09-01')).toBe(false);
+    expect(isPlanningStartDateConsistent('2026-2027', '2026-09-06')).toBe(true);
     expect(isPlanningStartDateConsistent('2025-2026', '2025-09-21')).toBe(true);
   });
 
@@ -62,5 +64,16 @@ describe('canonical academic year utility', () => {
     expect(oldYear[0].referenceSessionId).toBe(nextYear[0].referenceSessionId);
     expect(oldYear[0].academicYearId).not.toBe(nextYear[0].academicYearId);
     expect(oldYear[0].id).not.toBe(nextYear[0].id);
+  });
+
+  it('uses versioned official calendar configuration without inventing 2026-2027 vacations', () => {
+    expect(getAcademicCalendar('2026-2027')).toMatchObject({
+      schoolStart: '2026-09-06',
+      complete: false,
+      events: [],
+    });
+    const displayEvents = getCalendarEventsForDisplay('2025-2026');
+    expect(displayEvents.some((event) => event.name.includes('الفطر'))).toBe(false);
+    expect(displayEvents.some((event) => event.name === 'عطلة الربيع')).toBe(true);
   });
 });

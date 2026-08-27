@@ -15,6 +15,12 @@ import {
   LearningUnit,
   PESession,
 } from '../types/spex';
+import {
+  academicYearForDate,
+  calendarEventForDate,
+  getAcademicCalendar,
+  isValidAcademicSchoolDate,
+} from './academicCalendars';
 
 // Directorates (مديريات التربية)
 export const ALGERIAN_DIRECTORATES: Directorate[] = [
@@ -1538,16 +1544,9 @@ export const SAMPLE_PE_SESSIONS: PESession[] = Object.values(COMPLETE_ANNUAL_CUR
     )
 );
 
-export const ALGERIAN_SCHOOL_HOLIDAYS_2025_2026 = [
-  { name: 'عيد الثورة المجيدة', startDate: '2025-11-01', endDate: '2025-11-02' },
-  { name: 'عطلة الشتاء', startDate: '2025-12-18', endDate: '2026-01-04' },
-  { name: 'رأس السنة الأمازيغية (يناير)', startDate: '2026-01-12', endDate: '2026-01-12' },
-  { name: 'عطلة الربيع', startDate: '2026-03-19', endDate: '2026-04-05' },
-  { name: 'عيد الفطر المبارك (تقريبي)', startDate: '2026-03-30', endDate: '2026-04-01' },
-  { name: 'عيد العمال', startDate: '2026-05-01', endDate: '2026-05-01' },
-  { name: 'عيد الطالب', startDate: '2026-05-19', endDate: '2026-05-19' },
-  { name: 'عيد الأضحى المبارك (تقريبي)', startDate: '2026-06-05', endDate: '2026-06-08' },
-];
+export const ALGERIAN_SCHOOL_HOLIDAYS_2025_2026 = getAcademicCalendar('2025-2026').events.map(
+  ({ name, startDate, endDate }) => ({ name, startDate, endDate })
+);
 
 export interface ScheduledAnnualSession {
   globalSessionNumber: number;
@@ -1572,6 +1571,13 @@ function getGradeFromLevelId(levelId: string): number {
   const map: Record<string, number> = { lvl_p1: 1, lvl_p2: 2, lvl_p3: 3, lvl_p4: 4, lvl_p5: 5 };
   return map[levelId] || 1;
 }
+
+export const PRIMARY_GRADES_1_3 = {
+  sessionsPerWeek: 2,
+  durationMinutes: 60,
+  introSessions: 2,
+  introDurationMinutes: 60,
+} as const;
 
 function parseISODate(s: string): Date {
   const [y, m, d] = s.split('-').map(Number);
@@ -1598,18 +1604,15 @@ function isSchoolDay(date: Date): boolean {
 
 function isHoliday(date: Date): { holiday: boolean; name?: string; note?: string } {
   const ymd = formatISODate(date);
-  for (const hol of ALGERIAN_SCHOOL_HOLIDAYS_2025_2026) {
-    if (ymd >= hol.startDate && ymd <= hol.endDate) {
-      return { holiday: true, name: hol.name, note: `صادف ${hol.name} - تم التأجيل تلقائياً` };
-    }
-  }
-  return { holiday: false };
+  const holiday = calendarEventForDate(ymd);
+  return holiday
+    ? { holiday: true, name: holiday.name, note: `صادف ${holiday.name} - تم التأجيل تلقائياً` }
+    : { holiday: false };
 }
 
 export function isValidSchoolDate(date: Date): boolean {
-  if (!isSchoolDay(date)) return false;
-  if (isHoliday(date).holiday) return false;
-  return true;
+  const value = formatISODate(date);
+  return isSchoolDay(date) && isValidAcademicSchoolDate(value, academicYearForDate(value));
 }
 
 function getNextValidSchoolDate(from: Date, inclusive = true): Date {
@@ -1646,7 +1649,8 @@ export function generateAnnualTimeDistribution(
   levelId: string = 'lvl_p1',
   startDateStr: string = '2025-09-21',
   teachingDayOfWeek: number = 0,
-  _className: string = '1 ابتدائي 1'
+  _className: string = '1 ابتدائي 1',
+  _academicYearId?: string
 ): ScheduledAnnualSession[] {
   const levelData = COMPLETE_ANNUAL_CURRICULUM[levelId] || COMPLETE_ANNUAL_CURRICULUM['lvl_p1'];
   const grade = getGradeFromLevelId(levelId);
@@ -1655,7 +1659,12 @@ export function generateAnnualTimeDistribution(
 
   const gradeConfig = (() => {
     if (grade === 1 || grade === 2 || grade === 3) {
-      return { sessionsPerWeek: 2, duration: 60, introSessions: 2, introDuration: 60 };
+      return {
+        sessionsPerWeek: PRIMARY_GRADES_1_3.sessionsPerWeek,
+        duration: PRIMARY_GRADES_1_3.durationMinutes,
+        introSessions: PRIMARY_GRADES_1_3.introSessions,
+        introDuration: PRIMARY_GRADES_1_3.introDurationMinutes,
+      };
     } else if (grade === 4) {
       return { sessionsPerWeek: 1, duration: 90, introSessions: 1, introDuration: 90 };
     } else {

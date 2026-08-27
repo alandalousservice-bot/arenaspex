@@ -36,9 +36,11 @@ export function isPlanningStartDateConsistent(academicYearId: string, dateValue:
   const parts = yearParts(academicYearId);
   if (!parts || !/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return false;
   const [startYear, endYear] = parts;
+  const calendar = getAcademicCalendar(academicYearId);
   const date = new Date(`${dateValue}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== dateValue) return false;
-  const start = new Date(`${startYear}-08-01T00:00:00.000Z`);
-  const end = new Date(`${endYear}-08-31T00:00:00.000Z`);
+  const start = new Date(`${calendar.schoolStart}T00:00:00.000Z`);
+  const end = new Date(`${calendar.schoolEnd || `${endYear}-08-31`}T00:00:00.000Z`);
   return date >= start && date <= end;
 }
+import { getAcademicCalendar } from '../data/academicCalendars';

@@ -36,6 +36,22 @@
     padding: 0;
   }
 
+  body:has(.annual-distribution-print-root)
+    .annual-distribution-print-root
+    .annual-distribution-compact-table {
+    display: block !important;
+    font-size: 8.5pt;
+  }
+
+  body:has(.annual-distribution-print-root) .annual-distribution-document-header {
+    padding: 8px;
+  }
+
+  body:has(.annual-distribution-print-root) .annual-distribution-compact-table th,
+  body:has(.annual-distribution-print-root) .annual-distribution-compact-table td {
+    padding: 3px 5px;
+  }
+
   body:has(.annual-distribution-print, .planning-print-document) .planning-print-document,
   body:has(.annual-distribution-print) .annual-distribution-print {
     display: block;

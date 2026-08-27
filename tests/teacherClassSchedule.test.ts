@@ -123,8 +123,32 @@ describe('class-scoped Teacher planning sessions', () => {
       "apiRouter.patch('/teacher/planning/classes/:classId/sessions/:sessionId'"
     );
     expect(routerContract).toContain('teacherId: req.user!.id');
-    expect(routerContract).toContain(
-      'classPlannedSession.createMany({ data: seeds, skipDuplicates: true })'
+    expect(routerContract).toContain('prisma.$transaction(');
+    expect(routerContract).toContain('classPlannedSession.update');
+    expect(routerContract).toContain('classPlannedSession.create');
+  });
+
+  it('regenerates dates while preserving canonical and operational identities', () => {
+    const original = buildClassPlannedSessionSeeds(
+      'teacher-1',
+      'class-a',
+      '2025-2026',
+      'lvl_p1',
+      '2025-09-22'
+    );
+    const regenerated = buildClassPlannedSessionSeeds(
+      'teacher-1',
+      'class-a',
+      '2025-2026',
+      'lvl_p1',
+      '2025-10-06'
+    );
+    expect(regenerated.map((session) => session.id)).toEqual(original.map((session) => session.id));
+    expect(regenerated.map((session) => session.referenceSessionId)).toEqual(
+      original.map((session) => session.referenceSessionId)
+    );
+    expect(regenerated.map((session) => session.plannedDate.toISOString())).not.toEqual(
+      original.map((session) => session.plannedDate.toISOString())
     );
   });
 

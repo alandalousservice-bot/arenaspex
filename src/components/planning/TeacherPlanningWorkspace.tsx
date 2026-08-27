@@ -156,6 +156,11 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
 
   const initialize = async () => {
     if (!selectedClassId || !planningStartDate) return;
+    if (
+      sessions.length &&
+      !window.confirm('سيتم إعادة حساب تواريخ التوزيع مع الحفاظ على هوية الحصص. هل تريد المتابعة؟')
+    )
+      return;
     if (!isPlanningStartDateConsistent(academicYearId, planningStartDate)) {
       setError('تاريخ بداية التوزيع يجب أن يقع ضمن السنة الدراسية المحددة.');
       return;

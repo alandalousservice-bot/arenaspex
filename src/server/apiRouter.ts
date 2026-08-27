@@ -33,7 +33,8 @@ import {
   effectivePlanningObjective,
   type PlanningWordingOverrides,
 } from '../services/teacherPlanning.service.js';
-import { COMPLETE_ANNUAL_CURRICULUM, isValidSchoolDate } from '../data/algerianCurriculum.js';
+import { COMPLETE_ANNUAL_CURRICULUM } from '../data/algerianCurriculum.js';
+import { isValidAcademicSchoolDate } from '../data/academicCalendars.js';
 import {
   isCanonicalAcademicYearId,
   isPlanningStartDateConsistent,
@@ -252,7 +253,39 @@ apiRouter.post(
     );
     if (!seeds.length)
       return res.status(400).json({ error: 'تعذر إنشاء تسلسل المنهاج لهذا المستوى.' });
-    await prisma.classPlannedSession.createMany({ data: seeds, skipDuplicates: true });
+    const existingRows = await prisma.classPlannedSession.findMany({
+      where: {
+        classId: classRecord.id,
+        teacherId: req.user!.id,
+        academicYearId: parsed.data.academicYearId,
+      },
+    });
+    const existingByReference = new Map(
+      existingRows.map((row) => [row.referenceSessionId, row] as const)
+    );
+    const changedCompleted = seeds.some((seed) => {
+      const existing = existingByReference.get(seed.referenceSessionId);
+      return (
+        existing?.status === 'منجزة' &&
+        existing.plannedDate.getTime() !== seed.plannedDate.getTime()
+      );
+    });
+    if (changedCompleted) {
+      return res.status(409).json({
+        error: 'لا يمكن إعادة جدولة حصص منجزة. غيّر تاريخ البداية بعد مراجعة الحصص المنجزة.',
+      });
+    }
+    await prisma.$transaction(
+      seeds.map((seed) => {
+        const existing = existingByReference.get(seed.referenceSessionId);
+        return existing
+          ? prisma.classPlannedSession.update({
+              where: { id: existing.id },
+              data: { plannedDate: seed.plannedDate, durationMinutes: seed.durationMinutes },
+            })
+          : prisma.classPlannedSession.create({ data: seed });
+      })
+    );
     const rows = await prisma.classPlannedSession.findMany({
       where: {
         classId: classRecord.id,
@@ -295,8 +328,14 @@ apiRouter.patch(
     });
     if (!existing) return res.status(404).json({ error: 'الحصة التشغيلية غير موجودة ضمن أقسامك.' });
     if (parsed.data.plannedDate) {
+      if (
+        existing.status === 'منجزة' &&
+        parsed.data.plannedDate !== existing.plannedDate.toISOString().slice(0, 10)
+      ) {
+        return res.status(409).json({ error: 'لا يمكن تغيير تاريخ حصة منجزة.' });
+      }
       const date = new Date(`${parsed.data.plannedDate}T00:00:00`);
-      if (!isValidSchoolDate(date)) {
+      if (!isValidAcademicSchoolDate(parsed.data.plannedDate, existing.academicYearId)) {
         return res.status(400).json({ error: 'اختر تاريخاً يقع في يوم دراسي وليس ضمن عطلة.' });
       }
     }

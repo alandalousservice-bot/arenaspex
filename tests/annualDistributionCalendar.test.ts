@@ -3,8 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   ALGERIAN_SCHOOL_HOLIDAYS_2025_2026,
   generateAnnualTimeDistribution,
+  PRIMARY_GRADES_1_3,
 } from '../src/data/algerianCurriculum';
-import { buildAnnualCalendarRows } from '../src/components/curriculum/AnnualDistributionCalendar';
+import {
+  buildAnnualCalendarRows,
+  buildAnnualCompactRows,
+} from '../src/components/curriculum/AnnualDistributionCalendar';
 import type { TeacherPlanningSession } from '../src/services/api';
 
 const persisted = (date: string, id: string): TeacherPlanningSession => ({
@@ -32,6 +36,8 @@ describe('classic annual distribution calendar', () => {
     expect(source).toContain('annual-distribution-document-header');
     expect(source).toContain('annual-distribution-document-footer');
     expect(source).toContain('annual-distribution-print-root');
+    expect(source).toContain('buildAnnualCompactRows');
+    expect(source).toContain('rowSpan={fieldSpan}');
     expect(source).toContain('print:table-header-group');
     expect(readFileSync('src/index.css', 'utf8')).toContain('page-break-inside: avoid');
     expect(readFileSync('src/index.css', 'utf8')).toContain('visibility: hidden !important');
@@ -57,6 +63,7 @@ describe('classic annual distribution calendar', () => {
   });
 
   it('keeps canonical grade-specific distribution counts and avoids holiday dates', () => {
+    expect(PRIMARY_GRADES_1_3).toMatchObject({ sessionsPerWeek: 2, durationMinutes: 60 });
     for (const levelId of ['lvl_p1', 'lvl_p2', 'lvl_p3', 'lvl_p4', 'lvl_p5']) {
       const sessions = generateAnnualTimeDistribution(levelId, '2025-09-22', 0, 'class-1');
       expect(sessions.length).toBe(['lvl_p1', 'lvl_p2', 'lvl_p3'].includes(levelId) ? 56 : 34);
@@ -71,5 +78,39 @@ describe('classic annual distribution calendar', () => {
         )
       ).toBe(true);
     }
+  });
+
+  it('groups only same-objective Grade 1-3 weekly pairs without changing session identity', () => {
+    const first = persisted('2025-10-05', 'pair-a');
+    const second = persisted('2025-10-07', 'pair-b');
+    const reference = (sequenceIndex: number) =>
+      ({
+        referenceSessionId: `ref-${sequenceIndex}`,
+        grade: 1,
+        domainId: 'f_locomotion',
+        fieldName: 'الوضعيات والتنقلات',
+        finalCompetency: 'كفاءة',
+        learningSectionId: 'section-1',
+        objectiveId: 'objective-1',
+        objectiveGroupId: 'objective-group-1',
+        objective: 'هدف',
+        sessionType: 'تعلمية',
+        sessionTypeLabel: 'تعلمية',
+        sequenceIndex,
+        fieldSessionNumber: sequenceIndex,
+      }) as const;
+    const rows = buildAnnualCompactRows(
+      [
+        { ...first, reference: reference(3) },
+        { ...second, reference: reference(4) },
+      ],
+      'lvl_p1'
+    );
+    const lesson = rows.find((row) => row.kind === 'lesson');
+    expect(lesson?.kind).toBe('lesson');
+    expect(lesson?.kind === 'lesson' ? lesson.sessions.map((session) => session.id) : []).toEqual([
+      'pair-a',
+      'pair-b',
+    ]);
   });
 });
