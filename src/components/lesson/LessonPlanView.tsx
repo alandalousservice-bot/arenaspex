@@ -9,7 +9,7 @@ import {
 import {
   autoGenerateLessonPlan,
   formatSituationExecution,
-  getLessonMemoPresentation,
+  generateLessonMemoDocument,
   getUnifiedLessonRows,
   rebalanceLessonRows,
 } from '../../services/lessonPlan.generator.service';
@@ -459,14 +459,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       : plan.durationMinutes;
   const rows = editing ? draft?.lessonRows || [] : getUnifiedLessonRows(plan);
   const presentationPlan = inspectorName && !plan.inspectorName ? { ...plan, inspectorName } : plan;
-  const presentation = editing
-    ? getLessonMemoPresentation({ ...presentationPlan, lessonRows: rows }).rows
-    : getLessonMemoPresentation(presentationPlan, { durationMinutes: effectiveDuration }).rows;
-  const memoModel = getLessonMemoPresentation(
+  const memoModel = generateLessonMemoDocument(
     editing ? { ...presentationPlan, lessonRows: rows } : presentationPlan,
     { durationMinutes: effectiveDuration }
   );
-  const displayRows = presentation;
   const setRows = (lessonRows: LessonPlanRow[]) =>
     setDraft((previous) => previous && { ...previous, lessonRows });
   const grade = LEVELS.indexOf(plan.levelName) + 1;
@@ -496,6 +492,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       (item) => !matchingSituations.some((match) => match.id === item.id)
     ),
   ];
+  const mainSituationCount = memoModel.mainPhase.situations.length;
   const addSituation = (situation: EducationalSituation) => {
     const main = {
       id: `main-${Date.now()}`,
@@ -667,7 +664,15 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           مذكرة حصة تعلمية
         </div>
         <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2">
-          {memoModel.details.map(([label, value]) => (
+          {[
+            ['المؤسسة', memoModel.header.institution],
+            ['المستوى', memoModel.header.grade],
+            ['التاريخ', memoModel.header.date],
+            ['الميدان', memoModel.header.field],
+            ['الوسائل', memoModel.header.equipment.join('، ')],
+            ['المدة', `${memoModel.header.durationMinutes} دقيقة`],
+            ['الحصة', memoModel.header.sessionNumber],
+          ].map(([label, value]) => (
             <div key={label} className="rounded-xl border border-slate-200 bg-white shadow-sm">
               <strong className="block rounded-t-xl bg-slate-50 px-3 py-2 text-xs text-slate-700">
                 {label}
@@ -691,10 +696,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           ))}
           <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 md:col-span-2">
             <h3 className="text-xs font-black text-indigo-900">الكفاءة الختامية</h3>
-            <p className="mt-2 text-sm font-bold text-indigo-950">{memoModel.competency}</p>
+            <p className="mt-2 text-sm font-bold text-indigo-950">{memoModel.header.competency}</p>
           </section>
           <section className="rounded-xl border border-purple-200 bg-purple-50 p-4 md:col-span-2">
-            <h3 className="text-xs font-black text-purple-900">الهدف التعلمي</h3>
+            <h3 className="text-xs font-black text-purple-900">الهدف التعليمي</h3>
             {editing ? (
               <textarea
                 value={draft?.sessionTitle}
@@ -712,83 +717,88 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                 className="mt-2 min-h-16 w-full rounded-lg border border-purple-200 bg-white p-2 outline-none"
               />
             ) : (
-              <p className="mt-2 text-sm font-bold text-purple-950">{memoModel.objective}</p>
+              <p className="mt-2 text-sm font-bold text-purple-950">{memoModel.header.objective}</p>
             )}
           </section>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] border-collapse text-right text-sm">
+          <table className="w-full min-w-[1050px] border-collapse text-right text-sm">
             <thead>
               <tr className="bg-slate-800 text-white">
                 <th className="border border-slate-500 p-3">المراحل</th>
-                <th className="border border-slate-500 p-3">محتوى التعلم والإنجاز</th>
+                <th className="border border-slate-500 p-3">محتوى التعلم</th>
+                <th className="border border-slate-500 p-3">محتوى الإنجاز</th>
                 <th className="border border-slate-500 p-3">الوقت</th>
                 <th className="border border-slate-500 p-3">التوجيهات</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, index) => (
-                <tr
-                  key={row.id}
-                  className={`align-top ${
-                    row.phase === 'المرحلة التحضيرية'
-                      ? 'bg-amber-50/40'
-                      : row.phase === 'المرحلة الختامية'
-                        ? 'bg-emerald-50/40'
-                        : 'bg-white'
-                  }`}
-                >
-                  <th
-                    className={`border border-slate-300 p-3 font-bold ${
+              {rows.map((row, index) => {
+                const isMain = row.phase === 'المرحلة الرئيسية';
+                const mainIndex = isMain
+                  ? rows.slice(0, index + 1).filter((item) => item.phase === 'المرحلة الرئيسية')
+                      .length
+                  : 0;
+                const firstMain = isMain && mainIndex === 1;
+                return (
+                  <tr
+                    key={row.id}
+                    className={`align-top ${
                       row.phase === 'المرحلة التحضيرية'
-                        ? 'bg-sky-50 text-sky-950'
+                        ? 'bg-blue-50/50'
                         : row.phase === 'المرحلة الختامية'
-                          ? 'bg-emerald-50 text-emerald-950'
-                          : 'bg-orange-50 text-orange-950'
+                          ? 'bg-green-50/50'
+                          : 'bg-orange-50/40'
                     }`}
                   >
-                    {displayRows[index].phaseLabel}
-                    {editing && row.phase === 'المرحلة الرئيسية' && row.situationSnapshot && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => removeSituation(row.id)}
-                          className="mr-2 rounded border border-rose-200 px-2 py-1 text-xs text-rose-700"
-                        >
-                          إزالة
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReplaceRowId(row.id);
-                            setShowBank(true);
-                          }}
-                          className="mr-1 rounded border border-blue-200 px-2 py-1 text-xs text-blue-700"
-                        >
-                          استبدال
-                        </button>
-                      </>
+                    {(!isMain || firstMain) && (
+                      <th
+                        rowSpan={isMain ? mainSituationCount : 1}
+                        className={`border border-slate-300 p-3 font-bold ${
+                          row.phase === 'المرحلة التحضيرية'
+                            ? 'bg-blue-100 text-blue-900'
+                            : row.phase === 'المرحلة الختامية'
+                              ? 'bg-green-100 text-green-900'
+                              : 'bg-orange-100 text-orange-900'
+                        }`}
+                      >
+                        {isMain ? 'المرحلة الرئيسية' : row.phase}
+                      </th>
                     )}
-                  </th>
-                  {editing ? (
-                    <>
-                      <td className="border border-slate-300 p-1">
-                        <div className="space-y-2">
-                          <label className="block text-xs font-bold text-slate-500">التعلم</label>
+                    {(!isMain || firstMain) && (
+                      <td
+                        rowSpan={isMain ? mainSituationCount : 1}
+                        className="border border-slate-300 p-3"
+                      >
+                        {editing && isMain ? (
                           <textarea
                             value={row.learningContent}
                             onChange={(event) =>
                               setRows(
-                                rows.map((item, i) =>
-                                  i === index
+                                rows.map((item) =>
+                                  item.phase === 'المرحلة الرئيسية'
                                     ? editableRow(item, 'learningContent', event.target.value)
                                     : item
                                 )
                               )
                             }
-                            className="min-h-24 w-full resize-y p-2 outline-none"
+                            className="min-h-32 w-full resize-y p-2 outline-none"
                           />
-                          <label className="block text-xs font-bold text-slate-500">الإنجاز</label>
+                        ) : (
+                          <span className="whitespace-pre-line">
+                            {isMain ? memoModel.mainPhase.learningContent : row.learningContent}
+                          </span>
+                        )}
+                      </td>
+                    )}
+                    <td className="border border-slate-300 p-1">
+                      {editing ? (
+                        <div className="space-y-2">
+                          {isMain && (
+                            <strong className="block p-2 text-orange-900">
+                              الموقف {String(mainIndex).padStart(2, '0')}
+                            </strong>
+                          )}
                           <textarea
                             value={row.executionContent}
                             onChange={(event) =>
@@ -800,11 +810,29 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                                 )
                               )
                             }
-                            className="min-h-24 w-full resize-y p-2 outline-none"
+                            className="min-h-32 w-full resize-y p-2 outline-none"
                           />
                         </div>
-                      </td>
-                      <td className="border border-slate-300 p-1">
+                      ) : (
+                        <div className="whitespace-pre-line p-3">
+                          {isMain && (
+                            <strong className="mb-2 block text-orange-900">
+                              الموقف {String(mainIndex).padStart(2, '0')}
+                            </strong>
+                          )}
+                          {row.executionContent}
+                          {row.illustrationUrl && (
+                            <img
+                              src={row.illustrationUrl}
+                              alt="رسم توضيحي للموقف"
+                              className="mt-3 max-h-40 rounded"
+                            />
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="border border-slate-300 p-1 font-bold">
+                      {editing ? (
                         <input
                           type="number"
                           min="1"
@@ -820,8 +848,12 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                           }
                           className="w-20 p-2 outline-none"
                         />
-                      </td>
-                      <td className="border border-slate-300 p-1">
+                      ) : (
+                        `${row.durationMinutes} د`
+                      )}
+                    </td>
+                    <td className="border border-slate-300 p-1 whitespace-pre-line">
+                      {editing ? (
                         <textarea
                           value={row.guidance}
                           onChange={(event) =>
@@ -833,38 +865,44 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                               )
                             )
                           }
-                          className="min-h-24 w-full resize-y p-2 outline-none"
+                          className="min-h-32 w-full resize-y p-2 outline-none"
                         />
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="border border-slate-300 p-3 whitespace-pre-line">
-                        {displayRows[index].content}
-                        {row.illustrationUrl && (
-                          <img
-                            src={row.illustrationUrl}
-                            alt="رسم توضيحي للموقف"
-                            className="mt-3 max-h-40 rounded"
-                          />
-                        )}
-                      </td>
-                      <td className="border border-slate-300 p-3 font-bold">
-                        {row.durationMinutes} د
-                      </td>
-                      <td className="border border-slate-300 p-3 whitespace-pre-line">
-                        {row.guidance}
-                      </td>
-                    </>
-                  )}
-                </tr>
-              ))}
+                      ) : (
+                        <span className="block p-3">{row.guidance}</span>
+                      )}
+                      {editing && isMain && row.situationSnapshot && (
+                        <div className="p-2">
+                          <button
+                            type="button"
+                            onClick={() => removeSituation(row.id)}
+                            className="ml-2 rounded border border-rose-200 px-2 py-1 text-xs text-rose-700"
+                          >
+                            إزالة
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReplaceRowId(row.id);
+                              setShowBank(true);
+                            }}
+                            className="rounded border border-blue-200 px-2 py-1 text-xs text-blue-700"
+                          >
+                            استبدال
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
         <footer className="flex flex-wrap justify-between gap-4 border-t border-slate-200 bg-white p-5 text-sm font-bold text-slate-800">
-          <span>الأستاذ: {memoModel.footer.teacherName}</span>
-          {memoModel.footer.inspectorName && <span>المفتش: {memoModel.footer.inspectorName}</span>}
+          <span>الأستاذ: {memoModel.signatures.teacherName}</span>
+          {memoModel.signatures.inspectorName && (
+            <span>المفتش: {memoModel.signatures.inspectorName}</span>
+          )}
         </footer>
       </article>
       <p className="text-xs text-slate-500">

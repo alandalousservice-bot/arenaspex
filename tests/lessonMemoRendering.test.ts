@@ -2,16 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
   autoGenerateLessonPlan,
-  getLessonMemoPresentation,
-  getLessonMemoDisplayRows,
-  getUnifiedLessonRows,
+  generateLessonMemoDocument,
 } from '../src/services/lessonPlan.generator.service';
-import { buildLessonPlanDocx } from '../src/services/lessonPlanExport.service';
+import {
+  buildLessonPlanDocx,
+  renderLessonMemoHtml,
+} from '../src/services/lessonPlanExport.service';
 
 const view = readFileSync('src/components/lesson/LessonPlanView.tsx', 'utf8');
 const exportService = readFileSync('src/services/lessonPlanExport.service.ts', 'utf8');
-const observedObjective = 'التعرف على وضعيات الجسم الأساسية والتنقل في اتجاهات مختلفة.';
-const observedSituations = [
+const objective = 'التعرف على وضعيات الجسم الأساسية والتنقل في اتجاهات مختلفة.';
+const situations = [
   {
     id: 'observed-01',
     name: 'المسار المتعرج',
@@ -19,8 +20,8 @@ const observedSituations = [
     fieldId: 'f_locomotion',
     fieldName: 'الميدان الأول: الوضعيات والتنقلات',
     objectiveIds: ['observed-objective'],
-    objectiveTexts: [observedObjective],
-    sourceGoal: observedObjective,
+    objectiveTexts: [objective],
+    sourceGoal: objective,
     organization: 'ينطلق متعلم من كل فوج عند إشارة الأستاذ ويمر بين الأقماع ثم يعود إلى مكانه.',
     equipment: ['أقماع'],
     origin: 'TEACHER' as const,
@@ -33,8 +34,8 @@ const observedSituations = [
     fieldId: 'f_locomotion',
     fieldName: 'الميدان الأول: الوضعيات والتنقلات',
     objectiveIds: ['observed-objective'],
-    objectiveTexts: [observedObjective],
-    sourceGoal: observedObjective,
+    objectiveTexts: [objective],
+    sourceGoal: objective,
     organization: 'يتنقل المتعلمون في أفواج ويغيرون الاتجاه عند سماع الصافرة مع احترام المسافة.',
     equipment: ['أقماع', 'أطواق'],
     origin: 'TEACHER' as const,
@@ -56,92 +57,90 @@ const plan = autoGenerateLessonPlan(
     objective: 'ينطلق ويغير الاتجاه داخل مسار منظم.',
     tools: ['أقماع'],
   },
-  { levelName: 'السنة الأولى ابتدائي', durationMinutes: 60 }
+  { levelName: 'السنة الأولى ابتدائي', durationMinutes: 60, inspectorName: 'مفتش فعلي' }
 );
 
-describe('active lesson memo rendering path', () => {
-  it('renders generated lessonRows through the approved four-column model', () => {
-    const rows = getLessonMemoDisplayRows(getUnifiedLessonRows(plan));
-
-    expect(view).toContain('getLessonMemoPresentation');
-    expect(view).toContain('مذكرة حصة تعلمية');
-    expect(view).toContain('محتوى التعلم والإنجاز');
-    expect(rows[0].phaseLabel).toBe('المرحلة التحضيرية');
-    expect(rows.filter((row) => row.source.phase === 'المرحلة الرئيسية')).not.toHaveLength(0);
-    expect(rows.at(-1)?.phaseLabel).toBe('المرحلة الختامية');
-    expect(rows.filter((row) => row.source.phase === 'المرحلة الرئيسية')[0].content).toContain(
-      'إشارة الانطلاق'
-    );
-  });
-
-  it('keeps the observed Grade 1 objective in the header only', () => {
-    const observedPlan = autoGenerateLessonPlan(
-      {
-        fieldId: 'f_locomotion',
-        fieldName: 'الميدان الأول: الوضعيات والتنقلات',
-        finalCompetency: 'ينجز تنقلات آمنة ومنظمة.',
-        segmentGoal: 'تنقلات مختلفة',
-        sessionNumber: 1,
-        globalNumber: 1,
-        weekNumber: 1,
-        type: 'تعلمية',
-        typeLabel: 'تعلمية رقم 01',
-        objective: observedObjective,
-        tools: ['أقماع'],
-      },
-      { levelName: 'السنة الأولى ابتدائي', durationMinutes: 60, situations: observedSituations }
-    );
-    const rows = getLessonMemoDisplayRows(getUnifiedLessonRows(observedPlan));
-    const situationText = rows
-      .filter((row) => row.phaseLabel.startsWith('الموقف'))
-      .map((row) => row.content)
-      .join('\n');
-
-    expect(observedPlan.sessionTitle).toBe(observedObjective);
-    expect(situationText).not.toContain(observedObjective);
-    expect(rows.map((row) => row.phaseLabel)).toEqual([
-      'المرحلة التحضيرية',
-      'الموقف 01',
-      'الموقف 02',
-      'المرحلة الختامية',
-    ]);
-  });
-
-  it('uses the same snapshot mapper for Word/PDF export with dynamic situation labels', () => {
-    expect(exportService).toContain('getLessonMemoPresentation(plan)');
-    expect(exportService).toContain('محتوى التعلم والإنجاز');
-    expect(exportService).toContain('model.rows');
-    const rows = getLessonMemoDisplayRows(getUnifiedLessonRows(plan));
-    expect(rows.map((row) => row.phaseLabel)).toEqual([
-      'المرحلة التحضيرية',
-      'الموقف 01',
-      'المرحلة الختامية',
-    ]);
-    expect(rows.map((row) => row.content).join('\n')).toContain('إشارة الانطلاق');
-    const documentModel = JSON.stringify(buildLessonPlanDocx(plan));
-    expect(documentModel).toContain('كفاءة ختامية محفوظة');
-    expect(documentModel).toContain('الموقف 01');
-    expect(documentModel).toContain('المرحلة الختامية');
-  });
-
-  it('builds the official header and footer from the normalized plan snapshot', () => {
-    const presentation = getLessonMemoPresentation({
-      ...plan,
+describe('rebuilt lesson memo pipeline', () => {
+  it('builds a typed five-column document with one shared main learning cell', () => {
+    const document = generateLessonMemoDocument({
+      ...autoGenerateLessonPlan(
+        {
+          fieldId: 'f_locomotion',
+          fieldName: 'الميدان الأول: الوضعيات والتنقلات',
+          finalCompetency: 'ينجز تنقلات آمنة ومنظمة.',
+          segmentGoal: 'تنقلات مختلفة',
+          sessionNumber: 1,
+          globalNumber: 1,
+          weekNumber: 1,
+          type: 'تعلمية',
+          typeLabel: 'تعلمية رقم 01',
+          objective,
+          tools: ['أقماع'],
+        },
+        { levelName: 'السنة الأولى ابتدائي', durationMinutes: 60, situations }
+      ),
       inspectorName: 'مفتش فعلي',
     });
 
-    expect(presentation.details).toEqual([
-      ['المؤسسة', ''],
-      ['الأستاذ', ''],
-      ['المستوى', 'السنة الأولى ابتدائي'],
-      ['رقم الحصة', '8'],
-      ['التاريخ', expect.any(String)],
-      ['المدة الإجمالية', '60 دقيقة'],
-      ['الميدان', 'الميدان البدني'],
-      ['الوسائل', expect.stringContaining('أقماع')],
-    ]);
-    expect(presentation.competency).toBe('كفاءة ختامية محفوظة');
-    expect(presentation.objective).toBe('ينطلق ويغير الاتجاه داخل مسار منظم.');
-    expect(presentation.footer).toEqual({ teacherName: '', inspectorName: 'مفتش فعلي' });
+    expect(document.header).toMatchObject({
+      grade: 'السنة الأولى ابتدائي',
+      field: 'الميدان الأول: الوضعيات والتنقلات',
+      competency: 'ينجز تنقلات آمنة ومنظمة.',
+      objective,
+      sessionNumber: '1',
+      durationMinutes: 60,
+    });
+    expect(document.header.equipment).toEqual(['أقماع', 'أطواق']);
+    expect(document.mainPhase.situations).toHaveLength(2);
+    expect(document.mainPhase.situations.map((s) => s.number)).toEqual([1, 2]);
+    expect(document.mainPhase.learningContent).toBe('المسار المتعرج، تبديل الاتجاه');
+    expect(document.mainPhase.totalDurationMinutes).toBe(40);
+    expect(document.totalDurationMinutes).toBe(60);
+    expect(document.signatures.inspectorName).toBe('مفتش فعلي');
+  });
+
+  it('keeps learning, execution, duration, and guidance semantically separate', () => {
+    const document = generateLessonMemoDocument(
+      autoGenerateLessonPlan(
+        {
+          fieldId: 'f_locomotion',
+          fieldName: 'الميدان البدني',
+          finalCompetency: 'كفاءة',
+          segmentGoal: 'مقطع',
+          sessionNumber: 1,
+          globalNumber: 8,
+          weekNumber: 4,
+          type: 'تعلمية',
+          typeLabel: 'تعلمية رقم 01',
+          objective,
+          tools: ['أقماع'],
+        },
+        { levelName: 'السنة الأولى ابتدائي', durationMinutes: 60, situations }
+      )
+    );
+    const first = document.mainPhase.situations[0];
+    expect(document.header.objective).toBe(objective);
+    expect(first.executionContent).not.toContain(objective);
+    expect(document.mainPhase.learningContent).not.toContain(objective);
+    expect(first.executionContent).not.toBe(document.mainPhase.learningContent);
+    expect(first.guidance).not.toBe(first.executionContent);
+    expect(first.executionContent).toContain('ينطلق');
+  });
+
+  it('feeds the same document into screen, print/PDF HTML, and Word', () => {
+    expect(view).toContain('generateLessonMemoDocument');
+    expect(view).toContain('محتوى التعلم');
+    expect(view).toContain('محتوى الإنجاز');
+    expect(exportService).toContain('renderLessonMemoHtml');
+    expect(exportService).toContain('A4 landscape');
+    expect(exportService).toContain('#1e293b');
+    expect(exportService).toContain('#fed7aa');
+    expect(exportService).toContain('#dcfce7');
+    const document = generateLessonMemoDocument(plan);
+    const html = renderLessonMemoHtml(document);
+    expect(html).toContain('مذكرة حصة تعلمية');
+    expect(html).toContain('الموقف 01');
+    expect(html).toContain('المفتش: مفتش فعلي');
+    expect(JSON.stringify(buildLessonPlanDocx(plan))).toContain('محتوى الإنجاز');
   });
 });

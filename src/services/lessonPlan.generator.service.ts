@@ -73,7 +73,7 @@ export function formatSituationExecution(situation: EducationalSituation): strin
   const equipment = situation.equipment.length
     ? ` الوسائل المستعملة: ${situation.equipment.join('، ')}.`
     : '';
-  return `التنظيم والتنفيذ: ${situation.organization.trim()}${equipment}`.trim();
+  return `${situation.organization.trim()}${equipment}`.trim();
 }
 
 function buildMainRows(
@@ -127,7 +127,7 @@ function buildMainRows(
     phase: 'المرحلة الرئيسية',
     learningContent: `تطبيق حركي موجه ${String(index + 1).padStart(2, '0')}`,
     executionContent:
-      `الموقف ${String(index + 1).padStart(2, '0')}: ينظم الأستاذ المتعلمين في أفواج متوازية عند نقطة البداية. ` +
+      'ينظم الأستاذ المتعلمين في أفواج متوازية عند نقطة البداية. ' +
       `عند سماع إشارة الانطلاق، ينفذ كل متعلم الحركة عبر مسار محدد باستعمال ${tools.join('، ')}، ` +
       `ثم يعود إلى نهاية فوجه لإتاحة التناوب. يلاحظ الأستاذ التنفيذ ويصحح الأداء، مع اعتماد النجاح عند إنجاز الحركة المطلوبة باحترام المسار والتعليمات.`,
     durationMinutes,
@@ -287,14 +287,14 @@ export function getUnifiedLessonRows(plan: LessonPlan): LessonPlanRow[] {
   ];
 }
 
-export interface LessonMemoDisplayRow {
+export interface LegacyLessonMemoDisplayRow {
   source: LessonPlanRow;
   phaseLabel: string;
   content: string;
 }
 
 /** Maps persisted rows to the single four-column memo presentation model. */
-export function getLessonMemoDisplayRows(rows: LessonPlanRow[]): LessonMemoDisplayRow[] {
+export function getLessonMemoDisplayRows(rows: LessonPlanRow[]): LegacyLessonMemoDisplayRow[] {
   let situationNumber = 0;
   return rows.map((row) => {
     const phaseLabel =
@@ -309,36 +309,99 @@ export function getLessonMemoDisplayRows(rows: LessonPlanRow[]): LessonMemoDispl
   });
 }
 
-export interface LessonMemoPresentation {
-  details: Array<[string, string]>;
-  competency: string;
-  objective: string;
-  rows: LessonMemoDisplayRow[];
+export interface LessonMemoSituation {
+  id: string;
+  number: number;
+  executionContent: string;
+  durationMinutes: number;
+  guidance: string;
+  sourceRow: LessonPlanRow;
+}
+
+export interface LessonMemoPhase {
+  learningContent: string;
+  executionContent: string;
+  durationMinutes: number;
+  guidance: string;
+  sourceRow: LessonPlanRow;
+}
+
+export interface LessonMemoDocument {
+  header: {
+    institution: string;
+    grade: string;
+    sessionNumber: string;
+    date: string;
+    field: string;
+    competency: string;
+    objective: string;
+    equipment: string[];
+    durationMinutes: number;
+  };
+  preparatoryPhase: LessonMemoPhase;
+  mainPhase: {
+    learningContent: string;
+    situations: LessonMemoSituation[];
+    totalDurationMinutes: number;
+  };
+  finalPhase: LessonMemoPhase;
+  signatures: { teacherName: string; inspectorName: string };
   totalDurationMinutes: number;
-  footer: { teacherName: string; inspectorName: string };
+}
+
+function phaseDocument(row: LessonPlanRow): LessonMemoPhase {
+  return {
+    learningContent: row.learningContent,
+    executionContent: row.executionContent,
+    durationMinutes: row.durationMinutes,
+    guidance: row.guidance,
+    sourceRow: row,
+  };
 }
 
 /** One normalized presentation model shared by screen, print, PDF, and Word. */
-export function getLessonMemoPresentation(
+export function generateLessonMemoDocument(
   plan: LessonPlan,
   overrides: { durationMinutes?: number } = {}
-): LessonMemoPresentation {
+): LessonMemoDocument {
+  const rows = getUnifiedLessonRows(plan);
+  const preparation = rows.find((row) => row.phase === 'المرحلة التحضيرية') || rows[0];
+  const closing =
+    [...rows].reverse().find((row) => row.phase === 'المرحلة الختامية') || rows.at(-1);
+  const mainRows = rows.filter((row) => row.phase === 'المرحلة الرئيسية');
   const totalDurationMinutes = overrides.durationMinutes ?? plan.durationMinutes;
   return {
-    details: [
-      ['المؤسسة', plan.institutionName],
-      ['الأستاذ', plan.teacherName],
-      ['المستوى', plan.levelName],
-      ['رقم الحصة', plan.sessionGlobalNumber ? String(plan.sessionGlobalNumber) : ''],
-      ['التاريخ', plan.date],
-      ['المدة الإجمالية', `${totalDurationMinutes} دقيقة`],
-      ['الميدان', plan.fieldName],
-      ['الوسائل', plan.equipmentNeeded.join('، ')],
-    ],
-    competency: plan.competencyTitle,
-    objective: plan.sessionTitle,
-    rows: getLessonMemoDisplayRows(getUnifiedLessonRows(plan)),
+    header: {
+      institution: plan.institutionName,
+      grade: plan.levelName,
+      sessionNumber: plan.sessionGlobalNumber ? String(plan.sessionGlobalNumber) : '',
+      date: plan.date,
+      field: plan.fieldName,
+      competency: plan.competencyTitle,
+      objective: plan.sessionTitle,
+      equipment: [...new Set(plan.equipmentNeeded.filter(Boolean))],
+      durationMinutes: totalDurationMinutes,
+    },
+    preparatoryPhase: phaseDocument(preparation),
+    mainPhase: {
+      learningContent: [
+        ...new Set(mainRows.map((row) => row.learningContent).filter(Boolean)),
+      ].join('، '),
+      situations: mainRows.map((row, index) => ({
+        id: row.id,
+        number: index + 1,
+        executionContent: row.executionContent,
+        durationMinutes: row.durationMinutes,
+        guidance: row.guidance,
+        sourceRow: row,
+      })),
+      totalDurationMinutes: mainRows.reduce((sum, row) => sum + row.durationMinutes, 0),
+    },
+    finalPhase: phaseDocument(closing),
+    signatures: { teacherName: plan.teacherName, inspectorName: plan.inspectorName || '' },
     totalDurationMinutes,
-    footer: { teacherName: plan.teacherName, inspectorName: plan.inspectorName || '' },
   };
 }
+
+/** Compatibility name retained for older callers; new code uses generateLessonMemoDocument. */
+export const getLessonMemoPresentation = generateLessonMemoDocument;
