@@ -19,6 +19,23 @@
     display: none !important;
   }
 
+  body:has(.annual-distribution-print-root) * {
+    visibility: hidden !important;
+  }
+
+  body:has(.annual-distribution-print-root) .annual-distribution-print-root,
+  body:has(.annual-distribution-print-root) .annual-distribution-print-root * {
+    visibility: visible !important;
+  }
+
+  body:has(.annual-distribution-print-root) .annual-distribution-print-root {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
   body:has(.annual-distribution-print, .planning-print-document) .planning-print-document,
   body:has(.annual-distribution-print) .annual-distribution-print {
     display: block;

@@ -31,8 +31,11 @@ describe('classic annual distribution calendar', () => {
     expect(readFileSync('src/index.css', 'utf8')).toContain('size: A4 portrait');
     expect(source).toContain('annual-distribution-document-header');
     expect(source).toContain('annual-distribution-document-footer');
+    expect(source).toContain('annual-distribution-print-root');
     expect(source).toContain('print:table-header-group');
     expect(readFileSync('src/index.css', 'utf8')).toContain('page-break-inside: avoid');
+    expect(readFileSync('src/index.css', 'utf8')).toContain('visibility: hidden !important');
+    expect(readFileSync('src/index.css', 'utf8')).toContain('visibility: visible !important');
   });
 
   it('places configured holidays chronologically between persisted lessons', () => {
