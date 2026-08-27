@@ -17,7 +17,7 @@ const rtl = (text: string, bold = false) =>
   new Paragraph({
     bidirectional: true,
     alignment: AlignmentType.RIGHT,
-    children: [new TextRun({ text: text || '—', bold, rightToLeft: true, size: 22 })],
+    children: [new TextRun({ text: text || '', bold, rightToLeft: true, size: 22 })],
   });
 const border = { style: BorderStyle.SINGLE, size: 4, color: '64748B' };
 const cell = (text: string, bold = false) =>
