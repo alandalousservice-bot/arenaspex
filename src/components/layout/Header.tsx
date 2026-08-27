@@ -104,7 +104,7 @@ export const Header: React.FC<HeaderProps> = React.memo(
             category: 'student',
             label: fullName,
             sublabel: `تلميذ(ة) - رقم التسجيل: ${s.registrationNumber || '—'}`,
-            targetTab: 'assessment_notebook',
+            targetTab: 'gradebook',
           });
         }
       });

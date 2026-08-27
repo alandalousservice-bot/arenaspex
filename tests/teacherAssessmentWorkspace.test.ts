@@ -6,11 +6,9 @@ const read = (path: string) => readFileSync(path, 'utf8');
 
 describe('unified Teacher assessment notebook', () => {
   it('routes the unified notebook and preserves legacy assessment links', () => {
-    expect(tabToPath('assessment_notebook')).toBe('/assessment-notebook');
-    expect(pathToTab('/assessment-notebook')).toBe('assessment_notebook');
+    expect(pathToTab('/assessment-notebook')).toBe('gradebook');
     expect(pathToTab('/assessment')).toBe('competency_assessment');
     expect(pathToTab('/gradebook')).toBe('gradebook');
-    expect(ROLE_TABS.teacher).toContain('assessment_notebook');
     expect(ROLE_TABS.teacher).toContain('competency_assessment');
     expect(ROLE_TABS.teacher).toContain('gradebook');
   });
@@ -38,11 +36,21 @@ describe('unified Teacher assessment notebook', () => {
 
   it('provides safe assessment entry links from planning and execution surfaces', () => {
     expect(read('src/components/planning/TeacherPlanningWorkspace.tsx')).toContain(
-      '/assessment-notebook?classId='
+      '/gradebook?workspace=assessment&classId='
     );
     expect(read('src/components/notebook/DailyNotebookView.tsx')).toContain('فتح التقويم');
     expect(read('src/components/lesson/LessonPlanView.tsx')).toContain('فتح دفتر التقويم');
     expect(read('src/components/lesson/LessonCommandCenterView.tsx')).toContain('onOpenAssessment');
+  });
+
+  it('keeps the assessment notebook inside the authoritative Gradebook workspace', () => {
+    const sidebar = read('src/components/layout/Sidebar.tsx');
+    const gradebook = read('src/components/gradebook/GradebookView.tsx');
+    expect(sidebar).not.toContain("id: 'assessment_notebook'");
+    expect(gradebook).toContain("workspaceSection === 'assessment'");
+    expect(gradebook).toContain('AssessmentNotebookView');
+    expect(gradebook).toContain('الأقسام والتلاميذ ودفتر التنقيط');
+    expect(gradebook).toContain('دفتر التقويم والكفاءات والحضور');
   });
 
   it('uses one protected student history read for reports', () => {

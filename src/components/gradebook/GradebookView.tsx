@@ -32,6 +32,7 @@ import {
   BarChart2,
 } from 'lucide-react';
 import { previewStudentRoster, confirmStudentRosterImport } from '../../services/api';
+import { AssessmentNotebookView } from '../assessment/AssessmentNotebookView';
 import {
   Student,
   ExemptedStudent,
@@ -43,6 +44,7 @@ import {
 } from '../../types/spex';
 
 type RegisterTab = 'gradebook' | 'attendance' | 'exempted' | 'clubs';
+type WorkspaceSection = 'classes' | 'assessment';
 
 export interface GradebookViewProps {
   classes?: ClassRoom[];
@@ -75,8 +77,14 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
   onRefreshRoster,
   currentUser,
 }) => {
+  const workspaceParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const [workspaceSection, setWorkspaceSection] = useState<WorkspaceSection>(
+    workspaceParams.get('workspace') === 'assessment' ? 'assessment' : 'classes'
+  );
   const [activeRegister, setActiveRegister] = useState<RegisterTab>('gradebook');
-  const [selectedClassId, setSelectedClassId] = useState<string>(classes[0]?.id || '');
+  const [selectedClassId, setSelectedClassId] = useState<string>(
+    workspaceParams.get('classId') || classes[0]?.id || ''
+  );
   const [searchVal, setSearchVal] = useState<string>('');
   // تأخير التصفية عن الطباعة المباشرة لتقليل عمليات إعادة الرسم على قوائم التلاميذ الكبيرة
   const debouncedSearchVal = useDebounce(searchVal, 300);
@@ -749,558 +757,715 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
         </div>
       </div>
 
-      {/* Main 4 Registers Navigation Tabs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-200/60 p-1.5 rounded-2xl">
+      <nav className="grid grid-cols-1 gap-2 rounded-2xl bg-slate-200/60 p-1.5 sm:grid-cols-2">
         <button
-          onClick={() => setActiveRegister('gradebook')}
-          className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-            activeRegister === 'gradebook'
-              ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-200'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-          }`}
+          onClick={() => setWorkspaceSection('classes')}
+          className={`rounded-xl px-4 py-3 text-xs font-extrabold transition-all ${workspaceSection === 'classes' ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-200' : 'text-slate-600 hover:bg-white/50'}`}
         >
-          <GraduationCap className="w-4 h-4 text-blue-600" />
-          <span>1. دفتر التنقيط الذكي (10 نقاط)</span>
+          الأقسام والتلاميذ ودفتر التنقيط
         </button>
-
         <button
-          onClick={() => setActiveRegister('attendance')}
-          className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-            activeRegister === 'attendance'
-              ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-200'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-          }`}
+          onClick={() => setWorkspaceSection('assessment')}
+          className={`rounded-xl px-4 py-3 text-xs font-extrabold transition-all ${workspaceSection === 'assessment' ? 'bg-white text-purple-700 shadow-md ring-1 ring-slate-200' : 'text-slate-600 hover:bg-white/50'}`}
         >
-          <UserCheck className="w-4 h-4" />
-          <span>2. دفتر الغياب والمواظبة</span>
+          دفتر التقويم والكفاءات والحضور
         </button>
+      </nav>
 
-        <button
-          onClick={() => setActiveRegister('exempted')}
-          className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer relative ${
-            activeRegister === 'exempted'
-              ? 'bg-white text-rose-700 shadow-md ring-1 ring-slate-200'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-          }`}
-        >
-          <ShieldAlert className="w-4 h-4 text-rose-500" />
-          <span>3. دفتر المعفيين طبياً</span>
-          {exemptionsList.filter((ex) => ex.classId === activeClass.id).length > 0 && (
-            <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-              {exemptionsList.filter((ex) => ex.classId === activeClass.id).length}
-            </span>
-          )}
-        </button>
+      {workspaceSection === 'assessment' ? (
+        <AssessmentNotebookView
+          currentUser={currentUser as User}
+          teacherClasses={classes}
+          students={students}
+          selectedClassId={selectedClassId}
+          onSelectedClassIdChange={setSelectedClassId}
+        />
+      ) : (
+        <>
+          {/* Main 4 Registers Navigation Tabs */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-200/60 p-1.5 rounded-2xl">
+            <button
+              onClick={() => setActiveRegister('gradebook')}
+              className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                activeRegister === 'gradebook'
+                  ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-200'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <GraduationCap className="w-4 h-4 text-blue-600" />
+              <span>1. دفتر التنقيط الذكي (10 نقاط)</span>
+            </button>
 
-        <button
-          onClick={() => setActiveRegister('clubs')}
-          className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-            activeRegister === 'clubs'
-              ? 'bg-white text-emerald-700 shadow-md ring-1 ring-slate-200'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-          }`}
-        >
-          <Flag className="w-4 h-4 text-emerald-600" />
-          <span>4. دفتر البلديات والنوادي</span>
-        </button>
-      </div>
+            <button
+              onClick={() => setActiveRegister('attendance')}
+              className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                activeRegister === 'attendance'
+                  ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-200'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <UserCheck className="w-4 h-4" />
+              <span>2. دفتر الغياب والمواظبة</span>
+            </button>
 
-      {/* ========================================================================= */}
-      {/* REGISTER TAB 1: INTELLIGENT GRADEBOOK (دفتر التنقيط الذكي) */}
-      {/* ========================================================================= */}
-      {activeRegister === 'gradebook' && (
-        <div className="space-y-5">
-          {/* Pedagogical Philosophy Banner */}
-          <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-900 text-white rounded-3xl p-5 shadow-lg border border-blue-800/40 relative overflow-hidden">
-            <div className="absolute left-0 top-0 bottom-0 w-1/3 bg-radial from-blue-500/10 to-transparent pointer-events-none" />
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1.5 max-w-3xl">
-                <div className="flex items-center gap-2">
-                  <span className="bg-amber-400 text-slate-950 font-black text-[11px] px-2.5 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
-                    <Sparkles className="w-3 h-3 text-slate-950 fill-slate-950" />
-                    فلسفة التقييم الذكي منصة SPEX
-                  </span>
-                  <span className="text-xs text-blue-200 font-bold">
-                    التربية البدنية والرياضية • المنهاج الجزائري
-                  </span>
-                </div>
-                <h3 className="text-base font-black text-white">
-                  دفتر التنقيط ليس آلة صماء تمنح العلامات، بل أداة مساعدة ذكية تضع التقديرات وتترك
-                  القرار الأخير دائماً للأستاذ
-                </h3>
-                <p className="text-xs text-blue-100/90 leading-relaxed">
-                  يحسب النظام العلامة المقترحة تلقائياً من 10 نقاط بناءً على: تملك الكفاءة الختامية
-                  ({weights.competencyWeight}ن)، المشاركة الفعالة ({weights.participationWeight}ن)،
-                  السلوك والانضباط ({weights.behaviorWeight}ن)، والمواظبة والحضور (
-                  {weights.attendanceWeight}ن). للأستاذ الحرية التامة في تعديل أي عنصر أو اعتماد
-                  العلامة مباشرة مع توثيق سبب التعديل للشفافية.
-                </p>
-              </div>
+            <button
+              onClick={() => setActiveRegister('exempted')}
+              className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer relative ${
+                activeRegister === 'exempted'
+                  ? 'bg-white text-rose-700 shadow-md ring-1 ring-slate-200'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <ShieldAlert className="w-4 h-4 text-rose-500" />
+              <span>3. دفتر المعفيين طبياً</span>
+              {exemptionsList.filter((ex) => ex.classId === activeClass.id).length > 0 && (
+                <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  {exemptionsList.filter((ex) => ex.classId === activeClass.id).length}
+                </span>
+              )}
+            </button>
 
-              <div className="flex flex-wrap items-center gap-2 self-start md:self-center">
-                <button
-                  onClick={() => setShowWeightsModal(true)}
-                  className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-2xl border border-white/20 transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-xs"
-                >
-                  <Sliders className="w-4 h-4 text-amber-300" />
-                  <span>تعديل أوزان التقييم (⚙️)</span>
-                </button>
-
-                <button
-                  onClick={() => setShowAuditModal(true)}
-                  className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-2xl border border-white/20 transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-xs"
-                >
-                  <History className="w-4 h-4 text-blue-300" />
-                  <span>
-                    سجل التعديلات والشفافية (
-                    {auditLogs.filter((a) => a.classId === activeClass.id).length})
-                  </span>
-                </button>
-              </div>
-            </div>
+            <button
+              onClick={() => setActiveRegister('clubs')}
+              className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                activeRegister === 'clubs'
+                  ? 'bg-white text-emerald-700 shadow-md ring-1 ring-slate-200'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <Flag className="w-4 h-4 text-emerald-600" />
+              <span>4. دفتر البلديات والنوادي</span>
+            </button>
           </div>
 
-          {/* Statistics & Analytics Cards Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-            <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">متوسط القسم</span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-xl font-black text-blue-700">{classStats.avg}</span>
-                <span className="text-[10px] text-slate-400 font-bold">/ 10</span>
-              </div>
-              <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5">
-                <TrendingUp className="w-3 h-3" /> أداء ممتاز للقسم
-              </span>
-            </div>
+          {/* ========================================================================= */}
+          {/* REGISTER TAB 1: INTELLIGENT GRADEBOOK (دفتر التنقيط الذكي) */}
+          {/* ========================================================================= */}
+          {activeRegister === 'gradebook' && (
+            <div className="space-y-5">
+              {/* Pedagogical Philosophy Banner */}
+              <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-900 text-white rounded-3xl p-5 shadow-lg border border-blue-800/40 relative overflow-hidden">
+                <div className="absolute left-0 top-0 bottom-0 w-1/3 bg-radial from-blue-500/10 to-transparent pointer-events-none" />
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1.5 max-w-3xl">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-amber-400 text-slate-950 font-black text-[11px] px-2.5 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
+                        <Sparkles className="w-3 h-3 text-slate-950 fill-slate-950" />
+                        فلسفة التقييم الذكي منصة SPEX
+                      </span>
+                      <span className="text-xs text-blue-200 font-bold">
+                        التربية البدنية والرياضية • المنهاج الجزائري
+                      </span>
+                    </div>
+                    <h3 className="text-base font-black text-white">
+                      دفتر التنقيط ليس آلة صماء تمنح العلامات، بل أداة مساعدة ذكية تضع التقديرات
+                      وتترك القرار الأخير دائماً للأستاذ
+                    </h3>
+                    <p className="text-xs text-blue-100/90 leading-relaxed">
+                      يحسب النظام العلامة المقترحة تلقائياً من 10 نقاط بناءً على: تملك الكفاءة
+                      الختامية ({weights.competencyWeight}ن)، المشاركة الفعالة (
+                      {weights.participationWeight}ن)، السلوك والانضباط ({weights.behaviorWeight}ن)،
+                      والمواظبة والحضور ({weights.attendanceWeight}ن). للأستاذ الحرية التامة في
+                      تعديل أي عنصر أو اعتماد العلامة مباشرة مع توثيق سبب التعديل للشفافية.
+                    </p>
+                  </div>
 
-            <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">
-                أعلى علامة بالقسم
-              </span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-xl font-black text-emerald-600">{classStats.max}</span>
-                <span className="text-[10px] text-slate-400 font-bold">/ 10</span>
-              </div>
-              <span className="text-[10px] text-slate-500 font-bold">أعلى أداء حركي</span>
-            </div>
-
-            <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">
-                أدنى علامة بالقسم
-              </span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-xl font-black text-amber-600">{classStats.min}</span>
-                <span className="text-[10px] text-slate-400 font-bold">/ 10</span>
-              </div>
-              <span className="text-[10px] text-slate-500 font-bold">يحتاج تحفيزاً واستدراكاً</span>
-            </div>
-
-            <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">
-                نسبة التمكن الكفائي
-              </span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-xl font-black text-purple-700">
-                  {classStats.competencyRate}%
-                </span>
-              </div>
-              <span className="text-[10px] text-purple-600 font-bold">تمكن جيد وممتاز</span>
-            </div>
-
-            <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">
-                نسبة المواظبة والحضور
-              </span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-xl font-black text-emerald-700">
-                  {classStats.attendanceRate}%
-                </span>
-              </div>
-              <span className="text-[10px] text-slate-500 font-bold">انضباط حركي ملحوظ</span>
-            </div>
-
-            <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">
-                حالة الاعتماد الأستاذي
-              </span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-xl font-black text-blue-900">{classStats.approvedCount}</span>
-                <span className="text-[10px] text-slate-400 font-bold">
-                  / {classStudents.length}
-                </span>
-              </div>
-              <span className="text-[10px] text-blue-600 font-bold">علامات معتمدة</span>
-            </div>
-          </div>
-
-          {/* Grade Distribution Bar */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
-            <div className="flex items-center gap-2">
-              <BarChart2 className="w-4 h-4 text-blue-600" />
-              <span className="font-extrabold text-slate-900">توزيع المستويات بالقسم:</span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <span className="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl font-bold flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                ممتاز (9-10):{' '}
-                <strong className="font-black text-emerald-900">
-                  {classStats.distribution.excellent}
-                </strong>
-              </span>
-
-              <span className="px-3 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-xl font-bold flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-blue-500" />
-                جيد (7-8.9):{' '}
-                <strong className="font-black text-blue-900">{classStats.distribution.good}</strong>
-              </span>
-
-              <span className="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl font-bold flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-500" />
-                متوسط (5-6.9):{' '}
-                <strong className="font-black text-amber-900">
-                  {classStats.distribution.average}
-                </strong>
-              </span>
-
-              <span className="px-3 py-1 bg-rose-50 text-rose-800 border border-rose-200 rounded-xl font-bold flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-rose-500" />
-                ضعيف (&lt;5):{' '}
-                <strong className="font-black text-rose-900">{classStats.distribution.weak}</strong>
-              </span>
-            </div>
-          </div>
-
-          {/* Main Controls & Search Bar */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-3">
-                <h3 className="text-base font-black text-slate-900">
-                  شبكة تنقيط علامات التربية البدنية والرياضية -{' '}
-                  <span className="text-blue-700">{activeClass.name}</span>
-                </h3>
-                <span className="text-xs bg-slate-100 text-slate-700 font-extrabold px-2.5 py-1 rounded-xl">
-                  توزيع الأوزان: كفاءة ({weights.competencyWeight}) • مشاركة (
-                  {weights.participationWeight}) • سلوك ({weights.behaviorWeight}) • مواظبة (
-                  {weights.attendanceWeight})
-                </span>
-              </div>
-
-              {/* Term Selector & Intelligent Actions */}
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl">
-                  {(['الفصل الأول', 'الفصل الثاني', 'الفصل الثالث'] as const).map((t) => (
+                  <div className="flex flex-wrap items-center gap-2 self-start md:self-center">
                     <button
-                      key={t}
-                      onClick={() => setSelectedTerm(t)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                        selectedTerm === t
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
+                      onClick={() => setShowWeightsModal(true)}
+                      className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-2xl border border-white/20 transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-xs"
                     >
-                      {t}
+                      <Sliders className="w-4 h-4 text-amber-300" />
+                      <span>تعديل أوزان التقييم (⚙️)</span>
                     </button>
-                  ))}
+
+                    <button
+                      onClick={() => setShowAuditModal(true)}
+                      className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-2xl border border-white/20 transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-xs"
+                    >
+                      <History className="w-4 h-4 text-blue-300" />
+                      <span>
+                        سجل التعديلات والشفافية (
+                        {auditLogs.filter((a) => a.classId === activeClass.id).length})
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Statistics & Analytics Cards Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
+                  <span className="text-[11px] font-extrabold text-slate-500 block">
+                    متوسط القسم
+                  </span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-black text-blue-700">{classStats.avg}</span>
+                    <span className="text-[10px] text-slate-400 font-bold">/ 10</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5">
+                    <TrendingUp className="w-3 h-3" /> أداء ممتاز للقسم
+                  </span>
                 </div>
 
-                <button
-                  onClick={handleRecalculateAllGrades}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold rounded-2xl border border-amber-200/80 transition-all cursor-pointer"
-                  title="إعادة حساب العلامات المقترحة لجميع التلاميذ بضغطة واحدة"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
-                  <span>إعادة الحساب الذكي 🪄</span>
-                </button>
+                <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
+                  <span className="text-[11px] font-extrabold text-slate-500 block">
+                    أعلى علامة بالقسم
+                  </span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-black text-emerald-600">{classStats.max}</span>
+                    <span className="text-[10px] text-slate-400 font-bold">/ 10</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-bold">أعلى أداء حركي</span>
+                </div>
 
-                <button
-                  onClick={handleApproveAllClassGrades}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>اعتماد جميع العلامات</span>
-                </button>
+                <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
+                  <span className="text-[11px] font-extrabold text-slate-500 block">
+                    أدنى علامة بالقسم
+                  </span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-black text-amber-600">{classStats.min}</span>
+                    <span className="text-[10px] text-slate-400 font-bold">/ 10</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-bold">
+                    يحتاج تحفيزاً واستدراكاً
+                  </span>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
+                  <span className="text-[11px] font-extrabold text-slate-500 block">
+                    نسبة التمكن الكفائي
+                  </span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-black text-purple-700">
+                      {classStats.competencyRate}%
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-purple-600 font-bold">تمكن جيد وممتاز</span>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
+                  <span className="text-[11px] font-extrabold text-slate-500 block">
+                    نسبة المواظبة والحضور
+                  </span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-black text-emerald-700">
+                      {classStats.attendanceRate}%
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-bold">انضباط حركي ملحوظ</span>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
+                  <span className="text-[11px] font-extrabold text-slate-500 block">
+                    حالة الاعتماد الأستاذي
+                  </span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-black text-blue-900">
+                      {classStats.approvedCount}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-bold">
+                      / {classStudents.length}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-blue-600 font-bold">علامات معتمدة</span>
+                </div>
+              </div>
+
+              {/* Grade Distribution Bar */}
+              <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
+                <div className="flex items-center gap-2">
+                  <BarChart2 className="w-4 h-4 text-blue-600" />
+                  <span className="font-extrabold text-slate-900">توزيع المستويات بالقسم:</span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  <span className="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl font-bold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    ممتاز (9-10):{' '}
+                    <strong className="font-black text-emerald-900">
+                      {classStats.distribution.excellent}
+                    </strong>
+                  </span>
+
+                  <span className="px-3 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-xl font-bold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-blue-500" />
+                    جيد (7-8.9):{' '}
+                    <strong className="font-black text-blue-900">
+                      {classStats.distribution.good}
+                    </strong>
+                  </span>
+
+                  <span className="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl font-bold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    متوسط (5-6.9):{' '}
+                    <strong className="font-black text-amber-900">
+                      {classStats.distribution.average}
+                    </strong>
+                  </span>
+
+                  <span className="px-3 py-1 bg-rose-50 text-rose-800 border border-rose-200 rounded-xl font-bold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    ضعيف (&lt;5):{' '}
+                    <strong className="font-black text-rose-900">
+                      {classStats.distribution.weak}
+                    </strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Main Controls & Search Bar */}
+              <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-base font-black text-slate-900">
+                      شبكة تنقيط علامات التربية البدنية والرياضية -{' '}
+                      <span className="text-blue-700">{activeClass.name}</span>
+                    </h3>
+                    <span className="text-xs bg-slate-100 text-slate-700 font-extrabold px-2.5 py-1 rounded-xl">
+                      توزيع الأوزان: كفاءة ({weights.competencyWeight}) • مشاركة (
+                      {weights.participationWeight}) • سلوك ({weights.behaviorWeight}) • مواظبة (
+                      {weights.attendanceWeight})
+                    </span>
+                  </div>
+
+                  {/* Term Selector & Intelligent Actions */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl">
+                      {(['الفصل الأول', 'الفصل الثاني', 'الفصل الثالث'] as const).map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setSelectedTerm(t)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            selectedTerm === t
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={handleRecalculateAllGrades}
+                      className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold rounded-2xl border border-amber-200/80 transition-all cursor-pointer"
+                      title="إعادة حساب العلامات المقترحة لجميع التلاميذ بضغطة واحدة"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
+                      <span>إعادة الحساب الذكي 🪄</span>
+                    </button>
+
+                    <button
+                      onClick={handleApproveAllClassGrades}
+                      className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>اعتماد جميع العلامات</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filter Search */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="relative w-full max-w-xs">
+                    <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={searchVal}
+                      onChange={(e) => setSearchVal(e.target.value)}
+                      placeholder="بحث عن تلميذ بالاسم أو الرقم..."
+                      className="w-full pl-3 pr-9 py-2 text-xs bg-slate-50 rounded-xl border border-slate-200 outline-none focus:bg-white focus:border-blue-500 font-bold"
+                    />
+                  </div>
+
+                  <div className="text-xs text-slate-500 font-semibold flex items-center gap-2">
+                    <span>
+                      تلاميذ القسم:{' '}
+                      <strong className="text-blue-700">{classStudents.length}</strong>
+                    </span>
+                    <span>
+                      • المعتمَدة:{' '}
+                      <strong className="text-emerald-700">{classStats.approvedCount}</strong>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Comprehensive Intelligent Grade Table */}
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-xs">
+                  <table className="w-full text-right text-xs">
+                    <thead>
+                      <tr className="bg-slate-900 text-white font-bold">
+                        <th className="p-3 w-8 text-center">#</th>
+                        <th className="p-3 w-28">رقم التسجيل</th>
+                        <th className="p-3 min-w-[140px]">اسم ولقب التلميذ</th>
+                        <th className="p-3 text-center w-28 bg-blue-950/80">
+                          السلوك والانضباط ({weights.behaviorWeight}ن)
+                        </th>
+                        <th className="p-3 text-center w-24 bg-blue-950/80">
+                          المواظبة ({weights.attendanceWeight}ن)
+                        </th>
+                        <th className="p-3 text-center w-28 bg-blue-950/80">
+                          المشاركة الفعالة ({weights.participationWeight}ن)
+                        </th>
+                        <th className="p-3 text-center w-36 bg-blue-950/80">
+                          الكفاءة الختامية ({weights.competencyWeight}ن)
+                        </th>
+                        <th className="p-3 text-center w-28 bg-indigo-950 text-amber-300 border-x border-indigo-800">
+                          العلامة المقترحة / 10
+                        </th>
+                        <th className="p-3 text-center w-28 bg-emerald-950 text-emerald-200">
+                          العلامة النهائية / 10
+                        </th>
+                        <th className="p-3 min-w-[150px]">سبب التعديل (إن وجد)</th>
+                        <th className="p-3 text-center w-28">اعتماد / سجل</th>
+                        <th className="p-3 text-center w-10">حذف</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {classStudents.length === 0 ? (
+                        <tr>
+                          <td colSpan={12} className="p-8 text-center text-slate-400 font-medium">
+                            لا يوجد تلاميذ مسجلين في هذا القسم حتى الآن. انقر فوق "إضافة تلميذ
+                            للقسم" للبدء.
+                          </td>
+                        </tr>
+                      ) : (
+                        classStudents
+                          .filter(
+                            (s) =>
+                              s.firstName.includes(debouncedSearchVal) ||
+                              s.lastName.includes(debouncedSearchVal) ||
+                              s.registrationNumber?.includes(debouncedSearchVal)
+                          )
+                          .map((std, idx) => {
+                            const rec = getStudentGrade(std.id);
+                            const isExempt = exemptionsList.some(
+                              (ex) => ex.studentId === std.id && ex.classId === activeClass.id
+                            );
+                            const isModified =
+                              rec.finalMark !== null &&
+                              rec.suggestedMark !== null &&
+                              rec.finalMark !== rec.suggestedMark;
+
+                            return (
+                              <tr
+                                key={std.id}
+                                className={`hover:bg-blue-50/30 transition-colors ${
+                                  rec.isApprovedByTeacher ? 'bg-emerald-50/20' : ''
+                                }`}
+                              >
+                                {/* Index */}
+                                <td className="p-3 text-center text-slate-400 font-bold">
+                                  {idx + 1}
+                                </td>
+
+                                {/* Reg Number */}
+                                <td className="p-3 font-mono text-slate-500 font-bold">
+                                  {std.registrationNumber}
+                                </td>
+
+                                {/* Full Name */}
+                                <td className="p-3 font-extrabold text-slate-900">
+                                  <div className="flex items-center gap-1.5">
+                                    <span>
+                                      {std.firstName} {std.lastName}
+                                    </span>
+                                    {isExempt && (
+                                      <span className="bg-rose-100 text-rose-800 text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                                        معفى
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* Behavior Selector & Score */}
+                                <td className="p-2 text-center bg-blue-50/20">
+                                  <select
+                                    value={rec.behaviorRating || ''}
+                                    onChange={(e) =>
+                                      handleUpdateGradeRecord(std.id, {
+                                        behaviorRating: e.target.value as any,
+                                      })
+                                    }
+                                    className="w-full text-center py-1 px-1.5 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-500 cursor-pointer"
+                                  >
+                                    <option value="">غير مقوّم</option>
+                                    <option value="ممتاز">ممتاز (2.0)</option>
+                                    <option value="جيد">جيد (1.7)</option>
+                                    <option value="متوسط">متوسط (1.3)</option>
+                                    <option value="ضعيف">ضعيف (0.8)</option>
+                                  </select>
+                                  <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+                                    {rec.behaviorScore ?? '—'} / {weights.behaviorWeight}
+                                  </span>
+                                </td>
+
+                                {/* Attendance Score */}
+                                <td className="p-2 text-center bg-blue-50/20">
+                                  <span className="font-extrabold text-slate-900 block text-xs">
+                                    {rec.attendanceScore ?? '—'} / {weights.attendanceWeight}
+                                  </span>
+                                  <span className="text-[9px] text-slate-500 block">
+                                    {rec.attendanceScore === null
+                                      ? 'غير مقوّم'
+                                      : rec.unexcusedAbsencesCount && rec.unexcusedAbsencesCount > 0
+                                        ? `خصم ${rec.unexcusedAbsencesCount} غياب`
+                                        : 'حضور كامل ✓'}
+                                  </span>
+                                </td>
+
+                                {/* Participation Selector & Score */}
+                                <td className="p-2 text-center bg-blue-50/20">
+                                  <select
+                                    value={rec.participationRating || ''}
+                                    onChange={(e) =>
+                                      handleUpdateGradeRecord(std.id, {
+                                        participationRating: e.target.value as any,
+                                      })
+                                    }
+                                    className="w-full text-center py-1 px-1.5 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-500 cursor-pointer"
+                                  >
+                                    <option value="">غير مقوّم</option>
+                                    <option value="ممتاز">ممتاز (2.0)</option>
+                                    <option value="جيد">جيد (1.7)</option>
+                                    <option value="متوسط">متوسط (1.3)</option>
+                                    <option value="ضعيف">ضعيف (0.8)</option>
+                                  </select>
+                                  <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+                                    {rec.participationScore ?? '—'} / {weights.participationWeight}
+                                  </span>
+                                </td>
+
+                                {/* Competency Mastery Selector & Score */}
+                                <td className="p-2 text-center bg-blue-50/20">
+                                  <select
+                                    value={rec.competencyRating || ''}
+                                    onChange={(e) =>
+                                      handleUpdateGradeRecord(std.id, {
+                                        competencyRating: e.target.value as any,
+                                      })
+                                    }
+                                    className="w-full text-center py-1 px-1.5 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-500 cursor-pointer"
+                                  >
+                                    <option value="">غير مقوّم</option>
+                                    <option value="تمكن ممتاز">تمكن ممتاز (5.0)</option>
+                                    <option value="تمكن جيد">تمكن جيد (4.25)</option>
+                                    <option value="تمكن متوسط">تمكن متوسط (3.25)</option>
+                                    <option value="تمكن جزئي">تمكن جزئي (2.25)</option>
+                                  </select>
+                                  <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+                                    {rec.competencyScore ?? '—'} / {weights.competencyWeight}
+                                  </span>
+                                </td>
+
+                                {/* Suggested Grade (System Calculation) */}
+                                <td className="p-3 text-center bg-indigo-50/40 border-x border-indigo-100 font-mono font-black text-indigo-900 text-sm">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <Sparkles className="w-3 h-3 text-indigo-600 fill-indigo-600" />
+                                    <span>{rec.suggestedMark ?? 'غير مقوّم'}</span>
+                                  </div>
+                                </td>
+
+                                {/* Final Mark Input (Teacher Direct Authority) */}
+                                <td className="p-2 text-center bg-emerald-50/30">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="10"
+                                    step="0.25"
+                                    value={rec.finalMark ?? ''}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value);
+                                      if (!isNaN(val)) {
+                                        handleUpdateGradeRecord(std.id, {
+                                          finalMark: Math.min(10, Math.max(0, val)),
+                                        });
+                                      }
+                                    }}
+                                    className={`w-16 text-center py-1 font-mono font-black text-xs rounded-xl border outline-none ${
+                                      isModified
+                                        ? 'bg-amber-100 border-amber-400 text-amber-950 font-extrabold ring-2 ring-amber-300'
+                                        : 'bg-white border-slate-300 text-slate-900 focus:ring-2 focus:ring-emerald-500'
+                                    }`}
+                                  />
+                                </td>
+
+                                {/* Reason for Modification */}
+                                <td className="p-2">
+                                  <input
+                                    type="text"
+                                    value={rec.adjustmentReason || ''}
+                                    placeholder={isModified ? 'سبب التعديل...' : 'اختياري...'}
+                                    onChange={(e) =>
+                                      handleUpdateGradeRecord(std.id, {}, e.target.value)
+                                    }
+                                    className={`w-full px-2.5 py-1 text-xs rounded-xl border outline-none ${
+                                      isModified && !rec.adjustmentReason
+                                        ? 'bg-amber-50 border-amber-300 text-amber-900'
+                                        : 'bg-white border-slate-200 text-slate-700 focus:border-blue-500'
+                                    }`}
+                                  />
+                                </td>
+
+                                {/* Approval Toggle & Audit Log Button */}
+                                <td className="p-2 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      onClick={() =>
+                                        handleUpdateGradeRecord(std.id, {
+                                          isApprovedByTeacher: !rec.isApprovedByTeacher,
+                                        })
+                                      }
+                                      className={`px-2 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                        rec.isApprovedByTeacher
+                                          ? 'bg-emerald-600 text-white shadow-xs'
+                                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                      }`}
+                                    >
+                                      {rec.isApprovedByTeacher ? (
+                                        <>
+                                          <Check className="w-3 h-3" />
+                                          <span>معتمدة</span>
+                                        </>
+                                      ) : (
+                                        <span>اعتماد</span>
+                                      )}
+                                    </button>
+
+                                    <button
+                                      onClick={() => {
+                                        setSelectedAuditStudentId(std.id);
+                                        setShowAuditModal(true);
+                                      }}
+                                      className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                      title="عرض سجل تعديلات التلميذ"
+                                    >
+                                      <History className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+
+                                {/* Delete Student Action */}
+                                <td className="p-2 text-center">
+                                  <button
+                                    onClick={() =>
+                                      handleConfirmDeleteStudent(
+                                        std.id,
+                                        `${std.firstName} ${std.lastName}`
+                                      )
+                                    }
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                    title="حذف التلميذ"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
+          )}
 
-            {/* Filter Search */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="relative w-full max-w-xs">
-                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
-                <input
-                  type="text"
-                  value={searchVal}
-                  onChange={(e) => setSearchVal(e.target.value)}
-                  placeholder="بحث عن تلميذ بالاسم أو الرقم..."
-                  className="w-full pl-3 pr-9 py-2 text-xs bg-slate-50 rounded-xl border border-slate-200 outline-none focus:bg-white focus:border-blue-500 font-bold"
-                />
+          {/* ========================================================================= */}
+          {/* REGISTER TAB 2: ATTENDANCE REGISTER (دفتر الغياب والمواظبة) */}
+          {/* ========================================================================= */}
+          {activeRegister === 'attendance' && (
+            <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                    <span>دفتر تسجيل الحضور والغياب للتربية البدنية</span>
+                    <span className="text-xs bg-blue-50 text-blue-700 font-bold px-2.5 py-0.5 rounded-lg border border-blue-100">
+                      {activeClass.name}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    سجل المتابعة اليومية والانضباط للحصص الرياضية مع تسجيل الأسباب والشهادات الطبية
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
+                  <Calendar className="w-4 h-4 text-slate-500" />
+                  <input
+                    type="date"
+                    value={selectedAttendanceDate}
+                    onChange={(e) => setSelectedAttendanceDate(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-slate-900 outline-none cursor-pointer"
+                  />
+                </div>
               </div>
 
-              <div className="text-xs text-slate-500 font-semibold flex items-center gap-2">
-                <span>
-                  تلاميذ القسم: <strong className="text-blue-700">{classStudents.length}</strong>
-                </span>
-                <span>
-                  • المعتمَدة:{' '}
-                  <strong className="text-emerald-700">{classStats.approvedCount}</strong>
-                </span>
-              </div>
-            </div>
-
-            {/* Comprehensive Intelligent Grade Table */}
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-xs">
-              <table className="w-full text-right text-xs">
-                <thead>
-                  <tr className="bg-slate-900 text-white font-bold">
-                    <th className="p-3 w-8 text-center">#</th>
-                    <th className="p-3 w-28">رقم التسجيل</th>
-                    <th className="p-3 min-w-[140px]">اسم ولقب التلميذ</th>
-                    <th className="p-3 text-center w-28 bg-blue-950/80">
-                      السلوك والانضباط ({weights.behaviorWeight}ن)
-                    </th>
-                    <th className="p-3 text-center w-24 bg-blue-950/80">
-                      المواظبة ({weights.attendanceWeight}ن)
-                    </th>
-                    <th className="p-3 text-center w-28 bg-blue-950/80">
-                      المشاركة الفعالة ({weights.participationWeight}ن)
-                    </th>
-                    <th className="p-3 text-center w-36 bg-blue-950/80">
-                      الكفاءة الختامية ({weights.competencyWeight}ن)
-                    </th>
-                    <th className="p-3 text-center w-28 bg-indigo-950 text-amber-300 border-x border-indigo-800">
-                      العلامة المقترحة / 10
-                    </th>
-                    <th className="p-3 text-center w-28 bg-emerald-950 text-emerald-200">
-                      العلامة النهائية / 10
-                    </th>
-                    <th className="p-3 min-w-[150px]">سبب التعديل (إن وجد)</th>
-                    <th className="p-3 text-center w-28">اعتماد / سجل</th>
-                    <th className="p-3 text-center w-10">حذف</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {classStudents.length === 0 ? (
-                    <tr>
-                      <td colSpan={12} className="p-8 text-center text-slate-400 font-medium">
-                        لا يوجد تلاميذ مسجلين في هذا القسم حتى الآن. انقر فوق "إضافة تلميذ للقسم"
-                        للبدء.
-                      </td>
+              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full text-right text-xs">
+                  <thead>
+                    <tr className="bg-slate-900 text-white font-bold">
+                      <th className="p-3 w-10 text-center">#</th>
+                      <th className="p-3">اسم ولقب التلميذ</th>
+                      <th className="p-3 text-center">الحالة اليومية</th>
+                      <th className="p-3 text-center">تأكيد الحضور والغياب</th>
+                      <th className="p-3 text-center w-12">حذف</th>
                     </tr>
-                  ) : (
-                    classStudents
-                      .filter(
-                        (s) =>
-                          s.firstName.includes(debouncedSearchVal) ||
-                          s.lastName.includes(debouncedSearchVal) ||
-                          s.registrationNumber?.includes(debouncedSearchVal)
-                      )
-                      .map((std, idx) => {
-                        const rec = getStudentGrade(std.id);
-                        const isExempt = exemptionsList.some(
-                          (ex) => ex.studentId === std.id && ex.classId === activeClass.id
-                        );
-                        const isModified =
-                          rec.finalMark !== null &&
-                          rec.suggestedMark !== null &&
-                          rec.finalMark !== rec.suggestedMark;
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {classStudents.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-slate-400">
+                          لا يوجد تلاميذ مسجلين في هذا القسم.
+                        </td>
+                      </tr>
+                    ) : (
+                      classStudents.map((std, idx) => {
+                        const status = currentAttendanceStatus[std.id] || 'حاضر';
 
                         return (
-                          <tr
-                            key={std.id}
-                            className={`hover:bg-blue-50/30 transition-colors ${
-                              rec.isApprovedByTeacher ? 'bg-emerald-50/20' : ''
-                            }`}
-                          >
-                            {/* Index */}
+                          <tr key={std.id} className="hover:bg-slate-50 transition-colors">
                             <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-
-                            {/* Reg Number */}
-                            <td className="p-3 font-mono text-slate-500 font-bold">
-                              {std.registrationNumber}
-                            </td>
-
-                            {/* Full Name */}
                             <td className="p-3 font-extrabold text-slate-900">
-                              <div className="flex items-center gap-1.5">
-                                <span>
-                                  {std.firstName} {std.lastName}
-                                </span>
-                                {isExempt && (
-                                  <span className="bg-rose-100 text-rose-800 text-[9px] font-black px-1.5 py-0.5 rounded-full">
-                                    معفى
-                                  </span>
-                                )}
-                              </div>
+                              {std.firstName} {std.lastName}
                             </td>
-
-                            {/* Behavior Selector & Score */}
-                            <td className="p-2 text-center bg-blue-50/20">
-                              <select
-                                value={rec.behaviorRating || ''}
-                                onChange={(e) =>
-                                  handleUpdateGradeRecord(std.id, {
-                                    behaviorRating: e.target.value as any,
-                                  })
-                                }
-                                className="w-full text-center py-1 px-1.5 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-500 cursor-pointer"
-                              >
-                                <option value="">غير مقوّم</option>
-                                <option value="ممتاز">ممتاز (2.0)</option>
-                                <option value="جيد">جيد (1.7)</option>
-                                <option value="متوسط">متوسط (1.3)</option>
-                                <option value="ضعيف">ضعيف (0.8)</option>
-                              </select>
-                              <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-                                {rec.behaviorScore ?? '—'} / {weights.behaviorWeight}
-                              </span>
-                            </td>
-
-                            {/* Attendance Score */}
-                            <td className="p-2 text-center bg-blue-50/20">
-                              <span className="font-extrabold text-slate-900 block text-xs">
-                                {rec.attendanceScore ?? '—'} / {weights.attendanceWeight}
-                              </span>
-                              <span className="text-[9px] text-slate-500 block">
-                                {rec.attendanceScore === null
-                                  ? 'غير مقوّم'
-                                  : rec.unexcusedAbsencesCount && rec.unexcusedAbsencesCount > 0
-                                    ? `خصم ${rec.unexcusedAbsencesCount} غياب`
-                                    : 'حضور كامل ✓'}
-                              </span>
-                            </td>
-
-                            {/* Participation Selector & Score */}
-                            <td className="p-2 text-center bg-blue-50/20">
-                              <select
-                                value={rec.participationRating || ''}
-                                onChange={(e) =>
-                                  handleUpdateGradeRecord(std.id, {
-                                    participationRating: e.target.value as any,
-                                  })
-                                }
-                                className="w-full text-center py-1 px-1.5 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-500 cursor-pointer"
-                              >
-                                <option value="">غير مقوّم</option>
-                                <option value="ممتاز">ممتاز (2.0)</option>
-                                <option value="جيد">جيد (1.7)</option>
-                                <option value="متوسط">متوسط (1.3)</option>
-                                <option value="ضعيف">ضعيف (0.8)</option>
-                              </select>
-                              <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-                                {rec.participationScore ?? '—'} / {weights.participationWeight}
-                              </span>
-                            </td>
-
-                            {/* Competency Mastery Selector & Score */}
-                            <td className="p-2 text-center bg-blue-50/20">
-                              <select
-                                value={rec.competencyRating || ''}
-                                onChange={(e) =>
-                                  handleUpdateGradeRecord(std.id, {
-                                    competencyRating: e.target.value as any,
-                                  })
-                                }
-                                className="w-full text-center py-1 px-1.5 text-xs font-bold bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-500 cursor-pointer"
-                              >
-                                <option value="">غير مقوّم</option>
-                                <option value="تمكن ممتاز">تمكن ممتاز (5.0)</option>
-                                <option value="تمكن جيد">تمكن جيد (4.25)</option>
-                                <option value="تمكن متوسط">تمكن متوسط (3.25)</option>
-                                <option value="تمكن جزئي">تمكن جزئي (2.25)</option>
-                              </select>
-                              <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-                                {rec.competencyScore ?? '—'} / {weights.competencyWeight}
-                              </span>
-                            </td>
-
-                            {/* Suggested Grade (System Calculation) */}
-                            <td className="p-3 text-center bg-indigo-50/40 border-x border-indigo-100 font-mono font-black text-indigo-900 text-sm">
-                              <div className="flex items-center justify-center gap-1">
-                                <Sparkles className="w-3 h-3 text-indigo-600 fill-indigo-600" />
-                                <span>{rec.suggestedMark ?? 'غير مقوّم'}</span>
-                              </div>
-                            </td>
-
-                            {/* Final Mark Input (Teacher Direct Authority) */}
-                            <td className="p-2 text-center bg-emerald-50/30">
-                              <input
-                                type="number"
-                                min="0"
-                                max="10"
-                                step="0.25"
-                                value={rec.finalMark ?? ''}
-                                onChange={(e) => {
-                                  const val = parseFloat(e.target.value);
-                                  if (!isNaN(val)) {
-                                    handleUpdateGradeRecord(std.id, {
-                                      finalMark: Math.min(10, Math.max(0, val)),
-                                    });
-                                  }
-                                }}
-                                className={`w-16 text-center py-1 font-mono font-black text-xs rounded-xl border outline-none ${
-                                  isModified
-                                    ? 'bg-amber-100 border-amber-400 text-amber-950 font-extrabold ring-2 ring-amber-300'
-                                    : 'bg-white border-slate-300 text-slate-900 focus:ring-2 focus:ring-emerald-500'
+                            <td className="p-3 text-center">
+                              <span
+                                className={`px-3 py-1 rounded-xl text-xs font-black ${
+                                  status === 'حاضر'
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                    : status === 'غائب'
+                                      ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                      : status === 'غائب بمبرر'
+                                        ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                        : 'bg-purple-100 text-purple-800 border border-purple-200'
                                 }`}
-                              />
+                              >
+                                {status}
+                              </span>
                             </td>
-
-                            {/* Reason for Modification */}
-                            <td className="p-2">
-                              <input
-                                type="text"
-                                value={rec.adjustmentReason || ''}
-                                placeholder={isModified ? 'سبب التعديل...' : 'اختياري...'}
-                                onChange={(e) =>
-                                  handleUpdateGradeRecord(std.id, {}, e.target.value)
-                                }
-                                className={`w-full px-2.5 py-1 text-xs rounded-xl border outline-none ${
-                                  isModified && !rec.adjustmentReason
-                                    ? 'bg-amber-50 border-amber-300 text-amber-900'
-                                    : 'bg-white border-slate-200 text-slate-700 focus:border-blue-500'
-                                }`}
-                              />
-                            </td>
-
-                            {/* Approval Toggle & Audit Log Button */}
-                            <td className="p-2 text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  onClick={() =>
-                                    handleUpdateGradeRecord(std.id, {
-                                      isApprovedByTeacher: !rec.isApprovedByTeacher,
-                                    })
-                                  }
-                                  className={`px-2 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                                    rec.isApprovedByTeacher
-                                      ? 'bg-emerald-600 text-white shadow-xs'
-                                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                                  }`}
-                                >
-                                  {rec.isApprovedByTeacher ? (
-                                    <>
-                                      <Check className="w-3 h-3" />
-                                      <span>معتمدة</span>
-                                    </>
-                                  ) : (
-                                    <span>اعتماد</span>
-                                  )}
-                                </button>
-
-                                <button
-                                  onClick={() => {
-                                    setSelectedAuditStudentId(std.id);
-                                    setShowAuditModal(true);
-                                  }}
-                                  className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                                  title="عرض سجل تعديلات التلميذ"
-                                >
-                                  <History className="w-3.5 h-3.5" />
-                                </button>
+                            <td className="p-3 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                {(['حاضر', 'غائب', 'غائب بمبرر', 'معفى'] as const).map((st) => (
+                                  <button
+                                    key={st}
+                                    onClick={() =>
+                                      setCurrentAttendanceStatus((prev) => ({
+                                        ...prev,
+                                        [std.id]: st,
+                                      }))
+                                    }
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                                      status === st
+                                        ? 'bg-slate-900 text-white shadow-xs'
+                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                    }`}
+                                  >
+                                    {st}
+                                  </button>
+                                ))}
                               </div>
                             </td>
-
-                            {/* Delete Student Action */}
                             <td className="p-2 text-center">
                               <button
                                 onClick={() =>
@@ -1318,402 +1483,298 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                           </tr>
                         );
                       })
-                  )}
-                </tbody>
-              </table>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* ========================================================================= */}
-      {/* REGISTER TAB 2: ATTENDANCE REGISTER (دفتر الغياب والمواظبة) */}
-      {/* ========================================================================= */}
-      {activeRegister === 'attendance' && (
-        <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div>
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <span>دفتر تسجيل الحضور والغياب للتربية البدنية</span>
-                <span className="text-xs bg-blue-50 text-blue-700 font-bold px-2.5 py-0.5 rounded-lg border border-blue-100">
-                  {activeClass.name}
-                </span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                سجل المتابعة اليومية والانضباط للحصص الرياضية مع تسجيل الأسباب والشهادات الطبية
-              </p>
-            </div>
+          {/* ========================================================================= */}
+          {/* REGISTER TAB 3: MEDICAL EXEMPTIONS (دفتر المعفيين طبياً) */}
+          {/* ========================================================================= */}
+          {activeRegister === 'exempted' && (
+            <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                    <ShieldAlert className="w-5 h-5 text-rose-600" />
+                    <span>دفتر التلاميذ المعفيين طبياً من المجهود البدني</span>
+                    <span className="text-xs bg-rose-50 text-rose-700 font-bold px-2.5 py-0.5 rounded-lg border border-rose-100">
+                      {activeClass.name}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    سجل حصر الشهادات الطبية والإعفاءات ومتابعة أدوارهم البديلة (تحكيم، تنظيم،
+                    ملاحظة)
+                  </p>
+                </div>
 
-            <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
-              <Calendar className="w-4 h-4 text-slate-500" />
-              <input
-                type="date"
-                value={selectedAttendanceDate}
-                onChange={(e) => setSelectedAttendanceDate(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-900 outline-none cursor-pointer"
-              />
-            </div>
-          </div>
+                <button
+                  onClick={() => setShowAddExemptionModal(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-rose-500/20 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>تسجيل شهادة إعفاء طبية</span>
+                </button>
+              </div>
 
-          <div className="overflow-x-auto rounded-2xl border border-slate-200">
-            <table className="w-full text-right text-xs">
-              <thead>
-                <tr className="bg-slate-900 text-white font-bold">
-                  <th className="p-3 w-10 text-center">#</th>
-                  <th className="p-3">اسم ولقب التلميذ</th>
-                  <th className="p-3 text-center">الحالة اليومية</th>
-                  <th className="p-3 text-center">تأكيد الحضور والغياب</th>
-                  <th className="p-3 text-center w-12">حذف</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {classStudents.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-400">
-                      لا يوجد تلاميذ مسجلين في هذا القسم.
-                    </td>
-                  </tr>
-                ) : (
-                  classStudents.map((std, idx) => {
-                    const status = currentAttendanceStatus[std.id] || 'حاضر';
-
-                    return (
-                      <tr key={std.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                        <td className="p-3 font-extrabold text-slate-900">
-                          {std.firstName} {std.lastName}
+              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full text-right text-xs">
+                  <thead>
+                    <tr className="bg-slate-900 text-white font-bold">
+                      <th className="p-3 w-10 text-center">#</th>
+                      <th className="p-3">اسم ولقب التلميذ المعفى</th>
+                      <th className="p-3">رقم الشهادة والجهة الطبية</th>
+                      <th className="p-3">سبب الإعفاء الطبي</th>
+                      <th className="p-3 text-center">الفترة المحددة</th>
+                      <th className="p-3">الدور المسند أثناء الحصة</th>
+                      <th className="p-3 text-center w-12">حذف</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {exemptionsList.filter((ex) => ex.classId === activeClass.id).length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-slate-400 font-medium">
+                          لا توجد شهادات إعفاء طبية مسجلة لهذا القسم حتى الآن.
                         </td>
-                        <td className="p-3 text-center">
-                          <span
-                            className={`px-3 py-1 rounded-xl text-xs font-black ${
-                              status === 'حاضر'
-                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                : status === 'غائب'
-                                  ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                                  : status === 'غائب بمبرر'
-                                    ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                                    : 'bg-purple-100 text-purple-800 border border-purple-200'
-                            }`}
-                          >
-                            {status}
-                          </span>
-                        </td>
-                        <td className="p-3 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            {(['حاضر', 'غائب', 'غائب بمبرر', 'معفى'] as const).map((st) => (
+                      </tr>
+                    ) : (
+                      exemptionsList
+                        .filter((ex) => ex.classId === activeClass.id)
+                        .map((ex, idx) => (
+                          <tr key={ex.id} className="hover:bg-rose-50/20 transition-colors">
+                            <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
+                            <td className="p-3 font-extrabold text-slate-900">{ex.studentName}</td>
+                            <td className="p-3 text-slate-600">
+                              <div>
+                                <strong className="text-slate-800">{ex.certificateNumber}</strong>
+                              </div>
+                              <div className="text-[10px] text-slate-400">{ex.medicalFacility}</div>
+                            </td>
+                            <td className="p-3 text-rose-700 font-bold">{ex.exemptionReason}</td>
+                            <td className="p-3 text-center">
+                              <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2.5 py-1 rounded-full">
+                                {ex.period}
+                              </span>
+                            </td>
+                            <td className="p-3 text-slate-700 font-semibold">
+                              {ex.roleInSession || 'تحكيم وملاحظة حركية'}
+                            </td>
+                            <td className="p-2 text-center">
                               <button
-                                key={st}
                                 onClick={() =>
-                                  setCurrentAttendanceStatus((prev) => ({ ...prev, [std.id]: st }))
+                                  setExemptionsList((prev) => prev.filter((e) => e.id !== ex.id))
                                 }
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                                  status === st
-                                    ? 'bg-slate-900 text-white shadow-xs'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="حذف الإعفاء"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* REGISTER TAB 4: EDUCATIONAL CLUBS (دفتر البلديات التربوية والنوادي) */}
+          {/* ========================================================================= */}
+          {activeRegister === 'clubs' && (
+            <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                    <Flag className="w-5 h-5 text-emerald-600" />
+                    <span>دفتر البلديات التربوية والنوادي الرياضية للقسم</span>
+                    <span className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2.5 py-0.5 rounded-lg border border-emerald-100">
+                      {activeClass.name}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    توزيع تلاميذ هذا القسم تلقائياً إلى ناديين (نادي أ ونادي ب) ومتابعة الروح
+                    المنافسة الشريفة
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleAutoBalanceClubs}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
+                >
+                  <Shuffle className="w-4 h-4 text-emerald-200" />
+                  <span>إعادة موازنة الناديين تلقائياً (ذكور وإناث)</span>
+                </button>
+              </div>
+
+              {/* Editable Club Names & Slogans for Current Class */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Club A Info */}
+                <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/50 p-4 rounded-2xl border border-blue-200/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+                      <h4 className="text-xs font-black text-blue-900">النادي الأول (نادي أ)</h4>
+                    </div>
+                    <span className="text-[10px] bg-blue-200/60 text-blue-900 font-extrabold px-2 py-0.5 rounded-full">
+                      {
+                        classStudents.filter(
+                          (s) => (clubAssignments[s.id] || 'club_a') === 'club_a'
+                        ).length
+                      }{' '}
+                      أعضاء
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                        اسم النادي:
+                      </label>
+                      <input
+                        type="text"
+                        value={currentClubs.aName}
+                        onChange={(e) => updateActiveClubDetails('aName', e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs font-bold bg-white rounded-xl border border-blue-200 text-blue-900 outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                        شعار النادي:
+                      </label>
+                      <input
+                        type="text"
+                        value={currentClubs.aSlogan}
+                        onChange={(e) => updateActiveClubDetails('aSlogan', e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs text-slate-600 bg-white/80 rounded-xl border border-blue-200 outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Club B Info */}
+                <div className="bg-gradient-to-br from-purple-50/70 to-pink-50/50 p-4 rounded-2xl border border-purple-200/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-purple-600"></div>
+                      <h4 className="text-xs font-black text-purple-900">النادي الثاني (نادي ب)</h4>
+                    </div>
+                    <span className="text-[10px] bg-purple-200/60 text-purple-900 font-extrabold px-2 py-0.5 rounded-full">
+                      {classStudents.filter((s) => clubAssignments[s.id] === 'club_b').length} أعضاء
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                        اسم النادي:
+                      </label>
+                      <input
+                        type="text"
+                        value={currentClubs.bName}
+                        onChange={(e) => updateActiveClubDetails('bName', e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs font-bold bg-white rounded-xl border border-purple-200 text-purple-900 outline-none focus:border-purple-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                        شعار النادي:
+                      </label>
+                      <input
+                        type="text"
+                        value={currentClubs.bSlogan}
+                        onChange={(e) => updateActiveClubDetails('bSlogan', e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs text-slate-600 bg-white/80 rounded-xl border border-purple-200 outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table of Students & Club Assignments */}
+              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full text-right text-xs">
+                  <thead>
+                    <tr className="bg-slate-900 text-white font-bold">
+                      <th className="p-3 w-10 text-center">#</th>
+                      <th className="p-3">اسم ولقب التلميذ</th>
+                      <th className="p-3 text-center">الجنس</th>
+                      <th className="p-3 text-center">النادي الانتماء</th>
+                      <th className="p-3 text-center">تغيير الانتماء</th>
+                      <th className="p-3 text-center w-12">حذف</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {classStudents.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-slate-400">
+                          لا يوجد تلاميذ في هذا القسم.
+                        </td>
+                      </tr>
+                    ) : (
+                      classStudents.map((std, idx) => {
+                        const assignedClub =
+                          clubAssignments[std.id] || (idx % 2 === 0 ? 'club_a' : 'club_b');
+
+                        return (
+                          <tr key={std.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
+                            <td className="p-3 font-extrabold text-slate-900">
+                              {std.firstName} {std.lastName}
+                            </td>
+                            <td className="p-3 text-center">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${std.gender === 'ذكر' ? 'bg-blue-50 text-blue-700' : 'bg-pink-50 text-pink-700'}`}
+                              >
+                                {std.gender}
+                              </span>
+                            </td>
+                            <td className="p-3 text-center">
+                              <span
+                                className={`px-3 py-1 rounded-xl text-xs font-black ${
+                                  assignedClub === 'club_a'
+                                    ? 'bg-blue-100 text-blue-900 border border-blue-200'
+                                    : 'bg-purple-100 text-purple-900 border border-purple-200'
                                 }`}
                               >
-                                {st}
+                                {assignedClub === 'club_a'
+                                  ? currentClubs.aName
+                                  : currentClubs.bName}
+                              </span>
+                            </td>
+                            <td className="p-3 text-center">
+                              <button
+                                onClick={() => toggleStudentClub(std.id)}
+                                className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                              >
+                                تبديل النادي 🔁
                               </button>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="p-2 text-center">
-                          <button
-                            onClick={() =>
-                              handleConfirmDeleteStudent(std.id, `${std.firstName} ${std.lastName}`)
-                            }
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="حذف التلميذ"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* REGISTER TAB 3: MEDICAL EXEMPTIONS (دفتر المعفيين طبياً) */}
-      {/* ========================================================================= */}
-      {activeRegister === 'exempted' && (
-        <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div>
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <ShieldAlert className="w-5 h-5 text-rose-600" />
-                <span>دفتر التلاميذ المعفيين طبياً من المجهود البدني</span>
-                <span className="text-xs bg-rose-50 text-rose-700 font-bold px-2.5 py-0.5 rounded-lg border border-rose-100">
-                  {activeClass.name}
-                </span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                سجل حصر الشهادات الطبية والإعفاءات ومتابعة أدوارهم البديلة (تحكيم، تنظيم، ملاحظة)
-              </p>
-            </div>
-
-            <button
-              onClick={() => setShowAddExemptionModal(true)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-rose-500/20 transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>تسجيل شهادة إعفاء طبية</span>
-            </button>
-          </div>
-
-          <div className="overflow-x-auto rounded-2xl border border-slate-200">
-            <table className="w-full text-right text-xs">
-              <thead>
-                <tr className="bg-slate-900 text-white font-bold">
-                  <th className="p-3 w-10 text-center">#</th>
-                  <th className="p-3">اسم ولقب التلميذ المعفى</th>
-                  <th className="p-3">رقم الشهادة والجهة الطبية</th>
-                  <th className="p-3">سبب الإعفاء الطبي</th>
-                  <th className="p-3 text-center">الفترة المحددة</th>
-                  <th className="p-3">الدور المسند أثناء الحصة</th>
-                  <th className="p-3 text-center w-12">حذف</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {exemptionsList.filter((ex) => ex.classId === activeClass.id).length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="p-8 text-center text-slate-400 font-medium">
-                      لا توجد شهادات إعفاء طبية مسجلة لهذا القسم حتى الآن.
-                    </td>
-                  </tr>
-                ) : (
-                  exemptionsList
-                    .filter((ex) => ex.classId === activeClass.id)
-                    .map((ex, idx) => (
-                      <tr key={ex.id} className="hover:bg-rose-50/20 transition-colors">
-                        <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                        <td className="p-3 font-extrabold text-slate-900">{ex.studentName}</td>
-                        <td className="p-3 text-slate-600">
-                          <div>
-                            <strong className="text-slate-800">{ex.certificateNumber}</strong>
-                          </div>
-                          <div className="text-[10px] text-slate-400">{ex.medicalFacility}</div>
-                        </td>
-                        <td className="p-3 text-rose-700 font-bold">{ex.exemptionReason}</td>
-                        <td className="p-3 text-center">
-                          <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2.5 py-1 rounded-full">
-                            {ex.period}
-                          </span>
-                        </td>
-                        <td className="p-3 text-slate-700 font-semibold">
-                          {ex.roleInSession || 'تحكيم وملاحظة حركية'}
-                        </td>
-                        <td className="p-2 text-center">
-                          <button
-                            onClick={() =>
-                              setExemptionsList((prev) => prev.filter((e) => e.id !== ex.id))
-                            }
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="حذف الإعفاء"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* REGISTER TAB 4: EDUCATIONAL CLUBS (دفتر البلديات التربوية والنوادي) */}
-      {/* ========================================================================= */}
-      {activeRegister === 'clubs' && (
-        <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div>
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <Flag className="w-5 h-5 text-emerald-600" />
-                <span>دفتر البلديات التربوية والنوادي الرياضية للقسم</span>
-                <span className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2.5 py-0.5 rounded-lg border border-emerald-100">
-                  {activeClass.name}
-                </span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                توزيع تلاميذ هذا القسم تلقائياً إلى ناديين (نادي أ ونادي ب) ومتابعة الروح المنافسة
-                الشريفة
-              </p>
-            </div>
-
-            <button
-              onClick={handleAutoBalanceClubs}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
-            >
-              <Shuffle className="w-4 h-4 text-emerald-200" />
-              <span>إعادة موازنة الناديين تلقائياً (ذكور وإناث)</span>
-            </button>
-          </div>
-
-          {/* Editable Club Names & Slogans for Current Class */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Club A Info */}
-            <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/50 p-4 rounded-2xl border border-blue-200/80 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-blue-600"></div>
-                  <h4 className="text-xs font-black text-blue-900">النادي الأول (نادي أ)</h4>
-                </div>
-                <span className="text-[10px] bg-blue-200/60 text-blue-900 font-extrabold px-2 py-0.5 rounded-full">
-                  {
-                    classStudents.filter((s) => (clubAssignments[s.id] || 'club_a') === 'club_a')
-                      .length
-                  }{' '}
-                  أعضاء
-                </span>
-              </div>
-              <div className="space-y-2">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
-                    اسم النادي:
-                  </label>
-                  <input
-                    type="text"
-                    value={currentClubs.aName}
-                    onChange={(e) => updateActiveClubDetails('aName', e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs font-bold bg-white rounded-xl border border-blue-200 text-blue-900 outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
-                    شعار النادي:
-                  </label>
-                  <input
-                    type="text"
-                    value={currentClubs.aSlogan}
-                    onChange={(e) => updateActiveClubDetails('aSlogan', e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs text-slate-600 bg-white/80 rounded-xl border border-blue-200 outline-none focus:border-blue-500"
-                  />
-                </div>
+                            </td>
+                            <td className="p-2 text-center">
+                              <button
+                                onClick={() =>
+                                  handleConfirmDeleteStudent(
+                                    std.id,
+                                    `${std.firstName} ${std.lastName}`
+                                  )
+                                }
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="حذف التلميذ"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
-
-            {/* Club B Info */}
-            <div className="bg-gradient-to-br from-purple-50/70 to-pink-50/50 p-4 rounded-2xl border border-purple-200/80 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-purple-600"></div>
-                  <h4 className="text-xs font-black text-purple-900">النادي الثاني (نادي ب)</h4>
-                </div>
-                <span className="text-[10px] bg-purple-200/60 text-purple-900 font-extrabold px-2 py-0.5 rounded-full">
-                  {classStudents.filter((s) => clubAssignments[s.id] === 'club_b').length} أعضاء
-                </span>
-              </div>
-              <div className="space-y-2">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
-                    اسم النادي:
-                  </label>
-                  <input
-                    type="text"
-                    value={currentClubs.bName}
-                    onChange={(e) => updateActiveClubDetails('bName', e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs font-bold bg-white rounded-xl border border-purple-200 text-purple-900 outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
-                    شعار النادي:
-                  </label>
-                  <input
-                    type="text"
-                    value={currentClubs.bSlogan}
-                    onChange={(e) => updateActiveClubDetails('bSlogan', e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs text-slate-600 bg-white/80 rounded-xl border border-purple-200 outline-none focus:border-purple-500"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Table of Students & Club Assignments */}
-          <div className="overflow-x-auto rounded-2xl border border-slate-200">
-            <table className="w-full text-right text-xs">
-              <thead>
-                <tr className="bg-slate-900 text-white font-bold">
-                  <th className="p-3 w-10 text-center">#</th>
-                  <th className="p-3">اسم ولقب التلميذ</th>
-                  <th className="p-3 text-center">الجنس</th>
-                  <th className="p-3 text-center">النادي الانتماء</th>
-                  <th className="p-3 text-center">تغيير الانتماء</th>
-                  <th className="p-3 text-center w-12">حذف</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {classStudents.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-8 text-center text-slate-400">
-                      لا يوجد تلاميذ في هذا القسم.
-                    </td>
-                  </tr>
-                ) : (
-                  classStudents.map((std, idx) => {
-                    const assignedClub =
-                      clubAssignments[std.id] || (idx % 2 === 0 ? 'club_a' : 'club_b');
-
-                    return (
-                      <tr key={std.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                        <td className="p-3 font-extrabold text-slate-900">
-                          {std.firstName} {std.lastName}
-                        </td>
-                        <td className="p-3 text-center">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${std.gender === 'ذكر' ? 'bg-blue-50 text-blue-700' : 'bg-pink-50 text-pink-700'}`}
-                          >
-                            {std.gender}
-                          </span>
-                        </td>
-                        <td className="p-3 text-center">
-                          <span
-                            className={`px-3 py-1 rounded-xl text-xs font-black ${
-                              assignedClub === 'club_a'
-                                ? 'bg-blue-100 text-blue-900 border border-blue-200'
-                                : 'bg-purple-100 text-purple-900 border border-purple-200'
-                            }`}
-                          >
-                            {assignedClub === 'club_a' ? currentClubs.aName : currentClubs.bName}
-                          </span>
-                        </td>
-                        <td className="p-3 text-center">
-                          <button
-                            onClick={() => toggleStudentClub(std.id)}
-                            className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
-                          >
-                            تبديل النادي 🔁
-                          </button>
-                        </td>
-                        <td className="p-2 text-center">
-                          <button
-                            onClick={() =>
-                              handleConfirmDeleteStudent(std.id, `${std.firstName} ${std.lastName}`)
-                            }
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="حذف التلميذ"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          )}
+        </>
       )}
 
       {/* ========================================================================= */}

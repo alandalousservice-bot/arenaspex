@@ -47,6 +47,8 @@ interface AssessmentNotebookViewProps {
   currentUser: User;
   teacherClasses: ClassRoom[];
   students: Student[];
+  selectedClassId?: string;
+  onSelectedClassIdChange?: (classId: string) => void;
 }
 
 type NotebookSection = 'competency' | 'marks' | 'attendance' | 'exemptions' | 'results' | 'reports';
@@ -95,6 +97,8 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
   currentUser,
   teacherClasses,
   students,
+  selectedClassId: controlledClassId,
+  onSelectedClassIdChange,
 }) => {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const ownedClasses = useMemo(
@@ -107,7 +111,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
     (params.get('section') as NotebookSection) || 'competency'
   );
   const [selectedClassId, setSelectedClassId] = useState(
-    params.get('classId') || ownedClasses[0]?.id || ''
+    controlledClassId || params.get('classId') || ownedClasses[0]?.id || ''
   );
   const [academicYearId, setAcademicYearId] = useState(
     yearOptions.includes(params.get('academicYearId') || '')
@@ -161,6 +165,17 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
     [results]
   );
   const selectedStudent = classStudents.find((student) => student.id === selectedStudentId) || null;
+
+  useEffect(() => {
+    if (controlledClassId !== undefined && controlledClassId !== selectedClassId) {
+      setSelectedClassId(controlledClassId);
+    }
+  }, [controlledClassId, selectedClassId]);
+
+  const handleClassChange = (classId: string) => {
+    setSelectedClassId(classId);
+    onSelectedClassIdChange?.(classId);
+  };
   const plannedReference = useMemo(
     () =>
       activeClass && plannedSession
@@ -606,7 +621,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
               القسم
               <select
                 value={selectedClassId}
-                onChange={(event) => setSelectedClassId(event.target.value)}
+                onChange={(event) => handleClassChange(event.target.value)}
                 className="mr-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
               >
                 <option value="">اختر قسماً</option>

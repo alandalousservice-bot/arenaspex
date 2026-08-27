@@ -34,7 +34,7 @@ const TILES: QuickAccessTile[] = [
     subtitle: 'مكتبة شاملة للأهداف والألعاب الرياضية',
   },
   {
-    tab: 'assessment_notebook',
+    tab: 'gradebook',
     icon: <Target className="w-4 h-4" />,
     iconWrapperClassName: 'bg-teal-100 text-teal-700',
     title: 'دفتر التقويم',

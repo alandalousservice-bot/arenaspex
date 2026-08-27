@@ -64,11 +64,6 @@ const KnowledgeEngineView = lazy(() =>
     default: m.KnowledgeEngineView,
   }))
 );
-const AssessmentNotebookView = lazy(() =>
-  import('./components/assessment/AssessmentNotebookView').then((m) => ({
-    default: m.AssessmentNotebookView,
-  }))
-);
 const CompetencyAssessmentView = lazy(() =>
   import('./components/assessment/CompetencyAssessmentView').then((m) => ({
     default: m.CompetencyAssessmentView,
@@ -236,6 +231,12 @@ export default function App() {
   // → يُصحَّح تلقائياً إلى الرابط المناسب (replace حتى لا يُلوَّث السجل)
   useEffect(() => {
     if (!isAuthenticated) return;
+    if (location.pathname === '/assessment-notebook') {
+      const params = new URLSearchParams(location.search);
+      params.set('workspace', 'assessment');
+      navigate('/gradebook?' + params.toString(), { replace: true });
+      return;
+    }
     const legacyPlanningSection = planningSectionForPath(location.pathname);
     if (legacyPlanningSection) {
       navigate('/planning?section=' + legacyPlanningSection, { replace: true });
@@ -457,7 +458,7 @@ export default function App() {
                 onOpenAssessment={() => {
                   if (!activeLessonSession?.classPlannedSessionId) return;
                   navigate(
-                    '/assessment-notebook?classId=' +
+                    '/gradebook?workspace=assessment&classId=' +
                       encodeURIComponent(activeLessonSession.classId) +
                       '&academicYearId=' +
                       encodeURIComponent(activeLessonSession.academicYearId || '') +
@@ -468,7 +469,7 @@ export default function App() {
                 onOpenAttendance={() => {
                   if (!activeLessonSession?.classPlannedSessionId) return;
                   navigate(
-                    '/assessment-notebook?section=attendance&classId=' +
+                    '/gradebook?workspace=assessment&section=attendance&classId=' +
                       encodeURIComponent(activeLessonSession.classId) +
                       '&academicYearId=' +
                       encodeURIComponent(activeLessonSession.academicYearId || '') +
@@ -490,14 +491,6 @@ export default function App() {
                 onRejectKnowledgeItem={handleRejectKnowledgeItem}
                 currentUser={currentUser}
                 communityResources={communityResources}
-              />
-            )}
-
-            {activeTab === 'assessment_notebook' && (
-              <AssessmentNotebookView
-                currentUser={currentUser}
-                teacherClasses={teacherClasses}
-                students={allStudents}
               />
             )}
 

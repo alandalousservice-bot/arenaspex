@@ -42,7 +42,6 @@ export type NavTab =
   | 'knowledge_engine'
   | 'competency_assessment'
   | 'gradebook'
-  | 'assessment_notebook'
   | 'professional_hub'
   | 'inspector_portal'
   | 'inspector_teachers'
@@ -127,7 +126,6 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
               icon: Target,
             },
             { id: 'gradebook' as NavTab, label: 'دفتر التنقيط والأقسام', icon: GraduationCap },
-            { id: 'assessment_notebook' as NavTab, label: 'دفتر التقويم', icon: Target },
           ],
         };
       }
@@ -477,9 +475,9 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
               </button>
 
               <button
-                onClick={() => handleItemClick('assessment_notebook')}
+                onClick={() => handleItemClick('gradebook')}
                 className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl min-w-[56px] min-h-[44px] justify-center transition-all ${
-                  currentTab === 'assessment_notebook'
+                  currentTab === 'gradebook'
                     ? 'text-blue-600 font-black'
                     : 'text-slate-500 font-medium'
                 }`}

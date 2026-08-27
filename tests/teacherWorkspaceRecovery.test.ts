@@ -11,7 +11,7 @@ describe('Teacher workspace recovery route inventory', () => {
     '/knowledge-engine': 'knowledge_engine',
     '/assessment': 'competency_assessment',
     '/gradebook': 'gradebook',
-    '/assessment-notebook': 'assessment_notebook',
+    '/assessment-notebook': 'gradebook',
     '/community': 'professional_hub',
     '/reports': 'reports',
     '/settings': 'settings',
