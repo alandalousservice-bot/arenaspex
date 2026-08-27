@@ -11,7 +11,7 @@ import {
   WidthType,
 } from 'docx';
 import { LessonPlan } from '../types/spex';
-import { getUnifiedLessonRows } from './lessonPlan.generator.service';
+import { getLessonMemoDisplayRows, getUnifiedLessonRows } from './lessonPlan.generator.service';
 
 const rtl = (text: string, bold = false) =>
   new Paragraph({
@@ -28,15 +28,15 @@ const cell = (text: string, bold = false) =>
 
 /** يحافظ على وظيفة التصدير الموجودة، لكن يصدر القالب الموحد فقط. */
 export function buildLessonPlanDocx(plan: LessonPlan): Document {
-  const rows = getUnifiedLessonRows(plan);
+  const rows = getLessonMemoDisplayRows(getUnifiedLessonRows(plan));
   const metadata: [string, string][] = [
     ['المؤسسة', plan.institutionName],
     ['المستوى', plan.levelName],
     ['الكفاءة الختامية', plan.competencyTitle],
     ['الميدان', plan.fieldName],
-    ['الهدف التعليمي', plan.sessionTitle],
+    ['الهدف التعلمي', plan.sessionTitle],
     ['الأستاذ', plan.teacherName],
-    ['المدة', `${plan.durationMinutes} دقيقة`],
+    ['المدة الإجمالية', `${plan.durationMinutes} دقيقة`],
     ['رقم الحصة', String(plan.sessionGlobalNumber || '—')],
     ['الوسائل', plan.equipmentNeeded.join('، ')],
   ];
@@ -50,7 +50,7 @@ export function buildLessonPlanDocx(plan: LessonPlan): Document {
     width: { size: 100, type: WidthType.PERCENTAGE },
     rows: [
       new TableRow({
-        children: ['المراحل', 'محتوى التعلم', 'محتوى الإنجاز', 'الوقت', 'التوجيهات'].map((value) =>
+        children: ['المراحل', 'محتوى التعلم والإنجاز', 'الوقت', 'التوجيهات'].map((value) =>
           cell(value, true)
         ),
       }),
@@ -58,11 +58,10 @@ export function buildLessonPlanDocx(plan: LessonPlan): Document {
         (row) =>
           new TableRow({
             children: [
-              cell(row.phase, true),
-              cell(row.learningContent),
-              cell(row.executionContent),
-              cell(`${row.durationMinutes} د`),
-              cell(row.guidance),
+              cell(row.phaseLabel, true),
+              cell(row.content),
+              cell(`${row.source.durationMinutes} د`),
+              cell(row.source.guidance),
             ],
           })
       ),
@@ -93,20 +92,20 @@ const escapeHtml = (text: string) =>
 export function exportLessonPlanToPdf(plan: LessonPlan): void {
   const printWindow = window.open('', '_blank', 'width=1100,height=800');
   if (!printWindow) return;
-  const rows = getUnifiedLessonRows(plan);
+  const rows = getLessonMemoDisplayRows(getUnifiedLessonRows(plan));
   const metadata = [
     ['المؤسسة', plan.institutionName],
     ['المستوى', plan.levelName],
     ['الكفاءة الختامية', plan.competencyTitle],
     ['الميدان', plan.fieldName],
-    ['الهدف التعليمي', plan.sessionTitle],
+    ['الهدف التعلمي', plan.sessionTitle],
     ['الأستاذ', plan.teacherName],
-    ['المدة', `${plan.durationMinutes} دقيقة`],
+    ['المدة الإجمالية', `${plan.durationMinutes} دقيقة`],
     ['رقم الحصة', String(plan.sessionGlobalNumber || '—')],
     ['الوسائل', plan.equipmentNeeded.join('، ')],
   ];
   printWindow.document.write(
-    `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>مذكرة الحصة</title><style>@page{size:A4 landscape;margin:10mm}body{font-family:Tahoma,Arial,sans-serif;color:#111}h1{text-align:center;font-size:18px}table{width:100%;border-collapse:collapse;margin:10px 0;font-size:11px}th,td{border:1px solid #444;padding:7px;vertical-align:top}th{background:#e2e8f0}.meta th{width:14%;background:#f1f5f9}</style></head><body><h1>مذكرة الحصة</h1><table class="meta">${metadata.map(([l, v]) => `<tr><th>${escapeHtml(l)}</th><td>${escapeHtml(v)}</td></tr>`).join('')}</table><table><thead><tr><th>المراحل</th><th>محتوى التعلم</th><th>محتوى الإنجاز</th><th>الوقت</th><th>التوجيهات</th></tr></thead><tbody>${rows.map((r) => `<tr><th>${escapeHtml(r.phase)}</th><td>${escapeHtml(r.learningContent)}</td><td>${escapeHtml(r.executionContent)}</td><td>${r.durationMinutes} د</td><td>${escapeHtml(r.guidance)}</td></tr>`).join('')}</tbody></table></body></html>`
+    `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>مذكرة الحصة</title><style>@page{size:A4 landscape;margin:10mm}body{font-family:Tahoma,Arial,sans-serif;color:#111}h1{text-align:center;font-size:18px}table{width:100%;border-collapse:collapse;margin:10px 0;font-size:11px}th,td{border:1px solid #444;padding:7px;vertical-align:top}th{background:#e2e8f0}.meta th{width:14%;background:#f1f5f9}</style></head><body><h1>مذكرة الحصة</h1><table class="meta">${metadata.map(([l, v]) => `<tr><th>${escapeHtml(l)}</th><td>${escapeHtml(v)}</td></tr>`).join('')}</table><table><thead><tr><th>المراحل</th><th>محتوى التعلم والإنجاز</th><th>الوقت</th><th>التوجيهات</th></tr></thead><tbody>${rows.map((r) => `<tr><th>${escapeHtml(r.phaseLabel)}</th><td>${escapeHtml(r.content)}</td><td>${r.source.durationMinutes} د</td><td>${escapeHtml(r.source.guidance)}</td></tr>`).join('')}</tbody></table></body></html>`
   );
   printWindow.document.close();
   printWindow.focus();

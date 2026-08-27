@@ -8,6 +8,7 @@ import {
 } from '../../data/algerianCurriculum';
 import {
   autoGenerateLessonPlan,
+  getLessonMemoDisplayRows,
   getUnifiedLessonRows,
   rebalanceLessonRows,
 } from '../../services/lessonPlan.generator.service';
@@ -448,6 +449,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     );
   }
   const rows = editing ? draft?.lessonRows || [] : getUnifiedLessonRows(plan);
+  const displayRows = getLessonMemoDisplayRows(rows);
   const setRows = (lessonRows: LessonPlanRow[]) =>
     setDraft((previous) => previous && { ...previous, lessonRows });
   const grade = LEVELS.indexOf(plan.levelName) + 1;
@@ -669,9 +671,9 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             ['المستوى', plan.levelName],
             ['الكفاءة الختامية', plan.competencyTitle],
             ['الميدان', plan.fieldName],
-            ['الهدف التعليمي', plan.sessionTitle],
+            ['الهدف التعلمي', plan.sessionTitle],
             ['الأستاذ', plan.teacherName],
-            ['المدة', `${effectiveDuration} دقيقة`],
+            ['المدة الإجمالية', `${effectiveDuration} دقيقة`],
             ['رقم الحصة', String(plan.sessionGlobalNumber || '—')],
             ['الوسائل', plan.equipmentNeeded.join('، ')],
           ].map(([label, value]) => (
@@ -710,17 +712,25 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             <thead>
               <tr className="bg-slate-800 text-white">
                 <th className="border border-slate-500 p-3">المراحل</th>
-                <th className="border border-slate-500 p-3">محتوى التعلم</th>
-                <th className="border border-slate-500 p-3">محتوى الإنجاز</th>
+                <th className="border border-slate-500 p-3">محتوى التعلم والإنجاز</th>
                 <th className="border border-slate-500 p-3">الوقت</th>
                 <th className="border border-slate-500 p-3">التوجيهات</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row, index) => (
-                <tr key={row.id} className="align-top">
+                <tr
+                  key={row.id}
+                  className={`align-top ${
+                    row.phase === 'المرحلة التحضيرية'
+                      ? 'bg-amber-50/40'
+                      : row.phase === 'المرحلة الختامية'
+                        ? 'bg-emerald-50/40'
+                        : 'bg-white'
+                  }`}
+                >
                   <th className="border border-slate-300 bg-slate-50 p-3 font-bold">
-                    {row.phase}
+                    {displayRows[index].phaseLabel}
                     {editing && row.phase === 'المرحلة الرئيسية' && row.situationSnapshot && (
                       <>
                         <button
@@ -746,34 +756,36 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                   {editing ? (
                     <>
                       <td className="border border-slate-300 p-1">
-                        <textarea
-                          value={row.learningContent}
-                          onChange={(event) =>
-                            setRows(
-                              rows.map((item, i) =>
-                                i === index
-                                  ? editableRow(item, 'learningContent', event.target.value)
-                                  : item
+                        <div className="space-y-2">
+                          <label className="block text-xs font-bold text-slate-500">التعلم</label>
+                          <textarea
+                            value={row.learningContent}
+                            onChange={(event) =>
+                              setRows(
+                                rows.map((item, i) =>
+                                  i === index
+                                    ? editableRow(item, 'learningContent', event.target.value)
+                                    : item
+                                )
                               )
-                            )
-                          }
-                          className="min-h-24 w-full resize-y p-2 outline-none"
-                        />
-                      </td>
-                      <td className="border border-slate-300 p-1">
-                        <textarea
-                          value={row.executionContent}
-                          onChange={(event) =>
-                            setRows(
-                              rows.map((item, i) =>
-                                i === index
-                                  ? editableRow(item, 'executionContent', event.target.value)
-                                  : item
+                            }
+                            className="min-h-24 w-full resize-y p-2 outline-none"
+                          />
+                          <label className="block text-xs font-bold text-slate-500">الإنجاز</label>
+                          <textarea
+                            value={row.executionContent}
+                            onChange={(event) =>
+                              setRows(
+                                rows.map((item, i) =>
+                                  i === index
+                                    ? editableRow(item, 'executionContent', event.target.value)
+                                    : item
+                                )
                               )
-                            )
-                          }
-                          className="min-h-24 w-full resize-y p-2 outline-none"
-                        />
+                            }
+                            className="min-h-24 w-full resize-y p-2 outline-none"
+                          />
+                        </div>
                       </td>
                       <td className="border border-slate-300 p-1">
                         <input
@@ -811,10 +823,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                   ) : (
                     <>
                       <td className="border border-slate-300 p-3 whitespace-pre-line">
-                        {row.learningContent}
-                      </td>
-                      <td className="border border-slate-300 p-3 whitespace-pre-line">
-                        {row.executionContent}
+                        {displayRows[index].content}
                         {row.illustrationUrl && (
                           <img
                             src={row.illustrationUrl}

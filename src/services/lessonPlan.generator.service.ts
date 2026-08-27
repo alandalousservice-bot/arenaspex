@@ -287,3 +287,25 @@ export function getUnifiedLessonRows(plan: LessonPlan): LessonPlanRow[] {
     },
   ];
 }
+
+export interface LessonMemoDisplayRow {
+  source: LessonPlanRow;
+  phaseLabel: string;
+  content: string;
+}
+
+/** Maps persisted rows to the single four-column memo presentation model. */
+export function getLessonMemoDisplayRows(rows: LessonPlanRow[]): LessonMemoDisplayRow[] {
+  let situationNumber = 0;
+  return rows.map((row) => {
+    const phaseLabel =
+      row.phase === 'المرحلة الرئيسية'
+        ? `الموقف ${String(++situationNumber).padStart(2, '0')}`
+        : row.phase;
+    return {
+      source: row,
+      phaseLabel,
+      content: [row.learningContent, row.executionContent].filter(Boolean).join('\n'),
+    };
+  });
+}
