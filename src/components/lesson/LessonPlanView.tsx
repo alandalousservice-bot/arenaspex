@@ -670,8 +670,6 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             ['التاريخ', memoModel.header.date],
             ['الميدان', memoModel.header.field],
             ['الوسائل', memoModel.header.equipment.join('، ')],
-            ['المدة', `${memoModel.header.durationMinutes} دقيقة`],
-            ['الحصة', memoModel.header.sessionNumber],
           ].map(([label, value]) => (
             <div key={label} className="rounded-xl border border-slate-200 bg-white shadow-sm">
               <strong className="block rounded-t-xl bg-slate-50 px-3 py-1.5 text-xs text-slate-700">

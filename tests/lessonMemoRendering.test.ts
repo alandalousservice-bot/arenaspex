@@ -142,6 +142,16 @@ describe('rebuilt lesson memo pipeline', () => {
     const document = generateLessonMemoDocument(plan);
     const html = renderLessonMemoHtml(document);
     expect(html).toContain('مذكرة حصة تعلمية');
+    expect(html).toContain('الحصة 8');
+    expect(html).toContain('60 دقيقة');
+    expect(html).not.toContain('<strong>المدة</strong>');
+    expect(html).not.toContain('<strong>الحصة</strong>');
+    expect(view).not.toContain("['المدة', memoModel.header.durationMinutes");
+    expect(view).not.toContain("['الحصة', memoModel.header.sessionNumber");
+    expect(exportService).not.toContain("['المدة', `${model.header.durationMinutes}");
+    expect(exportService).not.toContain("['الحصة', model.header.sessionNumber");
+    expect(generateLessonMemoDocument(plan).header.durationMinutes).toBe(60);
+    expect(generateLessonMemoDocument(plan).header.sessionNumber).toBe('8');
     expect(html).toContain('الموقف 01');
     expect(html).toContain('المفتش: مفتش فعلي');
     expect(JSON.stringify(buildLessonPlanDocx(plan))).toContain('محتوى الإنجاز');

@@ -90,8 +90,6 @@ export function buildLessonPlanDocx(plan: LessonPlan): Document {
     ['المستوى', model.header.grade],
     ['الميدان', model.header.field],
     ['الوسائل', model.header.equipment.join(' – ')],
-    ['المدة', `${model.header.durationMinutes} دقيقة`],
-    ['الحصة', model.header.sessionNumber],
   ];
   const metaTable = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
@@ -156,8 +154,6 @@ export function renderLessonMemoHtml(model: LessonMemoDocument): string {
     ['المستوى', model.header.grade],
     ['الميدان', model.header.field],
     ['الوسائل', model.header.equipment.join(' – ')],
-    ['المدة', `${model.header.durationMinutes} دقيقة`],
-    ['الحصة', model.header.sessionNumber],
   ];
   const prep = model.preparatoryPhase;
   const final = model.finalPhase;
