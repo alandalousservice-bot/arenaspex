@@ -8,7 +8,8 @@ import {
 } from '../../data/algerianCurriculum';
 import {
   autoGenerateLessonPlan,
-  getLessonMemoDisplayRows,
+  formatSituationExecution,
+  getLessonMemoPresentation,
   getUnifiedLessonRows,
   rebalanceLessonRows,
 } from '../../services/lessonPlan.generator.service';
@@ -42,6 +43,7 @@ interface LessonPlanViewProps {
   ) => void;
   onOpenCommandCenterForPlan?: (plan: LessonPlan) => void;
   currentUser?: User;
+  inspectorName?: string;
   teacherClasses: ClassRoom[];
 }
 
@@ -91,6 +93,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   currentUser,
   teacherClasses,
   onOpenCommandCenterForPlan,
+  inspectorName,
 }) => {
   const [selectedId, setSelectedId] = useState(activeLessonId || lessonPlans[0]?.id || '');
   const [showGenerator, setShowGenerator] = useState(false);
@@ -307,6 +310,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         classId: scheduledContext?.session.classId,
         plannedStartTime: scheduledContext?.session.startTime,
         venue: scheduledContext?.session.venue,
+        inspectorName,
         date: scheduledContext?.session.plannedDate.slice(0, 10),
         durationMinutes: scheduledContext?.session.durationMinutes,
       });
@@ -448,16 +452,24 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       </div>
     );
   }
-  const rows = editing ? draft?.lessonRows || [] : getUnifiedLessonRows(plan);
-  const displayRows = getLessonMemoDisplayRows(rows);
-  const setRows = (lessonRows: LessonPlanRow[]) =>
-    setDraft((previous) => previous && { ...previous, lessonRows });
-  const grade = LEVELS.indexOf(plan.levelName) + 1;
   const isScheduled = Boolean(plan.classPlannedSessionId);
   const effectiveDuration =
     isScheduled && scheduledContext
       ? scheduledContext.session.durationMinutes
       : plan.durationMinutes;
+  const rows = editing ? draft?.lessonRows || [] : getUnifiedLessonRows(plan);
+  const presentationPlan = inspectorName && !plan.inspectorName ? { ...plan, inspectorName } : plan;
+  const presentation = editing
+    ? getLessonMemoPresentation({ ...presentationPlan, lessonRows: rows }).rows
+    : getLessonMemoPresentation(presentationPlan, { durationMinutes: effectiveDuration }).rows;
+  const memoModel = getLessonMemoPresentation(
+    editing ? { ...presentationPlan, lessonRows: rows } : presentationPlan,
+    { durationMinutes: effectiveDuration }
+  );
+  const displayRows = presentation;
+  const setRows = (lessonRows: LessonPlanRow[]) =>
+    setDraft((previous) => previous && { ...previous, lessonRows });
+  const grade = LEVELS.indexOf(plan.levelName) + 1;
   const fieldId =
     PE_FIELDS.find((field) => field.name === plan.fieldName)?.id ||
     sessionsForLevel(plan.levelName).find((s) => s.fieldName === plan.fieldName)?.fieldId ||
@@ -488,8 +500,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     const main = {
       id: `main-${Date.now()}`,
       phase: 'المرحلة الرئيسية' as const,
-      learningContent: plan.sessionTitle,
-      executionContent: `${situation.name}: ${situation.organization}`,
+      learningContent: situation.name,
+      executionContent: formatSituationExecution(situation),
       durationMinutes: 1,
       guidance: situation.variations || 'احترام التعليمات.',
       situationSnapshot: snapshotSituation(situation),
@@ -652,55 +664,57 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
 
       <article className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
         <div className="border-b border-slate-300 bg-slate-50 px-5 py-3 text-center font-extrabold text-slate-900">
-          مذكرة الحصة
+          مذكرة حصة تعلمية
         </div>
-        <div className="grid grid-cols-1 gap-px bg-slate-300 text-sm md:grid-cols-2">
-          {[
-            ['المؤسسة', plan.institutionName],
-            ['الأستاذ', plan.teacherName],
-            ['المستوى', plan.levelName],
-            ['رقم الحصة', plan.sessionGlobalNumber ? String(plan.sessionGlobalNumber) : ''],
-            [
-              'التاريخ',
-              isScheduled && scheduledContext
-                ? scheduledContext.session.plannedDate.slice(0, 10)
-                : plan.date,
-            ],
-            ['المدة الإجمالية', `${effectiveDuration} دقيقة`],
-            ['الميدان', plan.fieldName],
-            ['الوسائل', plan.equipmentNeeded.join('، ')],
-            ['الكفاءة الختامية', plan.competencyTitle],
-            ['الهدف التعلمي', plan.sessionTitle],
-          ].map(([label, value]) => (
-            <div key={label} className="grid grid-cols-[9rem_1fr] bg-white">
-              <strong className="bg-slate-50 p-3 text-slate-800">{label}</strong>
-              {editing && (label === 'الهدف التعلمي' || label === 'الوسائل') ? (
+        <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2">
+          {memoModel.details.map(([label, value]) => (
+            <div key={label} className="rounded-xl border border-slate-200 bg-white shadow-sm">
+              <strong className="block rounded-t-xl bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                {label}
+              </strong>
+              {editing && label === 'الوسائل' ? (
                 <input
-                  value={
-                    label === 'الهدف التعلمي'
-                      ? draft?.sessionTitle
-                      : draft?.equipmentNeeded.join('، ')
-                  }
+                  value={draft?.equipmentNeeded.join('، ')}
                   onChange={(event) =>
-                    setDraft(
-                      (previous) =>
-                        previous &&
-                        (label === 'الهدف التعلمي'
-                          ? {
-                              ...previous,
-                              sessionTitle: event.target.value,
-                              generalObjective: event.target.value,
-                            }
-                          : { ...previous, equipmentNeeded: event.target.value.split(/[,،]/) })
+                    setDraft((previous) =>
+                      previous
+                        ? { ...previous, equipmentNeeded: event.target.value.split(/[,،]/) }
+                        : previous
                     )
                   }
-                  className="min-w-0 p-3 outline-none"
+                  className="w-full rounded-b-xl p-3 outline-none"
                 />
               ) : (
-                <span className="p-3">{value}</span>
+                <span className="block min-h-11 p-3">{value}</span>
               )}
             </div>
           ))}
+          <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 md:col-span-2">
+            <h3 className="text-xs font-black text-indigo-900">الكفاءة الختامية</h3>
+            <p className="mt-2 text-sm font-bold text-indigo-950">{memoModel.competency}</p>
+          </section>
+          <section className="rounded-xl border border-purple-200 bg-purple-50 p-4 md:col-span-2">
+            <h3 className="text-xs font-black text-purple-900">الهدف التعلمي</h3>
+            {editing ? (
+              <textarea
+                value={draft?.sessionTitle}
+                onChange={(event) =>
+                  setDraft((previous) =>
+                    previous
+                      ? {
+                          ...previous,
+                          sessionTitle: event.target.value,
+                          generalObjective: event.target.value,
+                        }
+                      : previous
+                  )
+                }
+                className="mt-2 min-h-16 w-full rounded-lg border border-purple-200 bg-white p-2 outline-none"
+              />
+            ) : (
+              <p className="mt-2 text-sm font-bold text-purple-950">{memoModel.objective}</p>
+            )}
+          </section>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[850px] border-collapse text-right text-sm">
@@ -724,7 +738,15 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                         : 'bg-white'
                   }`}
                 >
-                  <th className="border border-slate-300 bg-slate-50 p-3 font-bold">
+                  <th
+                    className={`border border-slate-300 p-3 font-bold ${
+                      row.phase === 'المرحلة التحضيرية'
+                        ? 'bg-sky-50 text-sky-950'
+                        : row.phase === 'المرحلة الختامية'
+                          ? 'bg-emerald-50 text-emerald-950'
+                          : 'bg-orange-50 text-orange-950'
+                    }`}
+                  >
                     {displayRows[index].phaseLabel}
                     {editing && row.phase === 'المرحلة الرئيسية' && row.situationSnapshot && (
                       <>
@@ -840,6 +862,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             </tbody>
           </table>
         </div>
+        <footer className="flex flex-wrap justify-between gap-4 border-t border-slate-200 bg-white p-5 text-sm font-bold text-slate-800">
+          <span>الأستاذ: {memoModel.footer.teacherName}</span>
+          {memoModel.footer.inspectorName && <span>المفتش: {memoModel.footer.inspectorName}</span>}
+        </footer>
       </article>
       <p className="text-xs text-slate-500">
         مجموع الزمن: {rows.reduce((sum, row) => sum + Number(row.durationMinutes || 0), 0)} دقيقة.

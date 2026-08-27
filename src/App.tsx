@@ -435,6 +435,7 @@ export default function App() {
                 onOpenCommandCenterForPlan={handleLaunchCommandCenterForPlan}
                 teacherClasses={teacherClasses}
                 currentUser={currentUser}
+                inspectorName={teacherInspectorFeed.inspector?.displayName || ''}
               />
             )}
 

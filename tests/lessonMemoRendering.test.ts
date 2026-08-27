@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
   autoGenerateLessonPlan,
+  getLessonMemoPresentation,
   getLessonMemoDisplayRows,
   getUnifiedLessonRows,
 } from '../src/services/lessonPlan.generator.service';
@@ -62,7 +63,8 @@ describe('active lesson memo rendering path', () => {
   it('renders generated lessonRows through the approved four-column model', () => {
     const rows = getLessonMemoDisplayRows(getUnifiedLessonRows(plan));
 
-    expect(view).toContain('getLessonMemoDisplayRows');
+    expect(view).toContain('getLessonMemoPresentation');
+    expect(view).toContain('مذكرة حصة تعلمية');
     expect(view).toContain('محتوى التعلم والإنجاز');
     expect(rows[0].phaseLabel).toBe('المرحلة التحضيرية');
     expect(rows.filter((row) => row.source.phase === 'المرحلة الرئيسية')).not.toHaveLength(0);
@@ -106,8 +108,9 @@ describe('active lesson memo rendering path', () => {
   });
 
   it('uses the same snapshot mapper for Word/PDF export with dynamic situation labels', () => {
-    expect(exportService).toContain('getLessonMemoDisplayRows(getUnifiedLessonRows(plan))');
+    expect(exportService).toContain('getLessonMemoPresentation(plan)');
     expect(exportService).toContain('محتوى التعلم والإنجاز');
+    expect(exportService).toContain('model.rows');
     const rows = getLessonMemoDisplayRows(getUnifiedLessonRows(plan));
     expect(rows.map((row) => row.phaseLabel)).toEqual([
       'المرحلة التحضيرية',
@@ -119,5 +122,26 @@ describe('active lesson memo rendering path', () => {
     expect(documentModel).toContain('كفاءة ختامية محفوظة');
     expect(documentModel).toContain('الموقف 01');
     expect(documentModel).toContain('المرحلة الختامية');
+  });
+
+  it('builds the official header and footer from the normalized plan snapshot', () => {
+    const presentation = getLessonMemoPresentation({
+      ...plan,
+      inspectorName: 'مفتش فعلي',
+    });
+
+    expect(presentation.details).toEqual([
+      ['المؤسسة', ''],
+      ['الأستاذ', ''],
+      ['المستوى', 'السنة الأولى ابتدائي'],
+      ['رقم الحصة', '8'],
+      ['التاريخ', expect.any(String)],
+      ['المدة الإجمالية', '60 دقيقة'],
+      ['الميدان', 'الميدان البدني'],
+      ['الوسائل', expect.stringContaining('أقماع')],
+    ]);
+    expect(presentation.competency).toBe('كفاءة ختامية محفوظة');
+    expect(presentation.objective).toBe('ينطلق ويغير الاتجاه داخل مسار منظم.');
+    expect(presentation.footer).toEqual({ teacherName: '', inspectorName: 'مفتش فعلي' });
   });
 });

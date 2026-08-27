@@ -31,6 +31,7 @@ export interface AutoGenerateContext {
   classId?: string;
   plannedStartTime?: string | null;
   venue?: string | null;
+  inspectorName?: string;
   date?: string;
   durationMinutes?: number;
   previousSituationIds?: string[];
@@ -68,7 +69,7 @@ function situationEquipment(fieldId: string): string[] {
   return ['أقماع', 'شواخص', 'سلم أرضي'];
 }
 
-function executableSituationContent(situation: EducationalSituation): string {
+export function formatSituationExecution(situation: EducationalSituation): string {
   const equipment = situation.equipment.length
     ? ` الوسائل المستعملة: ${situation.equipment.join('، ')}.`
     : '';
@@ -108,7 +109,7 @@ function buildMainRows(
       id: `main-${index + 1}`,
       phase: 'المرحلة الرئيسية',
       learningContent: situation.name,
-      executionContent: executableSituationContent(situation),
+      executionContent: formatSituationExecution(situation),
       durationMinutes: minutes[index],
       guidance: situation.variations || 'احترام التنظيم والتعليمات.',
       situationSnapshot: snapshotSituation(situation),
@@ -190,6 +191,7 @@ export function autoGenerateLessonPlan(
     classId: ctx.classId,
     plannedStartTime: ctx.plannedStartTime,
     venue: ctx.venue,
+    inspectorName: ctx.inspectorName || '',
     teacherId: teacher?.id || '',
     institutionName: teacher?.schoolName || '',
     teacherName: teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : '',
@@ -305,4 +307,38 @@ export function getLessonMemoDisplayRows(rows: LessonPlanRow[]): LessonMemoDispl
       content: [row.learningContent, row.executionContent].filter(Boolean).join('\n'),
     };
   });
+}
+
+export interface LessonMemoPresentation {
+  details: Array<[string, string]>;
+  competency: string;
+  objective: string;
+  rows: LessonMemoDisplayRow[];
+  totalDurationMinutes: number;
+  footer: { teacherName: string; inspectorName: string };
+}
+
+/** One normalized presentation model shared by screen, print, PDF, and Word. */
+export function getLessonMemoPresentation(
+  plan: LessonPlan,
+  overrides: { durationMinutes?: number } = {}
+): LessonMemoPresentation {
+  const totalDurationMinutes = overrides.durationMinutes ?? plan.durationMinutes;
+  return {
+    details: [
+      ['المؤسسة', plan.institutionName],
+      ['الأستاذ', plan.teacherName],
+      ['المستوى', plan.levelName],
+      ['رقم الحصة', plan.sessionGlobalNumber ? String(plan.sessionGlobalNumber) : ''],
+      ['التاريخ', plan.date],
+      ['المدة الإجمالية', `${totalDurationMinutes} دقيقة`],
+      ['الميدان', plan.fieldName],
+      ['الوسائل', plan.equipmentNeeded.join('، ')],
+    ],
+    competency: plan.competencyTitle,
+    objective: plan.sessionTitle,
+    rows: getLessonMemoDisplayRows(getUnifiedLessonRows(plan)),
+    totalDurationMinutes,
+    footer: { teacherName: plan.teacherName, inspectorName: plan.inspectorName || '' },
+  };
 }
