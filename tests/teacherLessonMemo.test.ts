@@ -14,7 +14,7 @@ describe('scheduled Lesson Memo binding', () => {
     expect(memoView).toContain('scheduledMode');
     expect(memoView).toContain('scheduledContext.session.id');
     expect(memoView).toContain('حصة مبرمجة');
-    expect(memoView).toContain('مذكرة مرجعية/غير مرتبطة بحصة مبرمجة');
+    expect(memoView).not.toContain('مذكرة مرجعية/غير مرتبطة بحصة مبرمجة');
   });
 
   it('generates a grade-four scheduled memo at 90 minutes with balanced rows', () => {

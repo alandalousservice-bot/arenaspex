@@ -37,7 +37,8 @@ export function buildLessonPlanDocx(plan: LessonPlan): Document {
     ['الهدف التعلمي', plan.sessionTitle],
     ['الأستاذ', plan.teacherName],
     ['المدة الإجمالية', `${plan.durationMinutes} دقيقة`],
-    ['رقم الحصة', String(plan.sessionGlobalNumber || '—')],
+    ['رقم الحصة', plan.sessionGlobalNumber ? String(plan.sessionGlobalNumber) : ''],
+    ['التاريخ', plan.date],
     ['الوسائل', plan.equipmentNeeded.join('، ')],
   ];
   const metaTable = new Table({
@@ -101,7 +102,8 @@ export function exportLessonPlanToPdf(plan: LessonPlan): void {
     ['الهدف التعلمي', plan.sessionTitle],
     ['الأستاذ', plan.teacherName],
     ['المدة الإجمالية', `${plan.durationMinutes} دقيقة`],
-    ['رقم الحصة', String(plan.sessionGlobalNumber || '—')],
+    ['رقم الحصة', plan.sessionGlobalNumber ? String(plan.sessionGlobalNumber) : ''],
+    ['التاريخ', plan.date],
     ['الوسائل', plan.equipmentNeeded.join('، ')],
   ];
   printWindow.document.write(

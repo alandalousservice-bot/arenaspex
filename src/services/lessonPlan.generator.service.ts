@@ -72,7 +72,7 @@ function executableSituationContent(situation: EducationalSituation): string {
   const equipment = situation.equipment.length
     ? ` الوسائل المستعملة: ${situation.equipment.join('، ')}.`
     : '';
-  return `الموقف: ${situation.name}. ${situation.organization.trim()}${equipment}`.trim();
+  return `التنظيم والتنفيذ: ${situation.organization.trim()}${equipment}`.trim();
 }
 
 function buildMainRows(
@@ -107,7 +107,7 @@ function buildMainRows(
     return selected.map((situation, index) => ({
       id: `main-${index + 1}`,
       phase: 'المرحلة الرئيسية',
-      learningContent: session.objective,
+      learningContent: situation.name,
       executionContent: executableSituationContent(situation),
       durationMinutes: minutes[index],
       guidance: situation.variations || 'احترام التنظيم والتعليمات.',
@@ -124,13 +124,10 @@ function buildMainRows(
   return minutes.map((durationMinutes, index) => ({
     id: `main-${index + 1}`,
     phase: 'المرحلة الرئيسية',
-    learningContent:
-      count === 1
-        ? session.objective
-        : `${session.objective} — ${index === 0 ? 'اكتساب منظم للمهارة' : 'تطوير وتوظيف التعلم'}`,
+    learningContent: `تطبيق حركي موجه ${String(index + 1).padStart(2, '0')}`,
     executionContent:
       `الموقف ${String(index + 1).padStart(2, '0')}: ينظم الأستاذ المتعلمين في أفواج متوازية عند نقطة البداية. ` +
-      `ينفذ كل متعلم النشاط المرتبط مباشرة بهدف الحصة (${session.objective}) عبر مسار محدد باستعمال ${tools.join('، ')}، ` +
+      `عند سماع إشارة الانطلاق، ينفذ كل متعلم الحركة عبر مسار محدد باستعمال ${tools.join('، ')}، ` +
       `ثم يعود إلى نهاية فوجه لإتاحة التناوب. يلاحظ الأستاذ التنفيذ ويصحح الأداء، مع اعتماد النجاح عند إنجاز الحركة المطلوبة باحترام المسار والتعليمات.`,
     durationMinutes,
     guidance:

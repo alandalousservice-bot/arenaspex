@@ -657,32 +657,27 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         <div className="grid grid-cols-1 gap-px bg-slate-300 text-sm md:grid-cols-2">
           {[
             ['المؤسسة', plan.institutionName],
-            ['الوضع', isScheduled ? 'حصة مبرمجة' : 'مذكرة مرجعية/غير مرتبطة بحصة مبرمجة'],
-            ['القسم', plan.className],
-            ['السنة الدراسية', plan.academicYearId || '—'],
+            ['الأستاذ', plan.teacherName],
+            ['المستوى', plan.levelName],
+            ['رقم الحصة', plan.sessionGlobalNumber ? String(plan.sessionGlobalNumber) : ''],
             [
               'التاريخ',
               isScheduled && scheduledContext
                 ? scheduledContext.session.plannedDate.slice(0, 10)
                 : plan.date,
             ],
-            ['الوقت', isScheduled ? plan.plannedStartTime || 'غير محدد' : '—'],
-            ['المكان', isScheduled ? plan.venue || 'غير محدد' : '—'],
-            ['المستوى', plan.levelName],
-            ['الكفاءة الختامية', plan.competencyTitle],
-            ['الميدان', plan.fieldName],
-            ['الهدف التعلمي', plan.sessionTitle],
-            ['الأستاذ', plan.teacherName],
             ['المدة الإجمالية', `${effectiveDuration} دقيقة`],
-            ['رقم الحصة', String(plan.sessionGlobalNumber || '—')],
+            ['الميدان', plan.fieldName],
             ['الوسائل', plan.equipmentNeeded.join('، ')],
+            ['الكفاءة الختامية', plan.competencyTitle],
+            ['الهدف التعلمي', plan.sessionTitle],
           ].map(([label, value]) => (
             <div key={label} className="grid grid-cols-[9rem_1fr] bg-white">
               <strong className="bg-slate-50 p-3 text-slate-800">{label}</strong>
-              {editing && (label === 'الهدف التعليمي' || label === 'الوسائل') ? (
+              {editing && (label === 'الهدف التعلمي' || label === 'الوسائل') ? (
                 <input
                   value={
-                    label === 'الهدف التعليمي'
+                    label === 'الهدف التعلمي'
                       ? draft?.sessionTitle
                       : draft?.equipmentNeeded.join('، ')
                   }
@@ -690,7 +685,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                     setDraft(
                       (previous) =>
                         previous &&
-                        (label === 'الهدف التعليمي'
+                        (label === 'الهدف التعلمي'
                           ? {
                               ...previous,
                               sessionTitle: event.target.value,
@@ -702,7 +697,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                   className="min-w-0 p-3 outline-none"
                 />
               ) : (
-                <span className="p-3">{value || '—'}</span>
+                <span className="p-3">{value}</span>
               )}
             </div>
           ))}
