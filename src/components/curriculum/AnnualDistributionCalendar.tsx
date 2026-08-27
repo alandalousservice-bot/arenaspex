@@ -1,10 +1,15 @@
 import React, { useMemo } from 'react';
-import { BookOpen, CalendarDays, NotebookPen, RefreshCw } from 'lucide-react';
-import { ALGERIAN_SCHOOL_HOLIDAYS_2025_2026, PE_FIELDS } from '../../data/algerianCurriculum';
-import type { ClassRoom } from '../../types/spex';
+import { BookOpen, CalendarDays, NotebookPen, Printer, RefreshCw } from 'lucide-react';
+import {
+  ALGERIAN_SCHOOL_HOLIDAYS_2025_2026,
+  PE_FIELDS,
+  PE_LEVELS,
+} from '../../data/algerianCurriculum';
+import type { ClassRoom, User } from '../../types/spex';
 import type { TeacherPlanningReference, TeacherPlanningSession } from '../../services/api';
 
 interface AnnualDistributionCalendarProps {
+  currentUser: User;
   selectedClass: ClassRoom;
   academicYearId: string;
   planningStartDate: string;
@@ -84,6 +89,7 @@ function monthName(value: string): string {
 }
 
 export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProps> = ({
+  currentUser,
   selectedClass,
   academicYearId,
   planningStartDate,
@@ -96,9 +102,12 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
   onUpdateDate,
 }) => {
   const calendarRows = useMemo(() => buildAnnualCalendarRows(sessions), [sessions]);
+  const levelName =
+    PE_LEVELS.find((level) => level.id === selectedClass.levelId)?.name || selectedClass.levelId;
+  const teacherName = `${currentUser.firstName} ${currentUser.lastName}`.trim();
 
   return (
-    <section className="space-y-4" dir="rtl">
+    <section className="annual-distribution-print space-y-4" dir="rtl">
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs print:hidden">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -124,9 +133,44 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
               <RefreshCw className="h-4 w-4" />
               {sessions.length ? 'إعادة المحاولة' : 'توليد التوزيع السنوي'}
             </button>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              disabled={!sessions.length || loading}
+              className="flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Printer className="h-4 w-4" /> طباعة التوزيع السنوي
+            </button>
           </div>
         </div>
       </div>
+
+      {sessions.length > 0 && (
+        <header className="annual-distribution-document-header hidden border border-slate-300 bg-white p-4 text-center print:block">
+          <p className="text-[10px] font-bold text-slate-600">
+            الجمهورية الجزائرية الديمقراطية الشعبية
+          </p>
+          <p className="text-[10px] font-bold text-slate-600">وزارة التربية الوطنية</p>
+          <div className="my-2 border-y border-slate-200 py-2">
+            <h1 className="text-xl font-extrabold text-slate-900">التوزيع السنوي</h1>
+            <p className="mt-1 text-sm font-bold text-blue-800">لمادة التربية البدنية والرياضية</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-right text-[10px] sm:grid-cols-5">
+            {[
+              ['المؤسسة', currentUser.schoolName || ''],
+              ['الأستاذ', teacherName],
+              ['المستوى', levelName],
+              ['القسم', selectedClass.name],
+              ['السنة الدراسية', academicYearId],
+            ].map(([label, value]) => (
+              <div key={label} className="border border-slate-200 bg-slate-50 px-2 py-1.5">
+                <span className="block font-bold text-slate-500">{label}</span>
+                <span className="mt-0.5 block font-extrabold text-slate-900">{value || ' '}</span>
+              </div>
+            ))}
+          </div>
+        </header>
+      )}
 
       {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {loading && (
@@ -138,17 +182,17 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
         </div>
       )}
       {sessions.length > 0 && (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs print:overflow-visible print:shadow-none">
+        <div className="annual-distribution-table overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs print:overflow-visible print:shadow-none">
           <table className="w-full min-w-[720px] text-right text-xs print:min-w-0">
-            <caption className="border-b border-slate-200 bg-slate-50 p-4 text-right text-sm font-extrabold text-slate-900 print:caption-top">
+            <caption className="border-b border-slate-200 bg-slate-50 p-4 text-right text-sm font-extrabold text-slate-900 print:hidden">
               التوزيع السنوي للحصص التعليمية — {selectedClass.name} — {academicYearId}
             </caption>
-            <thead className="bg-slate-900 text-white">
+            <thead className="bg-slate-900 text-white print:table-header-group">
               <tr>
-                <th className="w-28 p-3">الشهر</th>
-                <th className="w-36 p-3">التاريخ</th>
-                <th className="p-3">نوع الحصة</th>
-                <th className="p-3">الميدان</th>
+                <th className="w-[16%] p-3">الشهر</th>
+                <th className="w-[22%] p-3">التاريخ</th>
+                <th className="w-[30%] p-3">نوع الحصة</th>
+                <th className="w-[32%] p-3">الميدان</th>
                 <th className="w-40 p-3 print:hidden">إجراءات</th>
               </tr>
             </thead>
@@ -174,11 +218,12 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
                   const showMonth = currentMonth !== lastMonth;
                   lastMonth = currentMonth;
                   return (
-                    <tr key={row.session.id} className="hover:bg-slate-50">
+                    <tr key={row.session.id} className="break-inside-avoid hover:bg-slate-50">
                       <td className="p-3 font-extrabold text-slate-700">
                         {showMonth ? currentMonth : ''}
                       </td>
                       <td className="p-3 font-mono font-bold text-slate-800">
+                        <span className="hidden print:inline">{displayDate(row.date)}</span>
                         <input
                           aria-label={`تاريخ الحصة ${reference?.sequenceIndex || row.session.id}`}
                           type="date"
@@ -187,7 +232,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
                             if (event.target.value && event.target.value !== row.date.slice(0, 10))
                               onUpdateDate(row.session, event.target.value);
                           }}
-                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono print:border-0"
+                          className="rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono print:hidden"
                         />
                         {saving === row.session.id && (
                           <span className="mr-2 text-[10px] text-slate-400">يحفظ...</span>
@@ -230,6 +275,16 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
             العطل والعطلة الأسبوعية عند التعديل.
           </p>
         </div>
+      )}
+      {sessions.length > 0 && (
+        <footer className="annual-distribution-document-footer hidden border-t border-slate-300 pt-3 text-xs font-bold text-slate-700 print:grid">
+          <div>الأستاذ: {teacherName || ' '}</div>
+          <div className="text-left">المفتش: </div>
+          <div className="col-span-2 mt-2 flex justify-between border-t border-slate-200 pt-2 text-[10px] font-normal text-slate-500">
+            <span>ArenaSpex</span>
+            <span>السنة الدراسية {academicYearId}</span>
+          </div>
+        </footer>
       )}
     </section>
   );

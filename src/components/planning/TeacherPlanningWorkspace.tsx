@@ -296,6 +296,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
 
       {section === 'annual-distribution' && selectedClass && (
         <AnnualDistributionCalendar
+          currentUser={currentUser}
           selectedClass={selectedClass}
           academicYearId={academicYearId}
           planningStartDate={planningStartDate}

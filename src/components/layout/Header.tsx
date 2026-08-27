@@ -208,7 +208,7 @@ export const Header: React.FC<HeaderProps> = React.memo(
     const RoleIcon = roleInfo.icon;
 
     return (
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs px-3 sm:px-4 lg:px-6 py-2.5 flex items-center justify-between transition-all">
+      <header className="app-shell-header sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs px-3 sm:px-4 lg:px-6 py-2.5 flex items-center justify-between transition-all">
         {/* Brand & Identity */}
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Mobile Menu Hamburger Toggle */}

@@ -1,1 +1,59 @@
-@import "tailwindcss";
+@import 'tailwindcss';
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #0f172a;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body:has(.annual-distribution-print) .app-shell-header,
+  body:has(.annual-distribution-print) .app-shell-sidebar {
+    display: none !important;
+  }
+
+  body:has(.annual-distribution-print) .annual-distribution-print {
+    display: block;
+    color: #0f172a;
+    font-family: Tahoma, Arial, sans-serif;
+  }
+
+  body:has(.annual-distribution-print) .annual-distribution-table {
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  body:has(.annual-distribution-print) .annual-distribution-table table {
+    border-collapse: collapse;
+    font-size: 10pt;
+  }
+
+  body:has(.annual-distribution-print) .annual-distribution-table th,
+  body:has(.annual-distribution-print) .annual-distribution-table td {
+    padding: 7px 8px;
+  }
+
+  body:has(.annual-distribution-print) .annual-distribution-table tbody tr,
+  body:has(.annual-distribution-print) .annual-distribution-table tbody td {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body:has(.annual-distribution-print) .annual-distribution-table tbody tr:has(td[colspan]) {
+    break-inside: avoid;
+    page-break-before: auto;
+  }
+
+  body:has(.annual-distribution-print) .annual-distribution-document-header,
+  body:has(.annual-distribution-print) .annual-distribution-document-footer {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

@@ -393,7 +393,7 @@ export default function App() {
         />
 
         {/* View Content Canvas Area */}
-        <main className="flex-1 p-3 sm:p-5 lg:p-8 pb-20 md:pb-8 overflow-y-auto max-h-[calc(100vh-60px)]">
+        <main className="flex-1 p-3 sm:p-5 lg:p-8 pb-20 md:pb-8 overflow-y-auto max-h-[calc(100vh-60px)] print:overflow-visible print:max-h-none print:p-0">
           <Suspense fallback={<ViewFallback />}>
             {activeTab === 'dashboard' && (
               <TeacherDashboard

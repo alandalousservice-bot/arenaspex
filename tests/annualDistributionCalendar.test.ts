@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   ALGERIAN_SCHOOL_HOLIDAYS_2025_2026,
@@ -24,6 +25,16 @@ const persisted = (date: string, id: string): TeacherPlanningSession => ({
 });
 
 describe('classic annual distribution calendar', () => {
+  it('contains the professional portrait print architecture without a second schedule source', () => {
+    const source = readFileSync('src/components/curriculum/AnnualDistributionCalendar.tsx', 'utf8');
+    expect(source).toContain('طباعة التوزيع السنوي');
+    expect(readFileSync('src/index.css', 'utf8')).toContain('size: A4 portrait');
+    expect(source).toContain('annual-distribution-document-header');
+    expect(source).toContain('annual-distribution-document-footer');
+    expect(source).toContain('print:table-header-group');
+    expect(readFileSync('src/index.css', 'utf8')).toContain('page-break-inside: avoid');
+  });
+
   it('places configured holidays chronologically between persisted lessons', () => {
     const rows = buildAnnualCalendarRows([
       persisted('2025-11-30', 'before'),

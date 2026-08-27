@@ -234,7 +234,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
       <>
         {/* Desktop Sidebar (Hidden on mobile) */}
         <aside
-          className={`hidden md:flex bg-white border-l border-slate-200/80 flex-col justify-between transition-all duration-300 z-20 shrink-0 ${
+          className={`app-shell-sidebar hidden md:flex bg-white border-l border-slate-200/80 flex-col justify-between transition-all duration-300 z-20 shrink-0 ${
             collapsed ? 'w-16' : 'w-64'
           }`}
         >
