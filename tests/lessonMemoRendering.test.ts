@@ -136,6 +136,9 @@ describe('rebuilt lesson memo pipeline', () => {
     expect(exportService).toContain('#1e293b');
     expect(exportService).toContain('#fed7aa');
     expect(exportService).toContain('#dcfce7');
+    expect(view).toContain('gap-2 p-3');
+    expect(exportService).toContain('compactPrintCss');
+    expect(exportService).toContain('.meta{gap:5px;margin:8px 0}');
     const document = generateLessonMemoDocument(plan);
     const html = renderLessonMemoHtml(document);
     expect(html).toContain('مذكرة حصة تعلمية');

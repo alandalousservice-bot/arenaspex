@@ -173,7 +173,14 @@ export function renderLessonMemoHtml(model: LessonMemoDocument): string {
 export function exportLessonPlanToPdf(plan: LessonPlan): void {
   const printWindow = window.open('', '_blank', 'width=1200,height=900');
   if (!printWindow) return;
-  printWindow.document.write(renderLessonMemoHtml(generateLessonMemoDocument(plan)));
+  const compactPrintCss =
+    '<style>.sheet{padding:12px}.meta{gap:5px;margin:8px 0}.meta strong,.meta span{padding:4px 6px}.competency,.objective{padding:6px;margin:4px 0}.memo{margin-top:8px}.footer{margin-top:10px;gap:8px;padding-top:8px;page-break-inside:avoid}.signature{padding:8px;min-height:36px}</style>';
+  printWindow.document.write(
+    renderLessonMemoHtml(generateLessonMemoDocument(plan)).replace(
+      '</head>',
+      `${compactPrintCss}</head>`
+    )
+  );
   printWindow.document.close();
   printWindow.focus();
   printWindow.print();

@@ -663,7 +663,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         <div className="border-b border-slate-300 bg-slate-50 px-5 py-3 text-center font-extrabold text-slate-900">
           مذكرة حصة تعلمية
         </div>
-        <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2 p-3 md:grid-cols-2">
           {[
             ['المؤسسة', memoModel.header.institution],
             ['المستوى', memoModel.header.grade],
@@ -674,7 +674,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             ['الحصة', memoModel.header.sessionNumber],
           ].map(([label, value]) => (
             <div key={label} className="rounded-xl border border-slate-200 bg-white shadow-sm">
-              <strong className="block rounded-t-xl bg-slate-50 px-3 py-2 text-xs text-slate-700">
+              <strong className="block rounded-t-xl bg-slate-50 px-3 py-1.5 text-xs text-slate-700">
                 {label}
               </strong>
               {editing && label === 'الوسائل' ? (
@@ -690,15 +690,15 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                   className="w-full rounded-b-xl p-3 outline-none"
                 />
               ) : (
-                <span className="block min-h-11 p-3">{value}</span>
+                <span className="block min-h-9 p-2">{value}</span>
               )}
             </div>
           ))}
-          <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 md:col-span-2">
+          <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-3 md:col-span-2">
             <h3 className="text-xs font-black text-indigo-900">الكفاءة الختامية</h3>
-            <p className="mt-2 text-sm font-bold text-indigo-950">{memoModel.header.competency}</p>
+            <p className="mt-1 text-sm font-bold text-indigo-950">{memoModel.header.competency}</p>
           </section>
-          <section className="rounded-xl border border-purple-200 bg-purple-50 p-4 md:col-span-2">
+          <section className="rounded-xl border border-purple-200 bg-purple-50 p-3 md:col-span-2">
             <h3 className="text-xs font-black text-purple-900">الهدف التعليمي</h3>
             {editing ? (
               <textarea
@@ -714,7 +714,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                       : previous
                   )
                 }
-                className="mt-2 min-h-16 w-full rounded-lg border border-purple-200 bg-white p-2 outline-none"
+                className="mt-1 min-h-14 w-full rounded-lg border border-purple-200 bg-white p-2 outline-none"
               />
             ) : (
               <p className="mt-2 text-sm font-bold text-purple-950">{memoModel.header.objective}</p>
@@ -898,7 +898,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             </tbody>
           </table>
         </div>
-        <footer className="flex flex-wrap justify-between gap-4 border-t border-slate-200 bg-white p-5 text-sm font-bold text-slate-800">
+        <footer className="flex flex-wrap justify-between gap-3 border-t border-slate-200 bg-white p-4 text-sm font-bold text-slate-800">
           <span>الأستاذ: {memoModel.signatures.teacherName}</span>
           {memoModel.signatures.inspectorName && (
             <span>المفتش: {memoModel.signatures.inspectorName}</span>
