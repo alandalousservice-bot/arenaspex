@@ -33,6 +33,11 @@ describe('unified Teacher planning workspace', () => {
     expect(workspace).not.toContain("const ACADEMIC_YEAR_ID = '2025-2026'");
     expect(read('src/server/apiRouter.ts')).toContain('isCanonicalAcademicYearId');
     expect(read('src/server/apiRouter.ts')).toContain('isPlanningStartDateConsistent');
+    expect(workspace).toContain('requestedClassId');
+    expect(workspace).toContain('requestedLevelId');
+    expect(workspace).toContain('القسم المطلوب غير موجود ضمن أقسامك.');
+    expect(read('src/server/apiRouter.ts')).toContain('resolvePlanningReferences');
+    expect(read('src/server/apiRouter.ts')).toContain('اختر تاريخاً يقع في يوم دراسي');
   });
 
   it('keeps weekly distribution as an in-memory filter of annual sessions', () => {

@@ -60,12 +60,12 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   const references = useMemo(
     () =>
       new Map(
-        (selectedClass ? canonicalReferenceSessions(selectedClass.levelId) : []).map((item) => [
-          item.referenceSessionId,
-          item,
-        ])
+        [
+          ...(selectedClass ? canonicalReferenceSessions(selectedClass.levelId) : []),
+          ...sessions.flatMap((item) => (item.reference ? [item.reference] : [])),
+        ].map((item) => [item.referenceSessionId, item])
       ),
-    [selectedClass]
+    [selectedClass, sessions]
   );
   const entriesBySession = useMemo(
     () =>

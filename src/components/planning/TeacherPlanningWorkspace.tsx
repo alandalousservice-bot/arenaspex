@@ -50,12 +50,22 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
 }) => {
   const params = new URLSearchParams(window.location.search);
   const requestedSection = params.get('section') as PlanningSection | null;
+  const requestedClassId = params.get('classId') || '';
+  const requestedLevelId = params.get('levelId') || '';
   const [section, setSection] = useState<PlanningSection>(
     requestedSection && sectionLabels[requestedSection] ? requestedSection : 'annual-plan'
   );
-  const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id || '');
+  const [selectedClassId, setSelectedClassId] = useState(() => {
+    if (requestedClassId && classes.some((item) => item.id === requestedClassId))
+      return requestedClassId;
+    if (requestedClassId) return '';
+    return classes.find((item) => item.levelId === requestedLevelId)?.id || classes[0]?.id || '';
+  });
   const [academicYearId, setAcademicYearId] = useState(() => {
-    const stored = window.localStorage.getItem(ACADEMIC_YEAR_PREFERENCE_KEY) || '';
+    const stored =
+      params.get('academicYearId') ||
+      window.localStorage.getItem(ACADEMIC_YEAR_PREFERENCE_KEY) ||
+      '';
     return isCanonicalAcademicYearId(stored) ? stored : getCurrentAcademicYear();
   });
   const academicYearOptions = useMemo(() => getAcademicYearOptions(), []);
@@ -72,9 +82,33 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     [selectedClass]
   );
   const referencesById = useMemo(
-    () => new Map(referenceSessions.map((item) => [item.referenceSessionId, item])),
-    [referenceSessions]
+    () =>
+      new Map([
+        ...referenceSessions.map((item) => [item.referenceSessionId, item] as const),
+        ...sessions.flatMap((item) =>
+          item.reference ? [[item.reference.referenceSessionId, item.reference] as const] : []
+        ),
+      ]),
+    [referenceSessions, sessions]
   );
+
+  useEffect(() => {
+    if (requestedClassId && ['annual-distribution', 'weekly'].includes(requestedSection || '')) {
+      if (classes.some((item) => item.id === requestedClassId)) {
+        setSelectedClassId(requestedClassId);
+        setError('');
+      } else if (classes.length) {
+        setSelectedClassId('');
+        setError('القسم المطلوب غير موجود ضمن أقسامك.');
+      }
+      return;
+    }
+    if (!selectedClassId && classes.length) {
+      setSelectedClassId(
+        classes.find((item) => item.levelId === requestedLevelId)?.id || classes[0].id
+      );
+    }
+  }, [classes, requestedClassId, requestedLevelId, requestedSection, selectedClassId]);
 
   useEffect(() => {
     if (!selectedClassId || !['annual-distribution', 'weekly'].includes(section)) {
@@ -110,9 +144,13 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     setError('');
   };
 
-  const changeSection = (next: PlanningSection) => {
+  const changeSection = (next: PlanningSection, context?: { levelId?: string }) => {
     setSection(next);
-    window.history.replaceState({}, '', `/planning?section=${next}`);
+    const nextParams = new URLSearchParams({ section: next });
+    if (context?.levelId) nextParams.set('levelId', context.levelId);
+    if (selectedClassId) nextParams.set('classId', selectedClassId);
+    nextParams.set('academicYearId', academicYearId);
+    window.history.replaceState({}, '', `/planning?${nextParams.toString()}`);
   };
 
   const initialize = async () => {
@@ -234,7 +272,9 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
       )}
       {section === 'segments' && (
         <LearningSegmentsView
-          onNavigateToDistribution={() => changeSection('annual-distribution')}
+          currentUser={currentUser}
+          academicYearId={academicYearId}
+          onNavigateToDistribution={(levelId) => changeSection('annual-distribution', { levelId })}
         />
       )}
 

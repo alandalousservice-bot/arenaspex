@@ -607,6 +607,22 @@ export async function confirmStudentRosterImport(
 
 export type ClassPlannedSessionStatus = 'مبرمجة' | 'منجزة' | 'مؤجلة' | 'غير منجزة';
 
+export interface TeacherPlanningReference {
+  referenceSessionId: string;
+  grade: number;
+  domainId: string;
+  fieldName: string;
+  finalCompetency: string;
+  learningSectionId: string;
+  objectiveId: string | null;
+  objectiveGroupId: string | null;
+  objective: string;
+  sessionType: string;
+  sessionTypeLabel: string;
+  sequenceIndex: number;
+  fieldSessionNumber: number;
+}
+
 export interface TeacherPlanningSession {
   id: string;
   teacherId: string;
@@ -621,6 +637,7 @@ export interface TeacherPlanningSession {
   operationalNote: string | null;
   createdAt: string;
   updatedAt: string;
+  reference?: TeacherPlanningReference | null;
 }
 
 export interface TeacherPlanningClassContext {

@@ -1,9 +1,11 @@
 import {
   COMPLETE_ANNUAL_CURRICULUM,
   generateAnnualTimeDistribution,
+  isValidSchoolDate,
   ScheduledAnnualSession,
 } from '../data/algerianCurriculum';
 import { getCurrentAcademicYear } from './academicYear';
+import type { AnnualPlanObjectiveOverride } from '../types/spex';
 
 export interface ClassPlannedSessionSeed {
   id: string;
@@ -26,6 +28,7 @@ export interface CanonicalPlanningSession {
   domainId: string;
   learningSectionId: string;
   objectiveId: string | null;
+  objectiveGroupId: string | null;
   sequenceIndex: number;
   fieldSessionNumber: number;
   sessionType: ScheduledAnnualSession['sessionType'];
@@ -33,6 +36,25 @@ export interface CanonicalPlanningSession {
   objective: string;
   plannedDate: string;
   durationMinutes: number;
+}
+
+export type PlanningWordingOverrides = Record<string, AnnualPlanObjectiveOverride>;
+
+export function effectivePlanningObjective(
+  session: Pick<CanonicalPlanningSession, 'domainId' | 'objectiveId' | 'objective'>,
+  overrides: PlanningWordingOverrides = {}
+): string {
+  if (!session.objectiveId || session.domainId === 'intro') return session.objective;
+  return overrides[session.objectiveId]?.objective?.trim() || session.objective;
+}
+
+export function effectiveCurriculumObjective(
+  fieldId: string,
+  sessionNumber: number,
+  referenceObjective: string,
+  overrides: PlanningWordingOverrides = {}
+): string {
+  return overrides[`${fieldId}__${sessionNumber}`]?.objective?.trim() || referenceObjective;
 }
 
 function gradeFromLevelId(levelId: string): number {
@@ -64,6 +86,7 @@ export function canonicalPlanningSessions(
     learningSectionId:
       session.fieldId === 'intro' ? 'intro' : `${session.levelId}:${session.fieldId}`,
     objectiveId: session.objectiveGroupId || null,
+    objectiveGroupId: session.objectiveGroupId || null,
     sequenceIndex: session.globalSessionNumber,
     fieldSessionNumber: session.fieldSessionNumber,
     sessionType: session.sessionType,
@@ -72,6 +95,20 @@ export function canonicalPlanningSessions(
     plannedDate: session.scheduledDate,
     durationMinutes: session.durationMinutes,
   }));
+}
+
+export function isValidPlanningDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return formatDateForPlanning(date) === value && isValidSchoolDate(date);
+}
+
+function formatDateForPlanning(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 export function canonicalReferenceSessions(levelId: string): CanonicalPlanningSession[] {

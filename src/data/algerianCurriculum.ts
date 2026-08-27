@@ -1606,7 +1606,7 @@ function isHoliday(date: Date): { holiday: boolean; name?: string; note?: string
   return { holiday: false };
 }
 
-function isValidSchoolDate(date: Date): boolean {
+export function isValidSchoolDate(date: Date): boolean {
   if (!isSchoolDay(date)) return false;
   if (isHoliday(date).holiday) return false;
   return true;

@@ -5,7 +5,11 @@ import {
   buildClassPlannedSessionSeeds,
   canonicalPlanningSessions,
   findCanonicalPlanningSession,
+  effectiveCurriculumObjective,
+  effectivePlanningObjective,
+  isValidPlanningDate,
 } from '../src/services/teacherPlanning.service';
+import { COMPLETE_ANNUAL_CURRICULUM } from '../src/data/algerianCurriculum';
 
 const root = path.resolve(process.cwd());
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -66,6 +70,41 @@ describe('class-scoped Teacher planning sessions', () => {
 
   it('rejects unknown reference identities', () => {
     expect(findCanonicalPlanningSession('lvl_p1', 'not-a-reference', '2025-09-22')).toBeNull();
+  });
+
+  it('preserves curriculum parity, sequencing, and effective wording overrides', () => {
+    for (const levelId of ['lvl_p1', 'lvl_p2', 'lvl_p3', 'lvl_p4', 'lvl_p5']) {
+      const curriculum = COMPLETE_ANNUAL_CURRICULUM[levelId];
+      expect(Object.keys(curriculum.fields)).toHaveLength(3);
+      expect(curriculum.totalSessions).toBe(30);
+      expect(
+        Object.values(curriculum.fields).reduce(
+          (total, field) => total + field.sessionsList.length,
+          0
+        )
+      ).toBe(30);
+      expect(canonicalPlanningSessions(levelId, '2025-09-22')).toHaveLength(
+        ['lvl_p1', 'lvl_p2', 'lvl_p3'].includes(levelId) ? 56 : 34
+      );
+    }
+    const reference = canonicalPlanningSessions('lvl_p1', '2025-09-22').find(
+      (session) => session.objectiveId === 'f_locomotion__2'
+    )!;
+    const override = { [reference.objectiveId!]: { objective: 'هدف معدل للأستاذ' } };
+    expect(effectivePlanningObjective(reference, override)).toBe('هدف معدل للأستاذ');
+    expect(effectivePlanningObjective(reference, override)).not.toBe(reference.objective);
+    expect(
+      effectiveCurriculumObjective('f_locomotion', 2, 'مرجع', {
+        f_locomotion__2: override[reference.objectiveId!],
+      })
+    ).toBe('هدف معدل للأستاذ');
+    expect(reference.referenceSessionId).toBeTruthy();
+  });
+
+  it('uses one school-day and holiday policy for generated and manual dates', () => {
+    expect(isValidPlanningDate('2025-09-22')).toBe(true);
+    expect(isValidPlanningDate('2025-09-19')).toBe(false);
+    expect(isValidPlanningDate('2025-12-22')).toBe(false);
   });
 
   it('declares additive persistence and protected ownership routes', () => {

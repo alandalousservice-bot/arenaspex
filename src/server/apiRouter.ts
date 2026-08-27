@@ -27,7 +27,13 @@ import { canReadDistrictMessage, normalizeMessageText } from '../services/commun
 import { providerIsUsable } from './generationAccess.policy.js';
 import { teacherAttendanceRouter } from './attendanceRouter.js';
 import { findActiveMedicalExemption } from './medicalExemption.service.js';
-import { buildClassPlannedSessionSeeds } from '../services/teacherPlanning.service.js';
+import {
+  buildClassPlannedSessionSeeds,
+  canonicalReferenceSessions,
+  effectivePlanningObjective,
+  type PlanningWordingOverrides,
+} from '../services/teacherPlanning.service.js';
+import { COMPLETE_ANNUAL_CURRICULUM, isValidSchoolDate } from '../data/algerianCurriculum.js';
 import {
   isCanonicalAcademicYearId,
   isPlanningStartDateConsistent,
@@ -141,6 +147,50 @@ function classPlannedSessionView(row: {
   };
 }
 
+async function resolvePlanningReferences(
+  levelId: string,
+  teacherId: string,
+  academicYearId: string
+) {
+  const [referenceSessions, wordingPlan] = await Promise.all([
+    Promise.resolve(canonicalReferenceSessions(levelId)),
+    prisma.annualPlan.findUnique({
+      where: {
+        teacherId_academicYearId_levelId_kind: {
+          teacherId,
+          academicYearId,
+          levelId,
+          kind: 'section_wording',
+        },
+      },
+      select: { data: true },
+    }),
+  ]);
+  const overrides = ((wordingPlan?.data as { overrides?: PlanningWordingOverrides } | null)
+    ?.overrides || {}) as PlanningWordingOverrides;
+  const fields = COMPLETE_ANNUAL_CURRICULUM[levelId]?.fields || {};
+  return new Map(
+    referenceSessions.map((reference) => [
+      reference.referenceSessionId,
+      {
+        referenceSessionId: reference.referenceSessionId,
+        grade: reference.grade,
+        domainId: reference.domainId,
+        fieldName: fields[reference.domainId]?.fieldName || reference.domainId,
+        finalCompetency: fields[reference.domainId]?.finalCompetency || '',
+        learningSectionId: reference.learningSectionId,
+        objectiveId: reference.objectiveId,
+        objectiveGroupId: reference.objectiveGroupId,
+        objective: effectivePlanningObjective(reference, overrides),
+        sessionType: reference.sessionType,
+        sessionTypeLabel: reference.sessionTypeLabel,
+        sequenceIndex: reference.sequenceIndex,
+        fieldSessionNumber: reference.fieldSessionNumber,
+      },
+    ])
+  );
+}
+
 apiRouter.get(
   '/teacher/planning/classes/:classId/sessions',
   requireRole('teacher'),
@@ -159,6 +209,11 @@ apiRouter.get(
       },
       orderBy: [{ plannedDate: 'asc' }, { id: 'asc' }],
     });
+    const references = await resolvePlanningReferences(
+      classRecord.levelId,
+      req.user!.id,
+      parsed.data.academicYearId
+    );
     res.json({
       success: true,
       class: {
@@ -167,7 +222,10 @@ apiRouter.get(
         levelId: classRecord.levelId,
         institutionId: classRecord.institutionId,
       },
-      sessions: rows.map(classPlannedSessionView),
+      sessions: rows.map((row) => ({
+        ...classPlannedSessionView(row),
+        reference: references.get(row.referenceSessionId) || null,
+      })),
     });
   }
 );
@@ -203,6 +261,11 @@ apiRouter.post(
       },
       orderBy: [{ plannedDate: 'asc' }, { id: 'asc' }],
     });
+    const references = await resolvePlanningReferences(
+      classRecord.levelId,
+      req.user!.id,
+      parsed.data.academicYearId
+    );
     res.status(201).json({
       success: true,
       initialized: seeds.length,
@@ -212,7 +275,10 @@ apiRouter.post(
         levelId: classRecord.levelId,
         institutionId: classRecord.institutionId,
       },
-      sessions: rows.map(classPlannedSessionView),
+      sessions: rows.map((row) => ({
+        ...classPlannedSessionView(row),
+        reference: references.get(row.referenceSessionId) || null,
+      })),
     });
   }
 );
@@ -228,6 +294,12 @@ apiRouter.patch(
       where: { id: req.params.sessionId, classId: req.params.classId, teacherId: req.user!.id },
     });
     if (!existing) return res.status(404).json({ error: 'الحصة التشغيلية غير موجودة ضمن أقسامك.' });
+    if (parsed.data.plannedDate) {
+      const date = new Date(`${parsed.data.plannedDate}T00:00:00`);
+      if (!isValidSchoolDate(date)) {
+        return res.status(400).json({ error: 'اختر تاريخاً يقع في يوم دراسي وليس ضمن عطلة.' });
+      }
+    }
     const data: {
       plannedDate?: Date;
       startTime?: string | null;

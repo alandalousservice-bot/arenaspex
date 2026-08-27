@@ -195,11 +195,15 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         const located = results
           .flatMap((result) => result.sessions)
           .find((item) => item.id === requestedSessionId);
-        const reference = located
+        const canonicalReference = located
           ? canonicalReferenceSessions(classRoom.levelId).find(
               (item) => item.referenceSessionId === located.referenceSessionId
             )
           : undefined;
+        const reference =
+          canonicalReference && located?.reference
+            ? { ...canonicalReference, objective: located.reference.objective }
+            : canonicalReference;
         if (!located || !reference || located.classId !== classRoom.id) {
           setScheduledError(
             !located
@@ -208,36 +212,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           );
           return;
         }
-        Promise.all([
-          fetchAnnualPlans({
-            teacherId: currentUser?.id,
-            kind: 'section_wording',
-            academicYearId: located.academicYearId,
-            levelId: classRoom.levelId,
-          }),
-          fetchAnnualPlans({
-            teacherId: currentUser?.id,
-            kind: 'schedule_dates',
-            academicYearId: located.academicYearId,
-            levelId: classRoom.levelId,
-          }),
-        ])
-          .then(([wordingResponse, scheduleResponse]) => {
-            if (cancelled) return;
-            const key = reference.domainId + '__' + reference.fieldSessionNumber;
-            const wording = wordingResponse.annualPlans?.[0]?.data?.overrides?.[key]?.objective;
-            const scheduleWording =
-              scheduleResponse.annualPlans?.[0]?.data?.overrides?.[key]?.objective;
-            setScheduledContext({
-              session: located,
-              reference: {
-                ...reference,
-                objective: wording || scheduleWording || reference.objective,
-              },
-              classRoom,
-            });
-          })
-          .catch(() => setScheduledContext({ session: located, reference, classRoom }));
+        setScheduledContext({ session: located, reference, classRoom });
         const matchingLevel = Object.entries(LEVEL_KEYS).find(
           ([, id]) => id === classRoom.levelId
         )?.[0];

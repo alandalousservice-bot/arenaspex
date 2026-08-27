@@ -5,18 +5,36 @@
 
 import React, { useState } from 'react';
 import { Layers, Search, BookOpen, Clock, CheckCircle2 } from 'lucide-react';
-import { PE_LEVELS, PE_FIELDS, COMPLETE_ANNUAL_CURRICULUM } from '../../data/algerianCurriculum';
+import {
+  PE_LEVELS,
+  PE_FIELDS,
+  COMPLETE_ANNUAL_CURRICULUM,
+  OVERALL_COMPETENCY_BY_LEVEL,
+} from '../../data/algerianCurriculum';
+import { useCurriculumOverrides } from '../../hooks/useCurriculumOverrides';
+import { effectiveCurriculumObjective } from '../../services/teacherPlanning.service';
+import type { User } from '../../types/spex';
 
 interface LearningSegmentsViewProps {
+  currentUser: User;
+  academicYearId: string;
   onNavigateToDistribution?: (levelId: string) => void;
 }
 
 export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
+  currentUser,
+  academicYearId,
   onNavigateToDistribution,
 }) => {
   const [selectedLevelId, setSelectedLevelId] = useState<string>('lvl_p1');
   const [selectedFieldId, setSelectedFieldId] = useState<string>('all');
   const [searchVal, setSearchVal] = useState('');
+  const { values: wordingOverrides } = useCurriculumOverrides({
+    currentUser,
+    levelId: selectedLevelId,
+    kind: 'section_wording',
+    academicYearId,
+  });
 
   const currentLevelCurriculum =
     COMPLETE_ANNUAL_CURRICULUM[selectedLevelId] || COMPLETE_ANNUAL_CURRICULUM['lvl_p1'];
@@ -90,6 +108,11 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
             </button>
           );
         })}
+      </div>
+
+      <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-950">
+        <span className="font-extrabold">الكفاءة الشاملة للمستوى: </span>
+        {OVERALL_COMPETENCY_BY_LEVEL[selectedLevelId] || 'غير محددة'}
       </div>
 
       {/* Field Filter Tabs */}
@@ -213,7 +236,12 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                       <span className="text-[10px] font-bold text-slate-600">{sess.typeLabel}</span>
                     </div>
                     <p className="text-[11px] font-semibold text-slate-800 leading-tight pt-0.5">
-                      {sess.objective}
+                      {effectiveCurriculumObjective(
+                        field.fieldId,
+                        sess.sessionNumber,
+                        sess.objective,
+                        wordingOverrides
+                      )}
                     </p>
                   </div>
                 ))}
