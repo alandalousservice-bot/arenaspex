@@ -14,15 +14,45 @@
     print-color-adjust: exact;
   }
 
-  body:has(.annual-distribution-print) .app-shell-header,
-  body:has(.annual-distribution-print) .app-shell-sidebar {
+  body:has(.annual-distribution-print, .planning-print-document) .app-shell-header,
+  body:has(.annual-distribution-print, .planning-print-document) .app-shell-sidebar {
     display: none !important;
   }
 
+  body:has(.annual-distribution-print, .planning-print-document) .planning-print-document,
   body:has(.annual-distribution-print) .annual-distribution-print {
     display: block;
     color: #0f172a;
     font-family: Tahoma, Arial, sans-serif;
+  }
+
+  body:has(.planning-print-document) .planning-print-document {
+    max-width: none;
+  }
+
+  body:has(.planning-print-document) .planning-print-header {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body:has(.planning-print-document) .planning-print-footer {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body:has(.planning-print-document) .planning-print-document > :is(.space-y-6, .space-y-4) {
+    gap: 12px;
+  }
+
+  body:has(.planning-print-document) .planning-print-document > div,
+  body:has(.planning-print-document) .planning-print-document > section {
+    box-shadow: none;
+  }
+
+  body:has(.planning-print-document) .planning-print-document .break-inside-avoid,
+  body:has(.planning-print-document) .planning-print-document tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   body:has(.annual-distribution-print) .annual-distribution-table {

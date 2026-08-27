@@ -252,8 +252,35 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
   const currentEdit = isEditing ? editValues : null;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200" dir="rtl">
-      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div
+      className="planning-print-document annual-plan-print space-y-6 animate-in fade-in duration-200"
+      dir="rtl"
+    >
+      <header className="planning-print-header hidden border border-slate-300 bg-white p-4 text-center print:block">
+        <p className="text-[10px] font-bold text-slate-600">
+          الجمهورية الجزائرية الديمقراطية الشعبية
+        </p>
+        <p className="text-[10px] font-bold text-slate-600">وزارة التربية الوطنية</p>
+        <div className="my-2 border-y border-slate-200 py-2">
+          <h1 className="text-xl font-extrabold text-slate-900">المخطط السنوي</h1>
+          <p className="mt-1 text-sm font-bold text-blue-800">لمادة التربية البدنية والرياضية</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-right text-[10px] sm:grid-cols-4 print:grid-cols-4">
+          {[
+            ['المؤسسة', currentUser.schoolName || ''],
+            ['الأستاذ', `${currentUser.firstName} ${currentUser.lastName}`.trim()],
+            ['المستوى', referenceLevel.levelName],
+            ['السنة الدراسية', formatAcademicYearLabel(academicYearId)],
+          ].map(([label, value]) => (
+            <div key={label} className="border border-slate-200 bg-slate-50 px-2 py-1.5">
+              <span className="block font-bold text-slate-500">{label}</span>
+              <span className="mt-0.5 block font-extrabold text-slate-900">{value || ' '}</span>
+            </div>
+          ))}
+        </div>
+      </header>
+
+      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg">
@@ -333,12 +360,13 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
             onClick={() => window.print()}
             className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-2xl shadow-sm transition-all"
           >
-            <span>طباعة</span>
+            <Printer className="w-4 h-4" />
+            <span>طباعة المخطط السنوي</span>
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+      <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs print:hidden">
         <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">
           <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
           <div>
@@ -375,7 +403,7 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 print:hidden">
         <span className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
           <Layers className="w-4 h-4 text-blue-600" />
           <span>المستويات (من المرجع الرسمي):</span>
@@ -458,7 +486,7 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
           return (
             <div
               key={fieldId}
-              className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4"
+              className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4 break-inside-avoid print:break-inside-avoid"
             >
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
@@ -689,6 +717,10 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
           </span>
         </div>
       )}
+      <footer className="planning-print-footer hidden border-t border-slate-300 pt-3 text-xs font-bold text-slate-700 print:grid">
+        <div>الأستاذ: {`${currentUser.firstName} ${currentUser.lastName}`.trim() || ' '}</div>
+        <div className="text-left">المفتش: </div>
+      </footer>
     </div>
   );
 };

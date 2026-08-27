@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Layers, Search, BookOpen, Clock, CheckCircle2 } from 'lucide-react';
+import { Layers, Search, BookOpen, Clock, CheckCircle2, Printer } from 'lucide-react';
 import {
   PE_LEVELS,
   PE_FIELDS,
@@ -49,9 +49,39 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
   });
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div
+      className="planning-print-document learning-segments-print space-y-6 animate-in fade-in duration-200"
+      dir="rtl"
+    >
+      <header className="planning-print-header hidden border border-slate-300 bg-white p-4 text-center print:block">
+        <p className="text-[10px] font-bold text-slate-600">
+          الجمهورية الجزائرية الديمقراطية الشعبية
+        </p>
+        <p className="text-[10px] font-bold text-slate-600">وزارة التربية الوطنية</p>
+        <div className="my-2 border-y border-slate-200 py-2">
+          <h1 className="text-xl font-extrabold text-slate-900">المقاطع التعلمية</h1>
+          <p className="mt-1 text-sm font-bold text-blue-800">لمادة التربية البدنية والرياضية</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-right text-[10px] sm:grid-cols-4 print:grid-cols-4">
+          {[
+            ['المؤسسة', currentUser.schoolName || ''],
+            ['الأستاذ', `${currentUser.firstName} ${currentUser.lastName}`.trim()],
+            [
+              'المستوى',
+              PE_LEVELS.find((level) => level.id === selectedLevelId)?.name || selectedLevelId,
+            ],
+            ['السنة الدراسية', academicYearId],
+          ].map(([label, value]) => (
+            <div key={label} className="border border-slate-200 bg-slate-50 px-2 py-1.5">
+              <span className="block font-bold text-slate-500">{label}</span>
+              <span className="mt-0.5 block font-extrabold text-slate-900">{value || ' '}</span>
+            </div>
+          ))}
+        </div>
+      </header>
+
       {/* Header */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
         <div>
           <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">
             المرجع البيداغوجي الموحد للابتدائي
@@ -74,6 +104,13 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
               فتح التوزيع السنوي
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white"
+          >
+            <Printer className="h-4 w-4" /> طباعة المقاطع التعلمية
+          </button>
           <div className="relative w-full sm:w-64">
             <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
             <input
@@ -88,7 +125,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
       </div>
 
       {/* Level Selection Bar */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 print:hidden">
         <span className="text-xs font-bold text-slate-500 whitespace-nowrap ml-2">
           اختر المستوى الدراسي:
         </span>
@@ -116,7 +153,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
       </div>
 
       {/* Field Filter Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 print:hidden">
         <button
           onClick={() => setSelectedFieldId('all')}
           className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
@@ -147,7 +184,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
         {filteredFields.map((field) => (
           <div
             key={field.fieldId}
-            className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4 hover:shadow-md transition-shadow"
+            className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4 hover:shadow-md transition-shadow break-inside-avoid print:break-inside-avoid"
           >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
               <div>
@@ -250,6 +287,10 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
           </div>
         ))}
       </div>
+      <footer className="planning-print-footer hidden border-t border-slate-300 pt-3 text-xs font-bold text-slate-700 print:grid">
+        <div>الأستاذ: {`${currentUser.firstName} ${currentUser.lastName}`.trim() || ' '}</div>
+        <div className="text-left">المفتش: </div>
+      </footer>
     </div>
   );
 };

@@ -58,4 +58,22 @@ describe('unified Teacher planning workspace', () => {
     expect(read('src/services/api.ts')).toContain('referenceSessionId');
     expect(calendar).not.toContain('الهدف التعلمي');
   });
+
+  it('exposes professional print actions and print-only document shells for planning references', () => {
+    const annualPlan = read('src/components/curriculum/AnnualPlanView.tsx');
+    const segments = read('src/components/curriculum/LearningSegmentsView.tsx');
+    const printCss = read('src/index.css');
+    expect(annualPlan).toContain('المخطط السنوي');
+    expect(annualPlan).toContain('طباعة المخطط السنوي');
+    expect(annualPlan).toContain('planning-print-header');
+    expect(annualPlan).toContain('print:hidden');
+    expect(segments).toContain('طباعة المقاطع التعلمية');
+    expect(segments).toContain('planning-print-header');
+    expect(segments).toContain('OVERALL_COMPETENCY_BY_LEVEL');
+    expect(segments).toContain('effectiveCurriculumObjective');
+    expect(segments).toContain('sessionsList.map');
+    expect(printCss).toContain('size: A4 portrait');
+    expect(printCss).toContain('-webkit-print-color-adjust: exact');
+    expect(printCss).toContain('page-break-inside: avoid');
+  });
 });
