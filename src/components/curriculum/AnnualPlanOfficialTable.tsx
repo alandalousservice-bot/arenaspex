@@ -57,7 +57,7 @@ export const AnnualPlanOfficialTable: React.FC<AnnualPlanOfficialTableProps> = (
   onComprehensiveChange,
   onDomainChange,
 }) => (
-  <section className="space-y-4 break-inside-avoid print:break-inside-avoid">
+  <section className="annual-plan-table-section space-y-4 break-inside-avoid print:break-inside-avoid">
     <div className="annual-plan-overall rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
       <div className="mb-2 text-xs font-black text-emerald-900">الكفاءة الشاملة</div>
       {isEditing ? (
@@ -74,7 +74,7 @@ export const AnnualPlanOfficialTable: React.FC<AnnualPlanOfficialTableProps> = (
       )}
     </div>
 
-    <div className="overflow-x-auto rounded-2xl border border-slate-300 bg-white shadow-sm print:overflow-visible">
+    <div className="annual-plan-table-wrapper overflow-x-auto rounded-2xl border border-slate-300 bg-white shadow-sm print:overflow-visible">
       <table className="min-w-[1180px] w-full border-collapse text-right print:min-w-0">
         <colgroup>
           <col style={{ width: '7%' }} />

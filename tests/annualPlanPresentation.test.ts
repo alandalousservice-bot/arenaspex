@@ -5,6 +5,7 @@ import {
   buildAnnualPlanPresentation,
   buildDomainPresentation,
   calculatePrintScale,
+  doesPrintContentFit,
   getAnnualPlanDomainHours,
 } from '../src/services/annualPlanPresentation';
 import { pathToTab } from '../src/lib/routes';
@@ -77,9 +78,16 @@ describe('official annual plan presentation model', () => {
         contentHeight: 400,
         availableWidth: 100,
         availableHeight: 200,
-        minimumScale: 0.1,
       })
-    ).toBe(0.5);
+    ).toBeCloseTo(0.4925);
+    expect(
+      calculatePrintScale({
+        contentWidth: 200,
+        contentHeight: 100,
+        availableWidth: 1000,
+        availableHeight: 50,
+      })
+    ).toBeCloseTo(0.4925);
     expect(
       calculatePrintScale({
         contentWidth: 200,
@@ -88,6 +96,24 @@ describe('official annual plan presentation model', () => {
         availableHeight: 1000,
       })
     ).toBe(1);
+    expect(
+      doesPrintContentFit({
+        contentWidth: 200,
+        contentHeight: 400,
+        availableWidth: 100,
+        availableHeight: 200,
+        scale: 0.4925,
+      })
+    ).toBe(true);
+    expect(
+      doesPrintContentFit({
+        contentWidth: 200,
+        contentHeight: 400,
+        availableWidth: 100,
+        availableHeight: 200,
+        scale: 0.51,
+      })
+    ).toBe(false);
     expect(
       calculatePrintScale({
         contentWidth: 0,

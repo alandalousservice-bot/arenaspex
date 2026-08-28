@@ -28,6 +28,8 @@ import {
   calculatePrintScale,
 } from '../../services/annualPlanPresentation';
 
+const PRINT_SAFETY_MM = 3;
+
 interface AnnualPlanViewProps {
   currentUser: User;
   onNavigateToAnnualSchedule?: () => void;
@@ -217,26 +219,37 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
     const sheet = printSheetRef.current;
     const content = printContentRef.current;
     if (!sheet || !content) return;
-    setPrintScale(
-      calculatePrintScale({
-        contentWidth: content.scrollWidth,
-        contentHeight: content.scrollHeight,
-        availableWidth: sheet.clientWidth,
-        availableHeight: sheet.clientHeight,
-      })
-    );
+    const safetyPx = (PRINT_SAFETY_MM / 25.4) * 96;
+    const nextScale = calculatePrintScale({
+      contentWidth: content.scrollWidth,
+      contentHeight: content.scrollHeight,
+      availableWidth: sheet.clientWidth,
+      availableHeight: Math.max(sheet.clientHeight - safetyPx, 0),
+    });
+    sheet.style.setProperty('--annual-plan-print-scale', String(nextScale));
+    setPrintScale(nextScale);
   }, []);
   useEffect(() => {
     const handleBeforePrint = () => {
-      window.requestAnimationFrame(recalculatePrintScale);
+      recalculatePrintScale();
     };
+    const handleAfterPrint = () => recalculatePrintScale();
     window.addEventListener('beforeprint', handleBeforePrint);
-    return () => window.removeEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
   }, [recalculatePrintScale]);
   const handlePrint = async () => {
     if (typeof document.fonts?.ready !== 'undefined') await document.fonts.ready;
     recalculatePrintScale();
-    window.setTimeout(() => window.print(), 0);
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
+    window.print();
   };
   if (isLoading)
     return (
@@ -253,22 +266,25 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
       dir="rtl"
     >
       <div ref={printContentRef} className="annual-plan-print-content space-y-5">
-        <header className="planning-print-header rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-sm print:rounded-none print:border-slate-400">
+        <header className="annual-plan-document-header planning-print-header rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-sm print:rounded-none print:border-slate-400">
           <p className="text-xs font-bold text-slate-600">
             الجمهورية الجزائرية الديمقراطية الشعبية
           </p>
           <p className="text-xs font-bold text-slate-600">وزارة التربية الوطنية</p>
-          <h1 className="mt-2 border-y border-slate-200 py-2 text-xl font-black text-slate-900">
+          <h1 className="annual-plan-document-title mt-2 border-y border-slate-200 py-2 text-xl font-black text-slate-900">
             المخطط السنوي للتربية البدنية والرياضية
           </h1>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-right text-xs sm:grid-cols-4">
+          <div className="annual-plan-document-meta mt-3 grid grid-cols-2 gap-2 text-right text-xs sm:grid-cols-4">
             {[
               ['المؤسسة', currentUser.schoolName || ''],
               ['الأستاذ(ة)', `${currentUser.firstName} ${currentUser.lastName}`.trim()],
               ['السنة الدراسية', formatAcademicYearLabel(academicYearId)],
               ['المستوى', referenceLevel.levelName],
             ].map(([label, value]) => (
-              <div key={label} className="border border-slate-200 bg-slate-50 p-2">
+              <div
+                key={label}
+                className="annual-plan-meta-card border border-slate-200 bg-slate-50 p-2"
+              >
                 <span className="block font-bold text-slate-500">{label}</span>
                 <span className="block font-black text-slate-900">{value || ' '}</span>
               </div>

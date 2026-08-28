@@ -46,7 +46,7 @@ export interface PrintFitDimensions {
   contentHeight: number;
   availableWidth: number;
   availableHeight: number;
-  minimumScale?: number;
+  safetyFactor?: number;
 }
 
 export function calculatePrintScale({
@@ -54,13 +54,30 @@ export function calculatePrintScale({
   contentHeight,
   availableWidth,
   availableHeight,
-  minimumScale = 0.65,
+  safetyFactor = 0.985,
 }: PrintFitDimensions): number {
   if (![contentWidth, contentHeight, availableWidth, availableHeight].every((value) => value > 0)) {
     return 1;
   }
   const naturalScale = Math.min(availableWidth / contentWidth, availableHeight / contentHeight, 1);
-  return Math.max(minimumScale, naturalScale);
+  return naturalScale < 1 ? naturalScale * safetyFactor : 1;
+}
+
+export function doesPrintContentFit({
+  contentWidth,
+  contentHeight,
+  availableWidth,
+  availableHeight,
+  scale,
+}: PrintFitDimensions & { scale: number }): boolean {
+  if (
+    ![contentWidth, contentHeight, availableWidth, availableHeight, scale].every(
+      (value) => value > 0
+    )
+  ) {
+    return false;
+  }
+  return contentWidth * scale <= availableWidth && contentHeight * scale <= availableHeight;
 }
 
 const GROUP_LABELS = ['فكري', 'منهجي', 'تواصلي', 'شخصي/اجتماعي', 'شخصي / اجتماعي'];
