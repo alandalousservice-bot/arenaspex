@@ -19,13 +19,11 @@ interface AnnualPlanOfficialTableProps {
 }
 
 function DomainCell({
-  domain,
   value,
   children,
   isEditing,
   onChange,
 }: {
-  domain: AnnualPlanDomainPresentation;
   value: string;
   children: React.ReactNode;
   isEditing: boolean;
@@ -110,7 +108,6 @@ export const AnnualPlanOfficialTable: React.FC<AnnualPlanOfficialTableProps> = (
                   {domain.domainLabel}
                 </td>
                 <DomainCell
-                  domain={domain}
                   value={edit.competency ?? domain.competency}
                   isEditing={isEditing}
                   onChange={(value) => onDomainChange(domain.domainId, 'competency', value)}
@@ -118,7 +115,6 @@ export const AnnualPlanOfficialTable: React.FC<AnnualPlanOfficialTableProps> = (
                   <p className="font-bold">{domain.competency || '— فارغ —'}</p>
                 </DomainCell>
                 <DomainCell
-                  domain={domain}
                   value={edit.components ?? domain.components.join('\n')}
                   isEditing={isEditing}
                   onChange={(value) => onDomainChange(domain.domainId, 'components', value)}
@@ -126,7 +122,6 @@ export const AnnualPlanOfficialTable: React.FC<AnnualPlanOfficialTableProps> = (
                   {list(domain.components)}
                 </DomainCell>
                 <DomainCell
-                  domain={domain}
                   value={edit.knowledgeResources ?? domain.knowledgeResources.join('\n')}
                   isEditing={isEditing}
                   onChange={(value) => onDomainChange(domain.domainId, 'knowledgeResources', value)}
@@ -134,7 +129,6 @@ export const AnnualPlanOfficialTable: React.FC<AnnualPlanOfficialTableProps> = (
                   {list(domain.knowledgeResources)}
                 </DomainCell>
                 <DomainCell
-                  domain={domain}
                   value={
                     edit.transversalResources ??
                     domain.transversalResources
@@ -156,7 +150,6 @@ export const AnnualPlanOfficialTable: React.FC<AnnualPlanOfficialTableProps> = (
                   </div>
                 </DomainCell>
                 <DomainCell
-                  domain={domain}
                   value={
                     edit.evaluationCriteria ??
                     domain.evaluationCriteria

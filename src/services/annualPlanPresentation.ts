@@ -29,6 +29,18 @@ export interface AnnualPlanGradePresentation {
   domains: AnnualPlanDomainPresentation[];
 }
 
+export function getAnnualPlanDomainHours(grade: number): number | undefined {
+  if (grade >= 1 && grade <= 3) return 20;
+  if (grade === 4) return 15;
+  if (grade === 5) return 10;
+  return undefined;
+}
+
+export function annualPlanTimeLabel(grade: number): string {
+  const hours = getAnnualPlanDomainHours(grade);
+  return hours === undefined ? '—' : `${hours} ساعة`;
+}
+
 const GROUP_LABELS = ['فكري', 'منهجي', 'تواصلي', 'شخصي/اجتماعي', 'شخصي / اجتماعي'];
 
 function cleanText(value: string): string {
@@ -84,18 +96,23 @@ function parseHours(value: string): number | undefined {
 
 export function buildAnnualPlanPresentation(
   level: AnnualPlanLevel,
-  display: (domain: AnnualPlanDomain) => AnnualPlanDomainPresentation
+  display: (domain: AnnualPlanDomain, grade: number) => AnnualPlanDomainPresentation
 ): AnnualPlanGradePresentation {
   const gradeMatch = level.levelId.match(/(\d+)/);
+  const grade = gradeMatch ? Number(gradeMatch[1]) : 0;
   return {
-    grade: gradeMatch ? Number(gradeMatch[1]) : 0,
+    grade,
     gradeLabel: level.levelName,
     overallCompetency: level.comprehensive,
-    domains: level.domains.map(display),
+    domains: level.domains.map((domain) => display(domain, grade)),
   };
 }
 
-export function buildDomainPresentation(domain: AnnualPlanDomain): AnnualPlanDomainPresentation {
+export function buildDomainPresentation(
+  domain: AnnualPlanDomain,
+  grade?: number
+): AnnualPlanDomainPresentation {
+  const authoritativeHours = grade === undefined ? undefined : getAnnualPlanDomainHours(grade);
   return {
     domainId: domain.fieldId,
     domainLabel: domain.fieldName,
@@ -104,7 +121,7 @@ export function buildDomainPresentation(domain: AnnualPlanDomain): AnnualPlanDom
     knowledgeResources: splitItems(domain.knowledgeResources),
     transversalResources: parseTransversalResources(domain.transversalResources),
     evaluationCriteria: parseEvaluationCriteria(domain.evaluationCriteria),
-    time: domain.time,
-    allocatedHours: parseHours(domain.time),
+    time: authoritativeHours === undefined ? domain.time : annualPlanTimeLabel(grade),
+    allocatedHours: authoritativeHours ?? parseHours(domain.time),
   };
 }

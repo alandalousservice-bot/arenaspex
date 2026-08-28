@@ -19,6 +19,22 @@
     page: annual-plan;
   }
 
+  body:has(.annual-plan-print-root) * {
+    visibility: hidden !important;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-root,
+  body:has(.annual-plan-print-root) .annual-plan-print-root * {
+    visibility: visible !important;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-root {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    margin: 0;
+  }
+
   body:has(.weekly-timetable-print) .weekly-timetable-print {
     color: #0f172a;
     font-family: Tahoma, Arial, sans-serif;

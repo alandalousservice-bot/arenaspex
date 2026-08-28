@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { ANNUAL_PLAN_LEVELS, ANNUAL_PLAN_REFERENCE } from '../src/data/annualPlanReference';
 import {
+  annualPlanTimeLabel,
   buildAnnualPlanPresentation,
   buildDomainPresentation,
+  getAnnualPlanDomainHours,
 } from '../src/services/annualPlanPresentation';
 import { pathToTab } from '../src/lib/routes';
+import { readFileSync } from 'node:fs';
 
 describe('official annual plan presentation model', () => {
   it('exposes five grades and three canonical domains per grade', () => {
@@ -23,6 +26,26 @@ describe('official annual plan presentation model', () => {
     expect(domain.allocatedHours).toBe(20);
   });
 
+  it('uses the official grade-based annual hours for every domain', () => {
+    expect(
+      [1, 2, 3, 4, 5].map((grade) =>
+        ANNUAL_PLAN_REFERENCE[`lvl_p${grade}`].domains.map(
+          (domain) => buildDomainPresentation(domain, grade).allocatedHours
+        )
+      )
+    ).toEqual([
+      [20, 20, 20],
+      [20, 20, 20],
+      [20, 20, 20],
+      [15, 15, 15],
+      [10, 10, 10],
+    ]);
+    expect([1, 2, 3, 4, 5].map((grade) => getAnnualPlanDomainHours(grade)! * 3)).toEqual([
+      60, 60, 60, 45, 30,
+    ]);
+    expect(annualPlanTimeLabel(5)).toBe('10 ساعة');
+  });
+
   it('keeps grade identity and supports effective teacher wording', () => {
     const level = ANNUAL_PLAN_REFERENCE.lvl_p3;
     const presentation = buildAnnualPlanPresentation(level, (domain) =>
@@ -35,5 +58,14 @@ describe('official annual plan presentation model', () => {
     expect(presentation.grade).toBe(3);
     expect(presentation.domains[0].competency).toBe('صياغة الأستاذ الخاصة');
     expect(pathToTab('/annual-plan')).toBe('planning');
+  });
+
+  it('keeps Annual Plan print output isolated to its dedicated root', () => {
+    const view = readFileSync('src/components/curriculum/AnnualPlanView.tsx', 'utf8');
+    const css = readFileSync('src/index.css', 'utf8');
+    expect(view).toContain('annual-plan-print-root');
+    expect(css).toContain('body:has(.annual-plan-print-root) *');
+    expect(css).toContain('.annual-plan-print-root *');
+    expect(view).toContain('AnnualPlanOfficialTable');
   });
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
   GraduationCap,
@@ -22,6 +22,7 @@ import { fetchAnnualPlans } from '../../services/api';
 import { formatAcademicYearLabel, getCurrentAcademicYear } from '../../services/academicYear';
 import { AnnualPlanOfficialTable, type AnnualPlanEditValues } from './AnnualPlanOfficialTable';
 import {
+  annualPlanTimeLabel,
   buildAnnualPlanPresentation,
   buildDomainPresentation,
 } from '../../services/annualPlanPresentation';
@@ -50,7 +51,10 @@ function buildEditValues(
             domain.transversalResources
           ),
           evaluationCriteria: display(`${domain.fieldId}__evaluation`, domain.evaluationCriteria),
-          time: display(`${domain.fieldId}__time`, domain.time),
+          time: display(
+            `${domain.fieldId}__time`,
+            annualPlanTimeLabel(Number(level.levelId.replace('lvl_p', ''))) || domain.time
+          ),
         },
       ])
     ),
@@ -103,50 +107,59 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
             (item) => item === '' || item === null || (Array.isArray(item) && item.length === 0)
           )
       ));
-  const displayValue = (key: string, reference: string): string => {
-    if (!hasCustomization) return reference;
-    if (values.__cleared) return '';
-    const override = values[key];
-    if (!override) return reference;
-    const value =
-      key === 'comprehensive'
-        ? override.comprehensive
-        : key.endsWith('__final')
-          ? override.finalCompetency
-          : key.endsWith('__components')
-            ? override.components
-            : key.endsWith('__knowledge')
-              ? override.knowledgeResources
-              : key.endsWith('__transversal')
-                ? override.transversalResources
-                : key.endsWith('__evaluation')
-                  ? override.evaluationCriteria
-                  : override.time;
-    return typeof value === 'string' ? value : reference;
-  };
+  const displayValue = useCallback(
+    (key: string, reference: string): string => {
+      if (!hasCustomization) return reference;
+      if (values.__cleared) return '';
+      const override = values[key];
+      if (!override) return reference;
+      const value =
+        key === 'comprehensive'
+          ? override.comprehensive
+          : key.endsWith('__final')
+            ? override.finalCompetency
+            : key.endsWith('__components')
+              ? override.components
+              : key.endsWith('__knowledge')
+                ? override.knowledgeResources
+                : key.endsWith('__transversal')
+                  ? override.transversalResources
+                  : key.endsWith('__evaluation')
+                    ? override.evaluationCriteria
+                    : override.time;
+      return typeof value === 'string' ? value : reference;
+    },
+    [hasCustomization, values]
+  );
   const presentation = useMemo(() => {
-    const model = buildAnnualPlanPresentation(referenceLevel, (domain: AnnualPlanDomain) =>
-      buildDomainPresentation({
-        ...domain,
-        finalCompetency: displayValue(`${domain.fieldId}__final`, domain.finalCompetency),
-        components: displayValue(`${domain.fieldId}__components`, domain.components),
-        knowledgeResources: displayValue(`${domain.fieldId}__knowledge`, domain.knowledgeResources),
-        transversalResources: displayValue(
-          `${domain.fieldId}__transversal`,
-          domain.transversalResources
-        ),
-        evaluationCriteria: displayValue(
-          `${domain.fieldId}__evaluation`,
-          domain.evaluationCriteria
-        ),
-        time: displayValue(`${domain.fieldId}__time`, domain.time),
-      })
+    const model = buildAnnualPlanPresentation(referenceLevel, (domain: AnnualPlanDomain, grade) =>
+      buildDomainPresentation(
+        {
+          ...domain,
+          finalCompetency: displayValue(`${domain.fieldId}__final`, domain.finalCompetency),
+          components: displayValue(`${domain.fieldId}__components`, domain.components),
+          knowledgeResources: displayValue(
+            `${domain.fieldId}__knowledge`,
+            domain.knowledgeResources
+          ),
+          transversalResources: displayValue(
+            `${domain.fieldId}__transversal`,
+            domain.transversalResources
+          ),
+          evaluationCriteria: displayValue(
+            `${domain.fieldId}__evaluation`,
+            domain.evaluationCriteria
+          ),
+          time: displayValue(`${domain.fieldId}__time`, domain.time),
+        },
+        grade
+      )
     );
     return {
       ...model,
       overallCompetency: displayValue('comprehensive', referenceLevel.comprehensive),
     };
-  }, [referenceLevel, values, hasCustomization]);
+  }, [referenceLevel, displayValue]);
   useEffect(() => {
     if (autoDetected || currentUser.role !== 'teacher') return;
     fetchAnnualPlans({ teacherId: currentUser.id, kind: 'annual_plan_new', academicYearId })
@@ -204,7 +217,10 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
     );
   const edit = editValues || buildEditValues(referenceLevel, displayValue);
   return (
-    <div className="annual-plan-print planning-print-document space-y-5" dir="rtl">
+    <div
+      className="annual-plan-print-root annual-plan-print planning-print-document space-y-5"
+      dir="rtl"
+    >
       <header className="planning-print-header rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-sm print:rounded-none print:border-slate-400">
         <p className="text-xs font-bold text-slate-600">الجمهورية الجزائرية الديمقراطية الشعبية</p>
         <p className="text-xs font-bold text-slate-600">وزارة التربية الوطنية</p>
@@ -306,7 +322,7 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
           </button>
         ))}
       </div>
-      <div className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-xs font-bold text-white">
+      <div className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-xs font-bold text-white print:hidden">
         <span>{referenceLevel.levelName}</span>
         <span className="flex items-center gap-1 text-emerald-300">
           <ShieldCheck className="h-4 w-4" />
@@ -323,7 +339,7 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
         onDomainChange={updateDomain}
       />
       {isCleared && !isEditing && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900 print:hidden">
           هذا المخطط مفرغ كتخصيص صالح. يمكنك استعادة النص المرجعي أو كتابة صياغة جديدة.
         </div>
       )}
