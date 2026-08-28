@@ -6,8 +6,17 @@
     margin: 10mm;
   }
 
+  @page annual-plan {
+    size: A4 landscape;
+    margin: 5mm;
+  }
+
   body:has(.weekly-timetable-print) {
     page: weekly-timetable;
+  }
+
+  body:has(.annual-plan-print) {
+    page: annual-plan;
   }
 
   body:has(.weekly-timetable-print) .weekly-timetable-print {
@@ -75,6 +84,19 @@
 
   body:has(.planning-print-document) .planning-print-document {
     max-width: none;
+  }
+
+  body:has(.annual-plan-print) .annual-plan-print {
+    font-size: 9pt;
+  }
+
+  body:has(.annual-plan-print) .annual-plan-print table {
+    font-size: 8pt;
+  }
+
+  body:has(.annual-plan-print) .annual-plan-print th,
+  body:has(.annual-plan-print) .annual-plan-print td {
+    padding: 4px;
   }
 
   body:has(.planning-print-document) .planning-print-header {

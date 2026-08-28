@@ -1,43 +1,30 @@
-/**
- * SPEX - Annual Plan View (المخطط السنوي) - نسخة منقحة 2025
- * مهم جداً: هذا التعديل محصور بالكامل في ميزة المخطط السنوي فقط
- * - لا يمس المقاطع التعلمية، التوزيع السنوي، الحصص، الكراس اليومي، أو أي Workflow آخر
- * - المرجع المنهجي من ملف docx الرسمي: مخططات_سنوية_و_مقاطع_1_2_3_4_5_ابتدائي_2025.docx
- *
- * البنية الجديدة:
- * - المستوى
- * - الكفاءة الشاملة
- * - لكل ميدان من الميادين الثلاثة: الميدان، الكفاءة الختامية، مركبات الكفاءة، الموارد المعرفية، الموارد العرضية، معايير ومؤشرات التقويم، الزمن
- * الميادين: الوضعيات والتنقلات، الحركات القاعدية، الهيكلة والبناء
- */
-
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
-  Printer,
-  Layers,
-  Clock,
-  Save,
-  Pencil,
-  ShieldCheck,
-  Loader2,
-  School,
-  User as UserIcon,
   GraduationCap,
-  Trash2,
+  Loader2,
+  Pencil,
+  Printer,
   RefreshCcw,
-  AlertTriangle,
+  Save,
+  ShieldCheck,
+  Trash2,
 } from 'lucide-react';
 import {
-  ANNUAL_PLAN_REFERENCE,
   ANNUAL_PLAN_LEVELS,
-  AnnualPlanLevel,
+  ANNUAL_PLAN_REFERENCE,
+  type AnnualPlanDomain,
+  type AnnualPlanLevel,
 } from '../../data/annualPlanReference';
-import { PE_LEVELS } from '../../data/algerianCurriculum';
-import { User } from '../../types/spex';
+import type { User } from '../../types/spex';
 import { useCurriculumOverrides } from '../../hooks/useCurriculumOverrides';
 import { fetchAnnualPlans } from '../../services/api';
 import { formatAcademicYearLabel, getCurrentAcademicYear } from '../../services/academicYear';
+import { AnnualPlanOfficialTable, type AnnualPlanEditValues } from './AnnualPlanOfficialTable';
+import {
+  buildAnnualPlanPresentation,
+  buildDomainPresentation,
+} from '../../services/annualPlanPresentation';
 
 interface AnnualPlanViewProps {
   currentUser: User;
@@ -45,83 +32,45 @@ interface AnnualPlanViewProps {
   academicYearId?: string;
 }
 
-type EditValues = {
-  comprehensive: string;
-  domains: Record<
-    string,
-    {
-      finalCompetency: string;
-      components: string;
-      knowledgeResources: string;
-      transversalResources: string;
-      evaluationCriteria: string;
-      time: string;
-    }
-  >;
-};
-
-function buildEditValuesFromDisplay(
+function buildEditValues(
   level: AnnualPlanLevel,
-  getDisplay: (fieldId: string, prop: string, ref: string) => string
-): EditValues {
-  const domains: EditValues['domains'] = {};
-  for (const dom of level.domains) {
-    domains[dom.fieldId] = {
-      finalCompetency: getDisplay(`${dom.fieldId}__final`, 'finalCompetency', dom.finalCompetency),
-      components: getDisplay(`${dom.fieldId}__components`, 'components', dom.components),
-      knowledgeResources: getDisplay(
-        `${dom.fieldId}__knowledge`,
-        'knowledgeResources',
-        dom.knowledgeResources
-      ),
-      transversalResources: getDisplay(
-        `${dom.fieldId}__transversal`,
-        'transversalResources',
-        dom.transversalResources
-      ),
-      evaluationCriteria: getDisplay(
-        `${dom.fieldId}__evaluation`,
-        'evaluationCriteria',
-        dom.evaluationCriteria
-      ),
-      time: getDisplay(`${dom.fieldId}__time`, 'time', dom.time),
-    };
-  }
+  display: (key: string, value: string) => string
+): AnnualPlanEditValues {
   return {
-    comprehensive: getDisplay('comprehensive', 'comprehensive', level.comprehensive),
-    domains,
+    comprehensive: display('comprehensive', level.comprehensive),
+    domains: Object.fromEntries(
+      level.domains.map((domain) => [
+        domain.fieldId,
+        {
+          competency: display(`${domain.fieldId}__final`, domain.finalCompetency),
+          components: display(`${domain.fieldId}__components`, domain.components),
+          knowledgeResources: display(`${domain.fieldId}__knowledge`, domain.knowledgeResources),
+          transversalResources: display(
+            `${domain.fieldId}__transversal`,
+            domain.transversalResources
+          ),
+          evaluationCriteria: display(`${domain.fieldId}__evaluation`, domain.evaluationCriteria),
+          time: display(`${domain.fieldId}__time`, domain.time),
+        },
+      ])
+    ),
   };
 }
 
-function buildEmptyEditValues(level: AnnualPlanLevel): EditValues {
-  const domains: EditValues['domains'] = {};
-  for (const dom of level.domains) {
-    domains[dom.fieldId] = {
-      finalCompetency: '',
-      components: '',
-      knowledgeResources: '',
-      transversalResources: '',
-      evaluationCriteria: '',
-      time: '',
-    };
-  }
-  return {
-    comprehensive: '',
-    domains,
+function buildOverrides(values: AnnualPlanEditValues) {
+  const overrides: Record<string, Record<string, string>> = {
+    comprehensive: { comprehensive: values.comprehensive },
   };
-}
-
-function buildOverridesFromEditValues(editValues: EditValues) {
-  const overrides: Record<string, any> = {};
-  overrides['comprehensive'] = { comprehensive: editValues.comprehensive };
-  for (const [fieldId, vals] of Object.entries(editValues.domains)) {
-    overrides[`${fieldId}__final`] = { finalCompetency: vals.finalCompetency };
-    overrides[`${fieldId}__components`] = { components: vals.components };
-    overrides[`${fieldId}__knowledge`] = { knowledgeResources: vals.knowledgeResources };
-    overrides[`${fieldId}__transversal`] = { transversalResources: vals.transversalResources };
-    overrides[`${fieldId}__evaluation`] = { evaluationCriteria: vals.evaluationCriteria };
-    overrides[`${fieldId}__time`] = { time: vals.time };
-  }
+  Object.entries(values.domains).forEach(([fieldId, value]) => {
+    overrides[`${fieldId}__final`] = { finalCompetency: value.competency || '' };
+    overrides[`${fieldId}__components`] = { components: value.components || '' };
+    overrides[`${fieldId}__knowledge`] = { knowledgeResources: value.knowledgeResources || '' };
+    overrides[`${fieldId}__transversal`] = {
+      transversalResources: value.transversalResources || '',
+    };
+    overrides[`${fieldId}__evaluation`] = { evaluationCriteria: value.evaluationCriteria || '' };
+    overrides[`${fieldId}__time`] = { time: value.time || '' };
+  });
   return overrides;
 }
 
@@ -129,11 +78,10 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
   currentUser,
   academicYearId = getCurrentAcademicYear(),
 }) => {
-  const [selectedLevelId, setSelectedLevelId] = useState<string>('lvl_p1');
+  const [selectedLevelId, setSelectedLevelId] = useState('lvl_p1');
   const [isEditing, setIsEditing] = useState(false);
-  const [editValues, setEditValues] = useState<EditValues | null>(null);
+  const [editValues, setEditValues] = useState<AnnualPlanEditValues | null>(null);
   const [autoDetected, setAutoDetected] = useState(false);
-
   const { record, values, isLoading, isSaving, saveAll, clearAll, restoreOriginal, reload } =
     useCurriculumOverrides({
       currentUser,
@@ -141,585 +89,247 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
       kind: 'annual_plan_new',
       academicYearId,
     });
-
-  const referenceLevel: AnnualPlanLevel =
-    ANNUAL_PLAN_REFERENCE[selectedLevelId] || ANNUAL_PLAN_REFERENCE['lvl_p1'];
-
-  useEffect(() => {
-    if (autoDetected) return;
-    if (currentUser.role !== 'teacher') return;
-    (async () => {
-      try {
-        const res = await fetchAnnualPlans({
-          teacherId: currentUser.id,
-          kind: 'annual_plan_new' as any,
-          academicYearId,
-        });
-        if (res.success && res.annualPlans && res.annualPlans.length > 0) {
-          const sorted = [...res.annualPlans].sort(
-            (a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          );
-          const latest = sorted[0];
-          if (latest.levelId && ANNUAL_PLAN_REFERENCE[latest.levelId]) {
-            setSelectedLevelId(latest.levelId);
-            setAutoDetected(true);
-          }
-        }
-      } catch {
-        // Saved-plan auto-detection is best-effort; retain the reference fallback on failure.
-      }
-    })();
-  }, [currentUser.id, currentUser.role, autoDetected, academicYearId]);
-
+  const referenceLevel = ANNUAL_PLAN_REFERENCE[selectedLevelId] || ANNUAL_PLAN_REFERENCE.lvl_p1;
   const hasCustomization = !!record;
   const isCleared =
-    !!(values as any)?.__cleared ||
+    !!values.__cleared ||
     (hasCustomization &&
       Object.keys(values).length > 0 &&
-      Object.values(values).every((v: any) => {
-        if (!v) return true;
-        if ((v as any).isCleared) return true;
-        return Object.values(v).every(
-          (x) => x === '' || x === null || (Array.isArray(x) && (x as any).length === 0)
-        );
-      }));
-
-  const getDisplayValue = (key: string, prop: string, refValue: string): string => {
-    if (!hasCustomization) return refValue;
-    if ((values as any)?.__cleared) return '';
-    const override = (values as any)[key];
-    if (override && typeof override === 'object' && prop in override) {
-      const val = (override as any)[prop];
-      if (val !== undefined) return val as string;
-    }
-    return refValue;
+      Object.values(values).every(
+        (value) =>
+          !value ||
+          value.isCleared ||
+          Object.values(value).every(
+            (item) => item === '' || item === null || (Array.isArray(item) && item.length === 0)
+          )
+      ));
+  const displayValue = (key: string, reference: string): string => {
+    if (!hasCustomization) return reference;
+    if (values.__cleared) return '';
+    const override = values[key];
+    if (!override) return reference;
+    const value =
+      key === 'comprehensive'
+        ? override.comprehensive
+        : key.endsWith('__final')
+          ? override.finalCompetency
+          : key.endsWith('__components')
+            ? override.components
+            : key.endsWith('__knowledge')
+              ? override.knowledgeResources
+              : key.endsWith('__transversal')
+                ? override.transversalResources
+                : key.endsWith('__evaluation')
+                  ? override.evaluationCriteria
+                  : override.time;
+    return typeof value === 'string' ? value : reference;
   };
-
-  const displayData = useMemo(() => {
-    return buildEditValuesFromDisplay(referenceLevel, getDisplayValue);
+  const presentation = useMemo(() => {
+    const model = buildAnnualPlanPresentation(referenceLevel, (domain: AnnualPlanDomain) =>
+      buildDomainPresentation({
+        ...domain,
+        finalCompetency: displayValue(`${domain.fieldId}__final`, domain.finalCompetency),
+        components: displayValue(`${domain.fieldId}__components`, domain.components),
+        knowledgeResources: displayValue(`${domain.fieldId}__knowledge`, domain.knowledgeResources),
+        transversalResources: displayValue(
+          `${domain.fieldId}__transversal`,
+          domain.transversalResources
+        ),
+        evaluationCriteria: displayValue(
+          `${domain.fieldId}__evaluation`,
+          domain.evaluationCriteria
+        ),
+        time: displayValue(`${domain.fieldId}__time`, domain.time),
+      })
+    );
+    return {
+      ...model,
+      overallCompetency: displayValue('comprehensive', referenceLevel.comprehensive),
+    };
   }, [referenceLevel, values, hasCustomization]);
-
-  const handleStartEdit = () => {
-    setEditValues(JSON.parse(JSON.stringify(displayData)));
+  useEffect(() => {
+    if (autoDetected || currentUser.role !== 'teacher') return;
+    fetchAnnualPlans({ teacherId: currentUser.id, kind: 'annual_plan_new', academicYearId })
+      .then((result) => {
+        const latest = [...(result.annualPlans || [])].sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )[0];
+        if (latest?.levelId && ANNUAL_PLAN_REFERENCE[latest.levelId])
+          setSelectedLevelId(latest.levelId);
+        setAutoDetected(true);
+      })
+      .catch(() => setAutoDetected(true));
+  }, [autoDetected, currentUser.id, currentUser.role, academicYearId]);
+  const startEdit = () => {
+    setEditValues(buildEditValues(referenceLevel, displayValue));
     setIsEditing(true);
   };
-
-  const handleCancelEdit = () => {
-    setEditValues(null);
-    setIsEditing(false);
-  };
-
-  const handleSave = async () => {
+  const updateDomain = (domainId: string, field: string, value: string) =>
+    setEditValues((current) =>
+      current
+        ? {
+            ...current,
+            domains: {
+              ...current.domains,
+              [domainId]: { ...current.domains[domainId], [field]: value },
+            },
+          }
+        : current
+    );
+  const save = async () => {
     if (!editValues) return;
-    const overrides = buildOverridesFromEditValues(editValues);
-    await saveAll(overrides as any, 'تعديل المخطط السنوي', true);
+    await saveAll(buildOverrides(editValues), 'تعديل المخطط السنوي', true);
     setIsEditing(false);
     setEditValues(null);
   };
-
-  const handleClear = async () => {
-    const confirmed = window.confirm(
-      'هل أنت متأكد من تفريغ المخطط؟\n\nسيتم إفراغ كل محتوى المخطط الخاص بك مع بقاء هيكل الميادين الثلاثة فارغاً حتى تكتب مخططاً جديداً.\nلا يمكن التراجع إلا عبر "استعادة المخطط الأصلي".'
-    );
-    if (!confirmed) return;
-    const empty = buildEmptyEditValues(referenceLevel);
-    const overrides = buildOverridesFromEditValues(empty);
-    await clearAll(overrides as any);
-    setEditValues(empty);
+  const clear = async () => {
+    if (!window.confirm('هل أنت متأكد من تفريغ المخطط؟')) return;
+    await clearAll(buildOverrides(buildEditValues(referenceLevel, () => '')));
     setIsEditing(false);
+    setEditValues(null);
   };
-
-  const handleRestore = async () => {
-    const confirmed = window.confirm(
-      'هل أنت متأكد من استعادة المخطط الأصلي؟\n\nسيتم حذف كل تخصيصاتك للمستوى الحالي وإعادة عرض المخطط المرجعي الأصلي.\nلا يمكن التراجع.'
-    );
-    if (!confirmed) return;
+  const restore = async () => {
+    if (!window.confirm('هل أنت متأكد من استعادة المخطط الأصلي؟')) return;
     await restoreOriginal();
     await reload();
     setIsEditing(false);
     setEditValues(null);
   };
-
-  if (isLoading) {
+  if (isLoading)
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
         <span className="mr-2 text-sm text-slate-600">جارٍ تحميل المخطط السنوي...</span>
       </div>
     );
-  }
-
-  const currentEdit = isEditing ? editValues : null;
-
+  const edit = editValues || buildEditValues(referenceLevel, displayValue);
   return (
-    <div
-      className="planning-print-document annual-plan-print space-y-6 animate-in fade-in duration-200"
-      dir="rtl"
-    >
-      <header className="planning-print-header hidden border border-slate-300 bg-white p-4 text-center print:block">
-        <p className="text-[10px] font-bold text-slate-600">
-          الجمهورية الجزائرية الديمقراطية الشعبية
-        </p>
-        <p className="text-[10px] font-bold text-slate-600">وزارة التربية الوطنية</p>
-        <div className="my-2 border-y border-slate-200 py-2">
-          <h1 className="text-xl font-extrabold text-slate-900">المخطط السنوي</h1>
-          <p className="mt-1 text-sm font-bold text-blue-800">لمادة التربية البدنية والرياضية</p>
-        </div>
-        <div className="grid grid-cols-2 gap-2 text-right text-[10px] sm:grid-cols-4 print:grid-cols-4">
+    <div className="annual-plan-print planning-print-document space-y-5" dir="rtl">
+      <header className="planning-print-header rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-sm print:rounded-none print:border-slate-400">
+        <p className="text-xs font-bold text-slate-600">الجمهورية الجزائرية الديمقراطية الشعبية</p>
+        <p className="text-xs font-bold text-slate-600">وزارة التربية الوطنية</p>
+        <h1 className="mt-2 border-y border-slate-200 py-2 text-xl font-black text-slate-900">
+          المخطط السنوي للتربية البدنية والرياضية
+        </h1>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-right text-xs sm:grid-cols-4">
           {[
             ['المؤسسة', currentUser.schoolName || ''],
-            ['الأستاذ', `${currentUser.firstName} ${currentUser.lastName}`.trim()],
-            ['المستوى', referenceLevel.levelName],
+            ['الأستاذ(ة)', `${currentUser.firstName} ${currentUser.lastName}`.trim()],
             ['السنة الدراسية', formatAcademicYearLabel(academicYearId)],
+            ['المستوى', referenceLevel.levelName],
           ].map(([label, value]) => (
-            <div key={label} className="border border-slate-200 bg-slate-50 px-2 py-1.5">
+            <div key={label} className="border border-slate-200 bg-slate-50 p-2">
               <span className="block font-bold text-slate-500">{label}</span>
-              <span className="mt-0.5 block font-extrabold text-slate-900">{value || ' '}</span>
+              <span className="block font-black text-slate-900">{value || ' '}</span>
             </div>
           ))}
         </div>
       </header>
-
-      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
+      <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm print:hidden sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg">
-              المرجع الرسمي 2025
-            </span>
-            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">
-              مخطط سنوي جديد
-            </span>
-            {hasCustomization && !isCleared && (
-              <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 flex items-center gap-1">
-                <Pencil className="w-3 h-3" /> مخصص للأستاذ
-              </span>
-            )}
-            {isCleared && (
-              <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border">
-                مفرغ
-              </span>
-            )}
+          <div className="flex items-center gap-2 text-xs font-bold text-blue-700">
+            <Calendar className="h-4 w-4" /> المرجع الرسمي — المخطط السنوي
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 mt-2 flex items-center gap-2">
-            <Calendar className="w-6 h-6 text-blue-600" />
-            <span>المخطط السنوي لبناء التعلمات</span>
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            يظهر تلقائياً المخطط المرجعي الخاص بالمستوى الذي تدرسه — 3 ميادين فقط بدون حصص أو تواريخ
+          <h2 className="mt-1 text-xl font-black text-slate-900">المخطط السنوي لبناء التعلمات</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            مرجع تربوي منظم حسب المستوى والميادين، مع تخصيص محفوظ للأستاذ.
           </p>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-2">
           {!isEditing ? (
             <>
               <button
-                onClick={handleStartEdit}
-                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-2xl shadow-sm transition-all"
+                onClick={startEdit}
+                className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
               >
-                <Pencil className="w-4 h-4" />
-                <span>تعديل المخطط</span>
+                <Pencil className="h-4 w-4" />
+                تعديل
               </button>
               <button
-                onClick={handleClear}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-800 text-xs font-bold rounded-2xl shadow-xs transition-all"
+                onClick={clear}
+                className="flex items-center gap-2 rounded-xl border border-amber-300 px-3 py-2 text-xs font-bold text-amber-800"
               >
-                <Trash2 className="w-4 h-4" />
-                <span>تفريغ المخطط</span>
+                <Trash2 className="h-4 w-4" />
+                تفريغ
               </button>
               <button
-                onClick={handleRestore}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-2xl shadow-xs transition-all"
+                onClick={restore}
+                className="flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
               >
-                <RefreshCcw className="w-4 h-4" />
-                <span>استعادة المخطط الأصلي</span>
+                <RefreshCcw className="h-4 w-4" />
+                استعادة النص المرجعي
               </button>
             </>
           ) : (
             <>
               <button
-                onClick={handleSave}
+                onClick={save}
                 disabled={isSaving}
-                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl shadow-sm transition-all disabled:opacity-60"
+                className="flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white"
               >
-                {isSaving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-                <span>حفظ التعديلات</span>
+                <Save className="h-4 w-4" />
+                حفظ
               </button>
               <button
-                onClick={handleCancelEdit}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-2xl shadow-xs transition-all"
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditValues(null);
+                }}
+                className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
               >
-                <span>إلغاء</span>
+                إلغاء
               </button>
             </>
           )}
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-2xl shadow-sm transition-all"
+            className="flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white"
           >
-            <Printer className="w-4 h-4" />
-            <span>طباعة المخطط السنوي</span>
+            <Printer className="h-4 w-4" />
+            طباعة المخطط
           </button>
         </div>
       </div>
-
-      <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs print:hidden">
-        <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">
-          <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
-          <div>
-            <span className="block text-slate-500 font-bold">السنة الدراسية</span>
-            <span className="block font-extrabold text-slate-900">
-              {formatAcademicYearLabel(academicYearId)}
-            </span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">
-          <School className="w-4 h-4 text-blue-600 shrink-0" />
-          <div>
-            <span className="block text-slate-500 font-bold">المدرسة</span>
-            <span className="block font-extrabold text-slate-900 truncate">
-              {currentUser.schoolName || 'غير محددة'}
-            </span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">
-          <UserIcon className="w-4 h-4 text-blue-600 shrink-0" />
-          <div>
-            <span className="block text-slate-500 font-bold">الأستاذ(ة)</span>
-            <span className="block font-extrabold text-slate-900 truncate">
-              {currentUser.firstName} {currentUser.lastName}
-            </span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">
-          <GraduationCap className="w-4 h-4 text-blue-600 shrink-0" />
-          <div>
-            <span className="block text-slate-500 font-bold">المستوى الدراسي</span>
-            <span className="block font-extrabold text-slate-900">{referenceLevel.levelName}</span>
-          </div>
-        </div>
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-3 print:hidden">
+        {ANNUAL_PLAN_LEVELS.map((level) => (
+          <button
+            key={level.levelId}
+            onClick={() => {
+              setSelectedLevelId(level.levelId);
+              setIsEditing(false);
+              setEditValues(null);
+            }}
+            className={`rounded-xl px-3 py-2 text-xs font-bold ${level.levelId === selectedLevelId ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-slate-50 text-slate-700'}`}
+          >
+            <GraduationCap className="ml-1 inline h-4 w-4" />
+            {level.levelName}
+          </button>
+        ))}
       </div>
-
-      <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 print:hidden">
-        <span className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
-          <Layers className="w-4 h-4 text-blue-600" />
-          <span>المستويات (من المرجع الرسمي):</span>
+      <div className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-xs font-bold text-white">
+        <span>{referenceLevel.levelName}</span>
+        <span className="flex items-center gap-1 text-emerald-300">
+          <ShieldCheck className="h-4 w-4" />
+          {hasCustomization ? (isCleared ? 'مخطط مفرغ' : 'نسخة الأستاذ') : 'المخطط المرجعي الأصلي'}
         </span>
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
-          {ANNUAL_PLAN_LEVELS.map((lvl) => {
-            const isSelected = lvl.levelId === selectedLevelId;
-            return (
-              <button
-                key={lvl.levelId}
-                onClick={() => {
-                  setSelectedLevelId(lvl.levelId);
-                  setIsEditing(false);
-                  setEditValues(null);
-                }}
-                className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                  isSelected
-                    ? 'bg-slate-900 text-white shadow-md font-extrabold'
-                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
-                }`}
-              >
-                {lvl.levelName}
-              </button>
-            );
-          })}
-        </div>
       </div>
-
-      <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-6 rounded-3xl shadow-md border border-blue-800 space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-amber-300 bg-white/10 px-3 py-1 rounded-full border border-white/10">
-            المستوى: {referenceLevel.levelName}
-          </span>
-          <span className="text-xs font-bold text-slate-200 flex items-center gap-1">
-            <ShieldCheck className="w-4 h-4 text-emerald-300" />
-            {hasCustomization
-              ? isCleared
-                ? 'مخطط مفرغ (تخصيص فارغ صالح)'
-                : 'نسخة الأستاذ'
-              : 'المخطط المرجعي الأصلي'}
-          </span>
-        </div>
-        <span className="text-[11px] font-bold text-blue-200 bg-white/10 px-2.5 py-1 rounded-lg inline-block">
-          الكفاءة الشاملة
-        </span>
-        {!isEditing ? (
-          <h3 className="text-base font-extrabold text-white leading-relaxed min-h-[24px]">
-            {displayData.comprehensive ? (
-              `« ${displayData.comprehensive} »`
-            ) : (
-              <span className="text-slate-300 italic">— فارغ —</span>
-            )}
-          </h3>
-        ) : (
-          <textarea
-            value={currentEdit?.comprehensive || ''}
-            onChange={(e) =>
-              setEditValues((prev) => (prev ? { ...prev, comprehensive: e.target.value } : prev))
-            }
-            rows={3}
-            placeholder="اكتب الكفاءة الشاملة..."
-            className="w-full px-3 py-2.5 bg-white text-slate-900 rounded-xl border border-blue-300 text-sm font-bold focus:ring-2 focus:ring-amber-300 outline-none resize-y"
-          />
-        )}
-      </div>
-
-      <div className="space-y-6">
-        {referenceLevel.domains.map((domainRef) => {
-          const fieldId = domainRef.fieldId;
-          const disp = displayData.domains[fieldId] || {
-            finalCompetency: domainRef.finalCompetency,
-            components: domainRef.components,
-            knowledgeResources: domainRef.knowledgeResources,
-            transversalResources: domainRef.transversalResources,
-            evaluationCriteria: domainRef.evaluationCriteria,
-            time: domainRef.time,
-          };
-          const editDisp = currentEdit?.domains[fieldId];
-
-          return (
-            <div
-              key={fieldId}
-              className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4 break-inside-avoid print:break-inside-avoid"
-            >
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-blue-600" />
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 block">الميدان</span>
-                    <h3 className="text-base font-black text-slate-900">{domainRef.fieldName}</h3>
-                  </div>
-                </div>
-                {!isEditing ? (
-                  <span className="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    {disp.time ? disp.time : <span className="italic">— فارغ —</span>}
-                  </span>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-slate-500">الزمن:</span>
-                    <input
-                      value={editDisp?.time || ''}
-                      onChange={(e) =>
-                        setEditValues((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                domains: {
-                                  ...prev.domains,
-                                  [fieldId]: { ...prev.domains[fieldId], time: e.target.value },
-                                },
-                              }
-                            : prev
-                        )
-                      }
-                      placeholder="مثال: 20 ساعة"
-                      className="px-2.5 py-1.5 bg-white border border-blue-300 rounded-lg text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none w-28"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-blue-50/60 p-4 rounded-2xl border border-blue-100 space-y-2">
-                <span className="text-[11px] font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-md">
-                  الكفاءة الختامية
-                </span>
-                {!isEditing ? (
-                  <p className="text-sm font-extrabold text-slate-900 leading-relaxed min-h-[20px]">
-                    {disp.finalCompetency ? (
-                      `« ${disp.finalCompetency} »`
-                    ) : (
-                      <span className="text-slate-400 italic">— فارغ —</span>
-                    )}
-                  </p>
-                ) : (
-                  <textarea
-                    value={editDisp?.finalCompetency || ''}
-                    onChange={(e) =>
-                      setEditValues((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              domains: {
-                                ...prev.domains,
-                                [fieldId]: {
-                                  ...prev.domains[fieldId],
-                                  finalCompetency: e.target.value,
-                                },
-                              },
-                            }
-                          : prev
-                      )
-                    }
-                    rows={2}
-                    placeholder="الكفاءة الختامية..."
-                    className="w-full px-3 py-2 bg-white rounded-lg border border-blue-300 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none resize-y"
-                  />
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
-                    مركبات الكفاءة
-                  </span>
-                  {!isEditing ? (
-                    <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap min-h-[20px]">
-                      {disp.components || <span className="text-slate-400 italic">— فارغ —</span>}
-                    </p>
-                  ) : (
-                    <textarea
-                      value={editDisp?.components || ''}
-                      onChange={(e) =>
-                        setEditValues((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                domains: {
-                                  ...prev.domains,
-                                  [fieldId]: {
-                                    ...prev.domains[fieldId],
-                                    components: e.target.value,
-                                  },
-                                },
-                              }
-                            : prev
-                        )
-                      }
-                      rows={5}
-                      className="w-full px-3 py-2 bg-white rounded-lg border border-emerald-300 text-xs text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none resize-y"
-                    />
-                  )}
-                </div>
-
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                  <span className="text-[11px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 rounded-md">
-                    الموارد المعرفية
-                  </span>
-                  {!isEditing ? (
-                    <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap min-h-[20px]">
-                      {disp.knowledgeResources || (
-                        <span className="text-slate-400 italic">— فارغ —</span>
-                      )}
-                    </p>
-                  ) : (
-                    <textarea
-                      value={editDisp?.knowledgeResources || ''}
-                      onChange={(e) =>
-                        setEditValues((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                domains: {
-                                  ...prev.domains,
-                                  [fieldId]: {
-                                    ...prev.domains[fieldId],
-                                    knowledgeResources: e.target.value,
-                                  },
-                                },
-                              }
-                            : prev
-                        )
-                      }
-                      rows={5}
-                      className="w-full px-3 py-2 bg-white rounded-lg border border-teal-300 text-xs text-slate-900 focus:ring-2 focus:ring-teal-500 outline-none resize-y"
-                    />
-                  )}
-                </div>
-
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                  <span className="text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
-                    الموارد العرضية
-                  </span>
-                  {!isEditing ? (
-                    <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap min-h-[20px]">
-                      {disp.transversalResources || (
-                        <span className="text-slate-400 italic">— فارغ —</span>
-                      )}
-                    </p>
-                  ) : (
-                    <textarea
-                      value={editDisp?.transversalResources || ''}
-                      onChange={(e) =>
-                        setEditValues((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                domains: {
-                                  ...prev.domains,
-                                  [fieldId]: {
-                                    ...prev.domains[fieldId],
-                                    transversalResources: e.target.value,
-                                  },
-                                },
-                              }
-                            : prev
-                        )
-                      }
-                      rows={5}
-                      className="w-full px-3 py-2 bg-white rounded-lg border border-amber-300 text-xs text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none resize-y"
-                    />
-                  )}
-                </div>
-
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                  <span className="text-[11px] font-bold text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded-md">
-                    معايير ومؤشرات التقويم
-                  </span>
-                  {!isEditing ? (
-                    <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap min-h-[20px]">
-                      {disp.evaluationCriteria || (
-                        <span className="text-slate-400 italic">— فارغ —</span>
-                      )}
-                    </p>
-                  ) : (
-                    <textarea
-                      value={editDisp?.evaluationCriteria || ''}
-                      onChange={(e) =>
-                        setEditValues((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                domains: {
-                                  ...prev.domains,
-                                  [fieldId]: {
-                                    ...prev.domains[fieldId],
-                                    evaluationCriteria: e.target.value,
-                                  },
-                                },
-                              }
-                            : prev
-                        )
-                      }
-                      rows={5}
-                      className="w-full px-3 py-2 bg-white rounded-lg border border-indigo-300 text-xs text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none resize-y"
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
+      <AnnualPlanOfficialTable
+        presentation={presentation}
+        editValues={edit}
+        isEditing={isEditing}
+        onComprehensiveChange={(value) =>
+          setEditValues((current) => (current ? { ...current, comprehensive: value } : current))
+        }
+        onDomainChange={updateDomain}
+      />
       {isCleared && !isEditing && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3 text-amber-900 text-xs font-bold">
-          <AlertTriangle className="w-5 h-5 text-amber-600" />
-          <span>
-            هذا المخطط مفرغ حالياً (تخصيص فارغ صالح) — لن يتم الرجوع تلقائياً إلى المرجع. يمكنك
-            كتابة مخطط جديد ثم حفظه، أو استعادة الأصلي.
-          </span>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900">
+          هذا المخطط مفرغ كتخصيص صالح. يمكنك استعادة النص المرجعي أو كتابة صياغة جديدة.
         </div>
       )}
       <footer className="planning-print-footer hidden border-t border-slate-300 pt-3 text-xs font-bold text-slate-700 print:grid">
-        <div>الأستاذ: {`${currentUser.firstName} ${currentUser.lastName}`.trim() || ' '}</div>
-        <div className="text-left">المفتش: </div>
+        <div>الأستاذ(ة): {`${currentUser.firstName} ${currentUser.lastName}`.trim() || ' '}</div>
+        <div>المدير(ة): __________________</div>
       </footer>
     </div>
   );

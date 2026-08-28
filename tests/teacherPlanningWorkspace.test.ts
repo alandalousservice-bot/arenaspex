@@ -96,7 +96,7 @@ describe('unified Teacher planning workspace', () => {
     const segments = read('src/components/curriculum/LearningSegmentsView.tsx');
     const printCss = read('src/index.css');
     expect(annualPlan).toContain('المخطط السنوي');
-    expect(annualPlan).toContain('طباعة المخطط السنوي');
+    expect(annualPlan).toContain('طباعة المخطط');
     expect(annualPlan).toContain('planning-print-header');
     expect(annualPlan).toContain('print:hidden');
     expect(segments).toContain('طباعة المقاطع التعلمية');
