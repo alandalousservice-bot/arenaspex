@@ -100,4 +100,15 @@ describe('official annual plan presentation model', () => {
     expect(css).not.toContain('--annual-plan-print-scale');
     expect(css).not.toContain('transform: scale');
   });
+
+  it('assigns Annual Plan to a landscape page without a portrait override', () => {
+    const css = readFileSync('src/index.css', 'utf8');
+    const annualPlanPage = css.match(/@page annual-plan\s*\{([^}]*)\}/)?.[1] || '';
+    expect(css).toContain('body:has(.annual-plan-print-root) {\n    page: annual-plan;');
+    expect(annualPlanPage).toContain('size: A4 landscape');
+    expect(annualPlanPage).toContain('margin: 4mm');
+    expect(annualPlanPage).not.toContain('portrait');
+    expect(css).toContain('width: 297mm');
+    expect(css).toContain('min-width: 297mm');
+  });
 });

@@ -10,16 +10,11 @@
     margin: 10mm;
   }
 
-  @page annual-plan {
-    size: A4 landscape;
-    margin: 4mm;
-  }
-
   body:has(.weekly-timetable-print) {
     page: weekly-timetable;
   }
 
-  body:has(.annual-plan-print) {
+  body:has(.annual-plan-print-root) {
     page: annual-plan;
   }
 
@@ -49,12 +44,23 @@
     margin: 12mm;
   }
 
+  @page annual-plan {
+    size: A4 landscape;
+    margin: 4mm;
+  }
+
   html,
   body {
     background: #fff !important;
     color: #0f172a;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  html:has(.annual-plan-print-root),
+  body:has(.annual-plan-print-root) {
+    width: 297mm;
+    min-width: 297mm;
   }
 
   body:has(.annual-distribution-print, .planning-print-document) .app-shell-header,
