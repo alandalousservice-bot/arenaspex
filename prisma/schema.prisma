@@ -74,6 +74,7 @@ model User {
   assessmentSessions AssessmentSession[]
   attendanceRecords StudentAttendance[] @relation("TeacherAttendance")
   medicalExemptions MedicalExemption[] @relation("TeacherMedicalExemptions")
+  weeklySlots       TeacherWeeklySlot[]
 
 // نظام الإسناد التلقائي للأساتذة إلى المفتشين
   teacherAssignment    InspectorAssignment?  @relation("TeacherAssignment")
@@ -124,6 +125,7 @@ model StudentClass {
   plannedSessions ClassPlannedSession[]
   attendanceRecords StudentAttendance[]
   assessmentSessions AssessmentSession[]
+  weeklySlots TeacherWeeklySlot[]
 
   @@index([teacherId])
   @@index([institutionId])
@@ -177,6 +179,25 @@ model StudentAttendance {
   @@unique([classPlannedSessionId, studentId])
   @@index([teacherId, classId, academicYearId])
   @@index([studentId])
+}
+
+model TeacherWeeklySlot {
+  id             String      @id
+  teacherId      String
+  classId        String
+  academicYearId String
+  weekday        Int
+  startTime      String
+  endTime        String
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  teacher User        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class   StudentClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, academicYearId, weekday, startTime])
+  @@index([teacherId, academicYearId])
+  @@index([classId, academicYearId])
 }
 
 model MedicalExemption {

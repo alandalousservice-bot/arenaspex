@@ -1346,6 +1346,44 @@ export async function deleteNotebookEntryFromDB(entryId: string) {
   await offlineDelete(`/api/db/notebook/${entryId}`);
 }
 
+export async function fetchTeacherWeeklyTimetable(academicYearId: string) {
+  const data = await getJSON(
+    `/api/teacher/weekly-timetable?academicYearId=${encodeURIComponent(academicYearId)}`
+  );
+  return Array.isArray(data.slots) ? data.slots : [];
+}
+
+export async function fetchInspectorWeeklyTimetable(teacherId: string, academicYearId: string) {
+  const res = await fetch(
+    `/api/inspector/teachers/${encodeURIComponent(teacherId)}/weekly-timetable?academicYearId=${encodeURIComponent(academicYearId)}`
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل التوقيت الأسبوعي للأستاذ.');
+  return { teacher: data.teacher, slots: Array.isArray(data.slots) ? data.slots : [] };
+}
+
+export async function saveTeacherWeeklySlot(slot: unknown) {
+  const value = slot as Record<string, unknown>;
+  return offlinePost(
+    '/api/teacher/weekly-timetable',
+    { ...value, weekday: value.weekday ?? value.day },
+    'POST'
+  );
+}
+
+export async function updateTeacherWeeklySlot(slotId: string, slot: unknown) {
+  const value = slot as Record<string, unknown>;
+  return offlinePost(
+    `/api/teacher/weekly-timetable/${encodeURIComponent(slotId)}`,
+    { ...value, weekday: value.weekday ?? value.day },
+    'PATCH'
+  );
+}
+
+export async function deleteTeacherWeeklySlot(slotId: string) {
+  await offlineDelete(`/api/teacher/weekly-timetable/${encodeURIComponent(slotId)}`);
+}
+
 export async function syncInspectorNoteToDB(
   note: unknown
 ): Promise<{ success: boolean; error?: string }> {

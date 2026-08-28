@@ -43,6 +43,9 @@ import {
   rejectPedagogicalGame,
   fetchStudentRoster,
   updateTeacherPlanningSession,
+  saveTeacherWeeklySlot,
+  updateTeacherWeeklySlot,
+  deleteTeacherWeeklySlot,
 } from '../services/api';
 import {
   User,
@@ -144,7 +147,10 @@ export function usePlatformStore({
     const saved = localStorage.getItem('spex_weekly_schedule');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed)
+          ? parsed.map((slot) => ({ ...slot, academicYearId: slot.academicYearId || '2025-2026' }))
+          : [];
       } catch (e) {
         void e;
       }
@@ -942,10 +948,17 @@ export function usePlatformStore({
       id: `ws_${Date.now()}`,
     };
     setWeeklySchedule((prev) => [...prev, newSlot]);
+    void saveTeacherWeeklySlot(newSlot);
   };
 
   const handleDeleteWeeklySlot = (slotId: string) => {
     setWeeklySchedule((prev) => prev.filter((s) => s.id !== slotId));
+    void deleteTeacherWeeklySlot(slotId);
+  };
+
+  const handleUpdateWeeklySlot = (slot: WeeklyScheduleSlot) => {
+    setWeeklySchedule((prev) => prev.map((current) => (current.id === slot.id ? slot : current)));
+    void updateTeacherWeeklySlot(slot.id, slot);
   };
 
   const handleUpdateNotebookStatus = (
@@ -1502,6 +1515,7 @@ export function usePlatformStore({
     handleDeleteNotebookEntry,
     handleUpsertNotebookEntry,
     handleAddWeeklySlot,
+    handleUpdateWeeklySlot,
     handleDeleteWeeklySlot,
     handleUpdateNotebookStatus,
     handleUpdateLessonStatus,

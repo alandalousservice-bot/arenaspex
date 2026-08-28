@@ -46,6 +46,7 @@ import {
   resolvePlatformFallbackCredential,
   type GenerationFeature,
 } from './generationAccess.js';
+import { validateWeeklyTime, type WeeklyDay, WEEKDAYS } from '../services/weeklyTimetable.js';
 import {
   parseStudentRosterWorkbook,
   rosterPreviewSummary,
@@ -118,6 +119,144 @@ const classPlanningUpdateSchema = z.object({
   venue: z.string().trim().max(200).nullable().optional(),
   operationalNote: z.string().trim().max(2000).nullable().optional(),
   status: z.enum(['مبرمجة', 'منجزة', 'مؤجلة', 'غير منجزة']).optional(),
+});
+
+const weeklySlotSchema = z.object({
+  classId: z.string().trim().min(1),
+  academicYearId: academicYearIdSchema,
+  weekday: z.union([z.number().int().min(0).max(4), z.enum(WEEKDAYS)]),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+});
+
+function weeklySlotView(row: any) {
+  return {
+    id: row.id,
+    teacherId: row.teacherId,
+    classId: row.classId,
+    className: row.class?.name || 'قسم غير محدد',
+    levelId: row.class?.levelId || null,
+    academicYearId: row.academicYearId,
+    weekday: row.weekday,
+    day: WEEKDAYS[row.weekday] || WEEKDAYS[0],
+    startTime: row.startTime,
+    endTime: row.endTime,
+    timeSlot: `${row.startTime} - ${row.endTime}`,
+  };
+}
+
+function weeklyWeekday(value: number | WeeklyDay): number {
+  return typeof value === 'number' ? value : WEEKDAYS.indexOf(value);
+}
+
+async function weeklySlotsForTeacher(teacherId: string, academicYearId: string) {
+  return prisma.teacherWeeklySlot.findMany({
+    where: { teacherId, academicYearId },
+    include: { class: { select: { name: true, levelId: true } } },
+    orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
+  });
+}
+
+apiRouter.get('/teacher/weekly-timetable', requireRole('teacher'), async (req, res) => {
+  const academicYearId = academicYearIdSchema.safeParse(req.query.academicYearId);
+  if (!academicYearId.success) return res.status(400).json({ error: 'السنة الدراسية مطلوبة.' });
+  const slots = await weeklySlotsForTeacher(req.user!.id, academicYearId.data);
+  res.json({ success: true, slots: slots.map(weeklySlotView) });
+});
+
+apiRouter.get(
+  '/inspector/teachers/:teacherId/weekly-timetable',
+  requireRole('inspector'),
+  async (req, res) => {
+    const academicYearId = academicYearIdSchema.safeParse(req.query.academicYearId);
+    if (!academicYearId.success) return res.status(400).json({ error: 'السنة الدراسية مطلوبة.' });
+    const assignment = await prisma.inspectorAssignment.findUnique({
+      where: { teacherId: req.params.teacherId },
+    });
+    if (
+      !assignment ||
+      assignment.inspectorId !== req.user!.id ||
+      !['Active', 'Changed'].includes(assignment.status)
+    ) {
+      return res
+        .status(403)
+        .json({ error: 'لا تملك صلاحية الاطلاع على التوقيت الأسبوعي لهذا الأستاذ.' });
+    }
+    const teacher = await prisma.user.findUnique({
+      where: { id: req.params.teacherId },
+      select: { id: true, firstName: true, lastName: true, schoolName: true },
+    });
+    if (!teacher) return res.status(404).json({ error: 'الأستاذ غير موجود.' });
+    const slots = await weeklySlotsForTeacher(teacher.id, academicYearId.data);
+    res.json({ success: true, teacher, slots: slots.map(weeklySlotView) });
+  }
+);
+
+apiRouter.post('/teacher/weekly-timetable', requireRole('teacher'), async (req, res) => {
+  const parsed = weeklySlotSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'بيانات الحصة الأسبوعية غير صحيحة.' });
+  const { classId, academicYearId, startTime, endTime } = parsed.data;
+  const weekday = weeklyWeekday(parsed.data.weekday);
+  const timeError = validateWeeklyTime(startTime, endTime);
+  if (timeError) return res.status(400).json({ error: timeError });
+  const classRecord = await prisma.studentClass.findFirst({
+    where: { id: classId, teacherId: req.user!.id },
+  });
+  if (!classRecord) return res.status(403).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+  const existing = await prisma.teacherWeeklySlot.findMany({
+    where: { teacherId: req.user!.id, academicYearId, weekday },
+  });
+  const overlaps = existing.some((slot) => startTime < slot.endTime && endTime > slot.startTime);
+  if (overlaps)
+    return res.status(409).json({ error: 'لا يمكن إضافة حصة متداخلة مع حصة أخرى في اليوم نفسه.' });
+  const saved = await prisma.teacherWeeklySlot.create({
+    data: {
+      id: `weekly_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      teacherId: req.user!.id,
+      classId,
+      academicYearId,
+      weekday,
+      startTime,
+      endTime,
+    },
+    include: { class: { select: { name: true, levelId: true } } },
+  });
+  res.status(201).json({ success: true, slot: weeklySlotView(saved) });
+});
+
+apiRouter.patch('/teacher/weekly-timetable/:slotId', requireRole('teacher'), async (req, res) => {
+  const parsed = weeklySlotSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'بيانات الحصة الأسبوعية غير صحيحة.' });
+  const { classId, academicYearId, startTime, endTime } = parsed.data;
+  const weekday = weeklyWeekday(parsed.data.weekday);
+  const timeError = validateWeeklyTime(startTime, endTime);
+  if (timeError) return res.status(400).json({ error: timeError });
+  const existing = await prisma.teacherWeeklySlot.findFirst({
+    where: { id: req.params.slotId, teacherId: req.user!.id },
+  });
+  const classRecord = await prisma.studentClass.findFirst({
+    where: { id: classId, teacherId: req.user!.id },
+  });
+  if (!existing || !classRecord)
+    return res.status(404).json({ error: 'الحصة الأسبوعية غير موجودة ضمن أقسامك.' });
+  const others = await prisma.teacherWeeklySlot.findMany({
+    where: { teacherId: req.user!.id, academicYearId, weekday, id: { not: existing.id } },
+  });
+  if (others.some((slot) => startTime < slot.endTime && endTime > slot.startTime))
+    return res.status(409).json({ error: 'لا يمكن إضافة حصة متداخلة مع حصة أخرى في اليوم نفسه.' });
+  const saved = await prisma.teacherWeeklySlot.update({
+    where: { id: existing.id },
+    data: { classId, academicYearId, weekday, startTime, endTime },
+    include: { class: { select: { name: true, levelId: true } } },
+  });
+  res.json({ success: true, slot: weeklySlotView(saved) });
+});
+
+apiRouter.delete('/teacher/weekly-timetable/:slotId', requireRole('teacher'), async (req, res) => {
+  await prisma.teacherWeeklySlot.deleteMany({
+    where: { id: req.params.slotId, teacherId: req.user!.id },
+  });
+  res.json({ success: true });
 });
 
 function classPlannedSessionView(row: {

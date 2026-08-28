@@ -975,6 +975,9 @@ export interface WeeklyScheduleSlot {
   day: 'الأحد' | 'الإثنين' | 'الثلاثاء' | 'الأربعاء' | 'الخميس';
   dayOfWeek?: string;
   timeSlot: string; // e.g. "08:00 - 09:00", "09:00 - 10:00", "10:00 - 11:00", "11:00 - 12:00", "13:00 - 14:00", "14:00 - 15:00", "15:00 - 16:00"
+  academicYearId?: string;
+  startTime?: string;
+  endTime?: string;
   classId: string;
   className: string;
   fieldId: string;

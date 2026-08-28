@@ -10,7 +10,7 @@ const OUTBOX_KEY = 'spex_outbox_v1';
 export interface OutboxEntry {
   id: string; // internal unique for outbox item
   path: string;
-  method: 'POST' | 'DELETE' | 'PUT';
+  method: 'POST' | 'DELETE' | 'PUT' | 'PATCH';
   payload?: unknown;
   recordId?: string | null; // extracted for dedupe
   timestamp: number;
@@ -150,7 +150,7 @@ function extractRecordIdFromPath(path: string): string | null {
 export async function offlinePost(
   path: string,
   payload: unknown,
-  method: 'POST' | 'PUT' = 'POST'
+  method: 'POST' | 'PUT' | 'PATCH' = 'POST'
 ): Promise<{ success: boolean; error?: string }> {
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 

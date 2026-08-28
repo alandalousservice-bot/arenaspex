@@ -186,6 +186,9 @@ export default function App() {
     handleUpsertNotebookEntry,
     handleUpdateNotebookStatus,
     handleUpdateLessonStatus,
+    handleAddWeeklySlot,
+    handleUpdateWeeklySlot,
+    handleDeleteWeeklySlot,
     handleSaveLessonPlan,
     handleSaveAssessmentSession,
     handleAddKnowledgeItem,
@@ -411,7 +414,14 @@ export default function App() {
             )}
 
             {activeTab === 'planning' && (
-              <TeacherPlanningWorkspace currentUser={currentUser} classes={teacherClasses} />
+              <TeacherPlanningWorkspace
+                currentUser={currentUser}
+                classes={teacherClasses}
+                weeklySchedule={weeklySchedule}
+                onAddWeeklySlot={handleAddWeeklySlot}
+                onUpdateWeeklySlot={handleUpdateWeeklySlot}
+                onDeleteWeeklySlot={handleDeleteWeeklySlot}
+              />
             )}
 
             {activeTab === 'daily_notebook' && (
