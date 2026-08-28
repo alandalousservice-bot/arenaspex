@@ -64,6 +64,7 @@ describe('unified Teacher planning workspace', () => {
     expect(workspace).toContain("section === 'calendar'");
     expect(workspace).toContain('AcademicCalendarView');
     expect(distribution).toContain('عرض رزنامة العطل والأعياد');
+    expect(workspace).toContain('const levelId = context?.levelId || selectedClass?.levelId');
     expect(workspace).toContain("changeSection('annual-distribution')");
   });
 

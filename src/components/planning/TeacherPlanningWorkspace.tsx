@@ -154,7 +154,8 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
   const changeSection = (next: PlanningSection, context?: { levelId?: string }) => {
     setSection(next);
     const nextParams = new URLSearchParams({ section: next });
-    if (context?.levelId) nextParams.set('levelId', context.levelId);
+    const levelId = context?.levelId || selectedClass?.levelId;
+    if (levelId) nextParams.set('levelId', levelId);
     if (selectedClassId) nextParams.set('classId', selectedClassId);
     nextParams.set('academicYearId', academicYearId);
     window.history.replaceState({}, '', `/planning?${nextParams.toString()}`);
