@@ -35,9 +35,9 @@ describe('unified Teacher assessment notebook', () => {
   });
 
   it('provides safe assessment entry links from planning and execution surfaces', () => {
-    expect(read('src/components/planning/TeacherPlanningWorkspace.tsx')).toContain(
-      '/gradebook?workspace=assessment&classId='
-    );
+    const planning = read('src/components/planning/TeacherPlanningWorkspace.tsx');
+    expect(planning).toContain('AnnualDistributionCalendar');
+    expect(planning).toContain('onNavigateToCalendar');
     expect(read('src/components/notebook/DailyNotebookView.tsx')).toContain('فتح التقويم');
     expect(read('src/components/lesson/LessonPlanView.tsx')).toContain('فتح دفتر التقويم');
     expect(read('src/components/lesson/LessonCommandCenterView.tsx')).toContain('onOpenAssessment');

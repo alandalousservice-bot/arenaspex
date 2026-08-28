@@ -27,6 +27,9 @@ describe('unified Teacher planning workspace', () => {
     expect(workspace).toContain('fetchTeacherPlanningSessions');
     expect(workspace).toContain('initializeTeacherPlanningSessions');
     expect(workspace).toContain('updateTeacherPlanningSession');
+    expect(workspace).toContain('WeeklyTimetableView');
+    expect(workspace).toContain('weeklySchedule');
+    expect(workspace).not.toContain('visibleSessions');
     expect(workspace).not.toContain('spex_weekly_schedule');
     expect(workspace).toContain('لا توجد أقسام مسندة إليك بعد.');
     expect(workspace).toContain('academicYearOptions');
@@ -68,11 +71,12 @@ describe('unified Teacher planning workspace', () => {
     expect(workspace).toContain("changeSection('annual-distribution')");
   });
 
-  it('keeps weekly distribution as an in-memory filter of annual sessions', () => {
+  it('renders weekly distribution from the recurring timetable model', () => {
     const workspace = read('src/components/planning/TeacherPlanningWorkspace.tsx');
-    expect(workspace).toContain("section !== 'weekly' || !week");
-    expect(workspace).toContain('weekStart(localDate(session.plannedDate)) === week');
-    expect(workspace).toContain('classPlannedSessionId=${session.id}');
+    expect(workspace).toContain('WeeklyTimetableView');
+    expect(workspace).toContain('scheduleSlots={weeklySchedule}');
+    expect(workspace).toContain('onAddSlot={onAddWeeklySlot}');
+    expect(workspace).not.toContain('weekStart(localDate(session.plannedDate))');
   });
 
   it('uses the classic annual calendar presentation without changing weekly planning', () => {
