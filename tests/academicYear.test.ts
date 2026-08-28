@@ -9,7 +9,11 @@ import {
   buildClassPlannedSessionSeeds,
   isValidPlanningDate,
 } from '../src/services/teacherPlanning.service';
-import { getAcademicCalendar, getCalendarEventsForDisplay } from '../src/data/academicCalendars';
+import {
+  calendarEventForDate,
+  getAcademicCalendar,
+  getCalendarEventsForDisplay,
+} from '../src/data/academicCalendars';
 
 describe('canonical academic year utility', () => {
   it('resolves the September-to-August boundary deterministically', () => {
@@ -69,12 +73,18 @@ describe('canonical academic year utility', () => {
     expect(oldYear[0].id).not.toBe(nextYear[0].id);
   });
 
-  it('uses versioned official calendar configuration without inventing 2026-2027 vacations', () => {
+  it('uses versioned official calendar configuration and preserves blocking semantics', () => {
     expect(getAcademicCalendar('2026-2027')).toMatchObject({
       schoolStart: '2026-09-21',
       complete: false,
-      events: [],
     });
+    const events = getAcademicCalendar('2026-2027').events;
+    expect(events.some((event) => event.name === 'عطلة الخريف')).toBe(true);
+    expect(events.some((event) => event.name === 'عطلة الشتاء')).toBe(true);
+    expect(events.some((event) => event.name === 'عطلة الربيع')).toBe(true);
+    expect(events.some((event) => event.name === 'رأس السنة الأمازيغية - يناير')).toBe(true);
+    expect(calendarEventForDate('2027-02-08', '2026-2027')).toBeNull();
+    expect(calendarEventForDate('2026-11-01', '2026-2027')?.name).toBe('عطلة الخريف');
     const displayEvents = getCalendarEventsForDisplay('2025-2026');
     expect(displayEvents.some((event) => event.name.includes('الفطر'))).toBe(false);
     expect(displayEvents.some((event) => event.name === 'عطلة الربيع')).toBe(true);

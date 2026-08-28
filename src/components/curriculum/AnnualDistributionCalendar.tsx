@@ -21,6 +21,7 @@ interface AnnualDistributionCalendarProps {
   onPlanningStartDateChange: (value: string) => void;
   onInitialize: () => void;
   onUpdateDate: (session: TeacherPlanningSession, value: string) => void;
+  onNavigateToCalendar: () => void;
 }
 
 const MONTHS = [
@@ -265,6 +266,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
   onPlanningStartDateChange,
   onInitialize,
   onUpdateDate,
+  onNavigateToCalendar,
 }) => {
   const calendarRows = useMemo(() => buildAnnualCalendarRows(sessions), [sessions]);
   const compactRows = useMemo(
@@ -309,6 +311,13 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
               className="flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Printer className="h-4 w-4" /> طباعة التوزيع السنوي
+            </button>
+            <button
+              type="button"
+              onClick={onNavigateToCalendar}
+              className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800"
+            >
+              <CalendarDays className="h-4 w-4" /> عرض رزنامة العطل والأعياد
             </button>
           </div>
         </div>

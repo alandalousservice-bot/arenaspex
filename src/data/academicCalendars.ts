@@ -1,11 +1,20 @@
 export type AcademicCalendarEventType =
-  'SCHOOL_VACATION' | 'NATIONAL_HOLIDAY' | 'RELIGIOUS_HOLIDAY' | 'OTHER_OFFICIAL_CLOSURE';
+  | 'SCHOOL_VACATION'
+  | 'NATIONAL_HOLIDAY'
+  | 'RELIGIOUS_HOLIDAY'
+  | 'RELIGIOUS_OBSERVANCE'
+  | 'SCHOOL_START'
+  | 'OTHER_OFFICIAL_CLOSURE';
+
+export type AcademicCalendarEventStatus = 'CONFIRMED' | 'PROVISIONAL';
 
 export interface AcademicCalendarEvent {
   name: string;
   startDate: string;
   endDate: string;
   type: AcademicCalendarEventType;
+  blocksTeaching?: boolean;
+  status?: AcademicCalendarEventStatus;
 }
 
 export interface AcademicCalendar {
@@ -81,7 +90,108 @@ export const ALGERIAN_ACADEMIC_CALENDARS: Record<string, AcademicCalendar> = {
     schoolEnd: null,
     source: 'وزارة التربية الوطنية — البلاغ المحين لرزنامة الدخول المدرسي 2026-2027',
     complete: false,
-    events: [],
+    events: [
+      {
+        name: 'الدخول المدرسي للتلاميذ',
+        startDate: '2026-09-21',
+        endDate: '2026-09-21',
+        type: 'SCHOOL_START',
+        blocksTeaching: false,
+        status: 'CONFIRMED',
+      },
+      {
+        name: 'عطلة الخريف',
+        startDate: '2026-10-29',
+        endDate: '2026-11-08',
+        type: 'SCHOOL_VACATION',
+        status: 'PROVISIONAL',
+      },
+      {
+        name: 'ذكرى اندلاع الثورة التحريرية',
+        startDate: '2026-11-01',
+        endDate: '2026-11-01',
+        type: 'NATIONAL_HOLIDAY',
+        status: 'CONFIRMED',
+      },
+      {
+        name: 'عطلة الشتاء',
+        startDate: '2026-12-24',
+        endDate: '2027-01-03',
+        type: 'SCHOOL_VACATION',
+        status: 'PROVISIONAL',
+      },
+      {
+        name: 'رأس السنة الميلادية',
+        startDate: '2027-01-01',
+        endDate: '2027-01-01',
+        type: 'NATIONAL_HOLIDAY',
+        status: 'CONFIRMED',
+      },
+      {
+        name: 'رأس السنة الأمازيغية - يناير',
+        startDate: '2027-01-12',
+        endDate: '2027-01-12',
+        type: 'NATIONAL_HOLIDAY',
+        status: 'CONFIRMED',
+      },
+      {
+        name: 'بداية شهر رمضان المبارك',
+        startDate: '2027-02-08',
+        endDate: '2027-02-08',
+        type: 'RELIGIOUS_OBSERVANCE',
+        blocksTeaching: false,
+        status: 'PROVISIONAL',
+      },
+      {
+        name: 'عطلة الربيع',
+        startDate: '2027-03-25',
+        endDate: '2027-04-04',
+        type: 'SCHOOL_VACATION',
+        status: 'PROVISIONAL',
+      },
+      {
+        name: 'عيد الفطر المبارك',
+        startDate: '2027-03-08',
+        endDate: '2027-03-10',
+        type: 'RELIGIOUS_HOLIDAY',
+        status: 'PROVISIONAL',
+      },
+      {
+        name: 'عيد العمال',
+        startDate: '2027-05-01',
+        endDate: '2027-05-01',
+        type: 'NATIONAL_HOLIDAY',
+        status: 'CONFIRMED',
+      },
+      {
+        name: 'عيد الأضحى المبارك',
+        startDate: '2027-05-16',
+        endDate: '2027-05-18',
+        type: 'RELIGIOUS_HOLIDAY',
+        status: 'PROVISIONAL',
+      },
+      {
+        name: 'رأس السنة الهجرية - أول محرم',
+        startDate: '2027-06-06',
+        endDate: '2027-06-06',
+        type: 'RELIGIOUS_HOLIDAY',
+        status: 'PROVISIONAL',
+      },
+      {
+        name: 'عاشوراء',
+        startDate: '2027-06-15',
+        endDate: '2027-06-15',
+        type: 'RELIGIOUS_HOLIDAY',
+        status: 'PROVISIONAL',
+      },
+      {
+        name: 'عيد الاستقلال والشباب',
+        startDate: '2027-07-05',
+        endDate: '2027-07-05',
+        type: 'NATIONAL_HOLIDAY',
+        status: 'CONFIRMED',
+      },
+    ],
   },
 };
 
@@ -111,15 +221,16 @@ export function calendarEventForDate(
   const day = value.slice(0, 10);
   return (
     getAcademicCalendar(academicYearId).events.find(
-      (event) => day >= event.startDate && day <= event.endDate
+      (event) => event.blocksTeaching !== false && day >= event.startDate && day <= event.endDate
     ) || null
   );
 }
 
 export function getCalendarEventsForDisplay(academicYearId: string): AcademicCalendarEvent[] {
   const calendar = getAcademicCalendar(academicYearId);
-  const vacations = calendar.events.filter((event) => event.type === 'SCHOOL_VACATION');
-  return calendar.events.filter(
+  const blockingEvents = calendar.events.filter((event) => event.blocksTeaching !== false);
+  const vacations = blockingEvents.filter((event) => event.type === 'SCHOOL_VACATION');
+  return blockingEvents.filter(
     (event) =>
       event.type === 'SCHOOL_VACATION' ||
       !vacations.some(

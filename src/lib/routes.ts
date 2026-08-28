@@ -84,7 +84,8 @@ export function pathToTab(pathname: string): NavTab | null {
   return PATH_TO_TAB[normalized] ?? null;
 }
 
-export type PlanningSection = 'annual-plan' | 'segments' | 'annual-distribution' | 'weekly';
+export type PlanningSection =
+  'annual-plan' | 'segments' | 'annual-distribution' | 'weekly' | 'calendar';
 
 export function planningSectionForPath(pathname: string): PlanningSection | null {
   const normalized =

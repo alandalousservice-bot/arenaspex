@@ -5,6 +5,7 @@ import {
   generateAnnualTimeDistribution,
   PRIMARY_GRADES_1_3,
 } from '../src/data/algerianCurriculum';
+import { calendarEventForDate } from '../src/data/academicCalendars';
 import {
   buildAnnualCalendarRows,
   buildAnnualCompactRows,
@@ -126,5 +127,23 @@ describe('classic annual distribution calendar', () => {
       expect(sessions.length).toBeGreaterThan(0);
       expect(sessions.every((session) => session.scheduledDate >= '2026-09-21')).toBe(true);
     }
+  });
+
+  it('skips the configured 2026-2027 blocking periods without treating Ramadan as a closure', () => {
+    for (const levelId of ['lvl_p1', 'lvl_p4']) {
+      const sessions = generateAnnualTimeDistribution(
+        levelId,
+        '2026-09-21',
+        0,
+        'class-1',
+        '2026-2027'
+      );
+      expect(
+        sessions.every(
+          (session) => calendarEventForDate(session.scheduledDate, '2026-2027') === null
+        )
+      ).toBe(true);
+    }
+    expect(calendarEventForDate('2027-02-08', '2026-2027')).toBeNull();
   });
 });

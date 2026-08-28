@@ -3,6 +3,7 @@ import { Calendar, CalendarDays, RefreshCw, Save, BookOpen, NotebookPen } from '
 import { AnnualPlanView } from '../curriculum/AnnualPlanView';
 import { LearningSegmentsView } from '../curriculum/LearningSegmentsView';
 import { AnnualDistributionCalendar } from '../curriculum/AnnualDistributionCalendar';
+import { AcademicCalendarView } from '../curriculum/AcademicCalendarView';
 import { PE_LEVELS } from '../../data/algerianCurriculum';
 import {
   fetchTeacherPlanningSessions,
@@ -34,6 +35,7 @@ const sectionLabels: Record<PlanningSection, string> = {
   segments: 'المقاطع التعليمية',
   'annual-distribution': 'التوزيع السنوي',
   weekly: 'التوزيع الأسبوعي',
+  calendar: 'رزنامة العطل والأعياد',
 };
 
 function localDate(value: string): string {
@@ -322,6 +324,14 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
           onPlanningStartDateChange={setPlanningStartDate}
           onInitialize={() => void initialize()}
           onUpdateDate={(session, plannedDate) => void updateSession(session, { plannedDate })}
+          onNavigateToCalendar={() => changeSection('calendar')}
+        />
+      )}
+
+      {section === 'calendar' && (
+        <AcademicCalendarView
+          academicYearId={academicYearId}
+          onNavigateToDistribution={() => changeSection('annual-distribution')}
         />
       )}
 

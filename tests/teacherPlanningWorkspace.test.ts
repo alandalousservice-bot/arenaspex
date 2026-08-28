@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { pathToTab, planningSectionForPath, ROLE_TABS, tabToPath } from '../src/lib/routes';
+import { buildAcademicCalendarSlides } from '../src/components/curriculum/AcademicCalendarView';
 
 const root = path.resolve(process.cwd());
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -40,6 +41,30 @@ describe('unified Teacher planning workspace', () => {
     expect(workspace).toContain('القسم المطلوب غير موجود ضمن أقسامك.');
     expect(read('src/server/apiRouter.ts')).toContain('resolvePlanningReferences');
     expect(read('src/server/apiRouter.ts')).toContain('اختر تاريخاً يقع في يوم دراسي');
+  });
+
+  it('builds calendar slides from the authoritative academic calendar', () => {
+    const slides = buildAcademicCalendarSlides('2026-2027');
+    expect(
+      slides.find((slide) => slide.id === 'vacations')?.events.map((event) => event.name)
+    ).toEqual(['عطلة الخريف', 'عطلة الشتاء', 'عطلة الربيع']);
+    expect(
+      slides.find((slide) => slide.id === 'national')?.events.map((event) => event.startDate)
+    ).toEqual(['2026-11-01', '2027-01-01', '2027-01-12', '2027-05-01', '2027-07-05']);
+    const religious = slides.find((slide) => slide.id === 'religious')?.events;
+    expect(religious?.find((event) => event.name === 'بداية شهر رمضان المبارك')).toMatchObject({
+      blocksTeaching: false,
+      type: 'RELIGIOUS_OBSERVANCE',
+    });
+  });
+
+  it('keeps calendar navigation actions in the planning workspace', () => {
+    const workspace = read('src/components/planning/TeacherPlanningWorkspace.tsx');
+    const distribution = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
+    expect(workspace).toContain("section === 'calendar'");
+    expect(workspace).toContain('AcademicCalendarView');
+    expect(distribution).toContain('عرض رزنامة العطل والأعياد');
+    expect(workspace).toContain("changeSection('annual-distribution')");
   });
 
   it('keeps weekly distribution as an in-memory filter of annual sessions', () => {
