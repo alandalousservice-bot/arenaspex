@@ -224,6 +224,7 @@
     max-width: 100%;
     table-layout: fixed;
     border-collapse: collapse;
+    border: 0.35mm solid #475569;
     direction: rtl;
     font-size: 6.7pt;
     line-height: 1.16;
