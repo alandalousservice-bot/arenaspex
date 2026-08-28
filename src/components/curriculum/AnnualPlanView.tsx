@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Calendar,
   GraduationCap,
@@ -25,6 +25,7 @@ import {
   annualPlanTimeLabel,
   buildAnnualPlanPresentation,
   buildDomainPresentation,
+  calculatePrintScale,
 } from '../../services/annualPlanPresentation';
 
 interface AnnualPlanViewProps {
@@ -208,6 +209,35 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
     setIsEditing(false);
     setEditValues(null);
   };
+  const edit = editValues || buildEditValues(referenceLevel, displayValue);
+  const printSheetRef = useRef<HTMLDivElement>(null);
+  const printContentRef = useRef<HTMLDivElement>(null);
+  const [printScale, setPrintScale] = useState(1);
+  const recalculatePrintScale = useCallback(() => {
+    const sheet = printSheetRef.current;
+    const content = printContentRef.current;
+    if (!sheet || !content) return;
+    setPrintScale(
+      calculatePrintScale({
+        contentWidth: content.scrollWidth,
+        contentHeight: content.scrollHeight,
+        availableWidth: sheet.clientWidth,
+        availableHeight: sheet.clientHeight,
+      })
+    );
+  }, []);
+  useEffect(() => {
+    const handleBeforePrint = () => {
+      window.requestAnimationFrame(recalculatePrintScale);
+    };
+    window.addEventListener('beforeprint', handleBeforePrint);
+    return () => window.removeEventListener('beforeprint', handleBeforePrint);
+  }, [recalculatePrintScale]);
+  const handlePrint = async () => {
+    if (typeof document.fonts?.ready !== 'undefined') await document.fonts.ready;
+    recalculatePrintScale();
+    window.setTimeout(() => window.print(), 0);
+  };
   if (isLoading)
     return (
       <div className="flex items-center justify-center py-16">
@@ -215,138 +245,147 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
         <span className="mr-2 text-sm text-slate-600">جارٍ تحميل المخطط السنوي...</span>
       </div>
     );
-  const edit = editValues || buildEditValues(referenceLevel, displayValue);
   return (
     <div
-      className="annual-plan-print-root annual-plan-print planning-print-document space-y-5"
+      ref={printSheetRef}
+      style={{ '--annual-plan-print-scale': printScale } as React.CSSProperties}
+      className="annual-plan-print-root annual-plan-print annual-plan-print-sheet planning-print-document space-y-5"
       dir="rtl"
     >
-      <header className="planning-print-header rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-sm print:rounded-none print:border-slate-400">
-        <p className="text-xs font-bold text-slate-600">الجمهورية الجزائرية الديمقراطية الشعبية</p>
-        <p className="text-xs font-bold text-slate-600">وزارة التربية الوطنية</p>
-        <h1 className="mt-2 border-y border-slate-200 py-2 text-xl font-black text-slate-900">
-          المخطط السنوي للتربية البدنية والرياضية
-        </h1>
-        <div className="mt-3 grid grid-cols-2 gap-2 text-right text-xs sm:grid-cols-4">
-          {[
-            ['المؤسسة', currentUser.schoolName || ''],
-            ['الأستاذ(ة)', `${currentUser.firstName} ${currentUser.lastName}`.trim()],
-            ['السنة الدراسية', formatAcademicYearLabel(academicYearId)],
-            ['المستوى', referenceLevel.levelName],
-          ].map(([label, value]) => (
-            <div key={label} className="border border-slate-200 bg-slate-50 p-2">
-              <span className="block font-bold text-slate-500">{label}</span>
-              <span className="block font-black text-slate-900">{value || ' '}</span>
+      <div ref={printContentRef} className="annual-plan-print-content space-y-5">
+        <header className="planning-print-header rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-sm print:rounded-none print:border-slate-400">
+          <p className="text-xs font-bold text-slate-600">
+            الجمهورية الجزائرية الديمقراطية الشعبية
+          </p>
+          <p className="text-xs font-bold text-slate-600">وزارة التربية الوطنية</p>
+          <h1 className="mt-2 border-y border-slate-200 py-2 text-xl font-black text-slate-900">
+            المخطط السنوي للتربية البدنية والرياضية
+          </h1>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-right text-xs sm:grid-cols-4">
+            {[
+              ['المؤسسة', currentUser.schoolName || ''],
+              ['الأستاذ(ة)', `${currentUser.firstName} ${currentUser.lastName}`.trim()],
+              ['السنة الدراسية', formatAcademicYearLabel(academicYearId)],
+              ['المستوى', referenceLevel.levelName],
+            ].map(([label, value]) => (
+              <div key={label} className="border border-slate-200 bg-slate-50 p-2">
+                <span className="block font-bold text-slate-500">{label}</span>
+                <span className="block font-black text-slate-900">{value || ' '}</span>
+              </div>
+            ))}
+          </div>
+        </header>
+        <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm print:hidden sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-bold text-blue-700">
+              <Calendar className="h-4 w-4" /> المرجع الرسمي — المخطط السنوي
             </div>
+            <h2 className="mt-1 text-xl font-black text-slate-900">المخطط السنوي لبناء التعلمات</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              مرجع تربوي منظم حسب المستوى والميادين، مع تخصيص محفوظ للأستاذ.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {!isEditing ? (
+              <>
+                <button
+                  onClick={startEdit}
+                  className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
+                >
+                  <Pencil className="h-4 w-4" />
+                  تعديل
+                </button>
+                <button
+                  onClick={clear}
+                  className="flex items-center gap-2 rounded-xl border border-amber-300 px-3 py-2 text-xs font-bold text-amber-800"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  تفريغ
+                </button>
+                <button
+                  onClick={restore}
+                  className="flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
+                >
+                  <RefreshCcw className="h-4 w-4" />
+                  استعادة النص المرجعي
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={save}
+                  disabled={isSaving}
+                  className="flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white"
+                >
+                  <Save className="h-4 w-4" />
+                  حفظ
+                </button>
+                <button
+                  onClick={() => {
+                    setIsEditing(false);
+                    setEditValues(null);
+                  }}
+                  className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
+                >
+                  إلغاء
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => void handlePrint()}
+              className="flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white"
+            >
+              <Printer className="h-4 w-4" />
+              طباعة المخطط
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-3 print:hidden">
+          {ANNUAL_PLAN_LEVELS.map((level) => (
+            <button
+              key={level.levelId}
+              onClick={() => {
+                setSelectedLevelId(level.levelId);
+                setIsEditing(false);
+                setEditValues(null);
+              }}
+              className={`rounded-xl px-3 py-2 text-xs font-bold ${level.levelId === selectedLevelId ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-slate-50 text-slate-700'}`}
+            >
+              <GraduationCap className="ml-1 inline h-4 w-4" />
+              {level.levelName}
+            </button>
           ))}
         </div>
-      </header>
-      <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm print:hidden sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-blue-700">
-            <Calendar className="h-4 w-4" /> المرجع الرسمي — المخطط السنوي
+        <div className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-xs font-bold text-white print:hidden">
+          <span>{referenceLevel.levelName}</span>
+          <span className="flex items-center gap-1 text-emerald-300">
+            <ShieldCheck className="h-4 w-4" />
+            {hasCustomization
+              ? isCleared
+                ? 'مخطط مفرغ'
+                : 'نسخة الأستاذ'
+              : 'المخطط المرجعي الأصلي'}
+          </span>
+        </div>
+        <AnnualPlanOfficialTable
+          presentation={presentation}
+          editValues={edit}
+          isEditing={isEditing}
+          onComprehensiveChange={(value) =>
+            setEditValues((current) => (current ? { ...current, comprehensive: value } : current))
+          }
+          onDomainChange={updateDomain}
+        />
+        {isCleared && !isEditing && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900 print:hidden">
+            هذا المخطط مفرغ كتخصيص صالح. يمكنك استعادة النص المرجعي أو كتابة صياغة جديدة.
           </div>
-          <h2 className="mt-1 text-xl font-black text-slate-900">المخطط السنوي لبناء التعلمات</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            مرجع تربوي منظم حسب المستوى والميادين، مع تخصيص محفوظ للأستاذ.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {!isEditing ? (
-            <>
-              <button
-                onClick={startEdit}
-                className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
-              >
-                <Pencil className="h-4 w-4" />
-                تعديل
-              </button>
-              <button
-                onClick={clear}
-                className="flex items-center gap-2 rounded-xl border border-amber-300 px-3 py-2 text-xs font-bold text-amber-800"
-              >
-                <Trash2 className="h-4 w-4" />
-                تفريغ
-              </button>
-              <button
-                onClick={restore}
-                className="flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
-              >
-                <RefreshCcw className="h-4 w-4" />
-                استعادة النص المرجعي
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={save}
-                disabled={isSaving}
-                className="flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white"
-              >
-                <Save className="h-4 w-4" />
-                حفظ
-              </button>
-              <button
-                onClick={() => {
-                  setIsEditing(false);
-                  setEditValues(null);
-                }}
-                className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
-              >
-                إلغاء
-              </button>
-            </>
-          )}
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white"
-          >
-            <Printer className="h-4 w-4" />
-            طباعة المخطط
-          </button>
-        </div>
+        )}
+        <footer className="annual-plan-signatures planning-print-footer hidden border-t border-slate-300 pt-3 text-xs font-bold text-slate-700 print:grid">
+          <div>الأستاذ(ة): {`${currentUser.firstName} ${currentUser.lastName}`.trim() || ' '}</div>
+          <div>المدير(ة): __________________</div>
+        </footer>
       </div>
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-3 print:hidden">
-        {ANNUAL_PLAN_LEVELS.map((level) => (
-          <button
-            key={level.levelId}
-            onClick={() => {
-              setSelectedLevelId(level.levelId);
-              setIsEditing(false);
-              setEditValues(null);
-            }}
-            className={`rounded-xl px-3 py-2 text-xs font-bold ${level.levelId === selectedLevelId ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-slate-50 text-slate-700'}`}
-          >
-            <GraduationCap className="ml-1 inline h-4 w-4" />
-            {level.levelName}
-          </button>
-        ))}
-      </div>
-      <div className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-xs font-bold text-white print:hidden">
-        <span>{referenceLevel.levelName}</span>
-        <span className="flex items-center gap-1 text-emerald-300">
-          <ShieldCheck className="h-4 w-4" />
-          {hasCustomization ? (isCleared ? 'مخطط مفرغ' : 'نسخة الأستاذ') : 'المخطط المرجعي الأصلي'}
-        </span>
-      </div>
-      <AnnualPlanOfficialTable
-        presentation={presentation}
-        editValues={edit}
-        isEditing={isEditing}
-        onComprehensiveChange={(value) =>
-          setEditValues((current) => (current ? { ...current, comprehensive: value } : current))
-        }
-        onDomainChange={updateDomain}
-      />
-      {isCleared && !isEditing && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900 print:hidden">
-          هذا المخطط مفرغ كتخصيص صالح. يمكنك استعادة النص المرجعي أو كتابة صياغة جديدة.
-        </div>
-      )}
-      <footer className="planning-print-footer hidden border-t border-slate-300 pt-3 text-xs font-bold text-slate-700 print:grid">
-        <div>الأستاذ(ة): {`${currentUser.firstName} ${currentUser.lastName}`.trim() || ' '}</div>
-        <div>المدير(ة): __________________</div>
-      </footer>
     </div>
   );
 };

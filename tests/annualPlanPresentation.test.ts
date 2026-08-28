@@ -4,6 +4,7 @@ import {
   annualPlanTimeLabel,
   buildAnnualPlanPresentation,
   buildDomainPresentation,
+  calculatePrintScale,
   getAnnualPlanDomainHours,
 } from '../src/services/annualPlanPresentation';
 import { pathToTab } from '../src/lib/routes';
@@ -67,5 +68,33 @@ describe('official annual plan presentation model', () => {
     expect(css).toContain('body:has(.annual-plan-print-root) *');
     expect(css).toContain('.annual-plan-print-root *');
     expect(view).toContain('AnnualPlanOfficialTable');
+  });
+
+  it('calculates a bounded print scale from both page dimensions', () => {
+    expect(
+      calculatePrintScale({
+        contentWidth: 200,
+        contentHeight: 400,
+        availableWidth: 100,
+        availableHeight: 200,
+        minimumScale: 0.1,
+      })
+    ).toBe(0.5);
+    expect(
+      calculatePrintScale({
+        contentWidth: 200,
+        contentHeight: 100,
+        availableWidth: 1000,
+        availableHeight: 1000,
+      })
+    ).toBe(1);
+    expect(
+      calculatePrintScale({
+        contentWidth: 0,
+        contentHeight: 400,
+        availableWidth: 100,
+        availableHeight: 200,
+      })
+    ).toBe(1);
   });
 });

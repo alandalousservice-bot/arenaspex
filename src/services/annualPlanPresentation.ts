@@ -41,6 +41,28 @@ export function annualPlanTimeLabel(grade: number): string {
   return hours === undefined ? '—' : `${hours} ساعة`;
 }
 
+export interface PrintFitDimensions {
+  contentWidth: number;
+  contentHeight: number;
+  availableWidth: number;
+  availableHeight: number;
+  minimumScale?: number;
+}
+
+export function calculatePrintScale({
+  contentWidth,
+  contentHeight,
+  availableWidth,
+  availableHeight,
+  minimumScale = 0.65,
+}: PrintFitDimensions): number {
+  if (![contentWidth, contentHeight, availableWidth, availableHeight].every((value) => value > 0)) {
+    return 1;
+  }
+  const naturalScale = Math.min(availableWidth / contentWidth, availableHeight / contentHeight, 1);
+  return Math.max(minimumScale, naturalScale);
+}
+
 const GROUP_LABELS = ['فكري', 'منهجي', 'تواصلي', 'شخصي/اجتماعي', 'شخصي / اجتماعي'];
 
 function cleanText(value: string): string {

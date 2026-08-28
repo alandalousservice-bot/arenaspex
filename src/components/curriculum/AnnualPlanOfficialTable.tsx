@@ -1,9 +1,6 @@
 import React from 'react';
 import { Clock } from 'lucide-react';
-import type {
-  AnnualPlanDomainPresentation,
-  AnnualPlanGradePresentation,
-} from '../../services/annualPlanPresentation';
+import type { AnnualPlanGradePresentation } from '../../services/annualPlanPresentation';
 
 export type AnnualPlanEditValues = {
   comprehensive: string;
@@ -46,7 +43,7 @@ function DomainCell({
 }
 
 const list = (items: string[]) => (
-  <ul className="list-disc space-y-1 pr-4">
+  <ul className="annual-plan-compact-list list-disc space-y-1 pr-4">
     {items.map((item, index) => (
       <li key={`${item}-${index}`}>{item}</li>
     ))}
@@ -61,7 +58,7 @@ export const AnnualPlanOfficialTable: React.FC<AnnualPlanOfficialTableProps> = (
   onDomainChange,
 }) => (
   <section className="space-y-4 break-inside-avoid print:break-inside-avoid">
-    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+    <div className="annual-plan-overall rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
       <div className="mb-2 text-xs font-black text-emerald-900">الكفاءة الشاملة</div>
       {isEditing ? (
         <textarea
@@ -79,6 +76,15 @@ export const AnnualPlanOfficialTable: React.FC<AnnualPlanOfficialTableProps> = (
 
     <div className="overflow-x-auto rounded-2xl border border-slate-300 bg-white shadow-sm print:overflow-visible">
       <table className="min-w-[1180px] w-full border-collapse text-right print:min-w-0">
+        <colgroup>
+          <col style={{ width: '7%' }} />
+          <col style={{ width: '12.5%' }} />
+          <col style={{ width: '15.5%' }} />
+          <col style={{ width: '22%' }} />
+          <col style={{ width: '20%' }} />
+          <col style={{ width: '17.5%' }} />
+          <col style={{ width: '5.5%' }} />
+        </colgroup>
         <caption className="border-b border-slate-300 bg-slate-900 px-4 py-3 text-right text-sm font-black text-white">
           المخطط السنوي لبناء التعلمات — {presentation.gradeLabel}
         </caption>
@@ -140,7 +146,7 @@ export const AnnualPlanOfficialTable: React.FC<AnnualPlanOfficialTableProps> = (
                     onDomainChange(domain.domainId, 'transversalResources', value)
                   }
                 >
-                  <div className="space-y-2">
+                  <div className="annual-plan-transversal space-y-2">
                     {domain.transversalResources.map((group) => (
                       <div key={group.label}>
                         <strong className="text-amber-800">{group.label}</strong>
@@ -159,7 +165,7 @@ export const AnnualPlanOfficialTable: React.FC<AnnualPlanOfficialTableProps> = (
                   isEditing={isEditing}
                   onChange={(value) => onDomainChange(domain.domainId, 'evaluationCriteria', value)}
                 >
-                  <div className="space-y-2">
+                  <div className="annual-plan-criteria space-y-2">
                     {domain.evaluationCriteria.map((item, index) => (
                       <div key={`${item.criterion}-${index}`}>
                         <strong className="text-indigo-800">{item.criterion}</strong>

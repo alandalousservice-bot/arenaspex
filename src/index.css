@@ -35,6 +35,25 @@
     margin: 0;
   }
 
+  body:has(.annual-plan-print-root) .annual-plan-print-sheet {
+    width: 287mm !important;
+    height: 200mm !important;
+    max-width: 287mm !important;
+    max-height: 200mm !important;
+    box-sizing: border-box;
+    overflow: hidden;
+    break-after: auto;
+    page-break-after: auto;
+    display: block;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-content {
+    width: calc(100% / var(--annual-plan-print-scale, 1));
+    transform: scale(var(--annual-plan-print-scale, 1));
+    transform-origin: top right;
+    gap: 2mm;
+  }
+
   body:has(.weekly-timetable-print) .weekly-timetable-print {
     color: #0f172a;
     font-family: Tahoma, Arial, sans-serif;
@@ -108,6 +127,60 @@
 
   body:has(.annual-plan-print) .annual-plan-print table {
     font-size: 8pt;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print table {
+    table-layout: fixed;
+    width: 100%;
+    direction: rtl;
+    font-family: Tahoma, Arial, sans-serif;
+    line-height: 1.3;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print th,
+  body:has(.annual-plan-print-root) .annual-plan-print td {
+    vertical-align: middle;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print ul {
+    margin: 0;
+    padding-right: 3mm;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print li {
+    margin: 0 0 0.3mm;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-overall {
+    padding: 2.5mm;
+    line-height: 1.3;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-overall p {
+    line-height: 1.3;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-transversal,
+  body:has(.annual-plan-print-root) .annual-plan-criteria {
+    line-height: 1.25;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-transversal > div,
+  body:has(.annual-plan-print-root) .annual-plan-criteria > div {
+    margin: 0;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print .annual-plan-signatures {
+    display: flex;
+    justify-content: space-between;
+    gap: 12mm;
+    margin-top: 2mm;
   }
 
   body:has(.annual-plan-print) .annual-plan-print th,
