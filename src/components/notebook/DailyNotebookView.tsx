@@ -5,6 +5,7 @@ import { PE_FIELDS, PE_LEVELS } from '../../data/algerianCurriculum';
 import {
   fetchTeacherPlanningSessions,
   TeacherPlanningSession,
+  TeacherPlanningReference,
   updateTeacherPlanningSession,
 } from '../../services/api';
 import { canonicalReferenceSessions } from '../../services/teacherPlanning.service';
@@ -17,6 +18,7 @@ import {
 
 type NotebookStatus = 'منجزة' | 'مؤجلة' | 'غير منجزة';
 type SessionRef = { id?: string; sessionTitle?: string; fieldName?: string; levelName?: string };
+type PlanningReferenceSummary = Pick<TeacherPlanningReference, 'objective' | 'domainId'>;
 interface DailyNotebookViewProps {
   currentUser: User;
   teacherClasses: ClassRoom[];
@@ -166,7 +168,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   };
   const sessionRef = (
     session: TeacherPlanningSession,
-    reference?: ReturnType<typeof canonicalReferenceSessions>[number]
+    reference?: PlanningReferenceSummary
   ): SessionRef => ({
     id: session.id,
     sessionTitle: reference?.objective,
