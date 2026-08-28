@@ -31,6 +31,7 @@ import {
   buildClassPlannedSessionSeeds,
   canonicalReferenceSessions,
   effectivePlanningObjective,
+  isValidPlanningDate,
   type PlanningWordingOverrides,
 } from '../services/teacherPlanning.service.js';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../data/algerianCurriculum.js';
@@ -103,6 +104,9 @@ const classPlanningInitializeSchema = z
   })
   .refine((value) => isPlanningStartDateConsistent(value.academicYearId, value.planningStartDate), {
     message: 'تاريخ بداية التوزيع يجب أن يقع ضمن السنة الدراسية المحددة.',
+  })
+  .refine((value) => isValidPlanningDate(value.planningStartDate), {
+    message: 'تاريخ بداية التوزيع يجب أن يقع في يوم دراسي صالح.',
   });
 
 const classPlanningUpdateSchema = z.object({

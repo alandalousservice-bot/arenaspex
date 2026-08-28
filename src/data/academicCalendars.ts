@@ -77,9 +77,9 @@ export const ALGERIAN_ACADEMIC_CALENDARS: Record<string, AcademicCalendar> = {
   },
   '2026-2027': {
     academicYearId: '2026-2027',
-    schoolStart: '2026-09-06',
+    schoolStart: '2026-09-21',
     schoolEnd: null,
-    source: 'وزارة التربية الوطنية — بلاغ رزنامة الدخول المدرسي 2026-2027',
+    source: 'وزارة التربية الوطنية — البلاغ المحين لرزنامة الدخول المدرسي 2026-2027',
     complete: false,
     events: [],
   },

@@ -18,6 +18,8 @@ import {
   isCanonicalAcademicYearId,
   isPlanningStartDateConsistent,
 } from '../../services/academicYear';
+import { getAcademicCalendar } from '../../data/academicCalendars';
+import { isValidPlanningDate } from '../../services/teacherPlanning.service';
 import type { ClassRoom, User } from '../../types/spex';
 import type { PlanningSection } from '../../lib/routes';
 
@@ -70,7 +72,9 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     return isCanonicalAcademicYearId(stored) ? stored : getCurrentAcademicYear();
   });
   const academicYearOptions = useMemo(() => getAcademicYearOptions(), []);
-  const [planningStartDate, setPlanningStartDate] = useState('');
+  const [planningStartDate, setPlanningStartDate] = useState(
+    () => getAcademicCalendar(academicYearId).schoolStart
+  );
   const [week, setWeek] = useState('');
   const [sessions, setSessions] = useState<TeacherPlanningSession[]>([]);
   const [loading, setLoading] = useState(false);
@@ -140,7 +144,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
 
   const changeAcademicYear = (next: string) => {
     setAcademicYearId(next);
-    setPlanningStartDate('');
+    setPlanningStartDate(getAcademicCalendar(next).schoolStart);
     setSessions([]);
     setError('');
   };
@@ -156,15 +160,21 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
 
   const initialize = async () => {
     if (!selectedClassId || !planningStartDate) return;
+    if (!isPlanningStartDateConsistent(academicYearId, planningStartDate)) {
+      setError(
+        `لا يمكن أن يسبق تاريخ بداية الحصص الدخول المدرسي الرسمي للتلاميذ: ${getAcademicCalendar(academicYearId).schoolStart}.`
+      );
+      return;
+    }
+    if (!isValidPlanningDate(planningStartDate)) {
+      setError('اختر تاريخاً يقع في يوم دراسي صالح لبداية حصص التلاميذ.');
+      return;
+    }
     if (
       sessions.length &&
       !window.confirm('سيتم إعادة حساب تواريخ التوزيع مع الحفاظ على هوية الحصص. هل تريد المتابعة؟')
     )
       return;
-    if (!isPlanningStartDateConsistent(academicYearId, planningStartDate)) {
-      setError('تاريخ بداية التوزيع يجب أن يقع ضمن السنة الدراسية المحددة.');
-      return;
-    }
     setLoading(true);
     setError('');
     try {

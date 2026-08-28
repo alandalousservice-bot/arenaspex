@@ -113,4 +113,18 @@ describe('classic annual distribution calendar', () => {
       'pair-b',
     ]);
   });
+
+  it('starts representative 2026-2027 Grade 1 and Grade 4 schedules on or after student entry', () => {
+    for (const levelId of ['lvl_p1', 'lvl_p4']) {
+      const sessions = generateAnnualTimeDistribution(
+        levelId,
+        '2026-09-21',
+        0,
+        'class-1',
+        '2026-2027'
+      );
+      expect(sessions.length).toBeGreaterThan(0);
+      expect(sessions.every((session) => session.scheduledDate >= '2026-09-21')).toBe(true);
+    }
+  });
 });
