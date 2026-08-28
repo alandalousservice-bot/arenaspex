@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
   GraduationCap,
@@ -21,14 +21,12 @@ import { useCurriculumOverrides } from '../../hooks/useCurriculumOverrides';
 import { fetchAnnualPlans } from '../../services/api';
 import { formatAcademicYearLabel, getCurrentAcademicYear } from '../../services/academicYear';
 import { AnnualPlanOfficialTable, type AnnualPlanEditValues } from './AnnualPlanOfficialTable';
+import { AnnualPlanPrintDocument } from './AnnualPlanPrintDocument';
 import {
   annualPlanTimeLabel,
   buildAnnualPlanPresentation,
   buildDomainPresentation,
-  calculatePrintScale,
 } from '../../services/annualPlanPresentation';
-
-const PRINT_SAFETY_MM = 3;
 
 interface AnnualPlanViewProps {
   currentUser: User;
@@ -212,38 +210,8 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
     setEditValues(null);
   };
   const edit = editValues || buildEditValues(referenceLevel, displayValue);
-  const printSheetRef = useRef<HTMLDivElement>(null);
-  const printContentRef = useRef<HTMLDivElement>(null);
-  const [printScale, setPrintScale] = useState(1);
-  const recalculatePrintScale = useCallback(() => {
-    const sheet = printSheetRef.current;
-    const content = printContentRef.current;
-    if (!sheet || !content) return;
-    const safetyPx = (PRINT_SAFETY_MM / 25.4) * 96;
-    const nextScale = calculatePrintScale({
-      contentWidth: content.scrollWidth,
-      contentHeight: content.scrollHeight,
-      availableWidth: sheet.clientWidth,
-      availableHeight: Math.max(sheet.clientHeight - safetyPx, 0),
-    });
-    sheet.style.setProperty('--annual-plan-print-scale', String(nextScale));
-    setPrintScale(nextScale);
-  }, []);
-  useEffect(() => {
-    const handleBeforePrint = () => {
-      recalculatePrintScale();
-    };
-    const handleAfterPrint = () => recalculatePrintScale();
-    window.addEventListener('beforeprint', handleBeforePrint);
-    window.addEventListener('afterprint', handleAfterPrint);
-    return () => {
-      window.removeEventListener('beforeprint', handleBeforePrint);
-      window.removeEventListener('afterprint', handleAfterPrint);
-    };
-  }, [recalculatePrintScale]);
   const handlePrint = async () => {
     if (typeof document.fonts?.ready !== 'undefined') await document.fonts.ready;
-    recalculatePrintScale();
     await new Promise<void>((resolve) => {
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => resolve());
@@ -259,13 +227,8 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
       </div>
     );
   return (
-    <div
-      ref={printSheetRef}
-      style={{ '--annual-plan-print-scale': printScale } as React.CSSProperties}
-      className="annual-plan-print-root annual-plan-print annual-plan-print-sheet planning-print-document space-y-5"
-      dir="rtl"
-    >
-      <div ref={printContentRef} className="annual-plan-print-content space-y-5">
+    <>
+      <div className="annual-plan-screen space-y-5">
         <header className="annual-plan-document-header planning-print-header rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-sm print:rounded-none print:border-slate-400">
           <p className="text-xs font-bold text-slate-600">
             الجمهورية الجزائرية الديمقراطية الشعبية
@@ -402,6 +365,11 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
           <div>المدير(ة): __________________</div>
         </footer>
       </div>
-    </div>
+      <AnnualPlanPrintDocument
+        currentUser={currentUser}
+        academicYearId={academicYearId}
+        presentation={presentation}
+      />
+    </>
   );
 };

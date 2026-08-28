@@ -4,12 +4,15 @@ import {
   annualPlanTimeLabel,
   buildAnnualPlanPresentation,
   buildDomainPresentation,
-  calculatePrintScale,
-  doesPrintContentFit,
   getAnnualPlanDomainHours,
 } from '../src/services/annualPlanPresentation';
 import { pathToTab } from '../src/lib/routes';
 import { readFileSync } from 'node:fs';
+import {
+  ANNUAL_PLAN_PRINT_PAGE_HEIGHT_MM,
+  ANNUAL_PLAN_PRINT_PAGE_MARGIN_MM,
+  ANNUAL_PLAN_PRINT_PAGE_WIDTH_MM,
+} from '../src/components/curriculum/AnnualPlanPrintDocument';
 
 describe('official annual plan presentation model', () => {
   it('exposes five grades and three canonical domains per grade', () => {
@@ -64,63 +67,37 @@ describe('official annual plan presentation model', () => {
 
   it('keeps Annual Plan print output isolated to its dedicated root', () => {
     const view = readFileSync('src/components/curriculum/AnnualPlanView.tsx', 'utf8');
+    const document = readFileSync('src/components/curriculum/AnnualPlanPrintDocument.tsx', 'utf8');
     const css = readFileSync('src/index.css', 'utf8');
-    expect(view).toContain('annual-plan-print-root');
+    expect(view).toContain('<AnnualPlanPrintDocument');
+    expect(document).toContain('annual-plan-print-root');
     expect(css).toContain('body:has(.annual-plan-print-root) *');
     expect(css).toContain('.annual-plan-print-root *');
     expect(view).toContain('AnnualPlanOfficialTable');
   });
 
-  it('calculates a bounded print scale from both page dimensions', () => {
-    expect(
-      calculatePrintScale({
-        contentWidth: 200,
-        contentHeight: 400,
-        availableWidth: 100,
-        availableHeight: 200,
-      })
-    ).toBeCloseTo(0.4925);
-    expect(
-      calculatePrintScale({
-        contentWidth: 200,
-        contentHeight: 100,
-        availableWidth: 1000,
-        availableHeight: 50,
-      })
-    ).toBeCloseTo(0.4925);
-    expect(
-      calculatePrintScale({
-        contentWidth: 200,
-        contentHeight: 100,
-        availableWidth: 1000,
-        availableHeight: 1000,
-      })
-    ).toBe(1);
-    expect(
-      doesPrintContentFit({
-        contentWidth: 200,
-        contentHeight: 400,
-        availableWidth: 100,
-        availableHeight: 200,
-        scale: 0.4925,
-      })
-    ).toBe(true);
-    expect(
-      doesPrintContentFit({
-        contentWidth: 200,
-        contentHeight: 400,
-        availableWidth: 100,
-        availableHeight: 200,
-        scale: 0.51,
-      })
-    ).toBe(false);
-    expect(
-      calculatePrintScale({
-        contentWidth: 0,
-        contentHeight: 400,
-        availableWidth: 100,
-        availableHeight: 200,
-      })
-    ).toBe(1);
+  it('keeps the dedicated print geometry within A4 landscape', () => {
+    expect(ANNUAL_PLAN_PRINT_PAGE_WIDTH_MM).toBe(289);
+    expect(ANNUAL_PLAN_PRINT_PAGE_HEIGHT_MM).toBe(202);
+    expect(ANNUAL_PLAN_PRINT_PAGE_MARGIN_MM).toBe(4);
+    expect(297 - ANNUAL_PLAN_PRINT_PAGE_MARGIN_MM * 2).toBe(ANNUAL_PLAN_PRINT_PAGE_WIDTH_MM);
+    expect(210 - ANNUAL_PLAN_PRINT_PAGE_MARGIN_MM * 2).toBe(ANNUAL_PLAN_PRINT_PAGE_HEIGHT_MM);
+  });
+
+  it('uses a dedicated print document with selected-grade data only', () => {
+    const document = readFileSync('src/components/curriculum/AnnualPlanPrintDocument.tsx', 'utf8');
+    const table = readFileSync('src/components/curriculum/AnnualPlanPrintTable.tsx', 'utf8');
+    const view = readFileSync('src/components/curriculum/AnnualPlanView.tsx', 'utf8');
+    const css = readFileSync('src/index.css', 'utf8');
+    expect(document).toContain('AnnualPlanGradePresentation');
+    expect(document).toContain('AnnualPlanPrintTable');
+    expect(document).toContain('annual-plan-print-footer');
+    expect(table).toContain('presentation.domains.map');
+    expect(table.match(/<col style=\{\{ width:/g)).toHaveLength(7);
+    expect(table).toContain('annual-plan-print-table');
+    expect(view).toContain('<AnnualPlanPrintDocument');
+    expect(view).not.toContain('calculatePrintScale');
+    expect(css).not.toContain('--annual-plan-print-scale');
+    expect(css).not.toContain('transform: scale');
   });
 });

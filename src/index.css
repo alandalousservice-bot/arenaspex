@@ -1,5 +1,9 @@
 @import 'tailwindcss';
 
+.annual-plan-print-root {
+  display: none;
+}
+
 @media print {
   @page weekly-timetable {
     size: A4 landscape;
@@ -8,7 +12,7 @@
 
   @page annual-plan {
     size: A4 landscape;
-    margin: 5mm;
+    margin: 4mm;
   }
 
   body:has(.weekly-timetable-print) {
@@ -33,54 +37,6 @@
     inset: 0;
     width: 100%;
     margin: 0;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-print-sheet {
-    width: 287mm !important;
-    height: 200mm !important;
-    max-width: 287mm !important;
-    max-height: 200mm !important;
-    box-sizing: border-box;
-    overflow: visible;
-    break-after: auto;
-    page-break-after: auto;
-    display: block;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-print-content {
-    width: calc(100% / var(--annual-plan-print-scale, 1));
-    transform: scale(var(--annual-plan-print-scale, 1));
-    transform-origin: top right;
-    gap: 2mm;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-document-header {
-    padding: 3mm 4mm;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-document-header > p {
-    margin: 0;
-    line-height: 1.15;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-document-title {
-    margin-top: 1mm;
-    padding: 1.5mm 0;
-    line-height: 1.15;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-document-meta {
-    margin-top: 2mm;
-    gap: 1.5mm;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-meta-card {
-    padding: 1.2mm 1.8mm;
-    line-height: 1.15;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-meta-card span {
-    line-height: 1.15;
   }
 
   body:has(.weekly-timetable-print) .weekly-timetable-print {
@@ -150,93 +106,214 @@
     max-width: none;
   }
 
-  body:has(.annual-plan-print) .annual-plan-print {
-    font-size: 9pt;
-  }
-
-  body:has(.annual-plan-print) .annual-plan-print table {
-    font-size: 8pt;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-print table {
-    table-layout: fixed;
-    width: 100%;
-    direction: rtl;
+  body:has(.annual-plan-print-root) .annual-plan-print-root {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 289mm;
+    height: 202mm;
+    max-width: 289mm;
+    max-height: 202mm;
+    box-sizing: border-box;
+    margin: 0;
+    overflow: visible;
+    color: #0f172a;
     font-family: Tahoma, Arial, sans-serif;
-    line-height: 1.22;
-    white-space: normal;
-    overflow-wrap: break-word;
-    word-break: normal;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  body:has(.annual-plan-print-root) .annual-plan-print th,
-  body:has(.annual-plan-print-root) .annual-plan-print td {
-    vertical-align: middle;
-    padding: 0.65mm 0.9mm;
-    white-space: normal;
-    overflow-wrap: break-word;
-    word-break: normal;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-print ul {
-    margin: 0;
-    padding-block: 0;
-    padding-right: 3mm;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-print li {
-    margin: 0;
-    line-height: inherit;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-overall {
-    margin: 0;
-    padding: 1.8mm 2.5mm;
-    line-height: 1.2;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-overall p {
-    margin: 0;
-    line-height: 1.2;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-table-section {
+  body:has(.annual-plan-print-root) .annual-plan-print-page {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    width: 289mm;
+    height: 202mm;
+    box-sizing: border-box;
     gap: 2mm;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-table-wrapper {
     overflow: visible;
   }
 
-  body:has(.annual-plan-print-root) .annual-plan-print table p {
+  body:has(.annual-plan-print-root) .annual-plan-print-header {
+    box-sizing: border-box;
+    height: auto;
+    min-height: 24mm;
+    max-height: 30mm;
+    padding: 2mm 4mm;
+    border: 0.35mm solid #cbd5e1;
+    border-radius: 1.5mm;
+    text-align: center;
+    line-height: 1.1;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-institution {
+    font-size: 6.8pt;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-header h1 {
+    margin: 1mm 0;
+    padding: 1mm 0;
+    border-block: 0.2mm solid #cbd5e1;
+    font-size: 10.5pt;
+    line-height: 1.1;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-meta {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1mm;
+    text-align: right;
+    font-size: 6.6pt;
+    line-height: 1.08;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-meta > div {
+    display: flex;
+    min-width: 0;
+    justify-content: space-between;
+    gap: 1mm;
+    border: 0.2mm solid #cbd5e1;
+    background: #f8fafc;
+    padding: 1mm 1.5mm;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-meta span {
+    color: #64748b;
+    font-weight: 700;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-meta strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: #0f172a;
+    font-size: 6.8pt;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-competency {
+    display: flex;
+    align-items: baseline;
+    gap: 2mm;
+    min-height: 10mm;
+    box-sizing: border-box;
+    padding: 1.5mm 2.5mm;
+    border: 0.3mm solid #a7f3d0;
+    border-radius: 1.5mm;
+    background: #ecfdf5;
+    font-size: 7pt;
+    line-height: 1.15;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-competency strong {
+    flex: 0 0 auto;
+    color: #065f46;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-competency span {
+    min-width: 0;
+    font-weight: 700;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-table-area {
+    min-height: 0;
+    overflow: visible;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-table {
+    width: 100%;
+    max-width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    direction: rtl;
+    font-size: 6.7pt;
+    line-height: 1.16;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-table caption {
+    padding: 1mm;
+    border: 0.35mm solid #334155;
+    background: #1e293b;
+    color: #fff;
+    font-size: 8pt;
+    font-weight: 700;
+    line-height: 1.1;
+    text-align: right;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-table th,
+  body:has(.annual-plan-print-root) .annual-plan-print-table td {
+    box-sizing: border-box;
+    padding: 0.5mm 0.8mm;
+    border: 0.22mm solid #94a3b8;
+    vertical-align: top;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    hyphens: none;
+    text-align: right;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-table thead th {
+    background: #fef3c7;
+    font-size: 7pt;
+    font-weight: 700;
+    line-height: 1.1;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-table tbody tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-domain-cell,
+  body:has(.annual-plan-print-root) .annual-plan-print-time-cell {
+    background: #eff6ff;
+    font-weight: 700;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-time-cell {
+    background: #f8fafc;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-table p,
+  body:has(.annual-plan-print-root) .annual-plan-print-table ul,
+  body:has(.annual-plan-print-root) .annual-plan-print-table ol {
     margin: 0;
+    padding: 0 2.2mm 0 0;
   }
 
-  body:has(.annual-plan-print-root) .annual-plan-transversal,
-  body:has(.annual-plan-print-root) .annual-plan-criteria {
-    line-height: 1.25;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-transversal > div,
-  body:has(.annual-plan-print-root) .annual-plan-criteria > div {
+  body:has(.annual-plan-print-root) .annual-plan-print-table li {
     margin: 0;
+    padding: 0;
+    line-height: inherit;
   }
 
-  body:has(.annual-plan-print-root) .annual-plan-transversal,
-  body:has(.annual-plan-print-root) .annual-plan-criteria {
-    gap: 0.5mm;
+  body:has(.annual-plan-print-root) .annual-plan-print-inline-groups {
+    display: block;
   }
 
-  body:has(.annual-plan-print-root) .annual-plan-print .annual-plan-signatures {
+  body:has(.annual-plan-print-root) .annual-plan-print-inline-groups > div {
+    margin: 0 0 0.25mm;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-inline-groups strong {
+    color: #92400e;
+  }
+
+  body:has(.annual-plan-print-root) .annual-plan-print-footer {
     display: flex;
     justify-content: space-between;
-    gap: 12mm;
-    margin-top: 2mm;
-  }
-
-  body:has(.annual-plan-print) .annual-plan-print th,
-  body:has(.annual-plan-print) .annual-plan-print td {
-    padding: 4px;
+    box-sizing: border-box;
+    min-height: 8mm;
+    padding-top: 1.5mm;
+    border-top: 0.25mm solid #94a3b8;
+    font-size: 7pt;
+    font-weight: 700;
+    line-height: 1.1;
   }
 
   body:has(.planning-print-document) .planning-print-header {
