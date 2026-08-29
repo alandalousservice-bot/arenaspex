@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as XLSX from 'xlsx';
 import {
   extractEducationalGroupName,
+  normalizeExcelMatricule,
   parseStudentRosterWorkbook,
   rosterPreviewSummary,
 } from '../src/services/studentRosterImport.service';
@@ -82,6 +83,42 @@ describe('استيراد قوائم التلاميذ', () => {
     const preview = parseStudentRosterWorkbook(workbookBuffer())[0];
     expect(preview.students[0].matricule).toBe('1234567890123456');
     expect(typeof preview.students[0].matricule).toBe('string');
+  });
+
+  it('يحوّل العرض العلمي الآمن إلى أرقام عشرية قبل المعاينة', () => {
+    expect(
+      normalizeExcelMatricule({ t: 'n', v: 1101720000000000, w: '1.10172E+15', z: 'General' })
+    ).toEqual({ value: '1101720000000000' });
+    expect(normalizeExcelMatricule({ t: 's', v: '1.10172E+15' })).toEqual({
+      value: '1101720000000000',
+    });
+  });
+
+  it('يرفض الرقم الرقمي الذي فقد دقته ولا يعامله كرقم تسجيل فارغ', () => {
+    const result = normalizeExcelMatricule({
+      t: 'n',
+      v: 110172123456789010,
+      w: '1.10172E+17',
+      z: 'General',
+    });
+    expect(result.value).toBe('');
+    expect(result.error).toContain('فقد دقته');
+  });
+
+  it('يضع الصف ذي الرقم الرقمي غير الآمن في المراجعة بدل استيراده', () => {
+    const precisionLostNumericValue = JSON.parse('110172123456789012') as number;
+    const preview = parseStudentRosterWorkbook(
+      singleSheetBuffer([
+        ['matricule', 'Nom', 'Prénom'],
+        [1101720000000000, 'Benali', 'Mohamed'],
+        [precisionLostNumericValue, 'Bouzid', 'Amine'],
+      ])
+    )[0];
+    expect(preview.students).toHaveLength(1);
+    expect(preview.students[0].matricule).toBe('1101720000000000');
+    expect(preview.invalidRows).toHaveLength(1);
+    expect(preview.invalidRows[0].matricule).toBe('');
+    expect(preview.invalidRows[0].needsReview?.[0]).toContain('فقد دقته');
   });
 
   it('يطلب اختيار المستوى عند غياب بيانات المستوى', () => {

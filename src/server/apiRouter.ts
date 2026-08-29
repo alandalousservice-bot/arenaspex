@@ -48,6 +48,7 @@ import {
 } from './generationAccess.js';
 import { validateWeeklyTime, type WeeklyDay, WEEKDAYS } from '../services/weeklyTimetable.js';
 import {
+  normalizeExcelMatricule,
   parseStudentRosterWorkbook,
   rosterPreviewSummary,
   type ParsedRosterStudent,
@@ -934,8 +935,14 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
   // duplicate matricules in one workbook from creating extra writes.
   const normalizedRows = new Map<string, ParsedRosterStudent>();
   let inputConflicts = 0;
+  let invalidMatriculeRows = 0;
   for (const row of validRows) {
-    const matricule = row.matricule.trim();
+    const normalizedMatricule = normalizeExcelMatricule(row.matricule);
+    if (normalizedMatricule.error) {
+      invalidMatriculeRows += 1;
+      continue;
+    }
+    const matricule = normalizedMatricule.value;
     const normalized = {
       ...row,
       matricule,
@@ -950,6 +957,12 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
     }
     normalizedRows.set(matricule || `row-${row.rowNumber}`, normalized);
   }
+  if (!normalizedRows.size)
+    return res.status(400).json({
+      error: invalidMatriculeRows
+        ? 'رقم التسجيل الرقمي فقد دقته. حوّل عمود رقم التسجيل إلى نص ثم أعد الاستيراد.'
+        : 'اختر قسماً وأرسل صفوفاً صالحة للاستيراد.',
+    });
   try {
     const summary = await prisma.$transaction(
       async (tx) => {
@@ -1000,12 +1013,14 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
         return {
           ...persisted,
           conflicts: persisted.conflicts + inputConflicts,
-          review: rows.length - validRows.length,
+          review: rows.length - validRows.length + invalidMatriculeRows,
           reviewReasonCounts: {
             ...persisted.reviewReasonCounts,
             ambiguousMatch: persisted.reviewReasonCounts.ambiguousMatch + inputConflicts,
             invalidIdentity:
-              persisted.reviewReasonCounts.invalidIdentity + (rows.length - validRows.length),
+              persisted.reviewReasonCounts.invalidIdentity +
+              (rows.length - validRows.length) +
+              invalidMatriculeRows,
           },
           classId: persistedClassId,
         };

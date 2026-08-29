@@ -12,6 +12,13 @@ export interface ParsedRosterStudent {
   needsReview?: string[];
 }
 
+export interface ExcelMatriculeCell {
+  t?: string;
+  v?: unknown;
+  w?: string;
+  z?: string;
+}
+
 export interface RosterWorksheetPreview {
   worksheet: string;
   grade?: number;
@@ -107,9 +114,75 @@ function splitCombinedName(value: unknown, order: 'first-last' | 'last-first') {
     : { firstName: rest, lastName: first };
 }
 
-function normalizeMatricule(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '';
-  return compact(value).replace(/\.0$/, '');
+function normalizeDigits(value: string): string {
+  return [...value]
+    .map((character) => {
+      const code = character.codePointAt(0);
+      if (code !== undefined && code >= 0x0660 && code <= 0x0669)
+        return String.fromCharCode(0x30 + code - 0x0660);
+      if (code !== undefined && code >= 0x06f0 && code <= 0x06f9)
+        return String.fromCharCode(0x30 + code - 0x06f0);
+      return character;
+    })
+    .join('');
+}
+
+function expandScientificInteger(value: string): string | undefined {
+  const match = value.match(/^([+-]?)(\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/);
+  if (!match || match[1] === '-') return undefined;
+  const digits = `${match[2]}${match[3] || ''}`.replace(/^0+(?=\d)/, '');
+  const exponent = BigInt(match[4]);
+  const decimalPlaces = BigInt((match[3] || '').length);
+  const decimalShift = exponent - decimalPlaces;
+  if (decimalShift >= 0n) {
+    let suffix = '';
+    for (let index = 0n; index < decimalShift; index += 1n) suffix += '0';
+    return `${digits}${suffix}`;
+  }
+  const removed = -decimalShift;
+  if (removed > BigInt(digits.length)) {
+    if ([...digits].some((character) => character !== '0')) return undefined;
+    return '0';
+  }
+  let removedCount = 0;
+  for (let index = 0n; index < removed; index += 1n) removedCount += 1;
+  const cut = digits.length - removedCount;
+  if ([...digits.slice(cut)].some((character) => character !== '0')) return undefined;
+  return digits.slice(0, cut).replace(/^0+(?=\d)/, '') || '0';
+}
+
+function precisionError() {
+  return 'رقم التسجيل محفوظ كرقم في Excel وقد فقد دقته. يرجى تحويل عمود رقم التسجيل إلى نص ثم إعادة إدخال الرقم الأصلي.';
+}
+
+export function normalizeExcelMatricule(cell: ExcelMatriculeCell | unknown): {
+  value: string;
+  error?: string;
+} {
+  if (cell === null || cell === undefined || cell === '') return { value: '' };
+  if (typeof cell === 'number') {
+    if (!Number.isSafeInteger(cell)) return { value: '', error: precisionError() };
+    return {
+      value: cell.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 0 }),
+    };
+  }
+  const source = (cell && typeof cell === 'object' ? cell : {}) as ExcelMatriculeCell;
+  if (source.t === 'n' || typeof source.v === 'number') {
+    if (typeof source.v !== 'number' || !Number.isSafeInteger(source.v))
+      return { value: '', error: precisionError() };
+    return {
+      value: source.v.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 0 }),
+    };
+  }
+  const text = compact(source.t === 's' || source.t === 'str' ? source.v : cell);
+  if (!text) return { value: '' };
+  const digits = normalizeDigits(text);
+  if (/^\d+$/.test(digits)) return { value: digits };
+  if (/^[+-]?[\d.]+[eE][+-]?\d+$/.test(text)) {
+    const expanded = expandScientificInteger(text);
+    return expanded ? { value: expanded } : { value: '', error: precisionError() };
+  }
+  return { value: '', error: 'رقم التسجيل يجب أن يكون رقماً صحيحاً محفوظاً كنص.' };
 }
 
 function normalizeDate(value: unknown): string | undefined {
@@ -128,8 +201,8 @@ export function parseStudentRosterWorkbook(input: Buffer | Uint8Array): RosterWo
   const workbook = XLSX.read(input, {
     type: 'buffer',
     cellDates: true,
-    cellNF: false,
     cellText: true,
+    cellNF: true,
     bookVBA: false,
   });
   return workbook.SheetNames.map((worksheet) => {
@@ -169,7 +242,14 @@ export function parseStudentRosterWorkbook(input: Buffer | Uint8Array): RosterWo
     const invalidRows: ParsedRosterStudent[] = [];
     for (let index = headerIndex + 1; index < rows.length; index += 1) {
       const row = rows[index];
-      const matricule = matriculeIndex >= 0 ? normalizeMatricule(row[matriculeIndex]) : '';
+      const matriculeCell =
+        matriculeIndex >= 0
+          ? sheet[XLSX.utils.encode_cell({ r: index, c: matriculeIndex })]
+          : undefined;
+      const normalizedMatricule = normalizeExcelMatricule(
+        matriculeCell || (matriculeIndex >= 0 ? row[matriculeIndex] : undefined)
+      );
+      const matricule = normalizedMatricule.value;
       const separateLastName = lastNameIndex >= 0 ? compact(row[lastNameIndex]) : '';
       const separateFirstName = firstNameIndex >= 0 ? compact(row[firstNameIndex]) : '';
       const combined =
@@ -192,6 +272,7 @@ export function parseStudentRosterWorkbook(input: Buffer | Uint8Array): RosterWo
       )
         continue;
       const needsReview: string[] = [];
+      if (normalizedMatricule.error) needsReview.push(normalizedMatricule.error);
       if (!lastName || !firstName) needsReview.push('الاسم أو اللقب مفقود');
       const rawBirthDate = birthDateIndex >= 0 ? row[birthDateIndex] : undefined;
       const birthDate = normalizeDate(rawBirthDate);
@@ -232,7 +313,7 @@ export function findCrossClassMatriculeConflicts(
   for (const preview of previews) {
     const classKey = preview.groupName || preview.worksheet;
     for (const student of preview.students) {
-      const matricule = compact(student.matricule);
+      const matricule = normalizeExcelMatricule(student.matricule).value;
       if (!matricule) continue;
       const previousClass = classByMatricule.get(matricule);
       if (previousClass && previousClass !== classKey) conflicts.add(matricule);

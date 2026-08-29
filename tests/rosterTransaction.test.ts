@@ -59,7 +59,10 @@ describe('student roster persistence transaction', () => {
   });
 
   it('keeps matricules as strings and maps timeout to a safe Arabic response', () => {
-    expect(normalizedSource).toContain('const matricule = row.matricule.trim();');
+    expect(normalizedSource).toContain(
+      'const normalizedMatricule = normalizeExcelMatricule(row.matricule);'
+    );
+    expect(normalizedSource).toContain('const matricule = normalizedMatricule.value;');
     expect(readFileSync('src/services/studentRosterPersistence.service.ts', 'utf8')).toContain(
       'matricule: row.matricule,'
     );

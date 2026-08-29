@@ -305,4 +305,26 @@ describe('existing student class reconciliation', () => {
     ]);
     expect(conflicts).toEqual(['1001']);
   });
+
+  it('canonicalizes scientific matricules before cross-class duplicate detection', () => {
+    const conflicts = findCrossClassMatriculeConflicts([
+      {
+        worksheet: 'Class A',
+        groupName: 'Class A',
+        grade: 1,
+        needsGradeSelection: false,
+        students: [row('1.10172E+15', 'محمد', 'بن علي')],
+        invalidRows: [],
+      },
+      {
+        worksheet: 'Class B',
+        groupName: 'Class B',
+        grade: 1,
+        needsGradeSelection: false,
+        students: [row('1101720000000000', 'أمينة', 'بوزيد')],
+        invalidRows: [],
+      },
+    ]);
+    expect(conflicts).toEqual(['1101720000000000']);
+  });
 });
