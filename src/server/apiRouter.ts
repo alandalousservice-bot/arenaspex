@@ -932,15 +932,21 @@ apiRouter.delete('/students/classes/:classId', requireRole('teacher'), async (re
     res.json({ success: true, ...result });
   } catch (error) {
     if (error instanceof StudentClassDeletionError) {
-      return res
-        .status(error.code === 'NOT_FOUND' ? 404 : 409)
-        .json({ error: error.message, code: error.code });
+      const status =
+        error.code === 'CLASS_NOT_FOUND' ? 404 : error.code === 'CLASS_NOT_OWNED' ? 403 : 409;
+      return res.status(status).json({
+        error: error.message,
+        code: error.code,
+        ...(error.blockers ? { blockers: error.blockers } : {}),
+      });
     }
     if ((error as { code?: string })?.code === 'P2021') {
       return res.status(503).json({ error: 'قاعدة بيانات قوائم التلاميذ غير مهيأة بعد.' });
     }
     console.error('Student class deletion failed:', error);
-    res.status(500).json({ error: 'تعذر حذف القسم. لم يتم تغيير البيانات.' });
+    res
+      .status(500)
+      .json({ error: 'تعذر حذف القسم. يرجى إعادة المحاولة.', code: 'UNEXPECTED_ERROR' });
   }
 });
 

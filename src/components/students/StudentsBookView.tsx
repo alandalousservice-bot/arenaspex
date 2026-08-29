@@ -18,6 +18,7 @@ import {
 import {
   previewStudentRoster,
   confirmStudentRosterImport,
+  StudentClassDeleteApiError,
   fetchTeacherMedicalExemptions,
   createTeacherMedicalExemption,
   deleteTeacherMedicalExemption,
@@ -205,7 +206,33 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
           setSelectedClassId(remaining[0].id);
         }
       } catch (error) {
-        setRosterError(error instanceof Error ? error.message : 'تعذر حذف القسم.');
+        if (error instanceof StudentClassDeleteApiError && error.blockers) {
+          const reasons = [
+            error.blockers.plannedSessions > 0
+              ? `- ${error.blockers.plannedSessions} حصة مبرمجة`
+              : '',
+            error.blockers.attendanceRecords > 0
+              ? `- ${error.blockers.attendanceRecords} سجل حضور`
+              : '',
+            error.blockers.assessmentSessions > 0
+              ? `- ${error.blockers.assessmentSessions} جلسة تقييم`
+              : '',
+            error.blockers.weeklySlots > 0
+              ? `- ${error.blockers.weeklySlots} حصة في التوقيت الأسبوعي`
+              : '',
+            error.blockers.studentAssessments > 0
+              ? `- ${error.blockers.studentAssessments} سجل تقييم للتلاميذ`
+              : '',
+            error.blockers.medicalExemptions > 0
+              ? `- ${error.blockers.medicalExemptions} إعفاء طبي`
+              : '',
+          ].filter(Boolean);
+          setRosterError(`لا يمكن حذف القسم لوجود بيانات مرتبطة به:\n${reasons.join('\n')}`);
+        } else {
+          setRosterError(
+            error instanceof Error ? error.message : 'تعذر حذف القسم. يرجى إعادة المحاولة.'
+          );
+        }
       }
     }
   };

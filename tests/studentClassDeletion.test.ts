@@ -42,8 +42,14 @@ function fakeTransaction(options: FakeOptions = {}) {
     studentAttendance: { count: async () => counts.attendance || 0 },
     teacherWeeklySlot: { count: async () => counts.weekly || 0 },
     assessmentSession: { count: async () => counts.assessment || 0 },
-    studentAssessment: { count: async () => counts.studentAssessment || 0 },
-    medicalExemption: { count: async () => counts.exemption || 0 },
+    studentAssessment: {
+      findMany: async () =>
+        Array.from({ length: counts.studentAssessment || 0 }, () => ({ studentId: 'student-a' })),
+    },
+    medicalExemption: {
+      findMany: async () =>
+        Array.from({ length: counts.exemption || 0 }, () => ({ studentId: 'student-a' })),
+    },
   } as unknown as Prisma.TransactionClient;
   return { tx, deleted };
 }
@@ -87,7 +93,7 @@ describe('owned StudentClass deletion', () => {
     await expect(
       deleteOwnedStudentClass(tx, { classId: 'class-a', ownerId: 'teacher-a' })
     ).rejects.toMatchObject({
-      code: 'NOT_FOUND',
+      code: 'CLASS_NOT_OWNED',
     });
     expect(deleted).toEqual({});
   });
@@ -101,9 +107,51 @@ describe('owned StudentClass deletion', () => {
     await expect(
       deleteOwnedStudentClass(tx, { classId: 'class-a', ownerId: 'teacher-a' })
     ).rejects.toMatchObject({
-      code: 'PROTECTED',
+      code: 'CLASS_DELETE_BLOCKED',
+      blockers: { attendanceRecords: 1 },
     });
     expect(deleted).toEqual({});
+  });
+
+  it.each([
+    ['planning', { planned: 2 }, 'plannedSessions'],
+    ['attendance', { attendance: 3 }, 'attendanceRecords'],
+    ['assessment', { assessment: 4 }, 'assessmentSessions'],
+    ['weekly slot', { weekly: 1 }, 'weeklySlots'],
+    ['medical exemption', { exemption: 2 }, 'medicalExemptions'],
+  ])('returns the exact %s blocker count', async (_label, protectedCounts, field) => {
+    const { tx, deleted } = fakeTransaction({
+      students: [{ id: 'student-a', teacherId: 'teacher-a' }],
+      protectedCounts,
+    });
+
+    await expect(
+      deleteOwnedStudentClass(tx, { classId: 'class-a', ownerId: 'teacher-a' })
+    ).rejects.toMatchObject({
+      code: 'CLASS_DELETE_BLOCKED',
+      blockers: { [field]: Object.values(protectedCounts)[0] },
+    });
+    expect(deleted).toEqual({});
+  });
+
+  it('returns every non-zero blocker in a mixed dependency response', async () => {
+    const { tx } = fakeTransaction({
+      students: [{ id: 'student-a', teacherId: 'teacher-a' }],
+      protectedCounts: { planned: 2, attendance: 3, assessment: 4, weekly: 1, exemption: 1 },
+    });
+
+    await expect(
+      deleteOwnedStudentClass(tx, { classId: 'class-a', ownerId: 'teacher-a' })
+    ).rejects.toMatchObject({
+      code: 'CLASS_DELETE_BLOCKED',
+      blockers: {
+        plannedSessions: 2,
+        attendanceRecords: 3,
+        assessmentSessions: 4,
+        weeklySlots: 1,
+        medicalExemptions: 1,
+      },
+    });
   });
 
   it('rejects foreign-owned students without deleting them', async () => {
@@ -136,6 +184,9 @@ describe('StudentClass deletion integration contracts', () => {
     expect(store).toContain('await refreshStudentRoster();');
     expect(view).toContain('await onDeleteClass?.(classId);');
     expect(view).toContain('سيتم حذف التلاميذ المسجلين فيه');
+    expect(view).toContain('error.blockers.plannedSessions > 0');
+    expect(view).toContain('error.blockers.weeklySlots > 0');
+    expect(view).toContain("reasons.join('\\n')");
     expect(view).toContain('await onRefreshRoster?.().catch(() => undefined);');
   });
 });

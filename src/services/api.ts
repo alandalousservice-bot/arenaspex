@@ -723,12 +723,38 @@ export async function fetchStudentRoster() {
   return data as { classes: unknown[]; students: unknown[] };
 }
 
+export interface StudentClassDeleteBlockers {
+  studentsWithHistory: number;
+  attendanceRecords: number;
+  assessmentSessions: number;
+  plannedSessions: number;
+  weeklySlots: number;
+  medicalExemptions: number;
+  studentAssessments: number;
+}
+
+export class StudentClassDeleteApiError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly blockers?: StudentClassDeleteBlockers
+  ) {
+    super(message);
+    this.name = 'StudentClassDeleteApiError';
+  }
+}
+
 export async function deleteStudentClass(classId: string) {
   const response = await fetch(`/api/students/classes/${encodeURIComponent(classId)}`, {
     method: 'DELETE',
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || 'تعذر حذف القسم.');
+  if (!response.ok)
+    throw new StudentClassDeleteApiError(
+      data.error || 'تعذر حذف القسم. يرجى إعادة المحاولة.',
+      data.code || 'UNEXPECTED_ERROR',
+      data.blockers
+    );
   return data as { success: boolean; classId: string; deletedStudents: number };
 }
 

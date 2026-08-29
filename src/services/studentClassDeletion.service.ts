@@ -1,11 +1,23 @@
 import type { Prisma } from '@prisma/client';
 
-export type StudentClassDeletionErrorCode = 'NOT_FOUND' | 'PROTECTED';
+export type StudentClassDeletionErrorCode =
+  'CLASS_NOT_FOUND' | 'CLASS_NOT_OWNED' | 'CLASS_DELETE_BLOCKED';
+
+export interface StudentClassDeletionBlockers {
+  studentsWithHistory: number;
+  attendanceRecords: number;
+  assessmentSessions: number;
+  plannedSessions: number;
+  weeklySlots: number;
+  medicalExemptions: number;
+  studentAssessments: number;
+}
 
 export class StudentClassDeletionError extends Error {
   constructor(
     public readonly code: StudentClassDeletionErrorCode,
-    message: string
+    message: string,
+    public readonly blockers?: StudentClassDeletionBlockers
   ) {
     super(message);
     this.name = 'StudentClassDeletionError';
@@ -31,8 +43,11 @@ export async function deleteOwnedStudentClass(
     where: { id: input.classId },
     select: { id: true, teacherId: true },
   });
-  if (!classRecord || classRecord.teacherId !== input.ownerId) {
-    throw new StudentClassDeletionError('NOT_FOUND', 'القسم غير موجود أو لا تملك صلاحية حذفه.');
+  if (!classRecord) {
+    throw new StudentClassDeletionError('CLASS_NOT_FOUND', 'القسم غير موجود.');
+  }
+  if (classRecord.teacherId !== input.ownerId) {
+    throw new StudentClassDeletionError('CLASS_NOT_OWNED', 'لا تملك صلاحية حذف هذا القسم.');
   }
 
   const students = await tx.student.findMany({
@@ -42,8 +57,8 @@ export async function deleteOwnedStudentClass(
   const foreignStudents = students.filter((student) => student.teacherId !== input.ownerId);
   if (foreignStudents.length) {
     throw new StudentClassDeletionError(
-      'PROTECTED',
-      'لا يمكن حذف القسم لأنه مرتبط بتلاميذ مملوكين لحساب آخر.'
+      'CLASS_DELETE_BLOCKED',
+      'لا يمكن حذف القسم لوجود بيانات مرتبطة به يجب معالجتها أولًا.'
     );
   }
 
@@ -53,21 +68,42 @@ export async function deleteOwnedStudentClass(
     attendanceRecords,
     weeklySlots,
     assessmentSessions,
-    studentAssessments,
-    medicalExemptions,
+    studentAssessmentRows,
+    medicalExemptionRows,
   ] = await Promise.all([
     tx.classPlannedSession.count({ where: { classId: input.classId } }),
     tx.studentAttendance.count({ where: { classId: input.classId } }),
     tx.teacherWeeklySlot.count({ where: { classId: input.classId } }),
     tx.assessmentSession.count({ where: { classId: input.classId } }),
     studentIds.length
-      ? tx.studentAssessment.count({ where: { studentId: { in: studentIds } } })
-      : Promise.resolve(0),
+      ? tx.studentAssessment.findMany({
+          where: { studentId: { in: studentIds } },
+          select: { studentId: true },
+        })
+      : Promise.resolve([] as Array<{ studentId: string }>),
     studentIds.length
-      ? tx.medicalExemption.count({ where: { studentId: { in: studentIds } } })
-      : Promise.resolve(0),
+      ? tx.medicalExemption.findMany({
+          where: { studentId: { in: studentIds } },
+          select: { studentId: true },
+        })
+      : Promise.resolve([] as Array<{ studentId: string }>),
   ]);
 
+  const studentAssessments = studentAssessmentRows.length;
+  const medicalExemptions = medicalExemptionRows.length;
+  const studentsWithHistory = new Set([
+    ...studentAssessmentRows.map((row) => row.studentId),
+    ...medicalExemptionRows.map((row) => row.studentId),
+  ]).size;
+  const blockers: StudentClassDeletionBlockers = {
+    studentsWithHistory,
+    attendanceRecords,
+    assessmentSessions,
+    plannedSessions,
+    weeklySlots,
+    medicalExemptions,
+    studentAssessments,
+  };
   const protectedRecordCount =
     plannedSessions +
     attendanceRecords +
@@ -77,8 +113,9 @@ export async function deleteOwnedStudentClass(
     medicalExemptions;
   if (protectedRecordCount > 0) {
     throw new StudentClassDeletionError(
-      'PROTECTED',
-      'لا يمكن حذف القسم لأنه يحتوي على بيانات تاريخية (حضور أو تقييم أو تخطيط أو إعفاءات).'
+      'CLASS_DELETE_BLOCKED',
+      'لا يمكن حذف القسم لوجود بيانات مرتبطة به يجب معالجتها أولًا.',
+      blockers
     );
   }
 
@@ -101,7 +138,7 @@ export async function deleteOwnedStudentClass(
     where: { id: input.classId, teacherId: input.ownerId },
   });
   if (deletedClass.count !== 1) {
-    throw new StudentClassDeletionError('NOT_FOUND', 'القسم غير موجود أو لا تملك صلاحية حذفه.');
+    throw new StudentClassDeletionError('CLASS_NOT_FOUND', 'القسم غير موجود.');
   }
 
   return { classId: input.classId, deletedStudents };
