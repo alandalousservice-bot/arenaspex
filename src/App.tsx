@@ -67,6 +67,9 @@ const KnowledgeEngineView = lazy(() =>
 const GradebookView = lazy(() =>
   import('./components/gradebook/GradebookView').then((m) => ({ default: m.GradebookView }))
 );
+const StudentsBookView = lazy(() =>
+  import('./components/students/StudentsBookView').then((m) => ({ default: m.StudentsBookView }))
+);
 const AttendanceBookView = lazy(() =>
   import('./components/attendance/AttendanceBookView').then((m) => ({
     default: m.AttendanceBookView,
@@ -532,12 +535,21 @@ export default function App() {
               <GradebookView
                 classes={teacherClasses}
                 students={allStudents}
+                currentUser={currentUser}
+              />
+            )}
+
+            {activeTab === 'students' && (
+              <StudentsBookView
+                classes={teacherClasses}
+                students={allStudents}
                 onAddClass={handleAddClass}
                 onDeleteClass={handleDeleteClass}
                 onAddStudent={handleAddStudent}
                 onDeleteStudent={handleDeleteStudent}
                 onRefreshRoster={refreshStudentRoster}
                 currentUser={currentUser}
+                selectedStudentId={location.pathname.match(/^\/students\/([^/]+)$/)?.[1]}
               />
             )}
 

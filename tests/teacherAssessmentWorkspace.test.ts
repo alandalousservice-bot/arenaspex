@@ -55,8 +55,10 @@ describe('unified Teacher assessment notebook', () => {
     expect(gradebook).not.toContain('spex_grade_records_');
     expect(gradebook).not.toContain('دفتر التقويم والكفاءات والحضور');
     expect(gradebook).not.toContain("activeRegister === 'attendance'");
-    expect(gradebook).toContain('دفتر التنقيط الذكي');
-    expect(gradebook).toContain('دفتر المعفيين طبياً');
+    expect(gradebook).toContain('دفتر التنقيط');
+    expect(gradebook).not.toContain('دفتر المعفيين طبياً');
+    expect(gradebook).not.toContain('previewStudentRoster');
+    expect(gradebook).not.toContain('MedicalExemption');
     expect(app).not.toContain('CompetencyAssessmentView');
   });
 

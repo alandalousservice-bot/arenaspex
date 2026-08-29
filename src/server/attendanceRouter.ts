@@ -35,6 +35,10 @@ const medicalExemptionUpdateSchema = z.object({
   reason: z.string().max(500).nullable().optional(),
   note: z.string().max(1000).nullable().optional(),
 });
+const attendanceSummaryQuerySchema = z.object({
+  classId: z.string().trim().min(1),
+  academicYearId: z.string().trim().min(1),
+});
 async function ownedPlannedSession(sessionId: string, teacherId: string) {
   return prisma.classPlannedSession.findFirst({ where: { id: sessionId, teacherId } });
 }
@@ -204,6 +208,35 @@ teacherAttendanceRouter.put(
 );
 
 teacherAttendanceRouter.get(
+  '/teacher/students/:studentId/attendance-summary',
+  requireRole('teacher'),
+  async (req, res) => {
+    const parsed = attendanceSummaryQuerySchema.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ error: 'القسم والسنة الدراسية مطلوبان.' });
+    const student = await prisma.student.findFirst({
+      where: { id: req.params.studentId, teacherId: req.user!.id, classId: parsed.data.classId },
+      select: { id: true },
+    });
+    if (!student) return res.status(403).json({ error: 'التلميذ غير موجود ضمن القسم المحدد.' });
+    const records = await prisma.studentAttendance.findMany({
+      where: {
+        teacherId: req.user!.id,
+        studentId: student.id,
+        classId: parsed.data.classId,
+        academicYearId: parsed.data.academicYearId,
+      },
+      select: { status: true },
+    });
+    const counts = records.reduce<Record<string, number>>((result, record) => {
+      const status = record.status || 'غير مسجل';
+      result[status] = (result[status] || 0) + 1;
+      return result;
+    }, {});
+    res.json({ success: true, totalRecorded: records.length, counts });
+  }
+);
+
+teacherAttendanceRouter.get(
   '/teacher/classes/:classId/exemptions',
   requireRole('teacher'),
   async (req, res) => {
@@ -285,5 +318,20 @@ teacherAttendanceRouter.put(
       include: { student: { select: { id: true, firstName: true, lastName: true } } },
     });
     res.json({ success: true, exemption: exemptionView(row) });
+  }
+);
+
+teacherAttendanceRouter.delete(
+  '/teacher/exemptions/:exemptionId',
+  requireRole('teacher'),
+  async (req, res) => {
+    const existing = await prisma.medicalExemption.findFirst({
+      where: { id: req.params.exemptionId, teacherId: req.user!.id },
+      include: { student: { select: { teacherId: true } } },
+    });
+    if (!existing || existing.student.teacherId !== req.user!.id)
+      return res.status(404).json({ error: 'الإعفاء الطبي غير موجود ضمن سجلاتك.' });
+    await prisma.medicalExemption.delete({ where: { id: existing.id } });
+    res.json({ success: true });
   }
 );

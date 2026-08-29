@@ -22,7 +22,7 @@ describe('canonical Teacher Attendance Book', () => {
     expect(gradebook).not.toContain("activeRegister === 'attendance'");
     expect(gradebook).not.toContain('selectedAttendanceDate');
     expect(gradebook).not.toContain('currentAttendanceStatus');
-    expect(gradebook).toContain('دفتر التنقيط الذكي');
+    expect(gradebook).toContain('دفتر التنقيط');
   });
 
   it('redirects legacy attendance deep links without losing context', () => {

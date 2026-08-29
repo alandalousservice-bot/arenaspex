@@ -806,6 +806,37 @@ export async function updateTeacherMedicalExemption(
   if (!res.ok) throw new Error(data.error || 'تعذر تحديث الإعفاء الطبي.');
   return data as { success: boolean; exemption: MedicalExemptionDto };
 }
+
+export async function deleteTeacherMedicalExemption(
+  exemptionId: string
+): Promise<{ success: boolean }> {
+  const res = await fetch(`/api/teacher/exemptions/${encodeURIComponent(exemptionId)}`, {
+    method: 'DELETE',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر حذف الإعفاء الطبي.');
+  return data as { success: boolean };
+}
+
+export interface StudentAttendanceSummary {
+  success: boolean;
+  totalRecorded: number;
+  counts: Record<string, number>;
+}
+
+export async function fetchTeacherStudentAttendanceSummary(
+  studentId: string,
+  classId: string,
+  academicYearId: string
+): Promise<StudentAttendanceSummary> {
+  const query = new URLSearchParams({ classId, academicYearId });
+  const res = await fetch(
+    `/api/teacher/students/${encodeURIComponent(studentId)}/attendance-summary?${query.toString()}`
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل ملخص مواظبة التلميذ.');
+  return data as StudentAttendanceSummary;
+}
 export async function fetchTeacherAssessmentSessions(
   classId: string,
   academicYearId: string

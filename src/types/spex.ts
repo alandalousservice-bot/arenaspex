@@ -926,25 +926,6 @@ export interface AttendanceEntry {
   }[];
 }
 
-// Exempted Student Register (دفتر المعفيين من التربية البدنية)
-export interface ExemptedStudent {
-  id: string;
-  classId: string;
-  studentId: string;
-  studentName: string;
-  certificateNumber: string;
-  issueDate: string;
-  doctorName: string;
-  medicalFacility: string;
-  exemptionReason: string; // e.g. الربو الحاد، جراحة بالركبة، أمراض القلب...
-  period:
-    'كامل السنة الدراسية' | 'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث' | 'محددة بالتواريخ';
-  startDate?: string;
-  endDate?: string;
-  roleInSession: 'تحكيم وملاحظة' | 'متابعة نظرية' | 'تنظيم وإدارة الوسائل';
-  notes?: string;
-}
-
 // Educational Clubs Register (دفتر البلديات والنوادي التربوية - نادي أ ونادي ب)
 export interface ClassEducationalClubConfig {
   classId: string;
