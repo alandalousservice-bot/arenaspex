@@ -67,4 +67,20 @@ describe('literal standalone Attendance Book restoration', () => {
     expect(view).toContain('fetchTeacherPlanningSessions(selectedClassId, academicYearId)');
     expect(view).toContain('fetchTeacherAttendance(selectedSession.id)');
   });
+
+  it('guards nullable attendance data and keeps roster rendering independent of sessions', () => {
+    expect(view).toContain('attendanceData?.students ?? []');
+    expect(view).toContain('attendanceData?.session.id === selectedSession?.id');
+    expect(view).toContain('لا توجد حصة مبرمجة لهذا القسم في التاريخ المحدد.');
+    expect(view).toContain('لا يمكن حفظ الحضور والغياب قبل وجود حصة مبرمجة في هذا التاريخ.');
+    expect(view).toContain('classStudents.map((student, index)');
+    expect(view).toContain('disabled={!selectedSession || Boolean(savingStudentId)}');
+  });
+
+  it('keeps the four status persistence path explicit after a session is available', () => {
+    expect(view).toContain('ATTENDANCE_STATUSES');
+    expect(view).toContain('saveStatus(student.id, nextStatus)');
+    expect(view).toContain('await saveTeacherAttendance(selectedSession.id');
+    expect(view).toContain('const refreshed = await fetchTeacherAttendance(selectedSession.id)');
+  });
 });

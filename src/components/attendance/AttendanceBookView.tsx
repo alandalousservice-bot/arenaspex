@@ -77,14 +77,14 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
       plannedSessions.find((session) => session.plannedDate.slice(0, 10) === selectedDate) || null,
     [plannedSessions, selectedDate]
   );
-  const attendanceByStudent = useMemo(
+  const attendanceStudents = useMemo(
     () =>
-      new Map(
-        attendanceData?.session.id === selectedSession?.id
-          ? attendanceData.students.map((student) => [student.id, student])
-          : []
-      ),
+      attendanceData?.session.id === selectedSession?.id ? (attendanceData?.students ?? []) : [],
     [attendanceData, selectedSession]
+  );
+  const attendanceByStudent = useMemo(
+    () => new Map(attendanceStudents.map((student) => [student.id, student])),
+    [attendanceStudents]
   );
 
   useEffect(() => {
@@ -220,8 +220,14 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
           <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{saveError}</p>
         )}
         {activeClass && !selectedSession && !loading && (
-          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-center text-xs text-slate-600">
-            لا توجد حصة تشغيلية مهيأة لهذا التاريخ. اختر تاريخ حصة مبرمجة لتسجيل الحضور.
+          <div className="space-y-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-center text-xs text-slate-600">
+            <p>لا توجد حصة مبرمجة لهذا القسم في التاريخ المحدد.</p>
+            <p>لا يمكن حفظ الحضور والغياب قبل وجود حصة مبرمجة في هذا التاريخ.</p>
+          </div>
+        )}
+        {loading && (
+          <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center text-xs text-slate-500">
+            جاري تحميل دفتر الحضور...
           </p>
         )}
 
@@ -236,7 +242,13 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {classStudents.length === 0 ? (
+              {!selectedClassId ? (
+                <tr>
+                  <td colSpan={4} className="p-8 text-center text-slate-400">
+                    اختر قسماً لعرض سجل الحضور والغياب.
+                  </td>
+                </tr>
+              ) : classStudents.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="p-8 text-center text-slate-400">
                     لا يوجد تلاميذ مسجلين في هذا القسم.
