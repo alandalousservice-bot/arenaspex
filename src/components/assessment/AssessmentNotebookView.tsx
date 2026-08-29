@@ -146,6 +146,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
   const [manualType, setManualType] = useState<TeacherAssessmentType>('تقويم تشخيصي');
   const [manualDomainId, setManualDomainId] = useState('f_locomotion');
   const [savingStudentId, setSavingStudentId] = useState<string | null>(null);
+  const [bulkSaving, setBulkSaving] = useState(false);
   const [reloadNonce, setReloadNonce] = useState(0);
   const [plannedSessions, setPlannedSessions] = useState<TeacherPlanningSession[]>([]);
   const [attendanceSessionId, setAttendanceSessionId] = useState(requestedPlannedSessionId);
@@ -525,9 +526,9 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
     updateDraft(studentId, { criteria: { ...current.criteria, [code]: value } });
   };
 
-  const saveStudent = async (student: Student) => {
+  const saveStudent = async (student: Student, draftOverride?: Draft) => {
     if (!activeSession) return;
-    const draft = drafts[student.id] || emptyDraft();
+    const draft = draftOverride || drafts[student.id] || emptyDraft();
     const hasCriterion = Object.values(draft.criteria).some(Boolean);
     const hasMark = draft.numericMark.trim() !== '';
     if (!hasCriterion && !hasMark && !draft.note.trim()) {
@@ -578,6 +579,27 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
     }
   };
 
+  const handleBulkSetGrade = async (grade: AssessmentGrade) => {
+    if (!activeSession || !classStudents.length) return;
+    const nextDrafts = { ...drafts };
+    classStudents.forEach((student) => {
+      const current = nextDrafts[student.id] || emptyDraft();
+      nextDrafts[student.id] = {
+        ...current,
+        criteria: { C1: grade, C2: grade, C3: grade, C4: grade },
+      };
+    });
+    setDrafts(nextDrafts);
+    setBulkSaving(true);
+    try {
+      for (const student of classStudents) {
+        await saveStudent(student, nextDrafts[student.id]);
+      }
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
   const assessedCount = results.length;
   const marks = results
     .map((result) => result.numericMark)
@@ -597,6 +619,17 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
       return counts;
     },
     { أ: 0, ب: 0, ج: 0, د: 0 }
+  );
+  const masteryDistribution = useMemo(() => {
+    const counts: Record<AssessmentGrade, number> = { أ: 0, ب: 0, ج: 0, د: 0 };
+    classStudents.forEach((student) => {
+      const mastery = calculateAssessmentMastery((drafts[student.id] || emptyDraft()).criteria);
+      if (mastery) counts[mastery] += 1;
+    });
+    return MASTERY.map((item) => ({ ...item, count: counts[item.value] }));
+  }, [classStudents, drafts]);
+  const remediationStudents = classStudents.filter(
+    (student) => calculateAssessmentMastery((drafts[student.id] || emptyDraft()).criteria) === 'د'
   );
 
   return (
@@ -806,6 +839,21 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
               القيم غير المختارة تبقى غير مقوّمة ولا تُنشئ نتيجة تلقائية.
             </p>
           </div>
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-slate-50 p-3 text-xs font-bold">
+            <span className="text-slate-600">تقييم جماعي محفوظ:</span>
+            {(['أ', 'ب'] as AssessmentGrade[]).map((grade) => (
+              <button
+                key={grade}
+                type="button"
+                disabled={bulkSaving}
+                onClick={() => void handleBulkSetGrade(grade)}
+                className="rounded-xl bg-purple-600 px-3 py-2 text-white disabled:opacity-50"
+              >
+                الجميع {grade}
+              </button>
+            ))}
+            {bulkSaving && <span className="text-purple-700">جارٍ حفظ جميع النتائج...</span>}
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-[900px] w-full text-right text-xs">
               <thead>
@@ -906,6 +954,50 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+              <h3 className="text-sm font-extrabold text-slate-900">توزيع حالات التملك</h3>
+              <div className="mt-3 space-y-2">
+                {masteryDistribution.map((item) => {
+                  const percentage = classStudents.length
+                    ? Math.round((item.count / classStudents.length) * 100)
+                    : 0;
+                  return (
+                    <div key={item.value} className="flex items-center gap-2 text-xs">
+                      <span className="w-28 font-bold">{item.label}</span>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200">
+                        <div
+                          className="h-full rounded-full bg-purple-500"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                      <strong className="w-16 text-left">
+                        {item.count} ({percentage}%)
+                      </strong>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+              <h3 className="text-sm font-extrabold text-rose-900">خطة المعالجة</h3>
+              <p className="mt-1 text-xs text-rose-700">التلاميذ ذوو التملك المحدود (د).</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {remediationStudents.length ? (
+                  remediationStudents.map((student) => (
+                    <span
+                      key={student.id}
+                      className="rounded-xl border border-rose-200 bg-white px-2 py-1 text-xs font-bold text-rose-900"
+                    >
+                      {student.firstName} {student.lastName}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-rose-700">لا توجد حالات تحتاج معالجة.</span>
+                )}
+              </div>
+            </div>
           </div>
         </section>
       )}
