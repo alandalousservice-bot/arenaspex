@@ -723,6 +723,15 @@ export async function fetchStudentRoster() {
   return data as { classes: unknown[]; students: unknown[] };
 }
 
+export async function deleteStudentClass(classId: string) {
+  const response = await fetch(`/api/students/classes/${encodeURIComponent(classId)}`, {
+    method: 'DELETE',
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'تعذر حذف القسم.');
+  return data as { success: boolean; classId: string; deletedStudents: number };
+}
+
 export interface CreateAssessmentSessionInput {
   id?: string;
   classId: string;

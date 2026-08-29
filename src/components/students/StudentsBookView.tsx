@@ -42,7 +42,7 @@ export interface StudentsBookViewProps {
     municipality?: string;
     schoolName?: string;
   }) => string;
-  onDeleteClass?: (classId: string) => void;
+  onDeleteClass?: (classId: string) => void | Promise<void>;
   onAddStudent?: (studentData: Omit<Student, 'id'>) => void;
   onDeleteStudent?: (studentId: string) => void;
   onRefreshRoster?: () => Promise<unknown>;
@@ -191,23 +191,21 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
   };
 
   // Handle Delete Class
-  const handleConfirmDeleteClass = (classId: string) => {
-    if (classes.length <= 1) {
-      alert('لا يمكنك حذف القسم الوحيد المتبقي! يجب الاحتفاظ بقسم واحد على الأقل.');
-      return;
-    }
+  const handleConfirmDeleteClass = async (classId: string) => {
     const targetClass = classes.find((c) => c.id === classId);
     if (
       window.confirm(
-        `هل أنت تأكد من إرادة حذف القسم: ${targetClass?.name || classId} مع جميع بياناته والتلاميذ المسجلين فيه؟`
+        `هل تريد حذف القسم «${targetClass?.name || classId}» نهائياً؟\nسيتم حذف التلاميذ المسجلين فيه إذا لم توجد بيانات تاريخية محمية، ولا يمكن التراجع عن العملية.`
       )
     ) {
-      if (onDeleteClass) {
-        onDeleteClass(classId);
-      }
-      const remaining = classes.filter((c) => c.id !== classId);
-      if (remaining.length > 0) {
-        setSelectedClassId(remaining[0].id);
+      try {
+        await onDeleteClass?.(classId);
+        const remaining = classes.filter((c) => c.id !== classId);
+        if (remaining.length > 0) {
+          setSelectedClassId(remaining[0].id);
+        }
+      } catch (error) {
+        setRosterError(error instanceof Error ? error.message : 'تعذر حذف القسم.');
       }
     }
   };
@@ -269,7 +267,6 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
     }
     setRosterLoading(true);
     setRosterError('');
-    const locallyCreatedClassIds: string[] = [];
     try {
       let created = 0;
       let existing = 0;
@@ -313,7 +310,6 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
               levelId,
               studentCount: preview.students.length,
             });
-            if (id) locallyCreatedClassIds.push(id);
             return id;
           })() ||
           activeClass.id;
@@ -343,7 +339,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
       setRosterPreview(null);
       setRosterFileName('');
     } catch (error) {
-      locallyCreatedClassIds.forEach((classId) => onDeleteClass?.(classId));
+      await onRefreshRoster?.().catch(() => undefined);
       setRosterError(error instanceof Error ? error.message : 'تعذر تأكيد الاستيراد.');
     } finally {
       setRosterLoading(false);

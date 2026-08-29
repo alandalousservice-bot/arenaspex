@@ -56,6 +56,10 @@ import {
 } from '../services/studentRosterImport.service.js';
 import { buildStudentRosterReadModel } from '../services/studentRosterReadModel.service.js';
 import { persistStudentRosterRows } from '../services/studentRosterPersistence.service.js';
+import {
+  deleteOwnedStudentClass,
+  StudentClassDeletionError,
+} from '../services/studentClassDeletion.service.js';
 
 // نظام الإسناد التلقائي للأساتذة إلى المفتشين: يُعاد احتساب جهة الإشراف تلقائياً
 // عند تسجيل/تعديل أستاذ (يعاد ربطه بمفتشه) أو تسجيل/تعديل مفتش (يعاد ربط كل الأساتذة
@@ -917,6 +921,27 @@ apiRouter.get('/students/roster', async (req, res) => {
     }),
   ]);
   res.json({ success: true, ...buildStudentRosterReadModel(classes, students) });
+});
+
+apiRouter.delete('/students/classes/:classId', requireRole('teacher'), async (req, res) => {
+  try {
+    const result = await prisma.$transaction(
+      (tx) => deleteOwnedStudentClass(tx, { classId: req.params.classId, ownerId: req.user!.id }),
+      { maxWait: 10000, timeout: 25000 }
+    );
+    res.json({ success: true, ...result });
+  } catch (error) {
+    if (error instanceof StudentClassDeletionError) {
+      return res
+        .status(error.code === 'NOT_FOUND' ? 404 : 409)
+        .json({ error: error.message, code: error.code });
+    }
+    if ((error as { code?: string })?.code === 'P2021') {
+      return res.status(503).json({ error: 'قاعدة بيانات قوائم التلاميذ غير مهيأة بعد.' });
+    }
+    console.error('Student class deletion failed:', error);
+    res.status(500).json({ error: 'تعذر حذف القسم. لم يتم تغيير البيانات.' });
+  }
 });
 
 apiRouter.post('/students/import/confirm', async (req, res) => {

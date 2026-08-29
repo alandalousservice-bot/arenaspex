@@ -42,6 +42,7 @@ import {
   approvePedagogicalGame,
   rejectPedagogicalGame,
   fetchStudentRoster,
+  deleteStudentClass,
   updateTeacherPlanningSession,
   saveTeacherWeeklySlot,
   updateTeacherWeeklySlot,
@@ -825,9 +826,9 @@ export function usePlatformStore({
     return newClassId;
   };
 
-  const handleDeleteClass = (classId: string) => {
-    setTeacherClasses((prev) => prev.filter((c) => c.id !== classId));
-    setAllStudents((prev) => prev.filter((s) => s.classId !== classId));
+  const handleDeleteClass = async (classId: string) => {
+    await deleteStudentClass(classId);
+    await refreshStudentRoster();
   };
 
   const handleAddStudent = (studentData: Omit<Student, 'id'>) => {
