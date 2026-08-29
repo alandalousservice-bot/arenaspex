@@ -327,4 +327,26 @@ describe('existing student class reconciliation', () => {
     ]);
     expect(conflicts).toEqual(['1101720000000000']);
   });
+
+  it('keeps distinct exact text matricules distinct across classes', () => {
+    const conflicts = findCrossClassMatriculeConflicts([
+      {
+        worksheet: 'Class A',
+        groupName: 'Class A',
+        grade: 1,
+        needsGradeSelection: false,
+        students: [row('1101721234567890', 'محمد', 'بن علي')],
+        invalidRows: [],
+      },
+      {
+        worksheet: 'Class B',
+        groupName: 'Class B',
+        grade: 1,
+        needsGradeSelection: false,
+        students: [row('1101721234567891', 'أمينة', 'بوزيد')],
+        invalidRows: [],
+      },
+    ]);
+    expect(conflicts).toEqual([]);
+  });
 });

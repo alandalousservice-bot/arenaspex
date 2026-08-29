@@ -94,6 +94,24 @@ describe('استيراد قوائم التلاميذ', () => {
     });
   });
 
+  it('لا يمرر أنماط العرض العلمي الإنتاجية إلى duplicate detection', () => {
+    const productionPatterns = [
+      '1.10172E+15',
+      '1.10182E+15',
+      '1.00162E+15',
+      '1.10162E+15',
+      '1.10152E+15',
+      '1.00142E+15',
+      '1.00172E+15',
+      '1.00152E+15',
+    ];
+    for (const pattern of productionPatterns) {
+      const result = normalizeExcelMatricule({ t: 's', v: pattern });
+      expect(result.error).toBeUndefined();
+      expect(result.value).toMatch(/^\d+$/);
+    }
+  });
+
   it('يرفض الرقم الرقمي الذي فقد دقته ولا يعامله كرقم تسجيل فارغ', () => {
     const result = normalizeExcelMatricule({
       t: 'n',
