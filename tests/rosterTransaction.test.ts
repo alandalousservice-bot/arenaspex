@@ -32,7 +32,7 @@ describe('student roster persistence transaction', () => {
 
   it('resolves a canonical owned class before writing student classId', () => {
     expect(normalizedSource).toContain(
-      'tx.studentClass.findFirst({ where: { teacherId: req.user!.id, institutionId, levelId, name: className }'
+      'const candidateClasses = await tx.studentClass.findMany({ where: { teacherId: req.user!.id, institutionId, levelId }'
     );
     expect(normalizedSource).toContain('const persistedClassId = assignedClass?.id || classId;');
     expect(normalizedSource).toContain('classId: persistedClassId');

@@ -22,6 +22,7 @@ export interface ExcelMatriculeCell {
 export interface RosterWorksheetPreview {
   worksheet: string;
   grade?: number;
+  section?: string;
   groupName?: string;
   needsGradeSelection: boolean;
   students: ParsedRosterStudent[];
@@ -87,7 +88,7 @@ export function extractEducationalGroupName(value: unknown): string | undefined 
   if (!marker || marker.index === undefined) return undefined;
   const remainder = text.slice(marker.index + marker[0].length);
   const stop = remainder.search(/\s+(?:مادة|المادة|الفصل|السنة\s*الدراسية)\s*[:：-]?\s*/i);
-  const group = (stop >= 0 ? remainder.slice(0, stop) : remainder).trim();
+  const group = normalizeImportedClassName(stop >= 0 ? remainder.slice(0, stop) : remainder);
   return group || undefined;
 }
 
@@ -125,6 +126,23 @@ function normalizeDigits(value: string): string {
       return character;
     })
     .join('');
+}
+
+export function normalizeImportedClassName(value: unknown): string {
+  return normalizeDigits(compact(value));
+}
+
+export function extractClassSection(value: unknown): string | undefined {
+  const match = normalizeImportedClassName(value).match(/(?:^|\s)(\d{1,2})\s*$/);
+  return match?.[1].replace(/^0+(?=\d)/, '');
+}
+
+export function canonicalClassIdentityKey(levelId: string, className: unknown): string {
+  const normalizedName = normalizeImportedClassName(className).replace(
+    /\s+(\d{1,2})\s*$/,
+    (_, section: string) => ` ${section.replace(/^0+(?=\d)/, '')}`
+  );
+  return `${normalize(levelId)}|${normalize(normalizedName)}`;
 }
 
 function expandScientificInteger(value: string): string | undefined {
@@ -237,7 +255,11 @@ export function parseStudentRosterWorkbook(input: Buffer | Uint8Array): RosterWo
     ]);
     const metadata = rows.slice(0, headerIndex).flat();
     const grade = detectGrade(metadata) || detectGrade([worksheet]);
-    const groupName = detectGroup(metadata) || detectGroup([worksheet]);
+    const groupName =
+      detectGroup(metadata) ||
+      detectGroup([worksheet]) ||
+      (grade ? normalizeImportedClassName(worksheet) : undefined);
+    const section = extractClassSection(groupName || worksheet);
     const students: ParsedRosterStudent[] = [];
     const invalidRows: ParsedRosterStudent[] = [];
     for (let index = headerIndex + 1; index < rows.length; index += 1) {
@@ -289,7 +311,15 @@ export function parseStudentRosterWorkbook(input: Buffer | Uint8Array): RosterWo
       };
       (needsReview.length ? invalidRows : students).push(student);
     }
-    return { worksheet, grade, groupName, needsGradeSelection: !grade, students, invalidRows };
+    return {
+      worksheet,
+      grade,
+      section,
+      groupName,
+      needsGradeSelection: !grade,
+      students,
+      invalidRows,
+    };
   });
 }
 

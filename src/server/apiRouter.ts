@@ -48,6 +48,7 @@ import {
 } from './generationAccess.js';
 import { validateWeeklyTime, type WeeklyDay, WEEKDAYS } from '../services/weeklyTimetable.js';
 import {
+  canonicalClassIdentityKey,
   normalizeExcelMatricule,
   parseStudentRosterWorkbook,
   rosterPreviewSummary,
@@ -970,10 +971,16 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
         if (assignedClass && assignedClass.teacherId !== req.user!.id)
           throw new Error('UNAUTHORIZED_CLASS');
         if (!assignedClass) {
-          assignedClass = await tx.studentClass.findFirst({
-            where: { teacherId: req.user!.id, institutionId, levelId, name: className },
+          const candidateClasses = await tx.studentClass.findMany({
+            where: { teacherId: req.user!.id, institutionId, levelId },
             orderBy: { createdAt: 'asc' },
           });
+          const classIdentity = canonicalClassIdentityKey(levelId, className);
+          assignedClass =
+            candidateClasses.find(
+              (candidate) =>
+                canonicalClassIdentityKey(candidate.levelId, candidate.name) === classIdentity
+            ) || null;
         }
         const persistedClassId = assignedClass?.id || classId;
         if (!assignedClass)

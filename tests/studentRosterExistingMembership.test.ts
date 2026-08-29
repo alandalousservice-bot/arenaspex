@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as XLSX from 'xlsx';
 import type { Prisma } from '@prisma/client';
+import type { ParsedRosterStudent } from '../src/services/studentRosterImport.service';
 import { buildStudentRosterReadModel } from '../src/services/studentRosterReadModel.service';
 import { persistStudentRosterRows } from '../src/services/studentRosterPersistence.service';
 import {
@@ -83,12 +84,44 @@ function existingStudent(
   };
 }
 
-const input = (rows: ReturnType<typeof row>[], persistedClassId = 'class-a') => ({
+const input = (rows: readonly ParsedRosterStudent[], persistedClassId = 'class-a') => ({
   rows,
   teacherId: 'teacher-a',
   institutionId: 'institution-1',
   persistedClassId,
 });
+
+const sectionNames = [
+  'أولى ابتدائي 1',
+  'أولى ابتدائي 2',
+  'ثانية ابتدائي 1',
+  'ثانية ابتدائي 2',
+  'ثالثة ابتدائي 1',
+  'ثالثة ابتدائي 2',
+  'رابعة ابتدائي 1',
+  'رابعة ابتدائي 2',
+  'خامسة ابتدائي 1',
+  'خامسة ابتدائي 2',
+];
+
+function sectionedWorkbookBuffer() {
+  const book = XLSX.utils.book_new();
+  sectionNames.forEach((className, classIndex) => {
+    XLSX.utils.book_append_sheet(
+      book,
+      XLSX.utils.aoa_to_sheet([
+        ['matricule', 'Nom', 'Prénom'],
+        ...Array.from({ length: 35 }, (_, studentIndex) => [
+          `${classIndex + 1}${String(studentIndex + 1).padStart(2, '0')}`,
+          `لقب${classIndex + 1}-${studentIndex + 1}`,
+          `اسم${classIndex + 1}-${studentIndex + 1}`,
+        ]),
+      ]),
+      className
+    );
+  });
+  return XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+}
 
 describe('existing student class reconciliation', () => {
   it('relinks three existing null-class students and exposes them in the roster read model', async () => {
@@ -267,6 +300,80 @@ describe('existing student class reconciliation', () => {
       '10015192900329001',
       '110151929009246001',
     ]);
+  });
+
+  it('persists ten section identities with 35 students each and is idempotent', async () => {
+    const previews = parseStudentRosterWorkbook(sectionedWorkbookBuffer());
+    const students: TestStudent[] = [];
+    const tx = transactionFor(students);
+    const classes = previews.map((preview, index) => ({
+      id: `class-${index + 1}`,
+      institutionId: 'institution-1',
+      teacherId: 'teacher-a',
+      levelId: `lvl_p${preview.grade}`,
+      name: preview.groupName || preview.worksheet,
+    }));
+
+    for (const [index, preview] of previews.entries()) {
+      await persistStudentRosterRows(tx, input(preview.students, classes[index].id));
+    }
+    expect(students).toHaveLength(350);
+    const firstModel = buildStudentRosterReadModel(
+      classes,
+      students.map((student) => ({ ...student, classId: student.classId as string }))
+    );
+    expect(firstModel.classes).toHaveLength(10);
+    expect(firstModel.classes.map((item) => item.studentCount)).toEqual(Array(10).fill(35));
+    expect(firstModel.students.filter((student) => student.classId === 'class-1')).toHaveLength(35);
+    expect(firstModel.students.filter((student) => student.classId === 'class-2')).toHaveLength(35);
+
+    for (const [index, preview] of previews.entries()) {
+      await persistStudentRosterRows(tx, input(preview.students, classes[index].id));
+    }
+    expect(students).toHaveLength(350);
+    const secondModel = buildStudentRosterReadModel(
+      classes,
+      students.map((student) => ({ ...student, classId: student.classId as string }))
+    );
+    expect(secondModel.classes.map((item) => item.studentCount)).toEqual(Array(10).fill(35));
+  });
+
+  it('recovers five merged grade classes into ten section memberships', async () => {
+    const previews = parseStudentRosterWorkbook(sectionedWorkbookBuffer());
+    const students: TestStudent[] = [];
+    previews.forEach((preview, previewIndex) => {
+      const mergedClassId = `merged-${preview.grade}`;
+      preview.students.forEach((student, index) => {
+        students.push(
+          existingStudent(
+            `student-${previewIndex}-${index}`,
+            student.matricule,
+            student.firstName,
+            student.lastName,
+            mergedClassId
+          )
+        );
+      });
+    });
+    const tx = transactionFor(students);
+    const classes = previews.map((preview, index) => ({
+      id: `class-${index + 1}`,
+      institutionId: 'institution-1',
+      teacherId: 'teacher-a',
+      levelId: `lvl_p${preview.grade}`,
+      name: preview.groupName || preview.worksheet,
+    }));
+
+    for (const [index, preview] of previews.entries()) {
+      await persistStudentRosterRows(tx, input(preview.students, classes[index].id));
+    }
+    expect(students).toHaveLength(350);
+    const model = buildStudentRosterReadModel(
+      classes,
+      students.map((student) => ({ ...student, classId: student.classId as string }))
+    );
+    expect(model.classes.map((item) => item.studentCount)).toEqual(Array(10).fill(35));
+    expect(new Set(students.map((student) => student.classId)).size).toBe(10);
   });
 
   it('keeps multiple same-institution matches in ambiguous review', async () => {

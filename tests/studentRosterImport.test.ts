@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import * as XLSX from 'xlsx';
 import {
+  canonicalClassIdentityKey,
   extractEducationalGroupName,
+  extractClassSection,
   normalizeExcelMatricule,
   parseStudentRosterWorkbook,
   rosterPreviewSummary,
@@ -244,5 +246,100 @@ describe('استيراد قوائم التلاميذ', () => {
     expect(previews.flatMap((preview) => preview.students)).toHaveLength(2);
     expect(previews[0].students[0].matricule).toBe('001245');
     expect(previews[1].students[0].matricule).toBe('00009');
+  });
+
+  it('يحافظ على هوية الأقسام العشرة ولا يسقط رقم الشعبة', () => {
+    const classNames = [
+      'أولى ابتدائي 1',
+      'أولى ابتدائي 2',
+      'ثانية ابتدائي 1',
+      'ثانية ابتدائي 2',
+      'ثالثة ابتدائي 1',
+      'ثالثة ابتدائي 2',
+      'رابعة ابتدائي 1',
+      'رابعة ابتدائي 2',
+      'خامسة ابتدائي 1',
+      'خامسة ابتدائي 2',
+    ];
+    const book = XLSX.utils.book_new();
+    classNames.forEach((className, index) => {
+      XLSX.utils.book_append_sheet(
+        book,
+        XLSX.utils.aoa_to_sheet([
+          ['matricule', 'Nom', 'Prénom'],
+          [`${index + 1}`, `لقب${index + 1}`, `اسم${index + 1}`],
+        ]),
+        className
+      );
+    });
+    const previews = parseStudentRosterWorkbook(
+      XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+    );
+    expect(previews).toHaveLength(10);
+    expect(previews.map((preview) => preview.grade)).toEqual([1, 1, 2, 2, 3, 3, 4, 4, 5, 5]);
+    expect(previews.map((preview) => preview.section)).toEqual([
+      '1',
+      '2',
+      '1',
+      '2',
+      '1',
+      '2',
+      '1',
+      '2',
+      '1',
+      '2',
+    ]);
+    expect(new Set(previews.map((preview) => preview.groupName)).size).toBe(10);
+    expect(
+      new Set(
+        previews.map((preview) =>
+          canonicalClassIdentityKey(`lvl_p${preview.grade}`, preview.groupName)
+        )
+      ).size
+    ).toBe(10);
+  });
+
+  it('يجمع 350 تلميذاً في عشرة أقسام دون دمج الشعب', () => {
+    const classNames = [
+      'أولى ابتدائي 1',
+      'أولى ابتدائي 2',
+      'ثانية ابتدائي 1',
+      'ثانية ابتدائي 2',
+      'ثالثة ابتدائي 1',
+      'ثالثة ابتدائي 2',
+      'رابعة ابتدائي 1',
+      'رابعة ابتدائي 2',
+      'خامسة ابتدائي 1',
+      'خامسة ابتدائي 2',
+    ];
+    const book = XLSX.utils.book_new();
+    classNames.forEach((className, classIndex) => {
+      XLSX.utils.book_append_sheet(
+        book,
+        XLSX.utils.aoa_to_sheet([
+          ['matricule', 'Nom', 'Prénom'],
+          ...Array.from({ length: 35 }, (_, studentIndex) => [
+            `${classIndex + 1}${String(studentIndex + 1).padStart(2, '0')}`,
+            `لقب${classIndex + 1}-${studentIndex + 1}`,
+            `اسم${classIndex + 1}-${studentIndex + 1}`,
+          ]),
+        ]),
+        className
+      );
+    });
+    const previews = parseStudentRosterWorkbook(
+      XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+    );
+    expect(previews).toHaveLength(10);
+    expect(previews.reduce((total, preview) => total + preview.students.length, 0)).toBe(350);
+    expect(previews.map((preview) => preview.students.length)).toEqual(Array(10).fill(35));
+  });
+
+  it('يطبع 01 و02 والأرقام العربية كمفاتيح 1 و2 متكافئة', () => {
+    expect(extractClassSection('أولى ابتدائي 01')).toBe('1');
+    expect(extractClassSection('أولى ابتدائي ٠٢')).toBe('2');
+    expect(canonicalClassIdentityKey('lvl_p1', 'أولى ابتدائي 01')).toBe(
+      canonicalClassIdentityKey('lvl_p1', 'أولى ابتدائي ١')
+    );
   });
 });

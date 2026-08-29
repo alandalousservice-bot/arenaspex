@@ -27,6 +27,17 @@ describe('canonical Teacher Students Book', () => {
     expect(readModel).toContain('studentCount: counts.get(item.id) || 0');
   });
 
+  it('matches imported classes by canonical level and section identity', () => {
+    const book = read('src/components/students/StudentsBookView.tsx');
+    const importer = read('src/services/studentRosterImport.service.ts');
+    const router = read('src/server/apiRouter.ts');
+    expect(book).toContain('canonicalClassIdentityKey');
+    expect(book).not.toContain('item.name.includes(preview.groupName)');
+    expect(importer).toContain('extractClassSection');
+    expect(router).toContain('candidateClasses = await tx.studentClass.findMany');
+    expect(router).toContain('canonicalClassIdentityKey(candidate.levelId, candidate.name)');
+  });
+
   it('keeps import, preview, refresh, and authoritative exemptions in Students Book', () => {
     const book = read('src/components/students/StudentsBookView.tsx');
     expect(book).toContain('previewStudentRoster');

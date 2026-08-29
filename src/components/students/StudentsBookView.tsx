@@ -24,7 +24,10 @@ import {
 } from '../../services/api';
 import { Student, ClassRoom, User, MedicalExemptionDto } from '../../types/spex';
 import { StudentFollowUpCard } from './StudentFollowUpCard';
-import { findCrossClassMatriculeConflicts } from '../../services/studentRosterImport.service';
+import {
+  canonicalClassIdentityKey,
+  findCrossClassMatriculeConflicts,
+} from '../../services/studentRosterImport.service';
 
 type RegisterTab = 'roster' | 'exempted' | 'clubs';
 type WorkspaceSection = 'classes';
@@ -288,21 +291,25 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
           Number(('levelId' in activeClass ? activeClass.levelId : '').replace('lvl_p', '')) ||
           1;
         const levelId = `lvl_p${grade}`;
+        const targetClassName = preview.groupName || `السنة ${grade} ابتدائي`;
+        const targetClassIdentity = canonicalClassIdentityKey(levelId, targetClassName);
         const matched =
           classes.find(
             (item) =>
               item.levelId === levelId &&
-              (!preview.groupName || item.name.includes(preview.groupName))
+              canonicalClassIdentityKey(item.levelId, item.name) === targetClassIdentity
           ) ||
-          (grade ===
-          Number(('levelId' in activeClass ? activeClass.levelId : '').replace('lvl_p', ''))
+          (!preview.groupName &&
+          grade ===
+            Number(('levelId' in activeClass ? activeClass.levelId : '').replace('lvl_p', ''))
             ? activeClass
             : undefined);
+        const effectiveClassName = preview.groupName || matched?.name || targetClassName;
         const destinationId =
           matched?.id ||
           (() => {
             const id = onAddClass?.({
-              name: preview.groupName || `السنة ${grade} ابتدائي`,
+              name: effectiveClassName,
               levelId,
               studentCount: preview.students.length,
             });
@@ -314,7 +321,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
           preview.students,
           destinationId,
           grade,
-          preview.groupName || matched?.name || `السنة ${grade} ابتدائي`,
+          effectiveClassName,
           levelId
         );
         created += result.summary.created;
