@@ -36,15 +36,15 @@ describe('canonical Teacher Attendance Book', () => {
     expect(app).toContain("location.pathname === '/assessment-notebook'");
   });
 
-  it('uses the existing planning and attendance APIs in the dedicated view', () => {
+  it('uses the independent date attendance API in the dedicated view', () => {
     const view = read('src/components/attendance/AttendanceBookView.tsx');
-    expect(view).toContain('fetchTeacherPlanningSessions');
-    expect(view).toContain('fetchTeacherAttendance');
-    expect(view).toContain('saveTeacherAttendance');
+    expect(view).toContain('fetchTeacherAttendanceByDate');
+    expect(view).toContain('saveTeacherAttendanceByDate');
     expect(view).toContain('teacherClasses');
     expect(view).toContain('students');
     expect(view).toContain('حاضر');
     expect(view).toContain('غائب');
+    expect(view).not.toContain('fetchTeacherPlanningSessions');
   });
 
   it('keeps teacher authorization and class ownership on the existing API', () => {

@@ -163,21 +163,23 @@ model StudentAttendance {
   teacherId             String
   classId               String
   studentId             String
-  classPlannedSessionId String
+  classPlannedSessionId String?
   academicYearId        String
+  attendanceDate        DateTime
   status                String?
   note                  String?
   recordedAt            DateTime?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
-  teacher             User                @relation("TeacherAttendance", fields: [teacherId], references: [id], onDelete: Cascade)
-  class               StudentClass        @relation(fields: [classId], references: [id], onDelete: Cascade)
-  student             Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  classPlannedSession ClassPlannedSession @relation(fields: [classPlannedSessionId], references: [id], onDelete: Cascade)
+  teacher             User                 @relation("TeacherAttendance", fields: [teacherId], references: [id], onDelete: Cascade)
+  class               StudentClass         @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student             Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  classPlannedSession ClassPlannedSession? @relation(fields: [classPlannedSessionId], references: [id], onDelete: Cascade)
 
-  @@unique([classPlannedSessionId, studentId])
+  @@unique([teacherId, classId, studentId, academicYearId, attendanceDate])
   @@index([teacherId, classId, academicYearId])
+  @@index([classId, academicYearId, attendanceDate])
   @@index([studentId])
 }
 

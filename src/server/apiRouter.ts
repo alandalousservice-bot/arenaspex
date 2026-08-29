@@ -54,6 +54,7 @@ import {
   rosterPreviewSummary,
   type ParsedRosterStudent,
 } from '../services/studentRosterImport.service.js';
+import { deleteOwnedStudent, StudentDeletionError } from '../services/studentDeletion.service.js';
 import { buildStudentRosterReadModel } from '../services/studentRosterReadModel.service.js';
 import { persistStudentRosterRows } from '../services/studentRosterPersistence.service.js';
 import {
@@ -953,6 +954,29 @@ apiRouter.delete('/students/classes/:classId', requireRole('teacher'), async (re
     res
       .status(500)
       .json({ error: 'تعذر حذف القسم. يرجى إعادة المحاولة.', code: 'UNEXPECTED_ERROR' });
+  }
+});
+
+apiRouter.delete('/students/:studentId', requireRole('teacher'), async (req, res) => {
+  try {
+    const result = await prisma.$transaction((tx) =>
+      deleteOwnedStudent(tx, { studentId: req.params.studentId, ownerId: req.user!.id })
+    );
+    res.json({ success: true, ...result });
+  } catch (error) {
+    if (error instanceof StudentDeletionError) {
+      const status =
+        error.code === 'STUDENT_NOT_FOUND' ? 404 : error.code === 'STUDENT_NOT_OWNED' ? 403 : 409;
+      return res.status(status).json({
+        error: error.message,
+        code: error.code,
+        ...(error.blockers ? { blockers: error.blockers } : {}),
+      });
+    }
+    if ((error as { code?: string })?.code === 'P2021')
+      return res.status(503).json({ error: 'قاعدة بيانات قوائم التلاميذ غير مهيأة بعد.' });
+    console.error('Student deletion failed:', error);
+    return res.status(500).json({ error: 'تعذر حذف التلميذ.', code: 'UNEXPECTED_ERROR' });
   }
 });
 

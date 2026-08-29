@@ -4,83 +4,100 @@ import { pathToTab, tabToPath } from '../src/lib/routes';
 
 const read = (file: string) => readFileSync(file, 'utf8');
 
-describe('literal standalone Attendance Book restoration', () => {
+describe('date-based classic Attendance Book', () => {
   const view = read('src/components/attendance/AttendanceBookView.tsx');
+  const api = read('src/services/api.ts');
   const router = read('src/server/attendanceRouter.ts');
+  const schema = read('prisma/schema.prisma');
+  const migration = read(
+    'prisma/migrations/20260829120000_date_based_teacher_attendance/migration.sql'
+  );
 
-  it('keeps the canonical standalone route and old register texts', () => {
+  it('keeps the canonical standalone route and exact old register text', () => {
     expect(pathToTab('/attendance')).toBe('attendance');
     expect(tabToPath('attendance')).toBe('/attendance');
-    expect(view).toContain('دفتر تسجيل الحضور والغياب للتربية البدنية');
-    expect(view).toContain(
-      'سجل المتابعة اليومية والانضباط للحصص الرياضية مع تسجيل الأسباب والشهادات الطبية'
-    );
-    expect(view).toContain('الحالة اليومية');
-    expect(view).toContain('تأكيد الحضور والغياب');
+    for (const text of [
+      'دفتر تسجيل الحضور والغياب للتربية البدنية',
+      'سجل المتابعة اليومية والانضباط للحصص الرياضية مع تسجيل الأسباب والشهادات الطبية',
+      'اسم ولقب التلميذ',
+      'الحالة اليومية',
+      'تأكيد الحضور والغياب',
+      'حذف',
+    ]) {
+      expect(view).toContain(text);
+    }
   });
 
-  it('restores the old four-column register without student deletion', () => {
-    expect(view).toContain('اسم ولقب التلميذ');
-    expect(view).toContain('colSpan={4}');
+  it('restores the five old columns, delete action, colors, and quick controls', () => {
+    expect(view).toContain('Trash2');
+    expect(view).toContain('title="حذف التلميذ"');
+    expect(view).toContain('colSpan={5}');
+    expect(view).toContain('w-12 p-3 text-center');
+    expect(view).toContain('transition-colors hover:bg-slate-50');
+    expect(view).toContain('p-1.5 text-slate-400');
+    expect(view).toContain('hover:bg-rose-50 hover:text-rose-600');
     for (const status of ['حاضر', 'غائب', 'غائب بمبرر', 'معفى']) {
       expect(view).toContain(status);
     }
-    expect(view).not.toContain('Trash2');
-    expect(view).not.toContain('حذف التلميذ');
-    expect(view).toContain('overflow-x-auto');
-    expect(view).toContain('bg-slate-900');
-  });
-
-  it('keeps unrecorded dates neutral and uses the old date/class controls', () => {
-    expect(view).toContain('type="date"');
-    expect(view).toContain('selectedDate');
-    expect(view).toContain('selectedClassId');
-    expect(view).toContain("{status || 'غير مسجل'}");
-    expect(view).not.toContain("|| 'حاضر'");
-    expect(view).toContain("attendanceStudent?.attendance?.status || ''");
-  });
-
-  it('persists status clicks through the protected PostgreSQL attendance API', () => {
-    expect(view).toContain('fetchTeacherPlanningSessions');
-    expect(view).toContain('fetchTeacherAttendance');
-    expect(view).toContain('saveTeacherAttendance');
-    expect(view).toContain('fetchTeacherAttendance(selectedSession.id)');
-    expect(router).toContain("requireRole('teacher')");
-    expect(router).toContain('teacherId: req.user!.id');
-    expect(router).toContain('classPlannedSessionId_studentId');
-    expect(router).toContain('prisma.$transaction');
-  });
-
-  it('preserves all UI-to-database status values and medical protections', () => {
-    expect(router).toContain("z.enum(['حاضر', 'غائب', 'غائب بمبرر', 'معفى'])");
-    expect(router).toContain("record.status !== 'معفى'");
-    expect(router).toContain("record.status === 'معفى'");
     expect(view).toContain('bg-emerald-100');
     expect(view).toContain('bg-rose-100');
     expect(view).toContain('bg-amber-100');
     expect(view).toContain('bg-purple-100');
+    expect(view).toContain('shadow-xs');
   });
 
-  it('uses current classId roster isolation and date-to-planned-session mapping', () => {
+  it('keeps literal default حاضر without creating rows on render', () => {
+    expect(view).toContain("recordsByStudent.get(studentId)?.status || 'حاضر'");
+    expect(view).not.toContain('غير مسجل');
+    expect(view).toContain('saveTeacherAttendanceByDate');
+  });
+
+  it('uses independent date-based read/write APIs with explicit status mapping', () => {
+    expect(api).toContain('/api/teacher/attendance?');
+    expect(api).toContain("fetch('/api/teacher/attendance'");
+    expect(api).toContain('fetchTeacherAttendanceByDate');
+    expect(api).toContain('saveTeacherAttendanceByDate');
+    expect(router).toContain("teacherAttendanceRouter.get('/teacher/attendance'");
+    expect(router).toContain("teacherAttendanceRouter.put('/teacher/attendance'");
+    expect(router).toContain("z.enum(['حاضر', 'غائب', 'غائب بمبرر', 'معفى'])");
+    expect(router).toContain('attendanceDate');
+    expect(router).toContain('classPlannedSessionId = matchingSessions.length === 1');
+  });
+
+  it('uses the current Student.classId roster and protects class/teacher ownership', () => {
     expect(view).toContain('student.classId === selectedClassId');
-    expect(view).toContain('session.plannedDate.slice(0, 10) === selectedDate');
-    expect(view).toContain('fetchTeacherPlanningSessions(selectedClassId, academicYearId)');
-    expect(view).toContain('fetchTeacherAttendance(selectedSession.id)');
+    expect(router).toContain('teacherId: req.user!.id');
+    expect(router).toContain('classId: parsed.data.classId');
+    expect(router).toContain('classId: classRecord.id');
+    expect(router).toContain('students.length !== studentIds.length');
+    expect(router).toContain("requireRole('teacher')");
   });
 
-  it('guards nullable attendance data and keeps roster rendering independent of sessions', () => {
-    expect(view).toContain('attendanceData?.students ?? []');
-    expect(view).toContain('attendanceData?.session.id === selectedSession?.id');
-    expect(view).toContain('لا توجد حصة مبرمجة لهذا القسم في التاريخ المحدد.');
-    expect(view).toContain('لا يمكن حفظ الحضور والغياب قبل وجود حصة مبرمجة في هذا التاريخ.');
-    expect(view).toContain('classStudents.map((student, index)');
-    expect(view).toContain('disabled={!selectedSession || Boolean(savingStudentId)}');
+  it('defines migration backfill and the date-based unique identity', () => {
+    expect(schema).toContain('classPlannedSessionId String?');
+    expect(schema).toContain('attendanceDate        DateTime');
+    expect(schema).toContain(
+      '@@unique([teacherId, classId, studentId, academicYearId, attendanceDate])'
+    );
+    expect(migration).toContain('ADD COLUMN "attendanceDate" TIMESTAMP(3)');
+    expect(migration).toContain('SET "attendanceDate" = session."plannedDate"');
+    expect(migration).toContain(
+      'DROP INDEX "StudentAttendance_classPlannedSessionId_studentId_key"'
+    );
+    expect(migration).toContain(
+      'StudentAttendance_teacherId_classId_studentId_academicYearId_attendanceDate_key'
+    );
   });
 
-  it('keeps the four status persistence path explicit after a session is available', () => {
-    expect(view).toContain('ATTENDANCE_STATUSES');
-    expect(view).toContain('saveStatus(student.id, nextStatus)');
-    expect(view).toContain('await saveTeacherAttendance(selectedSession.id');
-    expect(view).toContain('const refreshed = await fetchTeacherAttendance(selectedSession.id)');
+  it('keeps the legacy planned-session API and safe student deletion workflow', () => {
+    expect(router).toContain("'/teacher/planned-sessions/:sessionId/attendance'");
+    expect(router).toContain('attendanceDate: session.plannedDate');
+    expect(api).toContain('deleteTeacherStudent');
+    expect(view).toContain('onDeleteStudent');
+    expect(view).toContain('window.confirm');
+    expect(read('src/services/studentDeletion.service.ts')).toContain('STUDENT_DELETE_BLOCKED');
+    expect(read('src/hooks/usePlatformStore.ts')).toContain(
+      'await deleteTeacherStudent(studentId)'
+    );
   });
 });

@@ -44,6 +44,7 @@ import {
   fetchStudentRoster,
   deleteStudentClass,
   forceDeleteStudentClass,
+  deleteTeacherStudent,
   updateTeacherPlanningSession,
   saveTeacherWeeklySlot,
   updateTeacherWeeklySlot,
@@ -846,8 +847,9 @@ export function usePlatformStore({
     setAllStudents((prev) => [...prev, newStudent]);
   };
 
-  const handleDeleteStudent = (studentId: string) => {
-    setAllStudents((prev) => prev.filter((s) => s.id !== studentId));
+  const handleDeleteStudent = async (studentId: string) => {
+    await deleteTeacherStudent(studentId);
+    await refreshStudentRoster();
   };
 
   const handleDeleteLessonPlan = (lessonId: string) => {

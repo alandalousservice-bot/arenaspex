@@ -806,6 +806,77 @@ export async function fetchTeacherAttendance(sessionId: string): Promise<Teacher
   return data as TeacherAttendanceDto;
 }
 
+export interface TeacherDateAttendanceRecord {
+  id: string;
+  studentId: string;
+  status: AttendanceStatus | null;
+  note: string | null;
+  recordedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  attendanceDate: string;
+  classPlannedSessionId: string | null;
+}
+
+export interface TeacherDateAttendanceDto {
+  success: boolean;
+  class: { id: string; name: string };
+  date: string;
+  academicYearId: string;
+  records: TeacherDateAttendanceRecord[];
+}
+
+export class StudentDeletionApiError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly blockers?: Record<string, number>
+  ) {
+    super(message);
+    this.name = 'StudentDeletionApiError';
+  }
+}
+
+export async function fetchTeacherAttendanceByDate(
+  classId: string,
+  date: string,
+  academicYearId: string
+): Promise<TeacherDateAttendanceDto> {
+  const query = new URLSearchParams({ classId, date, academicYearId });
+  const res = await fetch(`/api/teacher/attendance?${query.toString()}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل دفتر الحضور.');
+  return data as TeacherDateAttendanceDto;
+}
+
+export async function saveTeacherAttendanceByDate(input: {
+  classId: string;
+  date: string;
+  academicYearId: string;
+  records: Array<{ studentId: string; status: AttendanceStatus; note?: string | null }>;
+}): Promise<TeacherDateAttendanceDto> {
+  const res = await fetch('/api/teacher/attendance', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر حفظ دفتر الحضور.');
+  return data as TeacherDateAttendanceDto;
+}
+
+export async function deleteTeacherStudent(studentId: string) {
+  const res = await fetch(`/api/students/${encodeURIComponent(studentId)}`, { method: 'DELETE' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok)
+    throw new StudentDeletionApiError(
+      data.error || 'تعذر حذف التلميذ.',
+      data.code || 'UNEXPECTED_ERROR',
+      data.blockers
+    );
+  return data as { success: boolean; studentId: string };
+}
+
 export async function saveTeacherAttendance(
   sessionId: string,
   records: Array<{ studentId: string; status: AttendanceStatus; note?: string | null }>

@@ -47,7 +47,7 @@ export interface StudentsBookViewProps {
   onDeleteClass?: (classId: string) => void | Promise<void>;
   onForceDeleteClass?: (classId: string) => Promise<unknown>;
   onAddStudent?: (studentData: Omit<Student, 'id'>) => void;
-  onDeleteStudent?: (studentId: string) => void;
+  onDeleteStudent?: (studentId: string) => void | Promise<void>;
   onRefreshRoster?: () => Promise<unknown>;
   currentUser?: User;
   selectedStudentId?: string;

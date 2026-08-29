@@ -89,7 +89,10 @@ describe('persisted Teacher assessment foundation', () => {
   it('keeps attendance and exemption persistence additive and separate', () => {
     expect(schema).toContain('model StudentAttendance');
     expect(schema).toContain('model MedicalExemption');
-    expect(schema).toContain('@@unique([classPlannedSessionId, studentId])');
+    expect(schema).toContain('attendanceDate        DateTime');
+    expect(schema).toContain(
+      '@@unique([teacherId, classId, studentId, academicYearId, attendanceDate])'
+    );
     expect(migration).not.toContain('Attendance');
     expect(migration).not.toContain('Exemption');
   });

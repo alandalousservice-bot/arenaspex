@@ -39,8 +39,62 @@ const attendanceSummaryQuerySchema = z.object({
   classId: z.string().trim().min(1),
   academicYearId: z.string().trim().min(1),
 });
+const attendanceDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'التاريخ يجب أن يكون بصيغة YYYY-MM-DD.')
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  }, 'التاريخ غير صالح.');
+const dateAttendanceQuerySchema = z.object({
+  classId: z.string().trim().min(1),
+  academicYearId: z.string().trim().min(1),
+  date: attendanceDateSchema,
+});
+const dateAttendanceBodySchema = z.object({
+  classId: z.string().trim().min(1),
+  academicYearId: z.string().trim().min(1),
+  date: attendanceDateSchema,
+  records: z
+    .array(
+      z.object({
+        studentId: z.string().trim().min(1),
+        status: attendanceStatusSchema,
+        note: z.string().max(1000).nullable().optional(),
+      })
+    )
+    .max(1000),
+});
 async function ownedPlannedSession(sessionId: string, teacherId: string) {
   return prisma.classPlannedSession.findFirst({ where: { id: sessionId, teacherId } });
+}
+
+function attendanceDateValue(value: string) {
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+function attendanceRecordView(row: {
+  id: string;
+  studentId: string;
+  status: string | null;
+  note: string | null;
+  recordedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  attendanceDate: Date;
+  classPlannedSessionId: string | null;
+}) {
+  return {
+    id: row.id,
+    studentId: row.studentId,
+    status: row.status,
+    note: row.note,
+    recordedAt: row.recordedAt?.toISOString() || null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+    attendanceDate: row.attendanceDate.toISOString().slice(0, 10),
+    classPlannedSessionId: row.classPlannedSessionId,
+  };
 }
 
 function activeExemptionForDate(
@@ -79,6 +133,130 @@ function exemptionView(row: {
     updatedAt: row.updatedAt.toISOString(),
   };
 }
+
+teacherAttendanceRouter.get('/teacher/attendance', requireRole('teacher'), async (req, res) => {
+  const parsed = dateAttendanceQuerySchema.safeParse(req.query);
+  if (!parsed.success)
+    return res.status(400).json({ error: 'القسم والتاريخ والسنة الدراسية مطلوبة.' });
+  const classRecord = await prisma.studentClass.findFirst({
+    where: { id: parsed.data.classId, teacherId: req.user!.id },
+  });
+  if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+  const attendanceDate = attendanceDateValue(parsed.data.date);
+  const records = await prisma.studentAttendance.findMany({
+    where: {
+      teacherId: req.user!.id,
+      classId: classRecord.id,
+      academicYearId: parsed.data.academicYearId,
+      attendanceDate,
+    },
+    orderBy: { studentId: 'asc' },
+  });
+  res.json({
+    success: true,
+    class: { id: classRecord.id, name: classRecord.name },
+    date: parsed.data.date,
+    academicYearId: parsed.data.academicYearId,
+    records: records.map(attendanceRecordView),
+  });
+});
+
+teacherAttendanceRouter.put('/teacher/attendance', requireRole('teacher'), async (req, res) => {
+  const parsed = dateAttendanceBodySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'بيانات الحضور غير صحيحة.' });
+  const classRecord = await prisma.studentClass.findFirst({
+    where: { id: parsed.data.classId, teacherId: req.user!.id },
+  });
+  if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+  const studentIds = parsed.data.records.map((record) => record.studentId);
+  if (new Set(studentIds).size !== studentIds.length)
+    return res.status(400).json({ error: 'لا يجوز تكرار التلميذ في نفس الحفظ الجماعي.' });
+  const students = await prisma.student.findMany({
+    where: { id: { in: studentIds }, teacherId: req.user!.id, classId: classRecord.id },
+    select: { id: true },
+  });
+  if (students.length !== studentIds.length)
+    return res.status(403).json({ error: 'يتضمن الحفظ تلميذاً خارج القسم المحدد.' });
+
+  const attendanceDate = attendanceDateValue(parsed.data.date);
+  const nextDate = new Date(attendanceDate.getTime() + 24 * 60 * 60 * 1000);
+  const matchingSessions = await prisma.classPlannedSession.findMany({
+    where: {
+      teacherId: req.user!.id,
+      classId: classRecord.id,
+      academicYearId: parsed.data.academicYearId,
+      plannedDate: { gte: attendanceDate, lt: nextDate },
+    },
+    select: { id: true },
+    orderBy: { id: 'asc' },
+  });
+  const classPlannedSessionId = matchingSessions.length === 1 ? matchingSessions[0].id : null;
+  const exemptions = await prisma.medicalExemption.findMany({
+    where: { teacherId: req.user!.id, studentId: { in: studentIds } },
+    select: { studentId: true, issuedOn: true, expiresOn: true },
+  });
+  for (const record of parsed.data.records) {
+    const exempt = Boolean(activeExemptionForDate(exemptions, record.studentId, attendanceDate));
+    if (exempt && record.status !== 'معفى')
+      return res
+        .status(409)
+        .json({ error: 'التلميذ المعفى طبياً يجب أن يسجل «معفى» في هذا التاريخ.' });
+    if (!exempt && record.status === 'معفى')
+      return res
+        .status(409)
+        .json({ error: 'لا يمكن تسجيل «معفى» دون إعفاء طبي نشط بهذا التاريخ.' });
+  }
+  const recordedAt = new Date();
+  await prisma.$transaction(
+    parsed.data.records.map((record) =>
+      prisma.studentAttendance.upsert({
+        where: {
+          teacherId_classId_studentId_academicYearId_attendanceDate: {
+            teacherId: req.user!.id,
+            classId: classRecord.id,
+            studentId: record.studentId,
+            academicYearId: parsed.data.academicYearId,
+            attendanceDate,
+          },
+        },
+        create: {
+          id: `attendance_${req.user!.id}_${classRecord.id}_${record.studentId}_${parsed.data.date}`,
+          teacherId: req.user!.id,
+          classId: classRecord.id,
+          studentId: record.studentId,
+          classPlannedSessionId,
+          academicYearId: parsed.data.academicYearId,
+          attendanceDate,
+          status: record.status,
+          note: record.note ?? null,
+          recordedAt,
+        },
+        update: {
+          classPlannedSessionId,
+          status: record.status,
+          note: record.note ?? null,
+          recordedAt,
+        },
+      })
+    )
+  );
+  const saved = await prisma.studentAttendance.findMany({
+    where: {
+      teacherId: req.user!.id,
+      classId: classRecord.id,
+      academicYearId: parsed.data.academicYearId,
+      attendanceDate,
+    },
+    orderBy: { studentId: 'asc' },
+  });
+  res.json({
+    success: true,
+    class: { id: classRecord.id, name: classRecord.name },
+    date: parsed.data.date,
+    academicYearId: parsed.data.academicYearId,
+    records: saved.map(attendanceRecordView),
+  });
+});
 
 teacherAttendanceRouter.get(
   '/teacher/planned-sessions/:sessionId/attendance',
@@ -171,9 +349,12 @@ teacherAttendanceRouter.put(
       parsed.data.records.map((record) =>
         prisma.studentAttendance.upsert({
           where: {
-            classPlannedSessionId_studentId: {
-              classPlannedSessionId: session.id,
+            teacherId_classId_studentId_academicYearId_attendanceDate: {
+              teacherId: req.user!.id,
+              classId: session.classId,
               studentId: record.studentId,
+              academicYearId: session.academicYearId,
+              attendanceDate: session.plannedDate,
             },
           },
           create: {
@@ -183,11 +364,18 @@ teacherAttendanceRouter.put(
             studentId: record.studentId,
             classPlannedSessionId: session.id,
             academicYearId: session.academicYearId,
+            attendanceDate: session.plannedDate,
             status: record.status,
             note: record.note ?? null,
             recordedAt,
           },
-          update: { status: record.status, note: record.note ?? null, recordedAt },
+          update: {
+            classPlannedSessionId: session.id,
+            attendanceDate: session.plannedDate,
+            status: record.status,
+            note: record.note ?? null,
+            recordedAt,
+          },
         })
       )
     );

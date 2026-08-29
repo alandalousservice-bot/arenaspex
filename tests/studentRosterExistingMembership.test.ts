@@ -235,10 +235,8 @@ describe('existing student class reconciliation', () => {
 
   it('uses User.id for ownership because Student.teacherId references User.id', () => {
     const schema = readFileSync('prisma/schema.prisma', 'utf8');
-    expect(schema).toContain('teacherId     String');
-    expect(schema).toContain(
-      'teacher       User     @relation(fields: [teacherId], references: [id]'
-    );
+    expect(schema).toMatch(/teacherId\s+String/);
+    expect(schema).toMatch(/teacher\s+User\s+@relation\(fields: \[teacherId\], references: \[id\]/);
     expect(readFileSync('src/server/apiRouter.ts', 'utf8')).toContain('teacherId: req.user!.id');
   });
 

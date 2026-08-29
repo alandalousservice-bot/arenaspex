@@ -560,6 +560,7 @@ export default function App() {
                 currentUser={currentUser}
                 teacherClasses={teacherClasses}
                 students={allStudents}
+                onDeleteStudent={handleDeleteStudent}
               />
             )}
 
