@@ -525,6 +525,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     try {
       let created = 0;
       let existing = 0;
+      let imported = 0;
       let conflicts = 0;
       let review = 0;
       let classesImported = 0;
@@ -565,13 +566,15 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
         );
         created += result.summary.created;
         existing += result.summary.existing;
+        imported += result.summary.linkedStudents;
         conflicts += result.summary.conflicts;
         review += result.summary.review;
+        setSelectedClassId(result.classId);
         classesImported += 1;
       }
       await onRefreshRoster?.();
       window.alert(
-        `تم استيراد ${classesImported} قسم و ${created + existing} تلميذا بنجاح\nالجدد: ${created}\nالموجودون مسبقاً: ${existing}\nبحاجة إلى مراجعة: ${conflicts + review}`
+        `تم استيراد ${classesImported} قسم و ${imported} تلميذاً محفوظاً بنجاح\nالجدد: ${created}\nالموجودون مسبقاً: ${existing}\nبحاجة إلى مراجعة: ${conflicts + review}`
       );
       setRosterPreview(null);
       setRosterFileName('');

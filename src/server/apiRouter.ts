@@ -52,6 +52,7 @@ import {
   rosterPreviewSummary,
   type ParsedRosterStudent,
 } from '../services/studentRosterImport.service.js';
+import { buildStudentRosterReadModel } from '../services/studentRosterReadModel.service.js';
 
 // نظام الإسناد التلقائي للأساتذة إلى المفتشين: يُعاد احتساب جهة الإشراف تلقائياً
 // عند تسجيل/تعديل أستاذ (يعاد ربطه بمفتشه) أو تسجيل/تعديل مفتش (يعاد ربط كل الأساتذة
@@ -912,33 +913,7 @@ apiRouter.get('/students/roster', async (req, res) => {
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     }),
   ]);
-  const counts = new Map<string, number>();
-  students.forEach((student) =>
-    counts.set(student.classId, (counts.get(student.classId) || 0) + 1)
-  );
-  res.json({
-    success: true,
-    classes: classes.map((item) => ({
-      id: item.id,
-      institutionId: item.institutionId || '',
-      teacherId: item.teacherId,
-      levelId: item.levelId,
-      name: item.name,
-      studentCount: counts.get(item.id) || 0,
-    })),
-    students: students.map((item) => ({
-      id: item.id,
-      classId: item.classId,
-      firstName: item.firstName,
-      lastName: item.lastName,
-      gender: 'ذكر',
-      birthDate: item.birthDate?.toISOString().slice(0, 10),
-      registrationNumber: item.matricule,
-      matricule: item.matricule,
-      grade: item.grade,
-      schoolYear: item.schoolYear,
-    })),
-  });
+  res.json({ success: true, ...buildStudentRosterReadModel(classes, students) });
 });
 
 apiRouter.post('/students/import/confirm', async (req, res) => {
@@ -959,31 +934,43 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
   const normalizedRows = new Map<string, ParsedRosterStudent>();
   let inputConflicts = 0;
   for (const row of validRows) {
-    const matricule = row.matricule.trim() || `import-${classId}-${row.rowNumber}`;
+    const matricule = row.matricule.trim();
     const normalized = {
       ...row,
       matricule,
       firstName: row.firstName.trim(),
       lastName: row.lastName.trim(),
     };
-    const previous = normalizedRows.get(matricule);
+    const previous = normalizedRows.get(matricule || `row-${row.rowNumber}`);
     if (previous) {
       if (previous.firstName !== normalized.firstName || previous.lastName !== normalized.lastName)
         inputConflicts += 1;
       continue;
     }
-    normalizedRows.set(matricule, normalized);
+    normalizedRows.set(matricule || `row-${row.rowNumber}`, normalized);
   }
-  const importRows = [...normalizedRows.values()];
   try {
     const summary = await prisma.$transaction(
       async (tx) => {
-        const assignedClass = await tx.studentClass.findUnique({ where: { id: classId } });
+        let assignedClass = await tx.studentClass.findUnique({ where: { id: classId } });
         if (assignedClass && assignedClass.teacherId !== req.user!.id)
           throw new Error('UNAUTHORIZED_CLASS');
+        if (!assignedClass) {
+          assignedClass = await tx.studentClass.findFirst({
+            where: { teacherId: req.user!.id, institutionId, levelId, name: className },
+            orderBy: { createdAt: 'asc' },
+          });
+        }
+        const persistedClassId = assignedClass?.id || classId;
         if (!assignedClass)
           await tx.studentClass.create({
-            data: { id: classId, teacherId: req.user!.id, institutionId, levelId, name: className },
+            data: {
+              id: persistedClassId,
+              teacherId: req.user!.id,
+              institutionId,
+              levelId,
+              name: className,
+            },
           });
         else if (
           assignedClass.name !== className &&
@@ -994,8 +981,15 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
         ) {
           // Compatibility for classes created by the old parser: only normalize
           // when the malformed value is deterministically the same class.
-          await tx.studentClass.update({ where: { id: classId }, data: { name: className } });
+          await tx.studentClass.update({
+            where: { id: persistedClassId },
+            data: { name: className },
+          });
         }
+        const importRows = [...normalizedRows.values()].map((row) => ({
+          ...row,
+          matricule: row.matricule || `import-${persistedClassId}-${row.rowNumber}`,
+        }));
         const matricules = importRows.map((row) => row.matricule);
         // One bulk lookup replaces the former findFirst-per-student N+1 pattern.
         const existingStudents = matricules.length
@@ -1007,7 +1001,6 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
         const missingRows: ParsedRosterStudent[] = [];
         let existing = 0;
         let conflicts = inputConflicts;
-        let linkedStudents = 0;
         const updates: Promise<unknown>[] = [];
         for (const row of importRows) {
           const current = existingByMatricule.get(row.matricule);
@@ -1020,19 +1013,18 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
             continue;
           }
           existing += 1;
-          if (current.teacherId === req.user!.id && current.classId !== classId) {
+          if (current.teacherId === req.user!.id && current.classId !== persistedClassId) {
             updates.push(
               tx.student.update({
                 where: { id: current.id },
                 data: {
-                  classId,
+                  classId: persistedClassId,
                   grade: grade || row.grade || null,
                   groupName: row.groupName || null,
                 },
               })
             );
           }
-          linkedStudents += 1;
         }
         if (updates.length) await Promise.all(updates);
         if (missingRows.length) {
@@ -1041,7 +1033,7 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
               id: `std_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`,
               teacherId: req.user!.id,
               institutionId,
-              classId,
+              classId: persistedClassId,
               matricule: row.matricule,
               firstName: row.firstName,
               lastName: row.lastName,
@@ -1053,18 +1045,21 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
           });
         }
         const created = missingRows.length;
-        linkedStudents += created;
+        const persistedStudents = await tx.student.count({
+          where: { teacherId: req.user!.id, classId: persistedClassId },
+        });
         return {
           created,
           existing,
-          linkedStudents,
+          linkedStudents: persistedStudents,
           conflicts,
           review: rows.length - validRows.length,
+          classId: persistedClassId,
         };
       },
       { maxWait: 10000, timeout: 25000 }
     );
-    res.json({ success: true, classId, summary });
+    res.json({ success: true, classId: summary.classId, summary });
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED_CLASS')
       return res.status(403).json({ error: 'لا تملك صلاحية الاستيراد إلى هذا القسم.' });
