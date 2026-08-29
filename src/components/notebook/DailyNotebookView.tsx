@@ -10,6 +10,13 @@ import {
 } from '../../services/api';
 import { canonicalReferenceSessions } from '../../services/teacherPlanning.service';
 import {
+  normalizeClassRooms,
+  normalizeDailyNotebookEntries,
+  normalizePlanningSession,
+  normalizePlanningSessions,
+} from '../../services/dailyNotebook.service';
+import { formatLocalDate, shiftLocalDate } from '../../services/localDate';
+import {
   formatAcademicYearLabel,
   getAcademicYearOptions,
   getCurrentAcademicYear,
@@ -17,19 +24,25 @@ import {
 } from '../../services/academicYear';
 
 type NotebookStatus = 'منجزة' | 'مؤجلة' | 'غير منجزة';
-type SessionRef = { id?: string; sessionTitle?: string; fieldName?: string; levelName?: string };
+type SessionRef = {
+  id?: string;
+  classId?: string;
+  academicYearId?: string;
+  sessionTitle?: string;
+  fieldName?: string;
+  levelName?: string;
+};
 type PlanningReferenceSummary = Pick<TeacherPlanningReference, 'objective' | 'domainId'>;
 interface DailyNotebookViewProps {
   currentUser: User;
   teacherClasses: ClassRoom[];
   notebookEntries: DailyNotebookEntry[];
   lessonPlans: LessonPlan[];
-  onPersistNotebookEntry: (entry: Omit<DailyNotebookEntry, 'id'>) => void;
-  onOpenLessonPlan: (lessonId?: string, sessionRef?: SessionRef) => void;
+  onPersistNotebookEntry: (entry: Omit<DailyNotebookEntry, 'id'>) => void | Promise<void>;
   onOpenAIGeneratorForSession: (sessionRef: SessionRef) => void;
 }
 const YEAR_KEY = 'arenaspex:selectedAcademicYear';
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => formatLocalDate();
 const levelLabel = (id: string) => PE_LEVELS.find((level) => level.id === id)?.name || id;
 
 export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
@@ -39,13 +52,15 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   onPersistNotebookEntry,
   onOpenAIGeneratorForSession,
 }) => {
+  const safeTeacherClasses = normalizeClassRooms(teacherClasses);
+  const safeNotebookEntries = normalizeDailyNotebookEntries(notebookEntries, currentUser.id);
   const query = new URLSearchParams(window.location.search);
   const requestedClassId = query.get('classId') || '';
   const requestedSessionId = query.get('classPlannedSessionId') || '';
   const [selectedClassId, setSelectedClassId] = useState(
-    teacherClasses.some((item) => item.id === requestedClassId)
+    safeTeacherClasses.some((item) => item.id === requestedClassId)
       ? requestedClassId
-      : teacherClasses[0]?.id || ''
+      : safeTeacherClasses[0]?.id || ''
   );
   const [academicYearId, setAcademicYearId] = useState(() => {
     const stored = window.localStorage.getItem(YEAR_KEY) || '';
@@ -57,7 +72,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   const [error, setError] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
-  const selectedClass = teacherClasses.find((item) => item.id === selectedClassId);
+  const selectedClass = safeTeacherClasses.find((item) => item.id === selectedClassId);
   const yearOptions = useMemo(() => getAcademicYearOptions(), []);
   const references = useMemo(
     () =>
@@ -72,11 +87,16 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   const entriesBySession = useMemo(
     () =>
       new Map(
-        notebookEntries
-          .filter((entry) => entry.classPlannedSessionId)
+        safeNotebookEntries
+          .filter(
+            (entry) =>
+              Boolean(entry.classPlannedSessionId) &&
+              entry.classId === selectedClassId &&
+              entry.academicYearId === academicYearId
+          )
           .map((entry) => [entry.classPlannedSessionId, entry])
       ),
-    [notebookEntries]
+    [safeNotebookEntries, selectedClassId, academicYearId]
   );
 
   useEffect(() => {
@@ -93,11 +113,12 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
     fetchTeacherPlanningSessions(selectedClassId, academicYearId)
       .then((result) => {
         if (cancelled) return;
-        setSessions(result.sessions);
+        const safeSessions = normalizePlanningSessions(result?.sessions);
+        setSessions(safeSessions);
         const linked = requestedSessionId
-          ? result.sessions.find((item) => item.id === requestedSessionId)
+          ? safeSessions.find((item) => item.id === requestedSessionId)
           : undefined;
-        if (linked) setSelectedDate(linked.plannedDate.slice(0, 10));
+        if (linked) setSelectedDate(linked.plannedDate);
       })
       .catch((reason: unknown) => {
         if (!cancelled)
@@ -115,7 +136,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
     () =>
       requestedSessionId
         ? sessions.filter((item) => item.id === requestedSessionId)
-        : sessions.filter((item) => item.plannedDate.slice(0, 10) === selectedDate),
+        : sessions.filter((item) => item.plannedDate === selectedDate),
     [sessions, selectedDate, requestedSessionId]
   );
   const updateStatus = async (session: TeacherPlanningSession, status: NotebookStatus) => {
@@ -123,11 +144,13 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
     setError('');
     try {
       const result = await updateTeacherPlanningSession(session.classId, session.id, { status });
+      const updatedSession = normalizePlanningSession(result?.session);
+      if (!updatedSession) throw new Error('استجابة الحصة التشغيلية غير صالحة.');
       setSessions((current) =>
-        current.map((item) => (item.id === session.id ? result.session : item))
+        current.map((item) => (item.id === session.id ? updatedSession : item))
       );
       const old = entriesBySession.get(session.id);
-      onPersistNotebookEntry({
+      await onPersistNotebookEntry({
         teacherId: currentUser.id,
         classPlannedSessionId: session.id,
         academicYearId: session.academicYearId,
@@ -136,8 +159,8 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
         sessionTitle: references.get(session.referenceSessionId)?.objective,
         segmentTitle: references.get(session.referenceSessionId)?.learningSectionId,
         levelName: selectedClass ? levelLabel(selectedClass.levelId) : undefined,
-        executionDate: result.session.plannedDate.slice(0, 10),
-        timeSlot: result.session.startTime || 'غير محدد',
+        executionDate: updatedSession.plannedDate,
+        timeSlot: updatedSession.startTime || 'غير محدد',
         status,
         note: old?.note,
         lessonPlanId: old?.lessonPlanId,
@@ -148,29 +171,41 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
       setSavingId(null);
     }
   };
-  const saveNote = (session: TeacherPlanningSession) => {
+  const saveNote = async (session: TeacherPlanningSession) => {
+    setSavingId(session.id);
+    setError('');
     const old = entriesBySession.get(session.id);
-    onPersistNotebookEntry({
-      teacherId: currentUser.id,
-      classPlannedSessionId: session.id,
-      academicYearId: session.academicYearId,
-      classId: session.classId,
-      className: selectedClass?.name || session.classId,
-      sessionTitle: references.get(session.referenceSessionId)?.objective,
-      segmentTitle: references.get(session.referenceSessionId)?.learningSectionId,
-      levelName: selectedClass ? levelLabel(selectedClass.levelId) : undefined,
-      executionDate: session.plannedDate.slice(0, 10),
-      timeSlot: session.startTime || 'غير محدد',
-      status: session.status === 'مبرمجة' ? old?.status || 'غير منجزة' : session.status,
-      note: noteDrafts[session.id] || '',
-      lessonPlanId: old?.lessonPlanId,
-    });
+    const previousNote = old?.note || '';
+    try {
+      await onPersistNotebookEntry({
+        teacherId: currentUser.id,
+        classPlannedSessionId: session.id,
+        academicYearId: session.academicYearId,
+        classId: session.classId,
+        className: selectedClass?.name || session.classId,
+        sessionTitle: references.get(session.referenceSessionId)?.objective,
+        segmentTitle: references.get(session.referenceSessionId)?.learningSectionId,
+        levelName: selectedClass ? levelLabel(selectedClass.levelId) : undefined,
+        executionDate: session.plannedDate,
+        timeSlot: session.startTime || 'غير محدد',
+        status: session.status === 'مبرمجة' ? 'غير منجزة' : session.status,
+        note: noteDrafts[session.id] || '',
+        lessonPlanId: old?.lessonPlanId,
+      });
+    } catch (reason: unknown) {
+      setNoteDrafts((current) => ({ ...current, [session.id]: previousNote }));
+      setError(reason instanceof Error ? reason.message : 'تعذر حفظ ملاحظة الحصة.');
+    } finally {
+      setSavingId(null);
+    }
   };
   const sessionRef = (
     session: TeacherPlanningSession,
     reference?: PlanningReferenceSummary
   ): SessionRef => ({
     id: session.id,
+    classId: session.classId,
+    academicYearId: session.academicYearId,
     sessionTitle: reference?.objective,
     fieldName: reference
       ? PE_FIELDS.find((field) => field.id === reference.domainId)?.name
@@ -183,9 +218,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
     );
   };
   const shiftDate = (days: number) => {
-    const date = new Date(`${selectedDate}T00:00:00`);
-    date.setDate(date.getDate() + days);
-    setSelectedDate(date.toISOString().slice(0, 10));
+    setSelectedDate(shiftLocalDate(selectedDate, days));
   };
 
   return (
@@ -226,7 +259,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                 className="mt-1 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
               >
                 <option value="">اختر قسماً</option>
-                {teacherClasses.map((item) => (
+                {safeTeacherClasses.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.name}
                   </option>
@@ -313,8 +346,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
           const field = reference
             ? PE_FIELDS.find((item) => item.id === reference.domainId)
             : undefined;
-          const status =
-            session.status === 'مبرمجة' ? entry?.status || session.status : session.status;
+          const status = session.status;
           return (
             <article
               key={session.id}
@@ -330,8 +362,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                       {levelLabel(selectedClass.levelId)}
                     </span>
                     <span className="rounded-xl bg-blue-50 px-3 py-1 text-blue-800">
-                      <Calendar className="ml-1 inline h-3.5 w-3.5" />{' '}
-                      {session.plannedDate.slice(0, 10)}
+                      <Calendar className="ml-1 inline h-3.5 w-3.5" /> {session.plannedDate}
                     </span>
                   </div>
                   <h2 className="mt-3 text-lg font-extrabold text-slate-900">

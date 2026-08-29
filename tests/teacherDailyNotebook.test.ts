@@ -26,9 +26,7 @@ describe('teacher daily notebook session binding', () => {
 
   it('upserts notebook entries idempotently by the planned-session identity', () => {
     expect(store).toContain('handleUpsertNotebookEntry');
-    expect(store).toContain(
-      'findIndex((item) => item.classPlannedSessionId === entry.classPlannedSessionId)'
-    );
+    expect(store).toContain('item.classPlannedSessionId === entry.classPlannedSessionId');
     expect(store).toContain('syncNotebookEntryToDB(nextEntry)');
   });
 

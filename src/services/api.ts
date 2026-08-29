@@ -1501,11 +1501,22 @@ export async function deleteLessonPlanFromDB(lessonId: string) {
 }
 
 export async function syncNotebookEntryToDB(entry: unknown) {
-  await offlinePost('/api/db/notebook', { entry }, 'POST');
+  return offlinePost('/api/db/notebook', { entry }, 'POST');
 }
 
 export async function syncNotebookBatchToDB(dailyNotebook: unknown[]) {
   await offlinePost('/api/db/notebook/batch', { dailyNotebook }, 'POST');
+}
+
+export async function fetchDailyNotebookFromDB(): Promise<unknown[] | null> {
+  try {
+    const res = await fetch('/api/db/notebook');
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return Array.isArray(data?.dailyNotebook) ? data.dailyNotebook : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function deleteNotebookEntryFromDB(entryId: string) {

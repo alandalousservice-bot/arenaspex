@@ -218,7 +218,6 @@ export default function App() {
     handleSaveToPersonalLibrary,
     handleMarkNotificationRead,
     handleNotifyNewFollower,
-    handleOpenLessonPlan,
     refreshSessionUser,
   } = store;
 
@@ -459,8 +458,15 @@ export default function App() {
                 notebookEntries={dailyNotebook}
                 lessonPlans={lessonPlans}
                 onPersistNotebookEntry={handleUpsertNotebookEntry}
-                onOpenLessonPlan={(id) => handleOpenLessonPlan(id)}
-                onOpenAIGeneratorForSession={() => navigateToTab('lesson_plans')}
+                onOpenAIGeneratorForSession={(sessionRef) => {
+                  if (!sessionRef.id || !sessionRef.classId || !sessionRef.academicYearId) return;
+                  const params = new URLSearchParams({
+                    classId: sessionRef.classId,
+                    classPlannedSessionId: sessionRef.id,
+                    academicYearId: sessionRef.academicYearId,
+                  });
+                  window.location.assign(`/lesson-plans?${params.toString()}`);
+                }}
               />
             )}
 

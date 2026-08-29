@@ -17,9 +17,9 @@ import {
   syncLessonPlanToDB,
   syncLessonPlansBatchToDB,
   fetchLessonPlansFromDB,
+  fetchDailyNotebookFromDB,
   deleteLessonPlanFromDB,
   syncNotebookEntryToDB,
-  syncNotebookBatchToDB,
   deleteNotebookEntryFromDB,
   syncInspectorNoteToDB,
   syncInspectionVisitToDB,
@@ -75,6 +75,7 @@ import {
 } from '../types/spex';
 import { INITIAL_AI_SETTINGS, INITIAL_BROADCASTS } from '../data/initialState';
 import { INITIAL_KNOWLEDGE_BANK } from '../data/knowledgeBankData';
+import { normalizeDailyNotebookEntries } from '../services/dailyNotebook.service';
 
 const LEGACY_DEMO_USER_IDS = new Set(['usr_admin_1', 'usr_teacher_1', 'usr_inspector_1']);
 
@@ -137,13 +138,15 @@ export function usePlatformStore({
     const saved = localStorage.getItem(`spex_daily_notebook_${currentUser.id}`);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        return normalizeDailyNotebookEntries(JSON.parse(saved), currentUser.id);
       } catch (e) {
         void e;
       }
     }
     return [];
   });
+  const dailyNotebookRef = useRef(dailyNotebook);
+  const dailyNotebookMutationVersion = useRef(0);
 
   const [weeklySchedule, setWeeklySchedule] = useState<WeeklyScheduleSlot[]>(() => {
     const saved = localStorage.getItem('spex_weekly_schedule');
@@ -527,6 +530,14 @@ export function usePlatformStore({
 
     async function loadDBData() {
       try {
+        const hydrationVersion = dailyNotebookMutationVersion.current;
+        const dbNotebook = await fetchDailyNotebookFromDB();
+        if (dbNotebook !== null && hydrationVersion === dailyNotebookMutationVersion.current) {
+          const hydratedNotebook = normalizeDailyNotebookEntries(dbNotebook, currentUser.id);
+          dailyNotebookRef.current = hydratedNotebook;
+          setDailyNotebook(hydratedNotebook);
+        }
+
         await refreshStudentRoster();
         const dbUsers = await fetchUsersFromDB();
         if (dbUsers && dbUsers.length > 0) {
@@ -646,10 +657,8 @@ export function usePlatformStore({
   useEffect(() => {
     if (currentUser?.id) {
       localStorage.setItem(`spex_daily_notebook_${currentUser.id}`, JSON.stringify(dailyNotebook));
-      if (dailyNotebook.length > 0) {
-        syncNotebookBatchToDB(dailyNotebook);
-      }
     }
+    dailyNotebookRef.current = dailyNotebook;
   }, [dailyNotebook, currentUser?.id]);
 
   useEffect(() => {
@@ -794,17 +803,26 @@ export function usePlatformStore({
     setActiveLessonSession(null);
   };
 
-  const handleAddNotebookEntry = (entry: Omit<DailyNotebookEntry, 'id'>) => {
+  const handleAddNotebookEntry = async (entry: Omit<DailyNotebookEntry, 'id'>) => {
     if (entry.classPlannedSessionId) {
-      handleUpsertNotebookEntry(entry);
+      await handleUpsertNotebookEntry(entry);
       return;
     }
     const newEntry: DailyNotebookEntry = {
       ...entry,
       id: `notebook_${Date.now()}`,
     };
-    setDailyNotebook((prev) => [newEntry, ...prev]);
-    syncNotebookEntryToDB(newEntry);
+    const previous = dailyNotebookRef.current;
+    const next = [newEntry, ...previous];
+    dailyNotebookMutationVersion.current += 1;
+    dailyNotebookRef.current = next;
+    setDailyNotebook(next);
+    const result = await syncNotebookEntryToDB(newEntry);
+    if (!result.success) {
+      dailyNotebookRef.current = previous;
+      setDailyNotebook(previous);
+      throw new Error(result.error || 'تعذر حفظ إدخال الكراس اليومي.');
+    }
   };
 
   const handleAddClass = (newClassData: {
@@ -857,24 +875,36 @@ export function usePlatformStore({
     deleteLessonPlanFromDB(lessonId);
   };
 
-  const handleUpsertNotebookEntry = (entry: Omit<DailyNotebookEntry, 'id'>) => {
-    setDailyNotebook((prev) => {
-      const index = entry.classPlannedSessionId
-        ? prev.findIndex((item) => item.classPlannedSessionId === entry.classPlannedSessionId)
-        : -1;
-      const nextEntry: DailyNotebookEntry = {
-        ...entry,
-        id: index >= 0 ? prev[index].id : `notebook_${Date.now()}`,
-      };
-      const next =
-        index >= 0
-          ? prev.map((item, itemIndex) => (itemIndex === index ? nextEntry : item))
-          : [nextEntry, ...prev];
-      syncNotebookEntryToDB(nextEntry);
-      return next;
-    });
+  const handleUpsertNotebookEntry = async (entry: Omit<DailyNotebookEntry, 'id'>) => {
+    const previous = dailyNotebookRef.current;
+    const index = entry.classPlannedSessionId
+      ? previous.findIndex(
+          (item) =>
+            item.classPlannedSessionId === entry.classPlannedSessionId &&
+            item.classId === entry.classId &&
+            item.academicYearId === entry.academicYearId
+        )
+      : -1;
+    const nextEntry: DailyNotebookEntry = {
+      ...entry,
+      id: index >= 0 ? previous[index].id : `notebook_${Date.now()}`,
+    };
+    const next =
+      index >= 0
+        ? previous.map((item, itemIndex) => (itemIndex === index ? nextEntry : item))
+        : [nextEntry, ...previous];
+    dailyNotebookMutationVersion.current += 1;
+    dailyNotebookRef.current = next;
+    setDailyNotebook(next);
+    const result = await syncNotebookEntryToDB(nextEntry);
+    if (!result.success) {
+      dailyNotebookRef.current = previous;
+      setDailyNotebook(previous);
+      throw new Error(result.error || 'تعذر حفظ إدخال الكراس اليومي.');
+    }
   };
   const handleDeleteNotebookEntry = (entryId: string) => {
+    dailyNotebookMutationVersion.current += 1;
     setDailyNotebook((prev) => prev.filter((e) => e.id !== entryId));
     deleteNotebookEntryFromDB(entryId);
   };
@@ -975,6 +1005,7 @@ export function usePlatformStore({
     status: 'منجزة' | 'مؤجلة' | 'غير منجزة',
     note?: string
   ) => {
+    dailyNotebookMutationVersion.current += 1;
     setDailyNotebook((prev) =>
       prev.map((item) =>
         item.id === entryId ? { ...item, status, note: note ?? item.note } : item
@@ -998,43 +1029,47 @@ export function usePlatformStore({
     const targetLP = lessonPlans.find((l) => l.id === lessonId);
     if (!targetLP) return;
 
-    // Automatically record and sync to Daily Notebook (الكراس اليومي)
-    setDailyNotebook((prev) => {
-      const existingIndex = prev.findIndex(
-        (e) =>
-          e.lessonPlanId === lessonId ||
-          e.sessionId === targetLP.id ||
-          (e.className.includes(targetLP.levelName) && e.segmentId === targetLP.segmentTitle)
-      );
-
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          status,
-          note:
-            note ||
-            updated[existingIndex].note ||
-            `حالة الحصة المحدثة تلقائياً من المذكرة: ${status}`,
-        };
-        return updated;
-      } else {
-        const newEntry: DailyNotebookEntry = {
-          id: `nb_auto_${Date.now()}`,
-          teacherId: currentUser.id,
-          sessionId: targetLP.id,
-          segmentId: targetLP.segmentTitle,
-          classId: targetLP.className,
-          className: `${targetLP.levelName} (${targetLP.className})`,
-          executionDate: targetLP.date || new Date().toISOString().split('T')[0],
-          timeSlot: '08:00 - 09:00',
-          status: status,
-          lessonPlanId: targetLP.id,
-          note: note || `تسجيل تلقائي في الكراس اليومي من مذكرة الحصة: ${targetLP.sessionTitle}`,
-        };
-        return [newEntry, ...prev];
-      }
-    });
+    // Automatically record and sync to Daily Notebook (الكراس اليومي). This
+    // legacy lesson-plan action has no direct Daily UI to await it, but it
+    // still writes one explicit entry now that the old batch effect is gone.
+    const previous = dailyNotebookRef.current;
+    const existingIndex = previous.findIndex(
+      (e) =>
+        e.lessonPlanId === lessonId ||
+        e.sessionId === targetLP.id ||
+        (e.className.includes(targetLP.levelName) && e.segmentId === targetLP.segmentTitle)
+    );
+    const nextEntry: DailyNotebookEntry =
+      existingIndex >= 0
+        ? {
+            ...previous[existingIndex],
+            status,
+            note:
+              note ||
+              previous[existingIndex].note ||
+              `حالة الحصة المحدثة تلقائياً من المذكرة: ${status}`,
+          }
+        : {
+            id: `nb_auto_${Date.now()}`,
+            teacherId: currentUser.id,
+            sessionId: targetLP.id,
+            segmentId: targetLP.segmentTitle,
+            classId: targetLP.className,
+            className: `${targetLP.levelName} (${targetLP.className})`,
+            executionDate: targetLP.date || new Date().toISOString().split('T')[0],
+            timeSlot: '08:00 - 09:00',
+            status,
+            lessonPlanId: targetLP.id,
+            note: note || `تسجيل تلقائي في الكراس اليومي من مذكرة الحصة: ${targetLP.sessionTitle}`,
+          };
+    const next =
+      existingIndex >= 0
+        ? previous.map((entry, index) => (index === existingIndex ? nextEntry : entry))
+        : [nextEntry, ...previous];
+    dailyNotebookMutationVersion.current += 1;
+    dailyNotebookRef.current = next;
+    setDailyNotebook(next);
+    void syncNotebookEntryToDB(nextEntry);
   };
 
   const handleSaveLessonPlan = (newPlan: LessonPlan) => {
