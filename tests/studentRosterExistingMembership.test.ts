@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import * as XLSX from 'xlsx';
 import type { Prisma } from '@prisma/client';
 import { buildStudentRosterReadModel } from '../src/services/studentRosterReadModel.service';
 import { persistStudentRosterRows } from '../src/services/studentRosterPersistence.service';
-import { findCrossClassMatriculeConflicts } from '../src/services/studentRosterImport.service';
+import {
+  findCrossClassMatriculeConflicts,
+  parseStudentRosterWorkbook,
+} from '../src/services/studentRosterImport.service';
 
 type TestStudent = {
   id: string;
@@ -216,6 +220,68 @@ describe('existing student class reconciliation', () => {
     expect(summary).toMatchObject({ created: 0, existing: 0, reassociated: 0, conflicts: 1 });
     expect(summary.reviewReasonCounts.institutionMismatch).toBe(1);
     expect(students[0].classId).toBe('other-class');
+  });
+
+  it('preserves 17- and 18-digit matricules from preview through persistence and roster read', async () => {
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      book,
+      XLSX.utils.aoa_to_sheet([
+        ['matricule', 'Nom', 'Prénom'],
+        ['10015192900329001', 'Benali', 'Mohamed'],
+        ['110151929009246001', 'Bouzid', 'Amine'],
+      ]),
+      'Class A'
+    );
+    const preview = parseStudentRosterWorkbook(
+      XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+    )[0];
+    const students: TestStudent[] = [];
+    const summary = await persistStudentRosterRows(
+      transactionFor(students),
+      input(preview.students)
+    );
+    const model = buildStudentRosterReadModel(
+      [
+        {
+          id: 'class-a',
+          institutionId: 'institution-1',
+          teacherId: 'teacher-a',
+          levelId: 'lvl_p1',
+          name: 'Class A',
+        },
+      ],
+      students.map((student) => ({ ...student, classId: student.classId as string }))
+    );
+
+    expect(preview.students.map((student) => student.matricule)).toEqual([
+      '10015192900329001',
+      '110151929009246001',
+    ]);
+    expect(summary).toMatchObject({ created: 2, existing: 0, reassociated: 0, conflicts: 0 });
+    expect(students.map((student) => student.matricule)).toEqual([
+      '10015192900329001',
+      '110151929009246001',
+    ]);
+    expect(model.students.map((student) => student.matricule)).toEqual([
+      '10015192900329001',
+      '110151929009246001',
+    ]);
+  });
+
+  it('keeps multiple same-institution matches in ambiguous review', async () => {
+    const students = [
+      existingStudent('student-1', '1001', 'محمد', 'بن علي', null),
+      existingStudent('student-2', '1001', 'محمد', 'بن علي', null),
+    ];
+    const summary = await persistStudentRosterRows(
+      transactionFor(students),
+      input([row('1001', 'محمد', 'بن علي')])
+    );
+
+    expect(summary).toMatchObject({ created: 0, existing: 0, reassociated: 0, conflicts: 1 });
+    expect(summary.reviewReasonCounts.ambiguousMatch).toBe(1);
+    expect(students.every((student) => student.classId === null)).toBe(true);
   });
 
   it('rejects a matricule assigned to two worksheet classes before persistence', () => {

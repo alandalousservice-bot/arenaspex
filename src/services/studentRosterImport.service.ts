@@ -109,7 +109,6 @@ function splitCombinedName(value: unknown, order: 'first-last' | 'last-first') {
 
 function normalizeMatricule(value: unknown): string {
   if (value === null || value === undefined || value === '') return '';
-  if (typeof value === 'number' && Number.isSafeInteger(value)) return String(value);
   return compact(value).replace(/\.0$/, '');
 }
 
@@ -135,7 +134,9 @@ export function parseStudentRosterWorkbook(input: Buffer | Uint8Array): RosterWo
   });
   return workbook.SheetNames.map((worksheet) => {
     const sheet = workbook.Sheets[worksheet];
-    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: '' });
+    // Use the displayed cell text so identifiers keep formatting and leading
+    // zeros instead of being coerced through JavaScript's unsafe number range.
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: false, defval: '' });
     const headerIndex = rows.findIndex((row) => {
       const headers = row.map(normalize);
       const hasSeparateNames =

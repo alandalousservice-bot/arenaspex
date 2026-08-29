@@ -81,4 +81,11 @@ describe('student roster persistence transaction', () => {
     expect(client).toContain('تعارض ملكية سجل موجود');
     expect(persistence).not.toContain('console.log');
   });
+
+  it('keeps Excel identifiers in displayed text form throughout matching', () => {
+    const parser = readFileSync('src/services/studentRosterImport.service.ts', 'utf8');
+    expect(parser).toContain('raw: false');
+    expect(parser).not.toContain('raw: true');
+    expect(parser).not.toContain('Number(value)');
+  });
 });
