@@ -1,5 +1,5 @@
 import type { TeacherPlanningReference, TeacherPlanningSession } from './api';
-import type { ClassRoom, DailyNotebookEntry } from '../types/spex';
+import type { ClassRoom, DailyNotebookEntry, LessonPlan } from '../types/spex';
 import { parseLocalDate } from './localDate';
 
 const NOTEBOOK_STATUSES = new Set(['منجزة', 'مؤجلة', 'غير منجزة']);
@@ -95,6 +95,109 @@ export function calculateExecutionProgress(
     total,
     percentage: total ? Math.round((completed / total) * 100) : 0,
   };
+}
+
+export interface DailyNotebookMemoPreview {
+  situations: Array<{ title: string; summary: string | null }>;
+  equipment: string[];
+  contentSummary: string | null;
+}
+
+function cleanList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    ),
+  ];
+}
+
+export function buildLessonMemoPreview(plan?: LessonPlan | null): DailyNotebookMemoPreview | null {
+  if (!plan) return null;
+  const situations = [plan.mainPhase?.learningSituation1, plan.mainPhase?.learningSituation2]
+    .filter(
+      (situation) => situation && typeof situation.title === 'string' && situation.title.trim()
+    )
+    .map((situation) => ({
+      title: situation.title.trim(),
+      summary:
+        typeof situation.description === 'string' && situation.description.trim()
+          ? situation.description.trim()
+          : null,
+    }));
+  const rowSummaries = Array.isArray(plan.lessonRows)
+    ? plan.lessonRows
+        .map((row) =>
+          row && typeof row.learningContent === 'string' ? row.learningContent.trim() : ''
+        )
+        .filter(Boolean)
+        .slice(0, 2)
+    : [];
+  const contentSummary = rowSummaries.length
+    ? rowSummaries.join(' · ')
+    : typeof plan.mainPhase?.problemSituation === 'string' && plan.mainPhase.problemSituation.trim()
+      ? plan.mainPhase.problemSituation.trim()
+      : null;
+  const equipment = cleanList(plan.equipmentNeeded);
+  return situations.length || equipment.length || contentSummary
+    ? { situations, equipment, contentSummary }
+    : { situations: [], equipment: [], contentSummary: null };
+}
+
+export function sortPlanningSessions(sessions: TeacherPlanningSession[]): TeacherPlanningSession[] {
+  return [...sessions].sort(
+    (a, b) =>
+      (a.startTime ? 0 : 1) - (b.startTime ? 0 : 1) ||
+      (a.startTime || '').localeCompare(b.startTime || '') ||
+      (a.reference?.sequenceIndex ?? Number.MAX_SAFE_INTEGER) -
+        (b.reference?.sequenceIndex ?? Number.MAX_SAFE_INTEGER) ||
+      a.id.localeCompare(b.id)
+  );
+}
+
+export function countSessionsByDate(
+  sessions: TeacherPlanningSession[],
+  dates: string[]
+): Map<string, number> {
+  const counts = new Map(dates.map((date) => [date, 0]));
+  sessions.forEach((session) => {
+    if (counts.has(session.plannedDate))
+      counts.set(session.plannedDate, (counts.get(session.plannedDate) || 0) + 1);
+  });
+  return counts;
+}
+
+export interface PairedSessionInfo {
+  position: 1 | 2;
+  total: 2;
+}
+
+export function getPairedSessionInfo(
+  session: TeacherPlanningSession,
+  sessions: TeacherPlanningSession[],
+  grade: number
+): PairedSessionInfo | null {
+  const groupId = session.reference?.objectiveGroupId;
+  if (grade < 1 || grade > 3 || session.reference?.sessionType !== 'تعلمية' || !groupId) {
+    return null;
+  }
+  const pair = sessions
+    .filter(
+      (candidate) =>
+        candidate.reference?.sessionType === 'تعلمية' &&
+        candidate.reference?.objectiveGroupId === groupId
+    )
+    .sort(
+      (a, b) =>
+        (a.reference?.sequenceIndex ?? Number.MAX_SAFE_INTEGER) -
+          (b.reference?.sequenceIndex ?? Number.MAX_SAFE_INTEGER) || a.id.localeCompare(b.id)
+    );
+  if (pair.length !== 2) return null;
+  const position = pair.findIndex((candidate) => candidate.id === session.id);
+  return position === 0 || position === 1 ? { position: (position + 1) as 1 | 2, total: 2 } : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

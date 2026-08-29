@@ -20,3 +20,18 @@ export function shiftLocalDate(value: string, days: number): string {
   date.setDate(date.getDate() + days);
   return formatLocalDate(date);
 }
+
+/** Returns the Sunday that starts the local calendar week containing `value`. */
+export function startOfLocalWeek(value: string): string {
+  const date = parseLocalDate(value);
+  if (!date) return value;
+  date.setDate(date.getDate() - date.getDay());
+  return formatLocalDate(date);
+}
+
+/** Returns the seven local calendar dates from Sunday through Saturday. */
+export function getLocalWeekDates(value: string): string[] {
+  const start = startOfLocalWeek(value);
+  if (!parseLocalDate(start)) return [];
+  return Array.from({ length: 7 }, (_, index) => shiftLocalDate(start, index));
+}
