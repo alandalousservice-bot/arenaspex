@@ -545,7 +545,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               <button
                 onClick={() =>
                   window.location.assign(
-                    '/gradebook?workspace=assessment&classId=' +
+                    '/gradebook?classId=' +
                       encodeURIComponent(plan.classId || '') +
                       '&academicYearId=' +
                       encodeURIComponent(plan.academicYearId || '') +

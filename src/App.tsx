@@ -236,8 +236,9 @@ export default function App() {
     if (!isAuthenticated) return;
     if (location.pathname === '/assessment-notebook') {
       const params = new URLSearchParams(location.search);
-      params.set('workspace', 'assessment');
-      navigate('/gradebook?' + params.toString(), { replace: true });
+      params.delete('workspace');
+      const query = params.toString();
+      navigate('/gradebook' + (query ? '?' + query : ''), { replace: true });
       return;
     }
     const legacyPlanningSection = planningSectionForPath(location.pathname);
@@ -468,7 +469,7 @@ export default function App() {
                 onOpenAssessment={() => {
                   if (!activeLessonSession?.classPlannedSessionId) return;
                   navigate(
-                    '/gradebook?workspace=assessment&classId=' +
+                    '/gradebook?classId=' +
                       encodeURIComponent(activeLessonSession.classId) +
                       '&academicYearId=' +
                       encodeURIComponent(activeLessonSession.academicYearId || '') +
@@ -479,7 +480,7 @@ export default function App() {
                 onOpenAttendance={() => {
                   if (!activeLessonSession?.classPlannedSessionId) return;
                   navigate(
-                    '/gradebook?workspace=assessment&section=attendance&classId=' +
+                    '/gradebook?section=attendance&classId=' +
                       encodeURIComponent(activeLessonSession.classId) +
                       '&academicYearId=' +
                       encodeURIComponent(activeLessonSession.academicYearId || '') +

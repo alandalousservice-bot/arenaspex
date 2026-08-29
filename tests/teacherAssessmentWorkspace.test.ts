@@ -43,14 +43,24 @@ describe('unified Teacher assessment notebook', () => {
     expect(read('src/components/lesson/LessonCommandCenterView.tsx')).toContain('onOpenAssessment');
   });
 
-  it('keeps the assessment notebook inside the authoritative Gradebook workspace', () => {
+  it('removes the retired combined notebook entry from the Gradebook workspace', () => {
     const sidebar = read('src/components/layout/Sidebar.tsx');
     const gradebook = read('src/components/gradebook/GradebookView.tsx');
     expect(sidebar).not.toContain("id: 'assessment_notebook'");
-    expect(gradebook).toContain("workspaceSection === 'assessment'");
-    expect(gradebook).toContain('AssessmentNotebookView');
-    expect(gradebook).toContain('الأقسام والتلاميذ ودفتر التنقيط');
-    expect(gradebook).toContain('دفتر التقويم والكفاءات والحضور');
+    expect(gradebook).not.toContain("workspaceSection === 'assessment'");
+    expect(gradebook).not.toContain('AssessmentNotebookView');
+    expect(gradebook).not.toContain('دفتر التقويم والكفاءات والحضور');
+    expect(gradebook).toContain('دفتر التنقيط الذكي');
+    expect(gradebook).toContain('دفتر الغياب والمواظبة');
+    expect(gradebook).toContain('دفتر المعفيين طبياً');
+  });
+
+  it('redirects the legacy route to the canonical Gradebook without the retired workspace query', () => {
+    const app = read('src/App.tsx');
+    expect(app).toContain("location.pathname === '/assessment-notebook'");
+    expect(app).toContain("params.delete('workspace')");
+    expect(app).toContain("navigate('/gradebook' + (query ? '?' + query : ''), { replace: true })");
+    expect(app).not.toContain("params.set('workspace', 'assessment')");
   });
 
   it('uses one protected student history read for reports', () => {

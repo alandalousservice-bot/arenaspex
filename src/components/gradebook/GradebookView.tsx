@@ -32,7 +32,6 @@ import {
   BarChart2,
 } from 'lucide-react';
 import { previewStudentRoster, confirmStudentRosterImport } from '../../services/api';
-import { AssessmentNotebookView } from '../assessment/AssessmentNotebookView';
 import {
   Student,
   ExemptedStudent,
@@ -44,7 +43,7 @@ import {
 } from '../../types/spex';
 
 type RegisterTab = 'gradebook' | 'attendance' | 'exempted' | 'clubs';
-type WorkspaceSection = 'classes' | 'assessment';
+type WorkspaceSection = 'classes';
 
 export interface GradebookViewProps {
   classes?: ClassRoom[];
@@ -78,9 +77,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
   currentUser,
 }) => {
   const workspaceParams = useMemo(() => new URLSearchParams(window.location.search), []);
-  const [workspaceSection, setWorkspaceSection] = useState<WorkspaceSection>(
-    workspaceParams.get('workspace') === 'assessment' ? 'assessment' : 'classes'
-  );
+  const [workspaceSection, setWorkspaceSection] = useState<WorkspaceSection>('classes');
   const [activeRegister, setActiveRegister] = useState<RegisterTab>('gradebook');
   const [selectedClassId, setSelectedClassId] = useState<string>(
     workspaceParams.get('classId') || classes[0]?.id || ''
@@ -775,23 +772,9 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
         >
           الأقسام والتلاميذ ودفتر التنقيط
         </button>
-        <button
-          onClick={() => setWorkspaceSection('assessment')}
-          className={`rounded-xl px-4 py-3 text-xs font-extrabold transition-all ${workspaceSection === 'assessment' ? 'bg-white text-purple-700 shadow-md ring-1 ring-slate-200' : 'text-slate-600 hover:bg-white/50'}`}
-        >
-          دفتر التقويم والكفاءات والحضور
-        </button>
       </nav>
 
-      {workspaceSection === 'assessment' ? (
-        <AssessmentNotebookView
-          currentUser={currentUser as User}
-          teacherClasses={classes}
-          students={students}
-          selectedClassId={selectedClassId}
-          onSelectedClassIdChange={setSelectedClassId}
-        />
-      ) : (
+      {workspaceSection === 'classes' && (
         <>
           {/* Main 4 Registers Navigation Tabs */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-200/60 p-1.5 rounded-2xl">

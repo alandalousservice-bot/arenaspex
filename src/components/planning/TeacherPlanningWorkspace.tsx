@@ -283,7 +283,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
             أنشئ أو راجع إسناد القسم من فضاء القسم والتلاميذ.
           </p>
           <button
-            onClick={() => window.location.assign('/gradebook?workspace=assessment')}
+            onClick={() => window.location.assign('/gradebook')}
             className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"
           >
             فضاء القسم والتلاميذ
