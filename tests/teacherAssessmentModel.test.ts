@@ -9,7 +9,7 @@ const migration = read(
 );
 const router = read('src/server/apiRouter.ts').replace(/\s+/g, ' ').replace(/\(\s+/g, '(');
 const api = read('src/services/api.ts');
-const gradebook = read('src/components/gradebook/GradebookView.tsx');
+const gradebook = read('src/components/gradebook/SmartGradebookView.tsx');
 const notebook = read('src/components/assessment/AssessmentNotebookView.tsx');
 
 describe('persisted Teacher assessment foundation', () => {
@@ -68,11 +68,12 @@ describe('persisted Teacher assessment foundation', () => {
     expect(api).toContain('upsertTeacherCriterionResult');
   });
 
-  it('makes the persisted notebook the Gradebook assessment source', () => {
-    expect(gradebook).toContain('AssessmentNotebookView');
-    expect(gradebook).toContain("visibleSections={['competency', 'marks', 'results', 'reports']}");
-    expect(gradebook).not.toContain('GradeRecord');
+  it('keeps the restored Smart Gradebook on the current persisted adapter', () => {
+    expect(gradebook).toContain('GradeRecord');
+    expect(gradebook).toContain('saveSmartGradebookRecord');
+    expect(gradebook).not.toContain('AssessmentNotebookView');
     expect(gradebook).not.toContain('spex_grade_records_');
+    expect(gradebook).not.toContain('localStorage');
     expect(notebook).toContain('fetchTeacherAssessmentSession');
     expect(notebook).toContain('fetchTeacherStudentAssessmentHistory');
   });

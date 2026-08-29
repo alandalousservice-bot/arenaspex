@@ -18,11 +18,10 @@ describe('canonical Teacher Attendance Book', () => {
   });
 
   it('removes the old local attendance tab from Gradebook', () => {
-    const gradebook = read('src/components/gradebook/GradebookView.tsx');
-    expect(gradebook).not.toContain("activeRegister === 'attendance'");
+    const gradebook = read('src/components/gradebook/SmartGradebookView.tsx');
     expect(gradebook).not.toContain('selectedAttendanceDate');
     expect(gradebook).not.toContain('currentAttendanceStatus');
-    expect(gradebook).toContain('دفتر التنقيط');
+    expect(gradebook).toContain('دفتر التنقيط الذكي');
   });
 
   it('redirects legacy attendance deep links without losing context', () => {

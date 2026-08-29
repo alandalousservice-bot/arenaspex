@@ -12,7 +12,7 @@ describe('canonical Teacher Students Book', () => {
     expect(pathToTab('/students/std_1')).toBe('students');
     expect(tabToPath('students')).toBe('/students');
     expect(ROLE_TABS.teacher).toContain('students');
-    expect(sidebar).toContain("id: 'gradebook' as NavTab, label: 'دفتر التنقيط'");
+    expect(sidebar).toContain("id: 'gradebook' as NavTab, label: 'دفتر التنقيط الذكي'");
     expect(sidebar).toContain("id: 'attendance' as NavTab, label: 'دفتر الغياب والمواظبة'");
     expect(sidebar).toContain("id: 'students' as NavTab, label: 'دفتر التلاميذ'");
     expect(sidebar).not.toContain('دفتر تقويم الكفاءة والحضور');
@@ -64,10 +64,10 @@ describe('canonical Teacher Students Book', () => {
   });
 
   it('leaves assessment and attendance ownership at their canonical workspaces', () => {
-    const gradebook = read('src/components/gradebook/GradebookView.tsx');
+    const gradebook = read('src/components/gradebook/SmartGradebookView.tsx');
     const attendance = read('src/components/attendance/AttendanceBookView.tsx');
-    expect(gradebook).toContain('AssessmentNotebookView');
-    expect(gradebook).toContain("visibleSections={['competency', 'marks', 'results', 'reports']}");
+    expect(gradebook).not.toContain('AssessmentNotebookView');
+    expect(gradebook).toContain('دفتر التنقيط الذكي');
     expect(gradebook).not.toContain('onAddStudent');
     expect(attendance).toContain('saveTeacherAttendance');
     expect(attendance).not.toContain('createTeacherMedicalExemption');

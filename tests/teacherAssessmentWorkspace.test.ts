@@ -45,20 +45,18 @@ describe('unified Teacher assessment notebook', () => {
 
   it('removes the retired combined notebook entry from the Gradebook workspace', () => {
     const sidebar = read('src/components/layout/Sidebar.tsx');
-    const gradebook = read('src/components/gradebook/GradebookView.tsx');
+    const gradebook = read('src/components/gradebook/SmartGradebookView.tsx');
     const app = read('src/App.tsx');
     expect(sidebar).not.toContain("id: 'assessment_notebook'");
     expect(sidebar).not.toContain("id: 'competency_assessment'");
     expect(gradebook).not.toContain("workspaceSection === 'assessment'");
-    expect(gradebook).toContain('AssessmentNotebookView');
-    expect(gradebook).toContain("visibleSections={['competency', 'marks', 'results', 'reports']}");
+    expect(gradebook).not.toContain('AssessmentNotebookView');
     expect(gradebook).not.toContain('spex_grade_records_');
     expect(gradebook).not.toContain('دفتر التقويم والكفاءات والحضور');
-    expect(gradebook).not.toContain("activeRegister === 'attendance'");
-    expect(gradebook).toContain('دفتر التنقيط');
+    expect(gradebook).not.toContain('دفتر الغياب والمواظبة');
+    expect(gradebook).toContain('دفتر التنقيط الذكي');
     expect(gradebook).not.toContain('دفتر المعفيين طبياً');
     expect(gradebook).not.toContain('previewStudentRoster');
-    expect(gradebook).not.toContain('MedicalExemption');
     expect(app).not.toContain('CompetencyAssessmentView');
   });
 

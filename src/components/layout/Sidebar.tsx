@@ -121,7 +121,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
               highlight: true,
             },
             { id: 'knowledge_engine' as NavTab, label: 'بنك المعرفة التربوية', icon: BrainCircuit },
-            { id: 'gradebook' as NavTab, label: 'دفتر التنقيط', icon: GraduationCap },
+            { id: 'gradebook' as NavTab, label: 'دفتر التنقيط الذكي', icon: GraduationCap },
             { id: 'attendance' as NavTab, label: 'دفتر الغياب والمواظبة', icon: UserCheck },
             { id: 'students' as NavTab, label: 'دفتر التلاميذ', icon: Users },
           ],
