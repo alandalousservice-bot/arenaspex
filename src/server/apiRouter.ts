@@ -53,6 +53,7 @@ import {
   type ParsedRosterStudent,
 } from '../services/studentRosterImport.service.js';
 import { buildStudentRosterReadModel } from '../services/studentRosterReadModel.service.js';
+import { persistStudentRosterRows } from '../services/studentRosterPersistence.service.js';
 
 // نظام الإسناد التلقائي للأساتذة إلى المفتشين: يُعاد احتساب جهة الإشراف تلقائياً
 // عند تسجيل/تعديل أستاذ (يعاد ربطه بمفتشه) أو تسجيل/تعديل مفتش (يعاد ربط كل الأساتذة
@@ -990,69 +991,15 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
           ...row,
           matricule: row.matricule || `import-${persistedClassId}-${row.rowNumber}`,
         }));
-        const matricules = importRows.map((row) => row.matricule);
-        // One bulk lookup replaces the former findFirst-per-student N+1 pattern.
-        const existingStudents = matricules.length
-          ? await tx.student.findMany({ where: { institutionId, matricule: { in: matricules } } })
-          : [];
-        const existingByMatricule = new Map(
-          existingStudents.map((student) => [student.matricule, student])
-        );
-        const missingRows: ParsedRosterStudent[] = [];
-        let existing = 0;
-        let conflicts = inputConflicts;
-        const updates: Promise<unknown>[] = [];
-        for (const row of importRows) {
-          const current = existingByMatricule.get(row.matricule);
-          if (!current) {
-            missingRows.push(row);
-            continue;
-          }
-          if (current.firstName !== row.firstName || current.lastName !== row.lastName) {
-            conflicts += 1;
-            continue;
-          }
-          existing += 1;
-          if (current.teacherId === req.user!.id && current.classId !== persistedClassId) {
-            updates.push(
-              tx.student.update({
-                where: { id: current.id },
-                data: {
-                  classId: persistedClassId,
-                  grade: grade || row.grade || null,
-                  groupName: row.groupName || null,
-                },
-              })
-            );
-          }
-        }
-        if (updates.length) await Promise.all(updates);
-        if (missingRows.length) {
-          await tx.student.createMany({
-            data: missingRows.map((row, index) => ({
-              id: `std_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`,
-              teacherId: req.user!.id,
-              institutionId,
-              classId: persistedClassId,
-              matricule: row.matricule,
-              firstName: row.firstName,
-              lastName: row.lastName,
-              birthDate: row.birthDate ? new Date(row.birthDate) : null,
-              grade: grade || row.grade || null,
-              groupName: row.groupName || null,
-              schoolYear: row.schoolYear || null,
-            })),
-          });
-        }
-        const created = missingRows.length;
-        const persistedStudents = await tx.student.count({
-          where: { teacherId: req.user!.id, classId: persistedClassId },
+        const persisted = await persistStudentRosterRows(tx, {
+          rows: importRows.map((row) => ({ ...row, grade: grade || row.grade })),
+          teacherId: req.user!.id,
+          institutionId,
+          persistedClassId,
         });
         return {
-          created,
-          existing,
-          linkedStudents: persistedStudents,
-          conflicts,
+          ...persisted,
+          conflicts: persisted.conflicts + inputConflicts,
           review: rows.length - validRows.length,
           classId: persistedClassId,
         };

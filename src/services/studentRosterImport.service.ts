@@ -222,3 +222,21 @@ export function rosterPreviewSummary(previews: RosterWorksheetPreview[]) {
     { worksheets: 0, students: 0, invalidRows: 0, needsGradeSelection: 0 }
   );
 }
+
+export function findCrossClassMatriculeConflicts(
+  previews: readonly RosterWorksheetPreview[]
+): string[] {
+  const classByMatricule = new Map<string, string>();
+  const conflicts = new Set<string>();
+  for (const preview of previews) {
+    const classKey = preview.groupName || preview.worksheet;
+    for (const student of preview.students) {
+      const matricule = compact(student.matricule);
+      if (!matricule) continue;
+      const previousClass = classByMatricule.get(matricule);
+      if (previousClass && previousClass !== classKey) conflicts.add(matricule);
+      else if (!previousClass) classByMatricule.set(matricule, classKey);
+    }
+  }
+  return [...conflicts];
+}

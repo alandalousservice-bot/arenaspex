@@ -12,18 +12,22 @@ describe('student roster persistence transaction', () => {
 
   it('resolves the class once and performs a bulk matricule lookup', () => {
     expect(source.match(/studentClass\.findUnique\(/g)?.length).toBe(1);
-    expect(normalizedSource).toContain(
-      'tx.student.findMany({ where: { institutionId, matricule: { in: matricules } } })'
+    expect(source).toContain('persistStudentRosterRows(tx, {');
+    expect(readFileSync('src/services/studentRosterPersistence.service.ts', 'utf8')).toContain(
+      'tx.student.findMany({'
     );
-    expect(source).toContain('tx.student.createMany({');
+    expect(readFileSync('src/services/studentRosterPersistence.service.ts', 'utf8')).toContain(
+      'tx.student.createMany({'
+    );
   });
 
   it('keeps identity conflicts and idempotent repeated imports', () => {
-    expect(normalizedSource).toContain(
+    const persistence = readFileSync('src/services/studentRosterPersistence.service.ts', 'utf8');
+    expect(persistence).toContain(
       'current.firstName !== row.firstName || current.lastName !== row.lastName'
     );
-    expect(source).toContain('const existingByMatricule = new Map');
-    expect(source).toContain('const missingRows: ParsedRosterStudent[] = []');
+    expect(persistence).toContain('const existingByMatricule = new Map');
+    expect(persistence).toContain('const missingRows: ParsedRosterStudent[] = []');
   });
 
   it('resolves a canonical owned class before writing student classId', () => {
@@ -36,8 +40,13 @@ describe('student roster persistence transaction', () => {
   });
 
   it('returns a committed roster count and exposes the shared read model', () => {
-    expect(normalizedSource).toContain('const persistedStudents = await tx.student.count(');
-    expect(normalizedSource).toContain('linkedStudents: persistedStudents');
+    expect(readFileSync('src/services/studentRosterPersistence.service.ts', 'utf8')).toContain(
+      'linkedStudents: await tx.student.count('
+    );
+    expect(readFileSync('src/services/studentRosterPersistence.service.ts', 'utf8')).toContain(
+      'reassociated'
+    );
+    expect(normalizedSource).toContain('persisted = await persistStudentRosterRows(tx,');
     expect(normalizedSource).toContain('buildStudentRosterReadModel(classes, students)');
   });
 
@@ -51,6 +60,9 @@ describe('student roster persistence transaction', () => {
 
   it('keeps matricules as strings and maps timeout to a safe Arabic response', () => {
     expect(normalizedSource).toContain('const matricule = row.matricule.trim();');
+    expect(readFileSync('src/services/studentRosterPersistence.service.ts', 'utf8')).toContain(
+      'matricule: row.matricule,'
+    );
     expect(normalizedSource).toContain(
       'matricule: row.matricule || `import-${persistedClassId}-${row.rowNumber}`'
     );

@@ -598,6 +598,7 @@ export async function confirmStudentRosterImport(
     summary: {
       created: number;
       existing: number;
+      reassociated: number;
       linkedStudents: number;
       conflicts: number;
       review: number;

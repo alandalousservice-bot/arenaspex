@@ -24,6 +24,7 @@ import {
 } from '../../services/api';
 import { Student, ClassRoom, User, MedicalExemptionDto } from '../../types/spex';
 import { StudentFollowUpCard } from './StudentFollowUpCard';
+import { findCrossClassMatriculeConflicts } from '../../services/studentRosterImport.service';
 
 type RegisterTab = 'roster' | 'exempted' | 'clubs';
 type WorkspaceSection = 'classes';
@@ -256,13 +257,20 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
       setRosterError('تم التعرف على القسم، لكن لم يتم العثور على أسماء تلاميذ صالحة للاستيراد.');
       return;
     }
+    const crossClassConflicts = findCrossClassMatriculeConflicts(previews);
+    if (crossClassConflicts.length) {
+      setRosterError(
+        `تعذر الاستيراد: رقم التسجيل ${crossClassConflicts.join('، ')} مرتبط بأكثر من قسم في الملف.`
+      );
+      return;
+    }
     setRosterLoading(true);
     setRosterError('');
     const locallyCreatedClassIds: string[] = [];
     try {
       let created = 0;
       let existing = 0;
-      let imported = 0;
+      let reassociated = 0;
       let conflicts = 0;
       let review = 0;
       let classesImported = 0;
@@ -303,7 +311,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
         );
         created += result.summary.created;
         existing += result.summary.existing;
-        imported += result.summary.linkedStudents;
+        reassociated += result.summary.reassociated;
         conflicts += result.summary.conflicts;
         review += result.summary.review;
         setSelectedClassId(result.classId);
@@ -311,7 +319,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
       }
       await onRefreshRoster?.();
       window.alert(
-        `تم استيراد ${classesImported} قسم و ${imported} تلميذاً محفوظاً بنجاح\nالجدد: ${created}\nالموجودون مسبقاً: ${existing}\nبحاجة إلى مراجعة: ${conflicts + review}`
+        `تم استيراد ${classesImported} قسم بنجاح\nالجدد: ${created}\nالموجودون مسبقاً: ${existing}\nالمعاد ربطهم بالأقسام: ${reassociated}\nبحاجة إلى مراجعة: ${conflicts + review}`
       );
       setRosterPreview(null);
       setRosterFileName('');
