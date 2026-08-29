@@ -41,6 +41,14 @@ describe('student roster persistence transaction', () => {
     expect(normalizedSource).toContain('buildStudentRosterReadModel(classes, students)');
   });
 
+  it('does not let an older initial roster response overwrite a post-import refresh', () => {
+    const store = readFileSync('src/hooks/usePlatformStore.ts', 'utf8');
+    expect(store).toContain('const rosterRefreshVersion = useRef(0);');
+    expect(store).toContain('const requestVersion = ++rosterRefreshVersion.current;');
+    expect(store).toContain('requestVersion !== rosterRefreshVersion.current');
+    expect(store).toContain('setAllStudents(roster.students as Student[])');
+  });
+
   it('keeps matricules as strings and maps timeout to a safe Arabic response', () => {
     expect(normalizedSource).toContain('const matricule = row.matricule.trim();');
     expect(normalizedSource).toContain(

@@ -6,7 +6,7 @@
  * data-mutation handlers. App.tsx consumes this hook as a thin orchestrator.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { NavTab } from '../components/layout/Sidebar';
 import {
@@ -174,8 +174,15 @@ export function usePlatformStore({
     return INITIAL_KNOWLEDGE_BANK;
   });
 
+  const rosterRefreshVersion = useRef(0);
+
   const refreshStudentRoster = async () => {
+    const requestVersion = ++rosterRefreshVersion.current;
     const roster = await fetchStudentRoster();
+    // The initial DB hydration and a post-import refresh can overlap.  A late
+    // response from the older request must never restore a stale zero-count
+    // roster over the newest committed read model.
+    if (requestVersion !== rosterRefreshVersion.current) return roster;
     setTeacherClasses(roster.classes as ClassRoom[]);
     setAllStudents(roster.students as Student[]);
     return roster;
