@@ -438,7 +438,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                       <button
                         onClick={() =>
                           window.location.assign(
-                            '/gradebook?section=attendance&classId=' +
+                            '/attendance?classId=' +
                               encodeURIComponent(session.classId) +
                               '&academicYearId=' +
                               encodeURIComponent(session.academicYearId) +

@@ -50,7 +50,9 @@ describe('persisted Teacher attendance and medical exemptions', () => {
   });
 
   it('preserves planned-session links from notebook and command center', () => {
-    expect(read('src/components/notebook/DailyNotebookView.tsx')).toContain('section=attendance');
+    expect(read('src/components/notebook/DailyNotebookView.tsx')).toContain(
+      "'/attendance?classId='"
+    );
     expect(read('src/components/lesson/LessonCommandCenterView.tsx')).toContain('onOpenAttendance');
     expect(read('src/App.tsx')).toContain('onOpenAttendance');
   });

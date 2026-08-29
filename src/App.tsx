@@ -72,6 +72,11 @@ const CompetencyAssessmentView = lazy(() =>
 const GradebookView = lazy(() =>
   import('./components/gradebook/GradebookView').then((m) => ({ default: m.GradebookView }))
 );
+const AttendanceBookView = lazy(() =>
+  import('./components/attendance/AttendanceBookView').then((m) => ({
+    default: m.AttendanceBookView,
+  }))
+);
 const ReportsView = lazy(() =>
   import('./components/reports/ReportsView').then((m) => ({ default: m.ReportsView }))
 );
@@ -234,9 +239,26 @@ export default function App() {
   // → يُصحَّح تلقائياً إلى الرابط المناسب (replace حتى لا يُلوَّث السجل)
   useEffect(() => {
     if (!isAuthenticated) return;
+    if (
+      location.pathname === '/gradebook' &&
+      new URLSearchParams(location.search).get('section') === 'attendance'
+    ) {
+      const params = new URLSearchParams(location.search);
+      params.delete('section');
+      params.delete('workspace');
+      const query = params.toString();
+      navigate('/attendance' + (query ? '?' + query : ''), { replace: true });
+      return;
+    }
     if (location.pathname === '/assessment-notebook') {
       const params = new URLSearchParams(location.search);
       params.delete('workspace');
+      if (params.get('section') === 'attendance') {
+        params.delete('section');
+        const query = params.toString();
+        navigate('/attendance' + (query ? '?' + query : ''), { replace: true });
+        return;
+      }
       const query = params.toString();
       navigate('/gradebook' + (query ? '?' + query : ''), { replace: true });
       return;
@@ -255,7 +277,7 @@ export default function App() {
     if (resolved !== fromUrl) {
       navigate(tabToPath(resolved), { replace: true });
     }
-  }, [isAuthenticated, location.pathname, currentUser.role, navigate]);
+  }, [isAuthenticated, location.pathname, location.search, currentUser.role, navigate]);
 
   // AI Assistant Drawer State
   const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
@@ -480,7 +502,7 @@ export default function App() {
                 onOpenAttendance={() => {
                   if (!activeLessonSession?.classPlannedSessionId) return;
                   navigate(
-                    '/gradebook?section=attendance&classId=' +
+                    '/attendance?classId=' +
                       encodeURIComponent(activeLessonSession.classId) +
                       '&academicYearId=' +
                       encodeURIComponent(activeLessonSession.academicYearId || '') +
@@ -526,6 +548,14 @@ export default function App() {
                 onDeleteStudent={handleDeleteStudent}
                 onRefreshRoster={refreshStudentRoster}
                 currentUser={currentUser}
+              />
+            )}
+
+            {activeTab === 'attendance' && (
+              <AttendanceBookView
+                currentUser={currentUser}
+                teacherClasses={teacherClasses}
+                students={allStudents}
               />
             )}
 

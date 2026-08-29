@@ -42,6 +42,7 @@ export type NavTab =
   | 'knowledge_engine'
   | 'competency_assessment'
   | 'gradebook'
+  | 'attendance'
   | 'professional_hub'
   | 'inspector_portal'
   | 'inspector_teachers'
@@ -126,6 +127,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
               icon: Target,
             },
             { id: 'gradebook' as NavTab, label: 'دفتر التنقيط والأقسام', icon: GraduationCap },
+            { id: 'attendance' as NavTab, label: 'دفتر الغياب والمواظبة', icon: UserCheck },
           ],
         };
       }

@@ -1,10 +1,9 @@
 /**
  * SPEX - Intelligent Assessment & Gradebook Engine (نظام التقييم الذكي ودفتر التنقيط)
- * يشتمل على الأربعة دفاتر الأساسية لكل قسم:
+ * يشتمل على دفاتر التنقيط والتلاميذ الأساسية لكل قسم:
  * 1. دفتر التنقيط الذكي والنتائج للثلاثيات (مع اقتراحات النظام وسلطة الأستاذ وسجل التعديلات)
- * 2. دفتر الغياب والحضور
- * 3. دفتر المعفيين طبياً من التربية البدنية
- * 4. دفتر البلديات التربوية والنوادي (نادي أ ونادي ب)
+ * 2. دفتر المعفيين طبياً من التربية البدنية
+ * 3. دفتر البلديات التربوية والنوادي (نادي أ ونادي ب)
  */
 
 import React, { useState, useMemo } from 'react';
@@ -18,8 +17,6 @@ import {
   CheckCircle2,
   ShieldAlert,
   Shuffle,
-  Calendar,
-  UserCheck,
   Flag,
   Sparkles,
   Trash2,
@@ -42,7 +39,7 @@ import {
   GradeAuditLog,
 } from '../../types/spex';
 
-type RegisterTab = 'gradebook' | 'attendance' | 'exempted' | 'clubs';
+type RegisterTab = 'gradebook' | 'exempted' | 'clubs';
 type WorkspaceSection = 'classes';
 
 export interface GradebookViewProps {
@@ -145,14 +142,6 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     }
     return [];
   });
-
-  // Attendance State
-  const [selectedAttendanceDate, setSelectedAttendanceDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
-  const [currentAttendanceStatus, setCurrentAttendanceStatus] = useState<
-    Record<string, 'حاضر' | 'غائب' | 'غائب بمبرر' | 'معفى'>
-  >({});
 
   // Exemptions State
   const [exemptionsList, setExemptionsList] = useState<ExemptedStudent[]>(() => {
@@ -655,7 +644,6 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
     };
 
     setExemptionsList((prev) => [newEx, ...prev]);
-    setCurrentAttendanceStatus((prev) => ({ ...prev, [std.id]: 'معفى' }));
 
     setShowAddExemptionModal(false);
     setNewExemptionStudentId('');
@@ -776,8 +764,8 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
 
       {workspaceSection === 'classes' && (
         <>
-          {/* Main 4 Registers Navigation Tabs */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-200/60 p-1.5 rounded-2xl">
+          {/* Main Gradebook and Student Registers Navigation Tabs */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 bg-slate-200/60 p-1.5 rounded-2xl">
             <button
               onClick={() => setActiveRegister('gradebook')}
               className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
@@ -791,18 +779,6 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
             </button>
 
             <button
-              onClick={() => setActiveRegister('attendance')}
-              className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                activeRegister === 'attendance'
-                  ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-              }`}
-            >
-              <UserCheck className="w-4 h-4" />
-              <span>2. دفتر الغياب والمواظبة</span>
-            </button>
-
-            <button
               onClick={() => setActiveRegister('exempted')}
               className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer relative ${
                 activeRegister === 'exempted'
@@ -811,7 +787,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               }`}
             >
               <ShieldAlert className="w-4 h-4 text-rose-500" />
-              <span>3. دفتر المعفيين طبياً</span>
+              <span>2. دفتر المعفيين طبياً</span>
               {exemptionsList.filter((ex) => ex.classId === activeClass.id).length > 0 && (
                 <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                   {exemptionsList.filter((ex) => ex.classId === activeClass.id).length}
@@ -828,7 +804,7 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
               }`}
             >
               <Flag className="w-4 h-4 text-emerald-600" />
-              <span>4. دفتر البلديات والنوادي</span>
+              <span>3. دفتر البلديات والنوادي</span>
             </button>
           </div>
 
@@ -1362,124 +1338,6 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
                     </tbody>
                   </table>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* ========================================================================= */}
-          {/* REGISTER TAB 2: ATTENDANCE REGISTER (دفتر الغياب والمواظبة) */}
-          {/* ========================================================================= */}
-          {activeRegister === 'attendance' && (
-            <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                <div>
-                  <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                    <span>دفتر تسجيل الحضور والغياب للتربية البدنية</span>
-                    <span className="text-xs bg-blue-50 text-blue-700 font-bold px-2.5 py-0.5 rounded-lg border border-blue-100">
-                      {activeClass.name}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    سجل المتابعة اليومية والانضباط للحصص الرياضية مع تسجيل الأسباب والشهادات الطبية
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
-                  <Calendar className="w-4 h-4 text-slate-500" />
-                  <input
-                    type="date"
-                    value={selectedAttendanceDate}
-                    onChange={(e) => setSelectedAttendanceDate(e.target.value)}
-                    className="bg-transparent text-xs font-bold text-slate-900 outline-none cursor-pointer"
-                  />
-                </div>
-              </div>
-
-              <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                <table className="w-full text-right text-xs">
-                  <thead>
-                    <tr className="bg-slate-900 text-white font-bold">
-                      <th className="p-3 w-10 text-center">#</th>
-                      <th className="p-3">اسم ولقب التلميذ</th>
-                      <th className="p-3 text-center">الحالة اليومية</th>
-                      <th className="p-3 text-center">تأكيد الحضور والغياب</th>
-                      <th className="p-3 text-center w-12">حذف</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {classStudents.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="p-8 text-center text-slate-400">
-                          لا يوجد تلاميذ مسجلين في هذا القسم.
-                        </td>
-                      </tr>
-                    ) : (
-                      classStudents.map((std, idx) => {
-                        const status = currentAttendanceStatus[std.id] || 'حاضر';
-
-                        return (
-                          <tr key={std.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                            <td className="p-3 font-extrabold text-slate-900">
-                              {std.firstName} {std.lastName}
-                            </td>
-                            <td className="p-3 text-center">
-                              <span
-                                className={`px-3 py-1 rounded-xl text-xs font-black ${
-                                  status === 'حاضر'
-                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                    : status === 'غائب'
-                                      ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                                      : status === 'غائب بمبرر'
-                                        ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                                        : 'bg-purple-100 text-purple-800 border border-purple-200'
-                                }`}
-                              >
-                                {status}
-                              </span>
-                            </td>
-                            <td className="p-3 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                {(['حاضر', 'غائب', 'غائب بمبرر', 'معفى'] as const).map((st) => (
-                                  <button
-                                    key={st}
-                                    onClick={() =>
-                                      setCurrentAttendanceStatus((prev) => ({
-                                        ...prev,
-                                        [std.id]: st,
-                                      }))
-                                    }
-                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                                      status === st
-                                        ? 'bg-slate-900 text-white shadow-xs'
-                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                    }`}
-                                  >
-                                    {st}
-                                  </button>
-                                ))}
-                              </div>
-                            </td>
-                            <td className="p-2 text-center">
-                              <button
-                                onClick={() =>
-                                  handleConfirmDeleteStudent(
-                                    std.id,
-                                    `${std.firstName} ${std.lastName}`
-                                  )
-                                }
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                title="حذف التلميذ"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
               </div>
             </div>
           )}
