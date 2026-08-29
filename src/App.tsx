@@ -180,6 +180,7 @@ export default function App() {
     handleToggleSound,
     handleAddClass,
     handleDeleteClass,
+    handleForceDeleteClass,
     handleAddStudent,
     refreshStudentRoster,
     handleDeleteStudent,
@@ -545,6 +546,7 @@ export default function App() {
                 students={allStudents}
                 onAddClass={handleAddClass}
                 onDeleteClass={handleDeleteClass}
+                onForceDeleteClass={handleForceDeleteClass}
                 onAddStudent={handleAddStudent}
                 onDeleteStudent={handleDeleteStudent}
                 onRefreshRoster={refreshStudentRoster}

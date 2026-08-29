@@ -7,25 +7,33 @@ import {
 } from '../src/services/studentClassDeletion.service';
 
 type FakeOptions = {
+  classId?: string;
   classTeacherId?: string;
   students?: Array<{ id: string; teacherId: string }>;
+  medicalExemptionTeacherId?: string;
   protectedCounts?: Partial<
     Record<
-      'planned' | 'attendance' | 'weekly' | 'assessment' | 'studentAssessment' | 'exemption',
+      | 'planned'
+      | 'attendance'
+      | 'weekly'
+      | 'assessment'
+      | 'studentAssessment'
+      | 'criterionResults'
+      | 'exemption',
       number
     >
   >;
 };
 
 function fakeTransaction(options: FakeOptions = {}) {
-  const deleted: { students?: unknown; class?: unknown } = {};
+  const deleted: Record<string, unknown> = {};
   const counts = options.protectedCounts || {};
   const tx = {
     studentClass: {
       findUnique: async () =>
         options.classTeacherId === undefined
-          ? { id: 'class-a', teacherId: 'teacher-a' }
-          : { id: 'class-a', teacherId: options.classTeacherId },
+          ? { id: options.classId || 'class-a', teacherId: 'teacher-a' }
+          : { id: options.classId || 'class-a', teacherId: options.classTeacherId },
       deleteMany: async (args: unknown) => {
         deleted.class = args;
         return { count: 1 };
@@ -38,17 +46,76 @@ function fakeTransaction(options: FakeOptions = {}) {
         return { count: (options.students || []).length };
       },
     },
-    classPlannedSession: { count: async () => counts.planned || 0 },
-    studentAttendance: { count: async () => counts.attendance || 0 },
-    teacherWeeklySlot: { count: async () => counts.weekly || 0 },
-    assessmentSession: { count: async () => counts.assessment || 0 },
+    classPlannedSession: {
+      count: async ({ where }: { where?: { teacherId?: { not?: string } } }) =>
+        where?.teacherId?.not ? 0 : counts.planned || 0,
+      deleteMany: async (args: unknown) => {
+        deleted.plannedSessions = args;
+        return { count: counts.planned || 0 };
+      },
+    },
+    studentAttendance: {
+      count: async ({ where }: { where?: { teacherId?: { not?: string } } }) =>
+        where?.teacherId?.not ? 0 : counts.attendance || 0,
+      deleteMany: async (args: unknown) => {
+        deleted.attendanceRecords = args;
+        return { count: counts.attendance || 0 };
+      },
+    },
+    teacherWeeklySlot: {
+      count: async ({ where }: { where?: { teacherId?: { not?: string } } }) =>
+        where?.teacherId?.not ? 0 : counts.weekly || 0,
+      deleteMany: async (args: unknown) => {
+        deleted.weeklySlots = args;
+        return { count: counts.weekly || 0 };
+      },
+    },
+    assessmentSession: {
+      findMany: async () =>
+        Array.from({ length: counts.assessment || 0 }, (_, index) => ({
+          id: `assessment-${index}`,
+          teacherId: 'teacher-a',
+        })),
+      count: async ({ where }: { where?: { teacherId?: { not?: string } } }) =>
+        where?.teacherId?.not ? 0 : counts.assessment || 0,
+      deleteMany: async (args: unknown) => {
+        deleted.assessmentSessions = args;
+        return { count: counts.assessment || 0 };
+      },
+    },
+    criterionResult: {
+      count: async () => counts.criterionResults || 0,
+      deleteMany: async (args: unknown) => {
+        deleted.criterionResults = args;
+        return { count: counts.criterionResults || 0 };
+      },
+    },
     studentAssessment: {
       findMany: async () =>
-        Array.from({ length: counts.studentAssessment || 0 }, () => ({ studentId: 'student-a' })),
+        Array.from({ length: counts.studentAssessment || 0 }, (_, index) => ({
+          id: `student-assessment-${index}`,
+          studentId: 'student-a',
+        })),
+      deleteMany: async (args: unknown) => {
+        deleted.studentAssessments = args;
+        return { count: counts.studentAssessment || 0 };
+      },
     },
     medicalExemption: {
       findMany: async () =>
-        Array.from({ length: counts.exemption || 0 }, () => ({ studentId: 'student-a' })),
+        Array.from({ length: counts.exemption || 0 }, (_, index) => ({
+          id: `exemption-${index}`,
+          studentId: 'student-a',
+          teacherId: options.medicalExemptionTeacherId || 'teacher-a',
+        })),
+      count: async () =>
+        options.medicalExemptionTeacherId && options.medicalExemptionTeacherId !== 'teacher-a'
+          ? counts.exemption || 0
+          : 0,
+      deleteMany: async (args: unknown) => {
+        deleted.medicalExemptions = args;
+        return { count: counts.exemption || 0 };
+      },
     },
   } as unknown as Prisma.TransactionClient;
   return { tx, deleted };
@@ -154,6 +221,74 @@ describe('owned StudentClass deletion', () => {
     });
   });
 
+  it('force-deletes an empty class with class-scoped dependencies', async () => {
+    const { tx, deleted } = fakeTransaction({ protectedCounts: { planned: 2, weekly: 1 } });
+
+    await expect(
+      deleteOwnedStudentClass(tx, { classId: 'class-a', ownerId: 'teacher-a' }, { force: true })
+    ).resolves.toMatchObject({
+      deleted: true,
+      classId: 'class-a',
+      deletedCounts: { plannedSessions: 2, weeklySlots: 1, students: 0 },
+    });
+    expect(deleted.class).toEqual({ where: { id: 'class-a', teacherId: 'teacher-a' } });
+  });
+
+  it('force-deletes two empty blocked classes independently', async () => {
+    const first = fakeTransaction({ classId: 'class-a', protectedCounts: { planned: 1 } });
+    const second = fakeTransaction({ classId: 'class-b', protectedCounts: { planned: 2 } });
+
+    await Promise.all([
+      deleteOwnedStudentClass(
+        first.tx,
+        { classId: 'class-a', ownerId: 'teacher-a' },
+        { force: true }
+      ),
+      deleteOwnedStudentClass(
+        second.tx,
+        { classId: 'class-b', ownerId: 'teacher-a' },
+        { force: true }
+      ),
+    ]);
+
+    expect(first.deleted.class).toEqual({ where: { id: 'class-a', teacherId: 'teacher-a' } });
+    expect(second.deleted.class).toEqual({ where: { id: 'class-b', teacherId: 'teacher-a' } });
+  });
+
+  it('force-deletes mixed target-class history without affecting the owner scope', async () => {
+    const { tx, deleted } = fakeTransaction({
+      students: [{ id: 'student-a', teacherId: 'teacher-a' }],
+      protectedCounts: {
+        planned: 2,
+        attendance: 3,
+        weekly: 1,
+        assessment: 4,
+        studentAssessment: 4,
+        criterionResults: 4,
+        exemption: 1,
+      },
+    });
+
+    await expect(
+      deleteOwnedStudentClass(tx, { classId: 'class-a', ownerId: 'teacher-a' }, { force: true })
+    ).resolves.toMatchObject({
+      deleted: true,
+      deletedCounts: {
+        students: 1,
+        plannedSessions: 2,
+        attendanceRecords: 3,
+        assessmentSessions: 4,
+        weeklySlots: 1,
+        medicalExemptions: 1,
+        studentAssessments: 4,
+        criterionResults: 4,
+      },
+    });
+    expect(deleted.students).toMatchObject({
+      where: { id: { in: ['student-a'] }, teacherId: 'teacher-a', classId: 'class-a' },
+    });
+  });
+
   it('rejects foreign-owned students without deleting them', async () => {
     const { tx, deleted } = fakeTransaction({
       students: [{ id: 'student-a', teacherId: 'teacher-b' }],
@@ -162,6 +297,31 @@ describe('owned StudentClass deletion', () => {
     await expect(
       deleteOwnedStudentClass(tx, { classId: 'class-a', ownerId: 'teacher-a' })
     ).rejects.toBeInstanceOf(StudentClassDeletionError);
+    expect(deleted).toEqual({});
+  });
+
+  it('rejects force deletion of a foreign-owned class without any mutation', async () => {
+    const { tx, deleted } = fakeTransaction({ classTeacherId: 'teacher-b' });
+
+    await expect(
+      deleteOwnedStudentClass(tx, { classId: 'class-a', ownerId: 'teacher-a' }, { force: true })
+    ).rejects.toMatchObject({ code: 'CLASS_NOT_OWNED' });
+    expect(deleted).toEqual({});
+  });
+
+  it('protects another teacher medical exemption during force deletion', async () => {
+    const { tx, deleted } = fakeTransaction({
+      students: [{ id: 'student-a', teacherId: 'teacher-a' }],
+      protectedCounts: { exemption: 1 },
+      medicalExemptionTeacherId: 'teacher-b',
+    });
+
+    await expect(
+      deleteOwnedStudentClass(tx, { classId: 'class-a', ownerId: 'teacher-a' }, { force: true })
+    ).rejects.toMatchObject({
+      code: 'CLASS_DELETE_BLOCKED',
+      blockers: { medicalExemptions: 1 },
+    });
     expect(deleted).toEqual({});
   });
 });
@@ -176,17 +336,22 @@ describe('StudentClass deletion integration contracts', () => {
     expect(router).toContain(
       "apiRouter.delete('/students/classes/:classId', requireRole('teacher')"
     );
-    expect(router).toContain('deleteOwnedStudentClass(tx,');
+    expect(router).toContain('deleteOwnedStudentClass(');
     expect(router).toContain('prisma.$transaction(');
     expect(client).toContain('/api/students/classes/${encodeURIComponent(classId)}');
     expect(client).toContain("method: 'DELETE'");
+    expect(client).toContain('?force=true');
     expect(store).toContain('await deleteStudentClass(classId);');
+    expect(store).toContain('await forceDeleteStudentClass(classId);');
     expect(store).toContain('await refreshStudentRoster();');
     expect(view).toContain('await onDeleteClass?.(classId);');
     expect(view).toContain('سيتم حذف التلاميذ المسجلين فيه');
-    expect(view).toContain('error.blockers.plannedSessions > 0');
-    expect(view).toContain('error.blockers.weeklySlots > 0');
-    expect(view).toContain("reasons.join('\\n')");
+    expect(view).toContain('blockers.plannedSessions > 0');
+    expect(view).toContain('blockers.weeklySlots > 0');
+    expect(view).toContain('formatClassDeleteBlockers');
+    expect(view).toContain('هذا القسم مرتبط ببيانات محفوظة.');
+    expect(view).toContain('حذف القسم نهائياً مع البيانات المرتبطة');
+    expect(view).toContain('تم حذف القسم نهائياً مع بياناته المرتبطة.');
     expect(view).toContain('await onRefreshRoster?.().catch(() => undefined);');
   });
 });

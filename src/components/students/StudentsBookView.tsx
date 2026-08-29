@@ -19,6 +19,7 @@ import {
   previewStudentRoster,
   confirmStudentRosterImport,
   StudentClassDeleteApiError,
+  type StudentClassDeleteBlockers,
   fetchTeacherMedicalExemptions,
   createTeacherMedicalExemption,
   deleteTeacherMedicalExemption,
@@ -44,6 +45,7 @@ export interface StudentsBookViewProps {
     schoolName?: string;
   }) => string;
   onDeleteClass?: (classId: string) => void | Promise<void>;
+  onForceDeleteClass?: (classId: string) => Promise<unknown>;
   onAddStudent?: (studentData: Omit<Student, 'id'>) => void;
   onDeleteStudent?: (studentId: string) => void;
   onRefreshRoster?: () => Promise<unknown>;
@@ -60,6 +62,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
   students = [],
   onAddClass,
   onDeleteClass,
+  onForceDeleteClass,
   onAddStudent,
   onDeleteStudent,
   onRefreshRoster,
@@ -92,6 +95,11 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
   const [rosterFileName, setRosterFileName] = useState('');
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterError, setRosterError] = useState('');
+  const [blockedClassDelete, setBlockedClassDelete] = useState<{
+    classId: string;
+    blockers: StudentClassDeleteBlockers;
+  } | null>(null);
+  const [classDeleteLoading, setClassDeleteLoading] = useState(false);
 
   // Exemptions State
   const [exemptionsList, setExemptionsList] = useState<MedicalExemptionDto[]>([]);
@@ -127,6 +135,22 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
   const selectedStudent = selectedStudentId
     ? students.find((student) => student.id === selectedStudentId)
     : undefined;
+
+  const formatClassDeleteBlockers = (blockers: StudentClassDeleteBlockers) =>
+    [
+      blockers.studentsWithHistory > 0
+        ? `- ${blockers.studentsWithHistory} تلميذاً لديهم بيانات محفوظة`
+        : '',
+      blockers.plannedSessions > 0 ? `- ${blockers.plannedSessions} حصة مبرمجة` : '',
+      blockers.attendanceRecords > 0 ? `- ${blockers.attendanceRecords} سجل حضور` : '',
+      blockers.assessmentSessions > 0 ? `- ${blockers.assessmentSessions} جلسة تقييم` : '',
+      blockers.weeklySlots > 0 ? `- ${blockers.weeklySlots} حصة في التوقيت الأسبوعي` : '',
+      blockers.studentAssessments > 0 ? `- ${blockers.studentAssessments} سجل تقييم للتلاميذ` : '',
+      blockers.criterionResults > 0 ? `- ${blockers.criterionResults} نتيجة معيار تقييم` : '',
+      blockers.medicalExemptions > 0 ? `- ${blockers.medicalExemptions} إعفاء طبي` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
 
   React.useEffect(() => {
     if (!activeClass.id) {
@@ -201,39 +225,53 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
     ) {
       try {
         await onDeleteClass?.(classId);
+        setBlockedClassDelete(null);
+        setRosterError('');
         const remaining = classes.filter((c) => c.id !== classId);
         if (remaining.length > 0) {
           setSelectedClassId(remaining[0].id);
         }
       } catch (error) {
-        if (error instanceof StudentClassDeleteApiError && error.blockers) {
-          const reasons = [
-            error.blockers.plannedSessions > 0
-              ? `- ${error.blockers.plannedSessions} حصة مبرمجة`
-              : '',
-            error.blockers.attendanceRecords > 0
-              ? `- ${error.blockers.attendanceRecords} سجل حضور`
-              : '',
-            error.blockers.assessmentSessions > 0
-              ? `- ${error.blockers.assessmentSessions} جلسة تقييم`
-              : '',
-            error.blockers.weeklySlots > 0
-              ? `- ${error.blockers.weeklySlots} حصة في التوقيت الأسبوعي`
-              : '',
-            error.blockers.studentAssessments > 0
-              ? `- ${error.blockers.studentAssessments} سجل تقييم للتلاميذ`
-              : '',
-            error.blockers.medicalExemptions > 0
-              ? `- ${error.blockers.medicalExemptions} إعفاء طبي`
-              : '',
-          ].filter(Boolean);
-          setRosterError(`لا يمكن حذف القسم لوجود بيانات مرتبطة به:\n${reasons.join('\n')}`);
+        if (
+          error instanceof StudentClassDeleteApiError &&
+          error.code === 'CLASS_DELETE_BLOCKED' &&
+          error.blockers
+        ) {
+          setBlockedClassDelete({ classId, blockers: error.blockers });
+          setRosterError(
+            `لا يمكن حذف القسم لوجود بيانات مرتبطة به:\n${formatClassDeleteBlockers(error.blockers)}`
+          );
         } else {
+          setBlockedClassDelete(null);
           setRosterError(
             error instanceof Error ? error.message : 'تعذر حذف القسم. يرجى إعادة المحاولة.'
           );
         }
       }
+    }
+  };
+
+  const handleForceDeleteClass = async () => {
+    if (!blockedClassDelete || !onForceDeleteClass) return;
+    const className = classes.find((item) => item.id === blockedClassDelete.classId)?.name || '';
+    const warning = `هذا القسم مرتبط ببيانات محفوظة.\n\nسيؤدي الحذف النهائي إلى حذف القسم والبيانات المرتبطة به مثل الحضور والتقييمات والحصص المبرمجة والتوقيت الأسبوعي التي تخص هذا القسم.\n\n${formatClassDeleteBlockers(blockedClassDelete.blockers)}\n\nلا يمكن التراجع عن هذه العملية.\n\nهل تريد المتابعة؟`;
+    if (!window.confirm(warning)) return;
+    if (!window.confirm(`تأكيد نهائي: حذف القسم «${className}» مع البيانات المرتبطة به؟`)) return;
+
+    setClassDeleteLoading(true);
+    try {
+      await onForceDeleteClass(blockedClassDelete.classId);
+      setBlockedClassDelete(null);
+      setRosterError('');
+      const remaining = classes.filter((c) => c.id !== blockedClassDelete.classId);
+      if (remaining.length > 0) setSelectedClassId(remaining[0].id);
+      window.alert('تم حذف القسم نهائياً مع بياناته المرتبطة.');
+    } catch (error) {
+      setRosterError(
+        error instanceof Error ? error.message : 'تعذر حذف القسم. يرجى إعادة المحاولة.'
+      );
+    } finally {
+      setClassDeleteLoading(false);
     }
   };
 
@@ -266,6 +304,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
     if (!file) return;
     setRosterLoading(true);
     setRosterError('');
+    setBlockedClassDelete(null);
     setRosterFileName(file.name);
     try {
       setRosterPreview(await previewStudentRoster(file));
@@ -294,6 +333,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
     }
     setRosterLoading(true);
     setRosterError('');
+    setBlockedClassDelete(null);
     try {
       let created = 0;
       let existing = 0;
@@ -553,7 +593,8 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
             القسم المختار: <strong className="text-blue-900">{activeClass.name}</strong>
           </span>
           <button
-            onClick={() => handleConfirmDeleteClass(activeClass.id)}
+            onClick={() => void handleConfirmDeleteClass(activeClass.id)}
+            disabled={classDeleteLoading}
             className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold border border-rose-200 flex items-center gap-1.5 transition-colors cursor-pointer"
             title="حذف هذا القسم"
           >
@@ -562,6 +603,27 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
           </button>
         </div>
       </div>
+
+      {rosterError && !rosterPreview && (
+        <div
+          role="alert"
+          className="rounded-2xl bg-rose-50 p-4 text-xs font-bold text-rose-700 whitespace-pre-line"
+        >
+          <p>{rosterError}</p>
+          {blockedClassDelete && (
+            <button
+              type="button"
+              disabled={classDeleteLoading}
+              onClick={() => void handleForceDeleteClass()}
+              className="mt-3 rounded-xl bg-rose-700 px-4 py-2 text-white disabled:opacity-50"
+            >
+              {classDeleteLoading
+                ? 'جارٍ الحذف النهائي...'
+                : 'حذف القسم نهائياً مع البيانات المرتبطة'}
+            </button>
+          )}
+        </div>
+      )}
 
       <nav className="grid grid-cols-1 gap-2 rounded-2xl bg-slate-200/60 p-1.5 sm:grid-cols-2">
         <button

@@ -731,6 +731,7 @@ export interface StudentClassDeleteBlockers {
   weeklySlots: number;
   medicalExemptions: number;
   studentAssessments: number;
+  criterionResults: number;
 }
 
 export class StudentClassDeleteApiError extends Error {
@@ -756,6 +757,25 @@ export async function deleteStudentClass(classId: string) {
       data.blockers
     );
   return data as { success: boolean; classId: string; deletedStudents: number };
+}
+
+export async function forceDeleteStudentClass(classId: string) {
+  const response = await fetch(`/api/students/classes/${encodeURIComponent(classId)}?force=true`, {
+    method: 'DELETE',
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok)
+    throw new StudentClassDeleteApiError(
+      data.error || 'تعذر حذف القسم. يرجى إعادة المحاولة.',
+      data.code || 'UNEXPECTED_ERROR',
+      data.blockers
+    );
+  return data as {
+    success: boolean;
+    deleted: true;
+    classId: string;
+    deletedCounts: Record<string, number>;
+  };
 }
 
 export interface CreateAssessmentSessionInput {

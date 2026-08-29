@@ -925,8 +925,14 @@ apiRouter.get('/students/roster', async (req, res) => {
 
 apiRouter.delete('/students/classes/:classId', requireRole('teacher'), async (req, res) => {
   try {
+    const force = req.query.force === 'true';
     const result = await prisma.$transaction(
-      (tx) => deleteOwnedStudentClass(tx, { classId: req.params.classId, ownerId: req.user!.id }),
+      (tx) =>
+        deleteOwnedStudentClass(
+          tx,
+          { classId: req.params.classId, ownerId: req.user!.id },
+          { force }
+        ),
       { maxWait: 10000, timeout: 25000 }
     );
     res.json({ success: true, ...result });
