@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookMarked, Calendar, Clock, FileText, MapPin, Target } from 'lucide-react';
 import type { ClassRoom, DailyNotebookEntry, LessonPlan, User } from '../../types/spex';
-import { PE_FIELDS, PE_LEVELS } from '../../data/algerianCurriculum';
+import { LEARNING_SEGMENTS, PE_FIELDS, PE_LEVELS } from '../../data/algerianCurriculum';
 import {
   fetchTeacherPlanningSessions,
   TeacherPlanningSession,
@@ -10,10 +10,13 @@ import {
 } from '../../services/api';
 import { canonicalReferenceSessions } from '../../services/teacherPlanning.service';
 import {
+  calculateExecutionProgress,
+  DAILY_NOTEBOOK_STATUS_META,
   normalizeClassRooms,
   normalizeDailyNotebookEntries,
   normalizePlanningSession,
   normalizePlanningSessions,
+  toDailyNotebookSessionDto,
 } from '../../services/dailyNotebook.service';
 import { formatLocalDate, shiftLocalDate } from '../../services/localDate';
 import {
@@ -23,7 +26,7 @@ import {
   isCanonicalAcademicYearId,
 } from '../../services/academicYear';
 
-type NotebookStatus = 'منجزة' | 'مؤجلة' | 'غير منجزة';
+type NotebookStatus = TeacherPlanningSession['status'];
 type SessionRef = {
   id?: string;
   classId?: string;
@@ -49,6 +52,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   currentUser,
   teacherClasses,
   notebookEntries,
+  lessonPlans,
   onPersistNotebookEntry,
   onOpenAIGeneratorForSession,
 }) => {
@@ -72,6 +76,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   const [error, setError] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const statusRequestVersions = useRef<Record<string, number>>({});
   const selectedClass = safeTeacherClasses.find((item) => item.id === selectedClassId);
   const yearOptions = useMemo(() => getAcademicYearOptions(), []);
   const references = useMemo(
@@ -98,6 +103,22 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
       ),
     [safeNotebookEntries, selectedClassId, academicYearId]
   );
+  const safeLessonPlans = Array.isArray(lessonPlans) ? lessonPlans : [];
+  const memoExistsBySession = useMemo(
+    () =>
+      new Set(
+        safeLessonPlans
+          .filter(
+            (plan) =>
+              Boolean(plan?.classPlannedSessionId) &&
+              plan.classId === selectedClassId &&
+              plan.academicYearId === academicYearId
+          )
+          .map((plan) => plan.classPlannedSessionId)
+      ),
+    [safeLessonPlans, selectedClassId, academicYearId]
+  );
+  const progress = useMemo(() => calculateExecutionProgress(sessions), [sessions]);
 
   useEffect(() => {
     window.localStorage.setItem(YEAR_KEY, academicYearId);
@@ -140,15 +161,16 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
     [sessions, selectedDate, requestedSessionId]
   );
   const updateStatus = async (session: TeacherPlanningSession, status: NotebookStatus) => {
+    const requestVersion = (statusRequestVersions.current[session.id] || 0) + 1;
+    statusRequestVersions.current[session.id] = requestVersion;
     setSavingId(session.id);
     setError('');
+    let updatedSession: TeacherPlanningSession | null = null;
     try {
       const result = await updateTeacherPlanningSession(session.classId, session.id, { status });
-      const updatedSession = normalizePlanningSession(result?.session);
+      updatedSession = normalizePlanningSession(result?.session);
       if (!updatedSession) throw new Error('استجابة الحصة التشغيلية غير صالحة.');
-      setSessions((current) =>
-        current.map((item) => (item.id === session.id ? updatedSession : item))
-      );
+      if (statusRequestVersions.current[session.id] !== requestVersion) return;
       const old = entriesBySession.get(session.id);
       await onPersistNotebookEntry({
         teacherId: currentUser.id,
@@ -161,14 +183,41 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
         levelName: selectedClass ? levelLabel(selectedClass.levelId) : undefined,
         executionDate: updatedSession.plannedDate,
         timeSlot: updatedSession.startTime || 'غير محدد',
-        status,
+        status: status === 'مبرمجة' ? old?.status || 'غير منجزة' : status,
         note: old?.note,
         lessonPlanId: old?.lessonPlanId,
       });
+      if (statusRequestVersions.current[session.id] !== requestVersion) return;
+      setSessions((current) =>
+        current.map((item) => (item.id === session.id ? updatedSession! : item))
+      );
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : 'تعذر تحديث حالة الحصة.');
+      if (
+        updatedSession &&
+        updatedSession.status !== session.status &&
+        statusRequestVersions.current[session.id] === requestVersion
+      ) {
+        try {
+          const rollback = await updateTeacherPlanningSession(session.classId, session.id, {
+            status: session.status,
+          });
+          const restoredSession = normalizePlanningSession(rollback?.session);
+          if (restoredSession) {
+            setSessions((current) =>
+              current.map((item) => (item.id === session.id ? restoredSession : item))
+            );
+          }
+        } catch {
+          setSessions((current) =>
+            current.map((item) => (item.id === session.id ? session : item))
+          );
+        }
+      }
+      if (statusRequestVersions.current[session.id] === requestVersion) {
+        setError(reason instanceof Error ? reason.message : 'تعذر تحديث حالة الحصة.');
+      }
     } finally {
-      setSavingId(null);
+      if (statusRequestVersions.current[session.id] === requestVersion) setSavingId(null);
     }
   };
   const saveNote = async (session: TeacherPlanningSession) => {
@@ -295,6 +344,12 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
             </button>
           </div>
         </div>
+        <div className="flex items-center justify-between rounded-2xl bg-blue-50/70 px-4 py-3 text-xs">
+          <span className="font-extrabold text-blue-950">التقدم في تنفيذ البرنامج</span>
+          <span className="font-bold text-blue-800">
+            {progress.completed} / {progress.total} حصة · {progress.percentage}%
+          </span>
+        </div>
       </header>
       {!selectedClass && (
         <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center">
@@ -347,6 +402,24 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
             ? PE_FIELDS.find((item) => item.id === reference.domainId)
             : undefined;
           const status = session.status;
+          const sectionLabel = reference
+            ? LEARNING_SEGMENTS.find(
+                (segment) =>
+                  segment.levelId === selectedClass.levelId &&
+                  segment.fieldId === reference.domainId
+              )?.title || reference.learningSectionId
+            : 'المقطع غير متاح';
+          const memoExists = memoExistsBySession.has(session.id);
+          const sessionDto = toDailyNotebookSessionDto(session, {
+            sessionNumber: reference?.sequenceIndex,
+            sessionType: reference?.sessionTypeLabel,
+            objective: reference?.objective,
+            domain: field?.name || reference?.domainId,
+            section: sectionLabel,
+            executionNote: entry?.note,
+            memoExists,
+          });
+          const statusMeta = DAILY_NOTEBOOK_STATUS_META[sessionDto.status];
           return (
             <article
               key={session.id}
@@ -362,34 +435,43 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                       {levelLabel(selectedClass.levelId)}
                     </span>
                     <span className="rounded-xl bg-blue-50 px-3 py-1 text-blue-800">
-                      <Calendar className="ml-1 inline h-3.5 w-3.5" /> {session.plannedDate}
+                      <Calendar className="ml-1 inline h-3.5 w-3.5" /> {sessionDto.plannedDate}
                     </span>
                   </div>
                   <h2 className="mt-3 text-lg font-extrabold text-slate-900">
-                    {reference?.objective || 'تعذر تحميل المرجع البيداغوجي لهذه الحصة.'}
+                    {sessionDto.objective || 'تعذر تحميل المرجع البيداغوجي لهذه الحصة.'}
                   </h2>
                   <p className="mt-1 text-xs text-slate-500">
                     {reference
-                      ? `${field?.name || reference.domainId} · ${reference.learningSectionId} · ${reference.sessionTypeLabel} · الحصة ${reference.sequenceIndex}`
+                      ? `${sessionDto.domain} · ${sessionDto.section} · ${sessionDto.sessionType} · الحصة ${sessionDto.sessionNumber ?? '—'}`
                       : 'تعذر تحميل المرجع البيداغوجي لهذه الحصة.'}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-600">
                   <span className="flex items-center gap-1 rounded-xl bg-slate-50 px-3 py-2">
-                    <Clock className="h-3.5 w-3.5" /> {session.startTime || 'غير محدد'}
+                    <Clock className="h-3.5 w-3.5" /> {sessionDto.startTime || 'غير محدد'}
                   </span>
                   <span className="rounded-xl bg-slate-50 px-3 py-2">
-                    {session.durationMinutes} دقيقة
+                    {sessionDto.durationMinutes} دقيقة
                   </span>
                   <span className="flex items-center gap-1 rounded-xl bg-slate-50 px-3 py-2">
-                    <MapPin className="h-3.5 w-3.5" /> {session.venue || 'غير محدد'}
+                    <MapPin className="h-3.5 w-3.5" /> {sessionDto.venue || 'غير محدد'}
                   </span>
                 </div>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <span className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-extrabold text-slate-700">
-                  الحالة التشغيلية: {status}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-xl px-3 py-2 text-xs font-extrabold ${statusMeta.className}`}
+                  >
+                    الحالة التشغيلية: {statusMeta.label}
+                  </span>
+                  {status === 'مؤجلة' && (
+                    <span className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+                      {statusMeta.description}
+                    </span>
+                  )}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     disabled={savingId === session.id}
@@ -412,6 +494,25 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                   >
                     غير منجزة
                   </button>
+                  <button
+                    disabled={savingId === session.id}
+                    onClick={() => updateStatus(session, 'مبرمجة')}
+                    className="rounded-xl bg-blue-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                  >
+                    مبرمجة
+                  </button>
+                  {status === 'مؤجلة' && (
+                    <button
+                      onClick={() =>
+                        window.location.assign(
+                          `/planning?section=annual-distribution&classId=${encodeURIComponent(session.classId)}&classPlannedSessionId=${encodeURIComponent(session.id)}&academicYearId=${encodeURIComponent(session.academicYearId)}`
+                        )
+                      }
+                      className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800"
+                    >
+                      إعادة البرمجة
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="flex flex-col gap-2 rounded-2xl bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -425,13 +526,20 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                     className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
                   />
                   <button
+                    disabled={savingId === session.id}
                     onClick={() => saveNote(session)}
-                    className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700"
+                    className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 disabled:opacity-50"
                   >
                     حفظ الملاحظة
                   </button>
                 </div>
                 <div className="flex gap-2">
+                  <span className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700">
+                    المقطع: {sectionLabel}
+                  </span>
+                  <span className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700">
+                    المذكرة: {memoExists ? 'موجودة' : 'غير منشأة'}
+                  </span>
                   <button
                     onClick={() => onOpenAIGeneratorForSession(sessionRef(session, reference))}
                     className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700"

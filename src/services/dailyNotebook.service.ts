@@ -5,6 +5,98 @@ import { parseLocalDate } from './localDate';
 const NOTEBOOK_STATUSES = new Set(['منجزة', 'مؤجلة', 'غير منجزة']);
 const PLANNING_STATUSES = new Set(['مبرمجة', 'منجزة', 'مؤجلة', 'غير منجزة']);
 
+export type DailyNotebookStatus = TeacherPlanningSession['status'];
+
+export const DAILY_NOTEBOOK_STATUS_META: Record<
+  DailyNotebookStatus,
+  { label: string; description: string; className: string }
+> = {
+  مبرمجة: {
+    label: 'مبرمجة',
+    description: 'لم تسجل نتيجة التنفيذ بعد.',
+    className: 'bg-blue-50 text-blue-800',
+  },
+  منجزة: {
+    label: 'منجزة',
+    description: 'تم تنفيذ الحصة فعلياً.',
+    className: 'bg-emerald-50 text-emerald-800',
+  },
+  'غير منجزة': {
+    label: 'غير منجزة',
+    description: 'لم تنفذ الحصة ولا توجد إعادة برمجة من هذا المسار.',
+    className: 'bg-slate-100 text-slate-800',
+  },
+  مؤجلة: {
+    label: 'مؤجلة',
+    description: 'مؤجلة — تحتاج إعادة البرمجة.',
+    className: 'bg-amber-50 text-amber-800',
+  },
+};
+
+export interface DailyNotebookSessionDto {
+  sessionId: string;
+  classId: string;
+  academicYearId: string;
+  plannedDate: string;
+  sessionNumber: number | null;
+  sessionType: string | null;
+  objective: string | null;
+  domain: string | null;
+  section: string | null;
+  durationMinutes: number;
+  startTime: string | null;
+  venue: string | null;
+  status: DailyNotebookStatus;
+  executionNote: string | null;
+  memoExists: boolean;
+}
+
+export function toDailyNotebookSessionDto(
+  session: TeacherPlanningSession,
+  details: Partial<
+    Pick<
+      DailyNotebookSessionDto,
+      | 'sessionNumber'
+      | 'sessionType'
+      | 'objective'
+      | 'domain'
+      | 'section'
+      | 'executionNote'
+      | 'memoExists'
+    >
+  > = {}
+): DailyNotebookSessionDto {
+  return {
+    sessionId: session.id,
+    classId: session.classId,
+    academicYearId: session.academicYearId,
+    plannedDate: session.plannedDate,
+    sessionNumber: details.sessionNumber ?? null,
+    sessionType: details.sessionType ?? null,
+    objective: details.objective ?? null,
+    domain: details.domain ?? null,
+    section: details.section ?? null,
+    durationMinutes: session.durationMinutes,
+    startTime: session.startTime,
+    venue: session.venue,
+    status: session.status,
+    executionNote: details.executionNote ?? null,
+    memoExists: details.memoExists ?? false,
+  };
+}
+
+export function calculateExecutionProgress(
+  sessions: Array<Pick<TeacherPlanningSession, 'status'>>
+): { completed: number; total: number; percentage: number } {
+  const total = sessions.length;
+  const completed = sessions.filter((session) => session.status === 'منجزة').length;
+  return {
+    completed,
+    total,
+    percentage: total ? Math.round((completed / total) * 100) : 0,
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
