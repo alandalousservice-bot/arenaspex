@@ -602,6 +602,14 @@ export async function confirmStudentRosterImport(
       linkedStudents: number;
       conflicts: number;
       review: number;
+      reviewReasonCounts: {
+        foreignOwner: number;
+        ambiguousMatch: number;
+        duplicateWorkbookMembership: number;
+        invalidIdentity: number;
+        institutionMismatch: number;
+        other: number;
+      };
     };
   };
 }

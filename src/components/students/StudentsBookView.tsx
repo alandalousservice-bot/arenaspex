@@ -274,6 +274,14 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
       let conflicts = 0;
       let review = 0;
       let classesImported = 0;
+      const reviewReasonCounts = {
+        foreignOwner: 0,
+        ambiguousMatch: 0,
+        duplicateWorkbookMembership: 0,
+        invalidIdentity: 0,
+        institutionMismatch: 0,
+        other: 0,
+      };
       for (const preview of previews) {
         const grade =
           Number(preview.grade) ||
@@ -314,12 +322,16 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
         reassociated += result.summary.reassociated;
         conflicts += result.summary.conflicts;
         review += result.summary.review;
+        Object.entries(result.summary.reviewReasonCounts).forEach(([reason, count]) => {
+          if (reason in reviewReasonCounts)
+            reviewReasonCounts[reason as keyof typeof reviewReasonCounts] += count;
+        });
         setSelectedClassId(result.classId);
         classesImported += 1;
       }
       await onRefreshRoster?.();
       window.alert(
-        `تم استيراد ${classesImported} قسم بنجاح\nالجدد: ${created}\nالموجودون مسبقاً: ${existing}\nالمعاد ربطهم بالأقسام: ${reassociated}\nبحاجة إلى مراجعة: ${conflicts + review}`
+        `تم استيراد ${classesImported} قسم بنجاح\nالجدد: ${created}\nالموجودون مسبقاً: ${existing}\nالمعاد ربطهم بالأقسام: ${reassociated}\nبحاجة إلى مراجعة: ${conflicts + review}\n- تعارض ملكية سجل موجود: ${reviewReasonCounts.foreignOwner}\n- تطابق غامض: ${reviewReasonCounts.ambiguousMatch}\n- بيانات تعريف غير كافية: ${reviewReasonCounts.invalidIdentity}\n- اختلاف المؤسسة: ${reviewReasonCounts.institutionMismatch}`
       );
       setRosterPreview(null);
       setRosterFileName('');

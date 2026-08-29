@@ -71,4 +71,14 @@ describe('student roster persistence transaction', () => {
       'استغرقت عملية حفظ القائمة وقتاً أطول من المتوقع. يرجى إعادة المحاولة.'
     );
   });
+
+  it('returns safe aggregate review reasons without logging student identity', () => {
+    const persistence = readFileSync('src/services/studentRosterPersistence.service.ts', 'utf8');
+    const client = readFileSync('src/components/students/StudentsBookView.tsx', 'utf8');
+    expect(persistence).toContain('reviewReasonCounts');
+    expect(persistence).toContain('foreignOwner');
+    expect(persistence).toContain('institutionMismatch');
+    expect(client).toContain('تعارض ملكية سجل موجود');
+    expect(persistence).not.toContain('console.log');
+  });
 });

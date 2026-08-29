@@ -14,12 +14,23 @@ export interface StudentRosterPersistenceSummary {
   reassociated: number;
   conflicts: number;
   linkedStudents: number;
+  reviewReasonCounts: StudentRosterReviewReasonCounts;
+}
+
+export interface StudentRosterReviewReasonCounts {
+  foreignOwner: number;
+  ambiguousMatch: number;
+  duplicateWorkbookMembership: number;
+  invalidIdentity: number;
+  institutionMismatch: number;
+  other: number;
 }
 
 type ExistingStudent = {
   id: string;
   teacherId: string;
   classId: string | null;
+  institutionId: string | null;
   matricule: string;
   firstName: string;
   lastName: string;
@@ -32,11 +43,12 @@ export async function persistStudentRosterRows(
   const matricules = input.rows.map((row) => row.matricule);
   const existingStudents = matricules.length
     ? await tx.student.findMany({
-        where: { institutionId: input.institutionId, matricule: { in: matricules } },
+        where: { matricule: { in: matricules } },
         select: {
           id: true,
           teacherId: true,
           classId: true,
+          institutionId: true,
           matricule: true,
           firstName: true,
           lastName: true,
@@ -52,22 +64,41 @@ export async function persistStudentRosterRows(
 
   const missingRows: ParsedRosterStudent[] = [];
   const updates: Promise<unknown>[] = [];
+  const reviewReasonCounts: StudentRosterReviewReasonCounts = {
+    foreignOwner: 0,
+    ambiguousMatch: 0,
+    duplicateWorkbookMembership: 0,
+    invalidIdentity: 0,
+    institutionMismatch: 0,
+    other: 0,
+  };
   let existing = 0;
   let reassociated = 0;
-  let conflicts = 0;
 
   for (const row of input.rows) {
-    const candidates = existingByMatricule.get(row.matricule) || [];
+    const allCandidates = existingByMatricule.get(row.matricule) || [];
+    const candidates = allCandidates.filter(
+      (student) => student.institutionId === input.institutionId
+    );
+    if (!candidates.length && allCandidates.length) {
+      reviewReasonCounts.institutionMismatch += 1;
+      continue;
+    }
+    if (candidates.length > 1) {
+      reviewReasonCounts.ambiguousMatch += 1;
+      continue;
+    }
     const current = candidates.find((student) => student.teacherId === input.teacherId);
     if (!current) {
       // A matricule already owned by another teacher is not a new student:
       // report it for review instead of violating ownership or a unique key.
-      if (candidates.length) conflicts += 1;
-      else missingRows.push(row);
+      if (candidates.length) {
+        reviewReasonCounts.foreignOwner += 1;
+      } else missingRows.push(row);
       continue;
     }
     if (current.firstName !== row.firstName || current.lastName !== row.lastName) {
-      conflicts += 1;
+      reviewReasonCounts.invalidIdentity += 1;
       continue;
     }
     existing += 1;
@@ -105,9 +136,10 @@ export async function persistStudentRosterRows(
     created: missingRows.length,
     existing,
     reassociated,
-    conflicts,
+    conflicts: Object.values(reviewReasonCounts).reduce((total, count) => total + count, 0),
     linkedStudents: await tx.student.count({
       where: { teacherId: input.teacherId, classId: input.persistedClassId },
     }),
+    reviewReasonCounts,
   };
 }

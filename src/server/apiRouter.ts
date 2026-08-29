@@ -1001,6 +1001,12 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
           ...persisted,
           conflicts: persisted.conflicts + inputConflicts,
           review: rows.length - validRows.length,
+          reviewReasonCounts: {
+            ...persisted.reviewReasonCounts,
+            ambiguousMatch: persisted.reviewReasonCounts.ambiguousMatch + inputConflicts,
+            invalidIdentity:
+              persisted.reviewReasonCounts.invalidIdentity + (rows.length - validRows.length),
+          },
           classId: persistedClassId,
         };
       },

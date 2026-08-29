@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import type { Prisma } from '@prisma/client';
 import { buildStudentRosterReadModel } from '../src/services/studentRosterReadModel.service';
 import { persistStudentRosterRows } from '../src/services/studentRosterPersistence.service';
@@ -33,6 +34,7 @@ function transactionFor(students: TestStudent[]) {
           id,
           teacherId,
           classId,
+          institutionId: students.find((item) => item.id === id)?.institutionId || null,
           matricule,
           firstName,
           lastName,
@@ -163,6 +165,56 @@ describe('existing student class reconciliation', () => {
     );
 
     expect(summary).toMatchObject({ created: 0, existing: 0, reassociated: 0, conflicts: 1 });
+    expect(summary.reviewReasonCounts).toMatchObject({ foreignOwner: 1 });
+    expect(students[0].classId).toBe('other-class');
+  });
+
+  it('classifies a 152-like foreign-owner batch without exposing identities', async () => {
+    const students = Array.from({ length: 152 }, (_, index) =>
+      existingStudent(
+        `student-${index}`,
+        `10${String(index).padStart(3, '0')}`,
+        `الاسم${index}`,
+        'اللقب',
+        'other-class',
+        'teacher-b'
+      )
+    );
+    const summary = await persistStudentRosterRows(
+      transactionFor(students),
+      input(students.map((student) => row(student.matricule, student.firstName, student.lastName)))
+    );
+
+    expect(summary).toMatchObject({ created: 0, existing: 0, reassociated: 0, conflicts: 152 });
+    expect(summary.reviewReasonCounts).toEqual({
+      foreignOwner: 152,
+      ambiguousMatch: 0,
+      duplicateWorkbookMembership: 0,
+      invalidIdentity: 0,
+      institutionMismatch: 0,
+      other: 0,
+    });
+  });
+
+  it('uses User.id for ownership because Student.teacherId references User.id', () => {
+    const schema = readFileSync('prisma/schema.prisma', 'utf8');
+    expect(schema).toContain('teacherId     String');
+    expect(schema).toContain(
+      'teacher       User     @relation(fields: [teacherId], references: [id]'
+    );
+    expect(readFileSync('src/server/apiRouter.ts', 'utf8')).toContain('teacherId: req.user!.id');
+  });
+
+  it('does not claim a matching matricule from another institution', async () => {
+    const students = [existingStudent('student-1', '1001', 'محمد', 'بن علي', 'other-class')];
+    students[0].institutionId = 'institution-2';
+    const summary = await persistStudentRosterRows(
+      transactionFor(students),
+      input([row('1001', 'محمد', 'بن علي')])
+    );
+
+    expect(summary).toMatchObject({ created: 0, existing: 0, reassociated: 0, conflicts: 1 });
+    expect(summary.reviewReasonCounts.institutionMismatch).toBe(1);
     expect(students[0].classId).toBe('other-class');
   });
 
