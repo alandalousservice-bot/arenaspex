@@ -7,6 +7,7 @@ import {
   Clock,
   FileText,
   MapPin,
+  Printer,
   Target,
 } from 'lucide-react';
 import type { ClassRoom, DailyNotebookEntry, LessonPlan, User } from '../../types/spex';
@@ -32,6 +33,11 @@ import {
   toDailyNotebookSessionDto,
 } from '../../services/dailyNotebook.service';
 import { formatLocalDate, getLocalWeekDates, shiftLocalDate } from '../../services/localDate';
+import {
+  buildDailyNotebookPrintModel,
+  DailyNotebookPrintModel,
+} from '../../services/dailyNotebookPrint.service';
+import { DailyNotebookPrintDocument } from './DailyNotebookPrintDocument';
 import {
   formatAcademicYearLabel,
   getAcademicYearOptions,
@@ -142,6 +148,29 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   const weekSessionCounts = useMemo(
     () => countSessionsByDate(sessions, weekDates),
     [sessions, weekDates]
+  );
+  const printModel = useMemo<DailyNotebookPrintModel | null>(
+    () =>
+      selectedClass
+        ? buildDailyNotebookPrintModel({
+            currentUser,
+            selectedClass,
+            academicYearId,
+            weekDates,
+            sessions,
+            notebookEntries: safeNotebookEntries,
+            lessonPlans: safeLessonPlans,
+          })
+        : null,
+    [
+      academicYearId,
+      currentUser,
+      safeLessonPlans,
+      safeNotebookEntries,
+      selectedClass,
+      sessions,
+      weekDates,
+    ]
   );
 
   useEffect(() => {
@@ -302,6 +331,14 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
     setFocusedSessionId('');
     setSelectedDate(shiftLocalDate(selectedDate, weeks * 7));
   };
+  const printDailyNotebook = async () => {
+    if (!printModel?.rows.length) return;
+    if (typeof document.fonts?.ready !== 'undefined') await document.fonts.ready;
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve());
+    });
+    window.print();
+  };
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200" dir="rtl">
@@ -380,6 +417,14 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
               className="rounded-xl border border-slate-200 px-3 py-2"
             >
               التالي
+            </button>
+            <button
+              type="button"
+              disabled={!printModel?.rows.length}
+              onClick={() => void printDailyNotebook()}
+              className="flex items-center gap-1 rounded-xl bg-slate-900 px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Printer className="h-3.5 w-3.5" /> طباعة الكراس اليومي
             </button>
           </div>
         </div>
@@ -626,7 +671,10 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                   <input
                     value={noteDrafts[session.id] ?? entry?.note ?? ''}
                     onChange={(event) =>
-                      setNoteDrafts((current) => ({ ...current, [session.id]: event.target.value }))
+                      setNoteDrafts((current) => ({
+                        ...current,
+                        [session.id]: event.target.value,
+                      }))
                     }
                     placeholder="ملاحظة التنفيذ"
                     className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
@@ -751,6 +799,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
           );
         })}
       </div>
+      {printModel && <DailyNotebookPrintDocument model={printModel} />}
     </div>
   );
 };

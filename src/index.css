@@ -4,6 +4,10 @@
   display: none;
 }
 
+.daily-notebook-print-root {
+  display: none;
+}
+
 @media print {
   @page weekly-timetable {
     size: A4 landscape;
@@ -47,6 +51,11 @@
   @page annual-plan {
     size: A4 landscape;
     margin: 4mm;
+  }
+
+  @page daily-notebook {
+    size: A4 landscape;
+    margin: 6mm;
   }
 
   html,
@@ -321,6 +330,276 @@
     font-size: 7pt;
     font-weight: 700;
     line-height: 1.1;
+  }
+
+  body:has(.daily-notebook-print-root) {
+    page: daily-notebook;
+  }
+
+  body:has(.daily-notebook-print-root) * {
+    visibility: hidden !important;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-root,
+  body:has(.daily-notebook-print-root) .daily-notebook-print-root * {
+    visibility: visible !important;
+  }
+
+  html:has(.daily-notebook-print-root),
+  body:has(.daily-notebook-print-root) {
+    width: 297mm;
+    min-width: 297mm;
+    background: #fff !important;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-root {
+    position: absolute;
+    inset: 0;
+    display: block !important;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    color: #0f172a;
+    font-family: Tahoma, Arial, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-page {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 198mm;
+    background: #fff;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-header {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 3mm;
+    border: 0.35mm solid #1e3a8a;
+    background: #fff;
+    padding: 3mm;
+    text-align: center;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-government {
+    color: #334155;
+    font-size: 7.5pt;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-header h1 {
+    margin: 1.5mm 0 0.5mm;
+    color: #0f2d63;
+    font-size: 15pt;
+    line-height: 1.2;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-header > p {
+    margin: 0 0 2mm;
+    color: #475569;
+    font-size: 8.5pt;
+    font-weight: 700;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-identity {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.5mm;
+    text-align: right;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-identity > div {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.5mm;
+    border: 0.2mm solid #bfdbfe;
+    background: #eff6ff;
+    padding: 1.5mm 2mm;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-identity span {
+    color: #1d4ed8;
+    font-size: 7pt;
+    font-weight: 700;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-identity strong {
+    overflow-wrap: anywhere;
+    font-size: 8pt;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-week {
+    margin-top: 2mm;
+    color: #334155;
+    font-size: 7.5pt;
+    font-weight: 700;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    direction: rtl;
+    font-size: 7.5pt;
+    line-height: 1.3;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-table caption {
+    border: 0.3mm solid #172554;
+    background: #172554;
+    padding: 1.5mm 2mm;
+    color: #fff;
+    font-size: 9pt;
+    font-weight: 800;
+    text-align: right;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-table th,
+  body:has(.daily-notebook-print-root) .daily-notebook-print-table td {
+    box-sizing: border-box;
+    border: 0.25mm solid #64748b;
+    padding: 1.5mm;
+    overflow-wrap: anywhere;
+    vertical-align: top;
+    white-space: normal;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-table thead th {
+    background: #1e3a8a;
+    color: #fff;
+    font-size: 8pt;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-table tbody tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-col-date {
+    width: 10%;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-col-session {
+    width: 15%;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-col-learning {
+    width: 28%;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-col-content {
+    width: 25%;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-col-memo {
+    width: 9%;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-col-notes {
+    width: 13%;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-date {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5mm;
+    text-align: center;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-date b {
+    color: #1d4ed8;
+    font-size: 14pt;
+    line-height: 1;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-session-meta,
+  body:has(.daily-notebook-print-root) .daily-notebook-print-learning-meta,
+  body:has(.daily-notebook-print-root) .daily-notebook-print-status {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8mm;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-class-name,
+  body:has(.daily-notebook-print-root) .daily-notebook-print-objective-label,
+  body:has(.daily-notebook-print-root) .daily-notebook-print-memo strong {
+    color: #172554;
+    font-weight: 800;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-type {
+    display: inline-block;
+    width: fit-content;
+    border: 0.2mm solid #93c5fd;
+    background: #eff6ff;
+    padding: 0.8mm 1.3mm;
+    color: #1e40af;
+    font-weight: 800;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-objective-label {
+    display: block;
+    margin-top: 1.5mm;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-objective {
+    margin-top: 0.5mm;
+    font-size: 8.5pt;
+    font-weight: 800;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-learning-meta {
+    margin-top: 2mm;
+    color: #475569;
+    font-size: 6.8pt;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-content,
+  body:has(.daily-notebook-print-root) .daily-notebook-print-status {
+    white-space: pre-line;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-memo {
+    background: #f8fafc;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-status strong {
+    border-bottom: 0.2mm solid #94a3b8;
+    padding-bottom: 0.8mm;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-empty {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    border: 0.25mm solid #94a3b8;
+    padding: 8mm;
+    color: #475569;
+    font-size: 10pt;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-footer {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-top: 4mm;
+    border-top: 0.25mm solid #64748b;
+    padding-top: 3mm;
+    color: #334155;
+    font-size: 8pt;
+    font-weight: 700;
+    text-align: center;
   }
 
   body:has(.planning-print-document) .planning-print-header {
