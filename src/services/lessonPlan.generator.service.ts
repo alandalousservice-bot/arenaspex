@@ -27,6 +27,7 @@ export interface AutoGenerateContext {
   teacher?: User;
   dailyNotebookEntryId?: string;
   classPlannedSessionId?: string;
+  referenceSessionId?: string;
   academicYearId?: string;
   classId?: string;
   plannedStartTime?: string | null;
@@ -187,6 +188,7 @@ export function autoGenerateLessonPlan(
       : `lp_auto_${Date.now()}`,
     dailyNotebookEntryId: ctx.dailyNotebookEntryId,
     classPlannedSessionId: ctx.classPlannedSessionId,
+    referenceSessionId: ctx.referenceSessionId,
     academicYearId: ctx.academicYearId,
     classId: ctx.classId,
     plannedStartTime: ctx.plannedStartTime,

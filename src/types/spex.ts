@@ -582,6 +582,7 @@ export interface LessonPlan {
   id: string;
   dailyNotebookEntryId?: string;
   classPlannedSessionId?: string;
+  referenceSessionId?: string;
   academicYearId?: string;
   classId?: string;
   plannedStartTime?: string | null;

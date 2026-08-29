@@ -20,7 +20,18 @@ import {
 } from '../../services/api';
 import { mergeSchedule, MergedScheduledLesson } from '../../services/schedule/scheduleMerge';
 import { canonicalReferenceSessions } from '../../services/teacherPlanning.service';
-import { getAcademicYearOptions, getCurrentAcademicYear } from '../../services/academicYear';
+import {
+  formatAcademicYearLabel,
+  getAcademicYearOptions,
+  getCurrentAcademicYear,
+  isCanonicalAcademicYearId,
+} from '../../services/academicYear';
+import {
+  findOperationalLessonPlan,
+  isOwnedOperationalSession,
+  LessonMemoMode,
+  sortOperationalSessions,
+} from '../../services/lessonPlanWorkflow.service';
 import {
   exportLessonPlanToPdf,
   exportLessonPlanToWord,
@@ -55,6 +66,7 @@ const LEVEL_KEYS: Record<string, string> = {
   'السنة الخامسة ابتدائي': 'lvl_p5',
 };
 const LEVELS = Object.keys(LEVEL_KEYS);
+const YEAR_KEY = 'arenaspex:selectedAcademicYear';
 
 type SourceSession = Parameters<typeof autoGenerateLessonPlan>[0];
 
@@ -95,6 +107,9 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   onOpenCommandCenterForPlan,
   inspectorName,
 }) => {
+  const query = useMemo(() => new URLSearchParams(window.location.search), []);
+  const requestedClassId = query.get('classId') || '';
+  const requestedSessionId = query.get('classPlannedSessionId') || '';
   const [selectedId, setSelectedId] = useState(activeLessonId || lessonPlans[0]?.id || '');
   const [showGenerator, setShowGenerator] = useState(false);
   const [levelName, setLevelName] = useState(LEVELS[0]);
@@ -107,21 +122,43 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [sourceLabel, setSourceLabel] = useState<'actual' | 'fallback'>('fallback');
   const [generationError, setGenerationError] = useState('');
   const [draft, setDraft] = useState<LessonPlan | null>(null);
-  const [scheduledContext, setScheduledContext] = useState<{
-    session: TeacherPlanningSession;
-    reference: ReturnType<typeof canonicalReferenceSessions>[number];
-    classRoom: ClassRoom;
-  } | null>(null);
+  const [memoMode, setMemoMode] = useState<LessonMemoMode>('operational');
+  const [operationalClassId, setOperationalClassId] = useState(requestedClassId);
+  const [operationalAcademicYearId, setOperationalAcademicYearId] = useState(() => {
+    const requestedYear = query.get('academicYearId') || localStorage.getItem(YEAR_KEY) || '';
+    return isCanonicalAcademicYearId(requestedYear) ? requestedYear : getCurrentAcademicYear();
+  });
+  const [operationalSessionId, setOperationalSessionId] = useState(requestedSessionId);
+  const [operationalSessions, setOperationalSessions] = useState<TeacherPlanningSession[]>([]);
+  const [operationalSelectionActive, setOperationalSelectionActive] = useState(
+    Boolean(requestedSessionId)
+  );
   const [scheduledError, setScheduledError] = useState('');
   const [scheduledLoading, setScheduledLoading] = useState(false);
-  const query = useMemo(() => new URLSearchParams(window.location.search), []);
-  const requestedClassId = query.get('classId') || '';
-  const requestedSessionId = query.get('classPlannedSessionId') || '';
-  const scheduledMode = Boolean(requestedSessionId);
+  const scheduledMode = Boolean(requestedSessionId) || operationalSelectionActive;
+  const operationalClass = teacherClasses.find((item) => item.id === operationalClassId);
+  const operationalSession = operationalSessions.find((item) => item.id === operationalSessionId);
+  const scheduledContext = useMemo(() => {
+    if (!operationalClass || !operationalSession) return null;
+    const canonicalReference = canonicalReferenceSessions(operationalClass.levelId).find(
+      (item) => item.referenceSessionId === operationalSession.referenceSessionId
+    );
+    if (!canonicalReference) return null;
+    return {
+      session: operationalSession,
+      reference: operationalSession.reference
+        ? { ...canonicalReference, objective: operationalSession.reference.objective }
+        : canonicalReference,
+      classRoom: operationalClass,
+    };
+  }, [operationalClass, operationalSession]);
+  const existingOperationalMemo = scheduledContext
+    ? findOperationalLessonPlan(lessonPlans, scheduledContext.session, currentUser?.id || '')
+    : undefined;
   const sessions = useMemo(() => sessionsForLevel(levelName), [levelName]);
   const generatorSessions = useMemo<SourceSession[]>(
     () =>
-      scheduledContext
+      memoMode === 'operational' && scheduledContext
         ? [
             {
               fieldId: scheduledContext.reference.domainId,
@@ -164,10 +201,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]
                 ?.suggestedTools || [],
           })),
-    [scheduledContext, scheduledLessons]
+    [memoMode, scheduledContext, scheduledLessons]
   );
   const selected = scheduledMode
-    ? lessonPlans.find((plan) => plan.classPlannedSessionId === scheduledContext?.session.id)
+    ? existingOperationalMemo
     : lessonPlans.find((plan) => plan.id === selectedId) || lessonPlans[0];
 
   useEffect(() => {
@@ -177,49 +214,53 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     if (activeLessonId) setSelectedId(activeLessonId);
   }, [activeLessonId]);
   useEffect(() => {
-    if (!requestedSessionId) return;
-    const classRoom = teacherClasses.find((item) => item.id === requestedClassId);
-    if (!classRoom) {
-      setScheduledError('تعذر التحقق من القسم المرتبط بالحصة التشغيلية.');
-      return;
-    }
+    if (!operationalClassId && teacherClasses[0]) setOperationalClassId(teacherClasses[0].id);
+  }, [operationalClassId, teacherClasses]);
+
+  useEffect(() => {
+    const shouldLoad =
+      Boolean(operationalClassId) &&
+      Boolean(operationalAcademicYearId) &&
+      (Boolean(requestedSessionId) || (showGenerator && memoMode === 'operational'));
+    if (!shouldLoad) return;
     let cancelled = false;
     setScheduledLoading(true);
     setScheduledError('');
-    const requestedYear =
-      query.get('academicYearId') || localStorage.getItem('arenaspex:selectedAcademicYear') || '';
-    const years = requestedYear ? [requestedYear] : getAcademicYearOptions();
-    Promise.all(years.map((year) => fetchTeacherPlanningSessions(classRoom.id, year)))
-      .then((results) => {
+    fetchTeacherPlanningSessions(operationalClassId, operationalAcademicYearId)
+      .then((result) => {
         if (cancelled) return;
-        const located = results
-          .flatMap((result) => result.sessions)
-          .find((item) => item.id === requestedSessionId);
-        const canonicalReference = located
-          ? canonicalReferenceSessions(classRoom.levelId).find(
-              (item) => item.referenceSessionId === located.referenceSessionId
-            )
-          : undefined;
-        const reference =
-          canonicalReference && located?.reference
-            ? { ...canonicalReference, objective: located.reference.objective }
-            : canonicalReference;
-        if (!located || !reference || located.classId !== classRoom.id) {
-          setScheduledError(
-            !located
-              ? 'الحصة التشغيلية المطلوبة غير موجودة ضمن أقسامك.'
-              : 'تعذر تحميل المرجع البيداغوجي لهذه الحصة.'
-          );
+        const nextSessions = sortOperationalSessions(result.sessions);
+        setOperationalSessions(nextSessions);
+        const requested = requestedSessionId || operationalSessionId;
+        const nextId = nextSessions.some((item) => item.id === requested)
+          ? requested
+          : nextSessions[0]?.id || '';
+        if (requestedSessionId && !nextSessions.some((item) => item.id === requestedSessionId)) {
+          setScheduledError('الحصة التشغيلية المطلوبة غير موجودة ضمن أقسامك.');
+          setOperationalSessionId('');
           return;
         }
-        setScheduledContext({ session: located, reference, classRoom });
+        setOperationalSessionId(nextId);
+        const located = nextSessions.find((item) => item.id === nextId);
         const matchingLevel = Object.entries(LEVEL_KEYS).find(
-          ([, id]) => id === classRoom.levelId
+          ([, id]) => id === operationalClass?.levelId
         )?.[0];
         if (matchingLevel) setLevelName(matchingLevel);
+        if (
+          located &&
+          !canonicalReferenceSessions(operationalClass?.levelId || '').some(
+            (item) => item.referenceSessionId === located.referenceSessionId
+          )
+        ) {
+          setScheduledError('تعذر تحميل المرجع البيداغوجي لهذه الحصة.');
+        }
       })
       .catch(() => {
-        if (!cancelled) setScheduledError('تعذر تحميل الحصة التشغيلية المطلوبة.');
+        if (!cancelled) {
+          setOperationalSessions([]);
+          setOperationalSessionId('');
+          setScheduledError('تعذر تحميل الحصص التشغيلية للقسم المحدد.');
+        }
       })
       .finally(() => {
         if (!cancelled) setScheduledLoading(false);
@@ -227,7 +268,14 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.id, requestedClassId, requestedSessionId, teacherClasses, query]);
+  }, [
+    memoMode,
+    operationalAcademicYearId,
+    operationalClassId,
+    operationalClass?.levelId,
+    requestedSessionId,
+    showGenerator,
+  ]);
 
   useEffect(() => {
     if (!showBank) return;
@@ -238,7 +286,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   }, [showBank]);
 
   useEffect(() => {
-    if (!showGenerator || !currentUser?.id || scheduledContext) return;
+    if (!showGenerator || !currentUser?.id || memoMode === 'operational') return;
     const levelId = LEVEL_KEYS[levelName];
     const base = generateAnnualTimeDistribution(
       levelId,
@@ -267,33 +315,60 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         setScheduledLessons([]);
         setSourceLabel('fallback');
       });
-  }, [showGenerator, levelName, currentUser?.id, scheduledContext]);
+  }, [showGenerator, levelName, currentUser?.id, memoMode, scheduledContext]);
 
   const createPlan = () => {
+    if (memoMode === 'operational') {
+      if (
+        !scheduledContext ||
+        !isOwnedOperationalSession(scheduledContext.session, {
+          teacherId: currentUser?.id || '',
+          classId: operationalClassId,
+          academicYearId: operationalAcademicYearId,
+        })
+      ) {
+        setGenerationError('اختر حصة مبرمجة صحيحة ضمن القسم والسنة الدراسية المحددين.');
+        return;
+      }
+      if (existingOperationalMemo) {
+        setSelectedId(existingOperationalMemo.id);
+        setOperationalSelectionActive(true);
+        setShowGenerator(false);
+        setGenerationError('');
+        return;
+      }
+    }
+    const operationalContext = memoMode === 'operational' ? scheduledContext : null;
     const source = (generatorSessions.length ? generatorSessions : sessions)[sessionIndex];
     if (!source) {
-      setGenerationError('تعذر العثور على حصة صالحة من التوزيع السنوي. حاول إعادة فتح الحصة.');
+      setGenerationError(
+        memoMode === 'operational'
+          ? 'لم يتم إنشاء التوزيع السنوي لهذا القسم بعد.'
+          : 'تعذر العثور على حصة صالحة من المنهاج.'
+      );
       return;
     }
     try {
       const plan = autoGenerateLessonPlan(source, {
-        levelName: scheduledContext?.classRoom.levelName || levelName,
+        levelName: operationalContext?.classRoom.levelName || levelName,
         teacher: currentUser,
-        className: scheduledContext?.classRoom.name || '',
-        classPlannedSessionId: scheduledContext?.session.id,
-        academicYearId: scheduledContext?.session.academicYearId,
-        classId: scheduledContext?.session.classId,
-        plannedStartTime: scheduledContext?.session.startTime,
-        venue: scheduledContext?.session.venue,
+        className: operationalContext?.classRoom.name || '',
+        classPlannedSessionId: operationalContext?.session.id,
+        referenceSessionId: operationalContext?.session.referenceSessionId,
+        academicYearId: operationalContext?.session.academicYearId,
+        classId: operationalContext?.session.classId,
+        plannedStartTime: operationalContext?.session.startTime,
+        venue: operationalContext?.session.venue,
         inspectorName,
-        date: scheduledContext?.session.plannedDate.slice(0, 10),
-        durationMinutes: scheduledContext?.session.durationMinutes,
+        date: operationalContext?.session.plannedDate.slice(0, 10),
+        durationMinutes: operationalContext?.session.durationMinutes,
       });
       if (!plan.lessonRows?.length) throw new Error('empty memo');
       onSaveLessonPlan(plan);
       setSelectedId(plan.id);
       setGenerationError('');
       setShowGenerator(false);
+      setOperationalSelectionActive(memoMode === 'operational');
     } catch {
       setGenerationError('تعذر توليد المذكرة. حاول إعادة فتح الحصة.');
     }
@@ -334,42 +409,165 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
       <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
-          <h3 className="font-extrabold">توليد مذكرة من التوزيع السنوي</h3>
-          <button onClick={() => setShowGenerator(false)}>
+          <h3 className="font-extrabold">
+            {memoMode === 'operational' ? 'مذكرة حصة مبرمجة' : 'مذكرة مستقلة'}
+          </h3>
+          <button onClick={() => setShowGenerator(false)} aria-label="إغلاق">
             <X className="h-5 w-5" />
           </button>
         </div>
-        <label className="mb-1 block text-sm font-bold">المستوى</label>
-        <select
-          value={levelName}
-          onChange={(event) => setLevelName(event.target.value)}
-          className="mb-4 w-full rounded-xl border p-2"
-        >
-          {LEVELS.map((level) => (
-            <option key={level}>{level}</option>
-          ))}
-        </select>
-        <label className="mb-1 block text-sm font-bold">الحصة</label>
-        <select
-          value={sessionIndex}
-          onChange={(event) => setSessionIndex(Number(event.target.value))}
-          className="w-full rounded-xl border p-2"
-        >
-          {(generatorSessions.length ? generatorSessions : sessions).map((session, index) => (
-            <option key={`${session.fieldId}-${session.sessionNumber}`} value={index}>
-              الحصة {session.globalNumber}: {session.objective}
-            </option>
-          ))}
-        </select>
-        <p className="mt-2 text-xs font-bold text-slate-600">
-          المصدر:{' '}
-          {sourceLabel === 'actual'
-            ? 'التوزيع السنوي الفعلي للحصص'
-            : 'احتياطي المنهاج الثابت (لا يوجد سجل توزيع فعلي)'}
-        </p>
-        <p className="mt-3 text-xs text-slate-500">
-          يؤخذ الهدف والكفاءة والميدان والوسائل من الحصة الحالية؛ يمكن تعديل المذكرة بعد توليدها.
-        </p>
+        <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
+          <button
+            type="button"
+            onClick={() => {
+              setMemoMode('operational');
+              setGenerationError('');
+            }}
+            className={`rounded-lg px-3 py-2 text-xs font-bold ${memoMode === 'operational' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600'}`}
+          >
+            مذكرة حصة مبرمجة
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMemoMode('standalone');
+              setGenerationError('');
+            }}
+            className={`rounded-lg px-3 py-2 text-xs font-bold ${memoMode === 'standalone' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600'}`}
+          >
+            مذكرة مستقلة
+          </button>
+        </div>
+        {memoMode === 'operational' ? (
+          <>
+            <label className="mb-1 block text-sm font-bold">القسم</label>
+            <select
+              value={operationalClassId}
+              onChange={(event) => {
+                setOperationalClassId(event.target.value);
+                setOperationalSessionId('');
+                setOperationalSelectionActive(false);
+              }}
+              className="mb-3 w-full rounded-xl border p-2"
+            >
+              <option value="">اختر قسماً</option>
+              {teacherClasses.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} — {item.levelName || item.levelId}
+                </option>
+              ))}
+            </select>
+            <label className="mb-1 block text-sm font-bold">الموسم الدراسي</label>
+            <select
+              value={operationalAcademicYearId}
+              onChange={(event) => {
+                setOperationalAcademicYearId(event.target.value);
+                setOperationalSessionId('');
+                setOperationalSelectionActive(false);
+              }}
+              className="mb-3 w-full rounded-xl border p-2"
+            >
+              {getAcademicYearOptions().map((year) => (
+                <option key={year} value={year}>
+                  {formatAcademicYearLabel(year)}
+                </option>
+              ))}
+            </select>
+            {scheduledLoading ? (
+              <p className="rounded-xl bg-slate-50 p-3 text-xs font-bold text-slate-600">
+                جارٍ تحميل الحصص المبرمجة...
+              </p>
+            ) : operationalSessions.length ? (
+              <>
+                <label className="mb-1 block text-sm font-bold">الحصة المبرمجة</label>
+                <select
+                  value={operationalSessionId}
+                  onChange={(event) => {
+                    setOperationalSessionId(event.target.value);
+                    setOperationalSelectionActive(true);
+                    setGenerationError('');
+                  }}
+                  className="w-full rounded-xl border p-2 text-sm"
+                >
+                  {operationalSessions.map((session) => {
+                    const memo = findOperationalLessonPlan(
+                      lessonPlans,
+                      session,
+                      currentUser?.id || ''
+                    );
+                    return (
+                      <option key={session.id} value={session.id}>
+                        {session.plannedDate} · {session.reference?.sessionTypeLabel || 'حصة'} ·
+                        الحصة {session.reference?.sequenceIndex || '—'} ·{' '}
+                        {session.reference?.objective || 'هدف غير محدد'} ·{' '}
+                        {session.startTime || 'توقيت غير محدد'} ·{' '}
+                        {memo ? 'مذكرة موجودة' : 'غير منشأة'}
+                      </option>
+                    );
+                  })}
+                </select>
+                {scheduledContext && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    الهدف: {scheduledContext.reference.objective} · المدة:{' '}
+                    {scheduledContext.session.durationMinutes} دقيقة · التاريخ:{' '}
+                    {scheduledContext.session.plannedDate}
+                  </p>
+                )}
+              </>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
+                <p className="text-sm font-bold text-slate-700">
+                  لم يتم إنشاء التوزيع السنوي لهذا القسم بعد.
+                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.location.assign(
+                      `/planning?section=annual-distribution&classId=${encodeURIComponent(operationalClassId)}&academicYearId=${encodeURIComponent(operationalAcademicYearId)}`
+                    )
+                  }
+                  className="mt-3 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"
+                >
+                  إنشاء / فتح التوزيع السنوي
+                </button>
+              </div>
+            )}
+            <p className="mt-3 text-xs text-slate-500">
+              تُبنى المذكرة على الحصة المحددة وقسمها وسنتها وتاريخها الفعلي.
+            </p>
+          </>
+        ) : (
+          <>
+            <label className="mb-1 block text-sm font-bold">المستوى</label>
+            <select
+              value={levelName}
+              onChange={(event) => setLevelName(event.target.value)}
+              className="mb-4 w-full rounded-xl border p-2"
+            >
+              {LEVELS.map((level) => (
+                <option key={level}>{level}</option>
+              ))}
+            </select>
+            <label className="mb-1 block text-sm font-bold">الحصة المرجعية</label>
+            <select
+              value={sessionIndex}
+              onChange={(event) => setSessionIndex(Number(event.target.value))}
+              className="w-full rounded-xl border p-2"
+            >
+              {(generatorSessions.length ? generatorSessions : sessions).map((session, index) => (
+                <option key={`${session.fieldId}-${session.sessionNumber}`} value={index}>
+                  الحصة {session.globalNumber}: {session.objective}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs font-bold text-slate-600">
+              المصدر: {sourceLabel === 'actual' ? 'التوزيع السنوي المرجعي' : 'المنهاج المرجعي'}
+            </p>
+            <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
+              هذه المذكرة غير مرتبطة بحصة مبرمجة في الكراس اليومي.
+            </p>
+          </>
+        )}
         {generationError && (
           <p
             role="alert"
@@ -379,10 +577,12 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           </p>
         )}
         <button
+          type="button"
+          disabled={memoMode === 'operational' && (!scheduledContext || scheduledLoading)}
           onClick={createPlan}
-          className="mt-5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white"
+          className="mt-5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
-          إنشاء المذكرة
+          {memoMode === 'operational' && existingOperationalMemo ? 'فتح المذكرة' : 'توليد المذكرة'}
         </button>
       </div>
     </div>
@@ -416,11 +616,12 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           <button
             className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white"
             onClick={() => {
+              setMemoMode('operational');
               setGenerationError('');
               setShowGenerator(true);
             }}
           >
-            إنشاء المذكرة
+            مذكرة حصة مبرمجة
           </button>
         )}
         {generatorModal}
@@ -515,19 +716,39 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             مذكرة الحصة
           </h2>
           <p className="mt-1 text-xs text-slate-500">
-            قالب موحد مستمد من الحصة المحددة في التوزيع السنوي.
+            {isScheduled
+              ? 'قالب موحد مستمد من الحصة المحددة في التوزيع السنوي.'
+              : 'هذه المذكرة غير مرتبطة بحصة مبرمجة في الكراس اليومي.'}
           </p>
+          <span
+            className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${isScheduled ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-800'}`}
+          >
+            {isScheduled ? 'مذكرة حصة مبرمجة' : 'مذكرة مستقلة'}
+          </span>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => {
+              setMemoMode('operational');
               setGenerationError('');
               setShowGenerator(true);
             }}
             className="flex items-center gap-1 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
           >
             <Plus className="h-4 w-4" />
-            توليد مذكرة
+            مذكرة حصة مبرمجة
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMemoMode('standalone');
+              setGenerationError('');
+              setShowGenerator(true);
+            }}
+            className="flex items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
+          >
+            <FileText className="h-4 w-4" />
+            مذكرة مستقلة
           </button>
           {!editing && onOpenCommandCenterForPlan && (
             <button
