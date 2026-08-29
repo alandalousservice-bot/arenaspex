@@ -9,7 +9,7 @@ describe('Teacher workspace recovery route inventory', () => {
     '/lesson-plans': 'lesson_plans',
     '/lesson-command-center': 'lesson_command_center',
     '/knowledge-engine': 'knowledge_engine',
-    '/assessment': 'competency_assessment',
+    '/assessment': 'gradebook',
     '/gradebook': 'gradebook',
     '/attendance': 'attendance',
     '/assessment-notebook': 'gradebook',

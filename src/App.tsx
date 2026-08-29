@@ -64,11 +64,6 @@ const KnowledgeEngineView = lazy(() =>
     default: m.KnowledgeEngineView,
   }))
 );
-const CompetencyAssessmentView = lazy(() =>
-  import('./components/assessment/CompetencyAssessmentView').then((m) => ({
-    default: m.CompetencyAssessmentView,
-  }))
-);
 const GradebookView = lazy(() =>
   import('./components/gradebook/GradebookView').then((m) => ({ default: m.GradebookView }))
 );
@@ -160,7 +155,6 @@ export default function App() {
     teacherInspectorFeed,
     assignedTeachers,
     refreshAssignedTeachers,
-    assessmentSessions,
     broadcasts,
     directMessages,
     communityResources,
@@ -195,7 +189,6 @@ export default function App() {
     handleUpdateWeeklySlot,
     handleDeleteWeeklySlot,
     handleSaveLessonPlan,
-    handleSaveAssessmentSession,
     handleAddKnowledgeItem,
     handleUpdateKnowledgeItem,
     handleSubmitKnowledgeItem,
@@ -239,6 +232,14 @@ export default function App() {
   // → يُصحَّح تلقائياً إلى الرابط المناسب (replace حتى لا يُلوَّث السجل)
   useEffect(() => {
     if (!isAuthenticated) return;
+    if (location.pathname === '/assessment') {
+      const params = new URLSearchParams(location.search);
+      params.set('section', 'competency');
+      params.delete('workspace');
+      const query = params.toString();
+      navigate('/gradebook' + (query ? '?' + query : ''), { replace: true });
+      return;
+    }
     if (
       location.pathname === '/gradebook' &&
       new URLSearchParams(location.search).get('section') === 'attendance'
@@ -524,17 +525,6 @@ export default function App() {
                 onRejectKnowledgeItem={handleRejectKnowledgeItem}
                 currentUser={currentUser}
                 communityResources={communityResources}
-              />
-            )}
-
-            {activeTab === 'competency_assessment' && (
-              <CompetencyAssessmentView
-                assessmentSessions={assessmentSessions}
-                onSaveAssessmentSession={handleSaveAssessmentSession}
-                currentUser={currentUser}
-                classes={teacherClasses}
-                students={allStudents}
-                onAddClass={handleAddClass}
               />
             )}
 

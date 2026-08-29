@@ -56,7 +56,6 @@ import {
   InspectionVisit,
   AISetting,
   AILog,
-  CompetencyAssessmentSession,
   ClassRoom,
   Student,
   WeeklyScheduleSlot,
@@ -296,13 +295,6 @@ export function usePlatformStore({
       active = false;
     };
   }, [currentUser.id, currentUser.role, refreshInspectionVisits]);
-
-  const [assessmentSessions, setAssessmentSessions] = useState<CompetencyAssessmentSession[]>(
-    () => {
-      if (!currentUser?.id) return [];
-      return [];
-    }
-  );
 
   const [broadcasts, setBroadcasts] = useState<DistrictBroadcast[]>(INITIAL_BROADCASTS);
   const [directMessages, setDirectMessages] = useState<DirectChatMessage[]>(() => {
@@ -1446,10 +1438,6 @@ export function usePlatformStore({
   };
 
   // Command center / timing handlers
-  const handleSaveAssessmentSession = (s: CompetencyAssessmentSession) => {
-    setAssessmentSessions((prev) => [s, ...prev]);
-  };
-
   const handleUpdateTimingSettings = (st: LessonSessionTiming) => {
     setLessonTimingSettings(st);
   };
@@ -1483,7 +1471,6 @@ export function usePlatformStore({
     teacherInspectorFeed,
     assignedTeachers,
     refreshAssignedTeachers,
-    assessmentSessions,
     broadcasts,
     directMessages,
     communityResources,
@@ -1520,7 +1507,6 @@ export function usePlatformStore({
     handleUpdateNotebookStatus,
     handleUpdateLessonStatus,
     handleSaveLessonPlan,
-    handleSaveAssessmentSession,
     // Knowledge & Inspector handlers
     handleAddKnowledgeItem,
     handleUpdateKnowledgeItem,

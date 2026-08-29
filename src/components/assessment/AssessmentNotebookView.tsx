@@ -10,6 +10,7 @@ import {
   Users,
 } from 'lucide-react';
 import { canonicalReferenceSessions } from '../../services/teacherPlanning.service';
+import { calculateAssessmentMastery } from '../../services/assessmentMastery';
 import {
   createOrReuseTeacherAssessmentSession,
   fetchTeacherAssessmentSession,
@@ -49,6 +50,7 @@ interface AssessmentNotebookViewProps {
   students: Student[];
   selectedClassId?: string;
   onSelectedClassIdChange?: (classId: string) => void;
+  visibleSections?: NotebookSection[];
 }
 
 type NotebookSection = 'competency' | 'marks' | 'attendance' | 'exemptions' | 'results' | 'reports';
@@ -99,7 +101,16 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
   students,
   selectedClassId: controlledClassId,
   onSelectedClassIdChange,
+  visibleSections,
 }) => {
+  const allowedSections: NotebookSection[] = visibleSections || [
+    'competency',
+    'marks',
+    'attendance',
+    'exemptions',
+    'results',
+    'reports',
+  ];
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const ownedClasses = useMemo(
     () => teacherClasses.filter((item) => item.teacherId === currentUser.id),
@@ -107,8 +118,9 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
   );
   const yearOptions = useMemo(() => getAcademicYearOptions(), []);
   const requestedPlannedSessionId = params.get('classPlannedSessionId') || '';
+  const requestedSection = params.get('section') as NotebookSection;
   const [section, setSection] = useState<NotebookSection>(
-    (params.get('section') as NotebookSection) || 'competency'
+    allowedSections.includes(requestedSection) ? requestedSection : allowedSections[0]
   );
   const [selectedClassId, setSelectedClassId] = useState(
     controlledClassId || params.get('classId') || ownedClasses[0]?.id || ''
@@ -593,10 +605,10 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <span className="rounded-lg bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
-              دفتر التقويم
+              دفتر التنقيط
             </span>
             <h1 className="mt-2 flex items-center gap-2 text-xl font-extrabold text-slate-900">
-              <BookOpenCheck className="h-6 w-6 text-purple-600" /> مساحة التقويم البيداغوجي الموحدة
+              <BookOpenCheck className="h-6 w-6 text-purple-600" /> دفتر التنقيط والتقويم البيداغوجي
             </h1>
             <p className="mt-1 text-xs text-slate-500">
               تقويم الكفاءات والعلامات ونتائج القسم وتقارير التلاميذ من البيانات المحفوظة فعلياً.
@@ -644,16 +656,18 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
               ['results', 'نتائج القسم', BarChart3],
               ['reports', 'تقارير التلميذ', Users],
             ] as const
-          ).map(([value, label, Icon]) => (
-            <button
-              key={value}
-              onClick={() => setSection(value)}
-              className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-extrabold ${section === value ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-600'}`}
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </button>
-          ))}
+          )
+            .filter(([value]) => allowedSections.includes(value))
+            .map(([value, label, Icon]) => (
+              <button
+                key={value}
+                onClick={() => setSection(value)}
+                className={`flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-xs font-extrabold ${section === value ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-600'}`}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            ))}
         </nav>
       </header>
 
@@ -818,6 +832,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                   classStudents.map((student) => {
                     const draft = drafts[student.id] || emptyDraft();
                     const persisted = resultsByStudent.has(student.id);
+                    const mastery = calculateAssessmentMastery(draft.criteria);
                     return (
                       <tr key={student.id} className="align-top">
                         <td className="p-3 font-extrabold">
@@ -826,6 +841,9 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                             className={`mt-1 block text-[10px] ${persisted ? 'text-emerald-700' : 'text-slate-400'}`}
                           >
                             {persisted ? 'نتيجة محفوظة' : 'غير مقوّم'}
+                          </span>
+                          <span className="mt-1 block text-[10px] font-bold text-purple-700">
+                            {mastery ? `التملك العام: ${mastery}` : 'التملك العام: غير مقوّم'}
                           </span>
                         </td>
                         {CRITERIA.map((item) => (
@@ -922,7 +940,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
         </section>
       )}
 
-      {section === 'attendance' && (
+      {allowedSections.includes('attendance') && section === 'attendance' && (
         <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -1054,7 +1072,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
         </section>
       )}
 
-      {section === 'exemptions' && (
+      {allowedSections.includes('exemptions') && section === 'exemptions' && (
         <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-5">
           <div>
             <h2 className="flex items-center gap-2 font-extrabold">

@@ -29,7 +29,8 @@ describe('new account data cleanliness', () => {
     expect(gradebook).toContain(
       "const activeClass = classes.find((c) => c.id === selectedClassId) || classes[0] || { id: '', name: '', studentCount: 0 }"
     );
-    expect(gradebook).toContain('attendanceRate: 0');
+    expect(gradebook).toContain('studentCount: 0');
+    expect(gradebook).not.toContain('spex_grade_records_');
     expect(inspector).toContain('لا يوجد أساتذة مرتبطون بهذه المقاطعة حالياً.');
     expect(inspector).toContain(
       'const safeTeachers = (Array.isArray(teachers) ? teachers : []).filter(Boolean);'

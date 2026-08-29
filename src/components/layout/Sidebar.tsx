@@ -40,7 +40,6 @@ export type NavTab =
   | 'lesson_command_center'
   | 'educational_situations'
   | 'knowledge_engine'
-  | 'competency_assessment'
   | 'gradebook'
   | 'attendance'
   | 'professional_hub'
@@ -121,11 +120,6 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
               highlight: true,
             },
             { id: 'knowledge_engine' as NavTab, label: 'بنك المعرفة التربوية', icon: BrainCircuit },
-            {
-              id: 'competency_assessment' as NavTab,
-              label: 'تقويم الكفاءة الختامية',
-              icon: Target,
-            },
             { id: 'gradebook' as NavTab, label: 'دفتر التنقيط والأقسام', icon: GraduationCap },
             { id: 'attendance' as NavTab, label: 'دفتر الغياب والمواظبة', icon: UserCheck },
           ],
@@ -485,7 +479,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                 }`}
               >
                 <Target className="w-5 h-5" />
-                <span className="text-[10px]">التقويم</span>
+                <span className="text-[10px]">التنقيط</span>
               </button>
 
               <button

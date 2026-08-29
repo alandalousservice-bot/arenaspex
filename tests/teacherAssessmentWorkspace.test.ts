@@ -1,16 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { pathToTab, ROLE_TABS, tabToPath } from '../src/lib/routes';
+import { pathToTab, ROLE_TABS } from '../src/lib/routes';
 
 const read = (path: string) => readFileSync(path, 'utf8');
 
 describe('unified Teacher assessment notebook', () => {
   it('routes the unified notebook and preserves legacy assessment links', () => {
     expect(pathToTab('/assessment-notebook')).toBe('gradebook');
-    expect(pathToTab('/assessment')).toBe('competency_assessment');
+    expect(pathToTab('/assessment')).toBe('gradebook');
     expect(pathToTab('/gradebook')).toBe('gradebook');
-    expect(ROLE_TABS.teacher).toContain('competency_assessment');
     expect(ROLE_TABS.teacher).toContain('gradebook');
+    expect(ROLE_TABS.teacher).not.toContain('competency_assessment');
   });
 
   it('uses persisted sessions and explicit null/unassessed UI values', () => {
@@ -46,13 +46,18 @@ describe('unified Teacher assessment notebook', () => {
   it('removes the retired combined notebook entry from the Gradebook workspace', () => {
     const sidebar = read('src/components/layout/Sidebar.tsx');
     const gradebook = read('src/components/gradebook/GradebookView.tsx');
+    const app = read('src/App.tsx');
     expect(sidebar).not.toContain("id: 'assessment_notebook'");
+    expect(sidebar).not.toContain("id: 'competency_assessment'");
     expect(gradebook).not.toContain("workspaceSection === 'assessment'");
-    expect(gradebook).not.toContain('AssessmentNotebookView');
+    expect(gradebook).toContain('AssessmentNotebookView');
+    expect(gradebook).toContain("visibleSections={['competency', 'marks', 'results', 'reports']}");
+    expect(gradebook).not.toContain('spex_grade_records_');
     expect(gradebook).not.toContain('دفتر التقويم والكفاءات والحضور');
     expect(gradebook).not.toContain("activeRegister === 'attendance'");
     expect(gradebook).toContain('دفتر التنقيط الذكي');
     expect(gradebook).toContain('دفتر المعفيين طبياً');
+    expect(app).not.toContain('CompetencyAssessmentView');
   });
 
   it('redirects the legacy route to the canonical Gradebook without the retired workspace query', () => {
@@ -65,6 +70,7 @@ describe('unified Teacher assessment notebook', () => {
     expect(app).toContain("params.delete('section')");
     expect(app).toContain("params.delete('workspace')");
     expect(app).toContain("navigate('/gradebook' + (query ? '?' + query : ''), { replace: true })");
+    expect(app).toContain("params.set('section', 'competency')");
     expect(app).not.toContain("params.set('workspace', 'assessment')");
   });
 

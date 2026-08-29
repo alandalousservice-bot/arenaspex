@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { calculateAssessmentMastery } from '../src/services/assessmentMastery';
 
 const read = (file: string) => readFileSync(file, 'utf8');
 const schema = read('prisma/schema.prisma');
@@ -9,7 +10,7 @@ const migration = read(
 const router = read('src/server/apiRouter.ts').replace(/\s+/g, ' ').replace(/\(\s+/g, '(');
 const api = read('src/services/api.ts');
 const gradebook = read('src/components/gradebook/GradebookView.tsx');
-const competency = read('src/components/assessment/CompetencyAssessmentView.tsx');
+const notebook = read('src/components/assessment/AssessmentNotebookView.tsx');
 
 describe('persisted Teacher assessment foundation', () => {
   it('declares the three additive models and cascade policy', () => {
@@ -67,19 +68,21 @@ describe('persisted Teacher assessment foundation', () => {
     expect(api).toContain('upsertTeacherCriterionResult');
   });
 
-  it('keeps Gradebook fresh students unassessed', () => {
-    expect(gradebook).toContain('behaviorRating: null');
-    expect(gradebook).toContain('competencyRating: null');
-    expect(gradebook).toContain('suggestedMark: null');
-    expect(gradebook).toContain('finalMark: null');
-    expect(gradebook).not.toContain('defaultBehavior');
-    expect(gradebook).not.toContain("|| 'تمكن جيد'");
+  it('makes the persisted notebook the Gradebook assessment source', () => {
+    expect(gradebook).toContain('AssessmentNotebookView');
+    expect(gradebook).toContain("visibleSections={['competency', 'marks', 'results', 'reports']}");
+    expect(gradebook).not.toContain('GradeRecord');
+    expect(gradebook).not.toContain('spex_grade_records_');
+    expect(notebook).toContain('fetchTeacherAssessmentSession');
+    expect(notebook).toContain('fetchTeacherStudentAssessmentHistory');
   });
 
-  it('keeps Competency Assessment fresh students unassessed', () => {
-    expect(competency).toContain('const studentCurrentGrades = sessionMap[studentId] || {};');
-    expect(competency).toContain('<option value="">غير مقوّم</option>');
-    expect(competency).not.toContain("|| { C1: 'ب', C2: 'ب', C3: 'ب', C4: 'ب' }");
+  it('derives mastery from saved criterion levels without inventing defaults', () => {
+    expect(calculateAssessmentMastery({ C1: 'أ', C2: 'أ', C3: 'ب', C4: 'ب' })).toBe('أ');
+    expect(calculateAssessmentMastery({ C1: 'ج', C2: 'ج', C3: 'ج', C4: 'ج' })).toBe('ج');
+    expect(calculateAssessmentMastery({})).toBeNull();
+    expect(notebook).toContain('calculateAssessmentMastery');
+    expect(notebook).toContain('التملك العام: غير مقوّم');
   });
 
   it('keeps attendance and exemption persistence additive and separate', () => {

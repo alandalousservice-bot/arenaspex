@@ -119,53 +119,6 @@ export interface PersonalObjective {
   updatedAt: string;
 }
 
-// Evaluation Weights Scheme out of 10 Points (Configurable by Teacher or Institution)
-export interface EvaluationWeights {
-  competencyWeight: number; // default 5.0 (تملك الكفاءة الختامية)
-  participationWeight: number; // default 2.0 (المشاركة الفعالة)
-  behaviorWeight: number; // default 2.0 (السلوك والانضباط)
-  attendanceWeight: number; // default 1.0 (المواظبة والحضور)
-  unexcusedDeduction: number; // deduction per unexcused absence (e.g. 0.25)
-}
-
-// Revision History Audit Log for Grade Overrides and Transparency
-export interface GradeAuditLog {
-  id: string;
-  studentId: string;
-  studentName: string;
-  classId: string;
-  term: 'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث';
-  suggestedMark: number | null;
-  previousFinalMark?: number | null;
-  newFinalMark: number;
-  changedByTeacherName: string;
-  changeDate: string;
-  reason?: string;
-}
-
-// Grade Record out of 10 Points with Platform Intelligent Suggestions & Teacher Final Decision
-export interface GradeRecord {
-  id: string;
-  studentId: string;
-  classId: string;
-  term: 'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث';
-  behaviorRating: 'ممتاز' | 'جيد' | 'متوسط' | 'ضعيف' | null;
-  behaviorScore: number | null; // derived from behaviorRating & behaviorWeight
-  behaviorNotes?: string;
-  participationRating: 'ممتاز' | 'جيد' | 'متوسط' | 'ضعيف' | null;
-  participationScore: number | null; // derived from participationRating & participationWeight
-  attendanceScore: number | null; // derived from attendance records & attendanceWeight
-  unexcusedAbsencesCount?: number;
-  excusedAbsencesCount?: number;
-  competencyRating: 'تمكن ممتاز' | 'تمكن جيد' | 'تمكن متوسط' | 'تمكن جزئي' | null;
-  competencyScore: number | null; // derived from assessment session indicators & competencyWeight
-  suggestedMark: number | null; // calculated out of 10
-  finalMark: number | null; // out of 10 (Teacher Final Decision)
-  isApprovedByTeacher: boolean;
-  adjustmentReason?: string;
-  updatedAt: string;
-}
-
 // National Pedagogical Resource Submissions (From Teacher Library to Inspector Approval)
 export interface NationalResourceSubmission {
   id: string;
@@ -783,33 +736,7 @@ export interface ClassRoom {
   studentCount: number;
 }
 
-export interface AssessmentCriterion {
-  id: string;
-  code: string; // C1, C2, C3, C4
-  title: string;
-  description: string;
-  indicators: string[]; // المؤشرات
-}
-
 export type AssessmentGrade = 'أ' | 'ب' | 'ج' | 'د'; // أ: تحكم تام, ب: تحكم مقبول, ج: تحكم أدنى, د: لم يتحقق
-
-export interface StudentAssessmentResult {
-  studentId: string;
-  criterionGrades: Record<string, AssessmentGrade>; // criterionCode -> grade
-  finalAchievement: 'تحكم تام' | 'تحكم مقبول' | 'تحكم أدنى' | 'لم يتحقق التحكم';
-  teacherComment?: string;
-}
-
-export interface CompetencyAssessmentSession {
-  id: string;
-  teacherId: string;
-  classId: string;
-  fieldId: string;
-  competencyId: string;
-  term: 'الفصل الأول' | 'الفصل الثاني' | 'الفصل الثالث';
-  date: string;
-  results: StudentAssessmentResult[];
-}
 
 export type TeacherAssessmentType =
   'تشخيصية' | 'تعلمية' | 'إدماجية' | 'تقويمية' | 'تقويم تشخيصي' | 'تقويم تحصيلي';
