@@ -11,18 +11,27 @@ describe('student roster persistence transaction', () => {
 
   it('resolves the class once and performs a bulk matricule lookup', () => {
     expect(source.match(/studentClass\.findUnique\(/g)?.length).toBe(1);
-    expect(source).toContain('tx.student.findMany({ where: { institutionId, matricule: { in: matricules } } })');
+    expect(source).toContain(
+      'tx.student.findMany({ where: { institutionId, matricule: { in: matricules } } })'
+    );
     expect(source).toContain('tx.student.createMany({');
   });
 
   it('keeps identity conflicts and idempotent repeated imports', () => {
-    expect(source).toContain('current.firstName !== row.firstName || current.lastName !== row.lastName');
+    expect(source).toContain(
+      'current.firstName !== row.firstName || current.lastName !== row.lastName'
+    );
     expect(source).toContain('const existingByMatricule = new Map');
     expect(source).toContain('const missingRows: ParsedRosterStudent[] = []');
   });
 
   it('keeps matricules as strings and maps timeout to a safe Arabic response', () => {
-    expect(source).toContain('const matricule = row.matricule.trim()');
-    expect(source).toContain('استغرقت عملية حفظ القائمة وقتاً أطول من المتوقع. يرجى إعادة المحاولة.');
+    expect(source).toContain(
+      'const matricule = row.matricule.trim() || `import-${classId}-${row.rowNumber}`'
+    );
+    expect(source).toContain('row.firstName?.trim() &&');
+    expect(source).toContain(
+      'استغرقت عملية حفظ القائمة وقتاً أطول من المتوقع. يرجى إعادة المحاولة.'
+    );
   });
 });

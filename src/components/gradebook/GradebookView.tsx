@@ -516,16 +516,18 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
       (preview: any) => (preview.students || []).length
     );
     if (!previews.length) {
-      setRosterError('لا توجد صفوف صالحة للاستيراد.');
+      setRosterError('تم التعرف على القسم، لكن لم يتم العثور على أسماء تلاميذ صالحة للاستيراد.');
       return;
     }
     setRosterLoading(true);
     setRosterError('');
+    const locallyCreatedClassIds: string[] = [];
     try {
       let created = 0;
       let existing = 0;
       let conflicts = 0;
       let review = 0;
+      let classesImported = 0;
       for (const preview of previews) {
         const grade =
           Number(preview.grade) ||
@@ -544,11 +546,15 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
             : undefined);
         const destinationId =
           matched?.id ||
-          onAddClass?.({
-            name: preview.groupName || `السنة ${grade} ابتدائي`,
-            levelId,
-            studentCount: preview.students.length,
-          }) ||
+          (() => {
+            const id = onAddClass?.({
+              name: preview.groupName || `السنة ${grade} ابتدائي`,
+              levelId,
+              studentCount: preview.students.length,
+            });
+            if (id) locallyCreatedClassIds.push(id);
+            return id;
+          })() ||
           activeClass.id;
         const result = await confirmStudentRosterImport(
           preview.students,
@@ -561,14 +567,16 @@ export const GradebookView: React.FC<GradebookViewProps> = ({
         existing += result.summary.existing;
         conflicts += result.summary.conflicts;
         review += result.summary.review;
+        classesImported += 1;
       }
       await onRefreshRoster?.();
       window.alert(
-        `تم الاستيراد بنجاح\nالجدد: ${created}\nالموجودون مسبقاً: ${existing}\nبحاجة إلى مراجعة: ${conflicts + review}`
+        `تم استيراد ${classesImported} قسم و ${created + existing} تلميذا بنجاح\nالجدد: ${created}\nالموجودون مسبقاً: ${existing}\nبحاجة إلى مراجعة: ${conflicts + review}`
       );
       setRosterPreview(null);
       setRosterFileName('');
     } catch (error) {
+      locallyCreatedClassIds.forEach((classId) => onDeleteClass?.(classId));
       setRosterError(error instanceof Error ? error.message : 'تعذر تأكيد الاستيراد.');
     } finally {
       setRosterLoading(false);

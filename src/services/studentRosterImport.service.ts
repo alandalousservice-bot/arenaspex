@@ -23,13 +23,40 @@ export interface RosterWorksheetPreview {
 
 const normalize = (value: unknown) =>
   String(value ?? '')
+    .replace(/^\uFEFF/, '')
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
+    .replace(/ـ/g, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/&/g, ' et ')
+    .replace(/[._:/\\-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
 const compact = (value: unknown) =>
   String(value ?? '')
+    .replace(/^\uFEFF/, '')
     .replace(/\s+/g, ' ')
     .trim();
+
+const matriculeHeaders = ['matricule', 'رقم التعريف', 'رقم التسجيل', 'registration number'];
+const lastNameHeaders = ['nom', 'اللقب', 'family name', 'last name', 'surname'];
+const firstNameHeaders = ['prenom', 'prénom', 'الاسم', 'first name', 'given name'];
+const combinedNameHeaders = [
+  'nom et prenom',
+  'nom et prénom',
+  'nom & prénom',
+  'nom complet',
+  'full name',
+  'الاسم واللقب',
+  'اللقب والاسم',
+  'اسم ولقب التلميذ',
+  'اسم التلميذ ولقبه',
+  'الاسم الكامل',
+  'التلميذ',
+  'élève',
+  'eleve',
+];
 
 const gradePatterns: Array<[number, RegExp]> = [
   [1, /(الأولى|أولى|اولى|premi[eè]re|1\s*ap|1[eè]re)/i],
@@ -47,7 +74,9 @@ function detectGrade(values: unknown[]): number | undefined {
 export function extractEducationalGroupName(value: unknown): string | undefined {
   const text = compact(value).replace(/\s+/g, ' ');
   if (!text) return undefined;
-  const marker = text.match(/(?:الفوج\s*التربوي|groupe\s*p[ée]dagogique|group[eé])\s*[:：-]?\s*/i);
+  const marker = text.match(
+    /(?:الفوج\s*التربوي|القسم|groupe\s*p[ée]dagogique|group[eé]|classe|class)\s*[:：-]?\s*/i
+  );
   if (!marker || marker.index === undefined) return undefined;
   const remainder = text.slice(marker.index + marker[0].length);
   const stop = remainder.search(/\s+(?:مادة|المادة|الفصل|السنة\s*الدراسية)\s*[:：-]?\s*/i);
@@ -65,6 +94,17 @@ function detectGroup(values: unknown[]): string | undefined {
 
 function findColumn(headers: string[], names: string[]): number {
   return headers.findIndex((header) => names.some((name) => normalize(header) === normalize(name)));
+}
+
+function splitCombinedName(value: unknown, order: 'first-last' | 'last-first') {
+  const fullName = compact(value);
+  const words = fullName.split(' ').filter(Boolean);
+  if (words.length < 2) return { firstName: fullName, lastName: fullName };
+  const first = words[0];
+  const rest = words.slice(1).join(' ');
+  return order === 'first-last'
+    ? { firstName: first, lastName: rest }
+    : { firstName: rest, lastName: first };
 }
 
 function normalizeMatricule(value: unknown): string {
@@ -98,24 +138,23 @@ export function parseStudentRosterWorkbook(input: Buffer | Uint8Array): RosterWo
     const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: '' });
     const headerIndex = rows.findIndex((row) => {
       const headers = row.map(normalize);
-      return (
-        findColumn(headers, ['matricule', 'رقم التعريف', 'رقم التسجيل', 'registration number']) >=
-          0 &&
-        findColumn(headers, ['nom', 'اللقب', 'family name', 'last name']) >= 0 &&
-        findColumn(headers, ['prenom', 'prénom', 'الاسم', 'first name']) >= 0
-      );
+      const hasSeparateNames =
+        findColumn(headers, lastNameHeaders) >= 0 && findColumn(headers, firstNameHeaders) >= 0;
+      return hasSeparateNames || findColumn(headers, combinedNameHeaders) >= 0;
     });
     if (headerIndex < 0)
       return { worksheet, needsGradeSelection: true, students: [], invalidRows: [] };
     const headers = rows[headerIndex].map(normalize);
-    const matriculeIndex = findColumn(headers, [
-      'matricule',
-      'رقم التعريف',
-      'رقم التسجيل',
-      'registration number',
-    ]);
-    const lastNameIndex = findColumn(headers, ['nom', 'اللقب', 'family name', 'last name']);
-    const firstNameIndex = findColumn(headers, ['prenom', 'prénom', 'الاسم', 'first name']);
+    const matriculeIndex = findColumn(headers, matriculeHeaders);
+    const lastNameIndex = findColumn(headers, lastNameHeaders);
+    const firstNameIndex = findColumn(headers, firstNameHeaders);
+    const combinedNameIndex = findColumn(headers, combinedNameHeaders);
+    const combinedHeader = combinedNameIndex >= 0 ? headers[combinedNameIndex] : '';
+    const combinedOrder = /(?:اللقب والاسم|^nom et prenom|^nom complet|^full name)/i.test(
+      combinedHeader
+    )
+      ? 'last-first'
+      : 'first-last';
     const birthDateIndex = findColumn(headers, [
       'date_n',
       'date naissance',
@@ -129,17 +168,29 @@ export function parseStudentRosterWorkbook(input: Buffer | Uint8Array): RosterWo
     const invalidRows: ParsedRosterStudent[] = [];
     for (let index = headerIndex + 1; index < rows.length; index += 1) {
       const row = rows[index];
-      const matricule = normalizeMatricule(row[matriculeIndex]);
-      const lastName = compact(row[lastNameIndex]);
-      const firstName = compact(row[firstNameIndex]);
+      const matricule = matriculeIndex >= 0 ? normalizeMatricule(row[matriculeIndex]) : '';
+      const separateLastName = lastNameIndex >= 0 ? compact(row[lastNameIndex]) : '';
+      const separateFirstName = firstNameIndex >= 0 ? compact(row[firstNameIndex]) : '';
+      const combined =
+        separateLastName || separateFirstName
+          ? { firstName: separateFirstName, lastName: separateLastName }
+          : splitCombinedName(row[combinedNameIndex], combinedOrder);
+      const lastName = combined.lastName;
+      const firstName = combined.firstName;
       if (!matricule && !lastName && !firstName) continue;
       if (
-        ['matricule', 'رقم التعريف', 'رقم التسجيل'].includes(normalize(matricule)) &&
-        ['nom', 'اللقب'].includes(normalize(lastName))
+        (matricule &&
+          matriculeHeaders.some((header) => normalize(header) === normalize(matricule))) ||
+        (lastName && lastNameHeaders.some((header) => normalize(header) === normalize(lastName))) ||
+        (firstName &&
+          firstNameHeaders.some((header) => normalize(header) === normalize(firstName))) ||
+        (combinedNameIndex >= 0 &&
+          combinedNameHeaders.some(
+            (header) => normalize(header) === normalize(row[combinedNameIndex])
+          ))
       )
         continue;
       const needsReview: string[] = [];
-      if (!matricule) needsReview.push('رقم التعريف مفقود');
       if (!lastName || !firstName) needsReview.push('الاسم أو اللقب مفقود');
       const rawBirthDate = birthDateIndex >= 0 ? row[birthDateIndex] : undefined;
       const birthDate = normalizeDate(rawBirthDate);

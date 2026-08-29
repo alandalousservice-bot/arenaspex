@@ -952,21 +952,14 @@ apiRouter.post('/students/import/confirm', async (req, res) => {
   if (!classId || !rows.length)
     return res.status(400).json({ error: 'اختر قسماً وأرسل صفوفاً صالحة للاستيراد.' });
   const institutionId = (req.user as any).institutionId || null;
-  const validRows = rows.filter(
-    (row) =>
-      row &&
-      typeof row.matricule === 'string' &&
-      row.matricule.trim() &&
-      row.firstName?.trim() &&
-      row.lastName?.trim()
-  );
+  const validRows = rows.filter((row) => row && row.firstName?.trim() && row.lastName?.trim());
   // Normalize and de-duplicate before opening the transaction.  This keeps all
   // parsing/validation work outside the database transaction and also prevents
   // duplicate matricules in one workbook from creating extra writes.
   const normalizedRows = new Map<string, ParsedRosterStudent>();
   let inputConflicts = 0;
   for (const row of validRows) {
-    const matricule = row.matricule.trim();
+    const matricule = row.matricule.trim() || `import-${classId}-${row.rowNumber}`;
     const normalized = {
       ...row,
       matricule,
