@@ -6,6 +6,9 @@ import {
 } from '../data/algerianCurriculum';
 import { getCurrentAcademicYear } from './academicYear';
 import type { AnnualPlanObjectiveOverride } from '../types/spex';
+import { normalizePrimaryLevelId, type PrimaryLevelId } from './primaryLevel.service';
+
+export { normalizePrimaryLevelId } from './primaryLevel.service';
 
 export interface ClassPlannedSessionSeed {
   id: string;
@@ -57,7 +60,7 @@ export function effectiveCurriculumObjective(
   return overrides[`${fieldId}__${sessionNumber}`]?.objective?.trim() || referenceObjective;
 }
 
-function gradeFromLevelId(levelId: string): number {
+function gradeFromLevelId(levelId: PrimaryLevelId): number {
   const grade = Number(levelId.replace('lvl_p', ''));
   return Number.isInteger(grade) && grade >= 1 && grade <= 5 ? grade : 0;
 }
@@ -71,33 +74,40 @@ export function referenceSessionIdFor(session: ScheduledAnnualSession): string {
 }
 
 export function canonicalPlanningSessions(
-  levelId: string,
+  levelId: unknown,
   planningStartDate: string,
   academicYearId?: string
 ): CanonicalPlanningSession[] {
-  const curriculum = COMPLETE_ANNUAL_CURRICULUM[levelId];
-  const grade = gradeFromLevelId(levelId);
+  const canonicalLevelId = normalizePrimaryLevelId(levelId);
+  if (!canonicalLevelId) return [];
+
+  const curriculum = COMPLETE_ANNUAL_CURRICULUM[canonicalLevelId];
+  const grade = gradeFromLevelId(canonicalLevelId);
   if (!curriculum || !grade || !/^\d{4}-\d{2}-\d{2}$/.test(planningStartDate)) return [];
 
-  return generateAnnualTimeDistribution(levelId, planningStartDate, 0, '', academicYearId).map(
-    (session) => ({
-      referenceSessionId: referenceSessionIdFor(session),
-      levelId: session.levelId,
-      grade,
-      domainId: session.fieldId,
-      learningSectionId:
-        session.fieldId === 'intro' ? 'intro' : `${session.levelId}:${session.fieldId}`,
-      objectiveId: session.objectiveGroupId || null,
-      objectiveGroupId: session.objectiveGroupId || null,
-      sequenceIndex: session.globalSessionNumber,
-      fieldSessionNumber: session.fieldSessionNumber,
-      sessionType: session.sessionType,
-      sessionTypeLabel: session.sessionTypeLabel,
-      objective: session.targetObjective,
-      plannedDate: session.scheduledDate,
-      durationMinutes: session.durationMinutes,
-    })
-  );
+  return generateAnnualTimeDistribution(
+    canonicalLevelId,
+    planningStartDate,
+    0,
+    '',
+    academicYearId
+  ).map((session) => ({
+    referenceSessionId: referenceSessionIdFor(session),
+    levelId: session.levelId,
+    grade,
+    domainId: session.fieldId,
+    learningSectionId:
+      session.fieldId === 'intro' ? 'intro' : `${session.levelId}:${session.fieldId}`,
+    objectiveId: session.objectiveGroupId || null,
+    objectiveGroupId: session.objectiveGroupId || null,
+    sequenceIndex: session.globalSessionNumber,
+    fieldSessionNumber: session.fieldSessionNumber,
+    sessionType: session.sessionType,
+    sessionTypeLabel: session.sessionTypeLabel,
+    objective: session.targetObjective,
+    plannedDate: session.scheduledDate,
+    durationMinutes: session.durationMinutes,
+  }));
 }
 
 export function isValidPlanningDate(value: string): boolean {
@@ -123,7 +133,7 @@ export function buildClassPlannedSessionSeeds(
   teacherId: string,
   classId: string,
   academicYearId: string,
-  levelId: string,
+  levelId: unknown,
   planningStartDate: string
 ): ClassPlannedSessionSeed[] {
   return canonicalPlanningSessions(levelId, planningStartDate, academicYearId).map((session) => ({
