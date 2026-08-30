@@ -64,7 +64,7 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
   const isPending = !user.isApprovedByAdmin || user.status === 'pending_approval';
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col relative overflow-x-hidden selection:bg-purple-500 selection:text-white">
+    <div className="public-shell pending-shell min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col relative overflow-x-hidden selection:bg-emerald-500 selection:text-white">
       {/* Dynamic Background Glows */}
       <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-purple-600/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-1/4 w-[500px] h-[500px] bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />

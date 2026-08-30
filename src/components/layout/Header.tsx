@@ -186,19 +186,19 @@ export const Header: React.FC<HeaderProps> = React.memo(
         case 'teacher':
           return {
             label: 'أستاذ المادة',
-            bg: 'bg-blue-100 text-blue-800 border-blue-200',
+            bg: 'bg-emerald-100 text-emerald-800 border-emerald-200',
             icon: GraduationCap,
           };
         case 'inspector':
           return {
             label: 'مفتش بيداغوجي',
-            bg: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+            bg: 'bg-teal-100 text-teal-800 border-teal-200',
             icon: ShieldCheck,
           };
         case 'admin':
           return {
             label: 'مدير النظام',
-            bg: 'bg-purple-100 text-purple-800 border-purple-200',
+            bg: 'bg-amber-100 text-amber-800 border-amber-200',
             icon: Building2,
           };
       }
@@ -215,7 +215,7 @@ export const Header: React.FC<HeaderProps> = React.memo(
           {onToggleMobileMenu && (
             <button
               onClick={onToggleMobileMenu}
-              className="md:hidden p-2 text-slate-700 hover:text-blue-600 hover:bg-slate-100 rounded-xl transition-all min-h-[40px] min-w-[40px] flex items-center justify-center cursor-pointer"
+              className="md:hidden p-2 text-slate-700 hover:text-emerald-700 hover:bg-slate-100 rounded-xl transition-all min-h-[40px] min-w-[40px] flex items-center justify-center cursor-pointer"
               title="القائمة الرئيسية"
             >
               {isMobileMenuOpen ? (
@@ -227,13 +227,13 @@ export const Header: React.FC<HeaderProps> = React.memo(
           )}
 
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-teal-500 text-white flex items-center justify-center font-black text-lg sm:text-xl shadow-md shadow-blue-500/20 tracking-wider">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-black text-lg sm:text-xl shadow-md shadow-emerald-700/20 tracking-wider">
               SPEX
             </div>
             <div className="hidden sm:block">
               <h1 className="text-base font-bold text-slate-900 leading-tight flex items-center gap-1.5">
                 <span>منصة SPEX</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 font-semibold border border-blue-100">
+                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">
                   إصدار 1.0
                 </span>
               </h1>
@@ -307,19 +307,19 @@ export const Header: React.FC<HeaderProps> = React.memo(
             onOpenCommandCenter && (
               <button
                 onClick={onOpenCommandCenter}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 rounded-xl text-xs font-bold border border-blue-500/40 shadow-md animate-pulse cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950 text-white hover:bg-emerald-900 rounded-xl text-xs font-bold border border-emerald-500/40 shadow-md animate-pulse cursor-pointer"
                 title="الانتقال المباشر لمركز قيادة الحصة"
               >
-                <Timer className="w-3.5 h-3.5 text-blue-400" />
+                <Timer className="w-3.5 h-3.5 text-emerald-300" />
                 <span className="hidden sm:inline">حصة جارية: {activeLessonSession.className}</span>
-                <span className="sm:hidden font-mono text-blue-300">مباشر</span>
+                <span className="sm:hidden font-mono text-emerald-300">مباشر</span>
               </button>
             )}
 
           {/* Quick AI Assistant Trigger */}
           <button
             onClick={onOpenAIAssistant}
-            className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
+            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-700/20 active:scale-95 transition-all cursor-pointer"
           >
             <Sparkles className="w-4 h-4 text-yellow-300 animate-pulse" />
             <span className="hidden sm:inline">المستشار البيداغوجي 📚</span>
@@ -329,7 +329,7 @@ export const Header: React.FC<HeaderProps> = React.memo(
           <div className="relative">
             <button
               onClick={() => setShowNotifMenu(!showNotifMenu)}
-              className="p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-xl transition-all relative cursor-pointer"
+              className="p-2 text-slate-600 hover:text-emerald-700 hover:bg-slate-100 rounded-xl transition-all relative cursor-pointer"
               title="الإشعارات"
             >
               <Bell className="w-5 h-5" />
@@ -347,7 +347,7 @@ export const Header: React.FC<HeaderProps> = React.memo(
                   <span className="text-xs font-black text-slate-900">
                     تنبيهات إنجاز الحصص والإشعارات
                   </span>
-                  <span className="text-[10px] bg-blue-50 text-blue-600 font-bold px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-full">
                     تأشير إنجاز الكراس اليومي
                   </span>
                 </div>
@@ -355,9 +355,9 @@ export const Header: React.FC<HeaderProps> = React.memo(
                 <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
                   {/* Pending & Today's PE Sessions Alerts */}
                   {dailyNotebookEntries.length > 0 && (
-                    <div className="p-3 bg-blue-50/40">
-                      <div className="text-[11px] font-extrabold text-blue-900 mb-2 flex items-center gap-1.5">
-                        <BookOpen className="w-3.5 h-3.5 text-blue-600" />
+                    <div className="p-3 bg-emerald-50/40">
+                      <div className="text-[11px] font-extrabold text-emerald-900 mb-2 flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
                         <span>حصص الكراس اليومي المستهدفة بالتأشير:</span>
                       </div>
 

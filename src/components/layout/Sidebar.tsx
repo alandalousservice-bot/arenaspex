@@ -267,24 +267,24 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer relative group ${
                       isActive
                         ? userRole === 'inspector'
-                          ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
+                          ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/25'
                           : userRole === 'director'
                             ? 'bg-teal-700 text-white shadow-md shadow-teal-700/25'
                             : userRole === 'admin'
-                              ? 'bg-purple-700 text-white shadow-md shadow-purple-700/25'
-                              : 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
-                        : 'text-slate-700 hover:bg-slate-100/80 hover:text-blue-600'
+                              ? 'bg-slate-800 text-white shadow-md shadow-slate-800/25'
+                              : 'bg-emerald-700 text-white shadow-md shadow-emerald-700/25'
+                        : 'text-slate-700 hover:bg-slate-100/80 hover:text-emerald-600'
                     }`}
                     title={collapsed ? item.label : undefined}
                   >
                     <Icon
-                      className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-blue-600'}`}
+                      className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-emerald-300'}`}
                     />
                     {!collapsed && <span className="truncate">{item.label}</span>}
                     {!collapsed && item.badge && (
                       <span
                         className={`mr-auto text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
-                          isActive ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'
+                          isActive ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
                         }`}
                       >
                         {item.badge}
@@ -315,7 +315,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       isActive
                         ? 'bg-slate-900 text-white shadow-sm'
-                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-emerald-700'
                     }`}
                     title={collapsed ? item.label : undefined}
                   >
@@ -331,7 +331,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
 
           {/* Curriculum Banner */}
           {!collapsed && (
-            <div className="m-3 p-3 bg-gradient-to-br from-slate-900 to-blue-950 text-white rounded-2xl shadow-md border border-slate-800">
+            <div className="m-3 p-3 bg-gradient-to-br from-emerald-950 to-teal-950 text-white rounded-2xl shadow-md border border-emerald-800">
               <div className="flex items-center gap-2 mb-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                 <span className="text-[11px] font-bold text-emerald-300">المنهاج الرسمي معتمد</span>
@@ -351,10 +351,10 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
               onClick={onCloseMobile}
             />
 
-            <div className="relative flex-1 max-w-xs w-full bg-white shadow-2xl flex flex-col justify-between z-10 animate-in slide-in-from-right duration-200">
-              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-900 text-white">
+            <div className="app-mobile-drawer relative flex-1 max-w-xs w-full bg-white shadow-2xl flex flex-col justify-between z-10 animate-in slide-in-from-right duration-200">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-emerald-950 text-white">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-sm">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-black text-sm">
                     SPEX
                   </div>
                   <span className="font-extrabold text-sm">القائمة الرئيسية للهاتف</span>
@@ -382,7 +382,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                         onClick={() => handleItemClick(item.id)}
                         className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl text-xs font-extrabold transition-all min-h-[44px] ${
                           isActive
-                            ? 'bg-blue-600 text-white shadow-md'
+                            ? 'bg-emerald-700 text-white shadow-md'
                             : 'text-slate-800 hover:bg-slate-100'
                         }`}
                       >
@@ -391,7 +391,9 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                         {item.badge && (
                           <span
                             className={`mr-auto text-[10px] px-2 py-0.5 rounded-md font-bold ${
-                              isActive ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'
+                              isActive
+                                ? 'bg-white/20 text-white'
+                                : 'bg-emerald-100 text-emerald-800'
                             }`}
                           >
                             {item.badge}
@@ -414,7 +416,9 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                         key={item.id}
                         onClick={() => handleItemClick(item.id)}
                         className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl text-xs font-extrabold transition-all min-h-[44px] ${
-                          isActive ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+                          isActive
+                            ? 'bg-emerald-800 text-white'
+                            : 'text-slate-700 hover:bg-slate-100'
                         }`}
                       >
                         <Icon className="w-4 h-4 shrink-0" />
@@ -440,7 +444,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                 onClick={() => handleItemClick('dashboard')}
                 className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl min-w-[56px] min-h-[44px] justify-center transition-all ${
                   currentTab === 'dashboard'
-                    ? 'text-blue-600 font-black'
+                    ? 'text-emerald-600 font-black'
                     : 'text-slate-500 font-medium'
                 }`}
               >
@@ -452,7 +456,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                 onClick={() => handleItemClick('daily_notebook')}
                 className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl min-w-[56px] min-h-[44px] justify-center transition-all ${
                   currentTab === 'daily_notebook'
-                    ? 'text-blue-600 font-black'
+                    ? 'text-emerald-600 font-black'
                     : 'text-slate-500 font-medium'
                 }`}
               >
@@ -464,7 +468,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                 onClick={() => handleItemClick('lesson_plans')}
                 className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl min-w-[56px] min-h-[44px] justify-center transition-all relative ${
                   currentTab === 'lesson_plans'
-                    ? 'text-blue-600 font-black'
+                    ? 'text-emerald-600 font-black'
                     : 'text-slate-500 font-medium'
                 }`}
               >
@@ -476,7 +480,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                 onClick={() => handleItemClick('gradebook')}
                 className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl min-w-[56px] min-h-[44px] justify-center transition-all ${
                   currentTab === 'gradebook'
-                    ? 'text-blue-600 font-black'
+                    ? 'text-emerald-600 font-black'
                     : 'text-slate-500 font-medium'
                 }`}
               >
@@ -494,7 +498,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                 }}
                 className="flex flex-col items-center gap-1 px-2 py-1 rounded-xl min-w-[56px] min-h-[44px] justify-center text-slate-700 font-extrabold cursor-pointer"
               >
-                <Menu className="w-5 h-5 text-blue-600" />
+                <Menu className="w-5 h-5 text-emerald-600" />
                 <span className="text-[10px]">المزيد</span>
               </button>
             </>

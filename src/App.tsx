@@ -379,7 +379,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
+    <div className="app-shell min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
       <OfflineBanner isOfflineSession={isOfflineSession} />
       {/* Top Navigation Header */}
       <Header

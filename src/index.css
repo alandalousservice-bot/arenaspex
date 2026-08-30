@@ -1,7 +1,333 @@
 @import 'tailwindcss';
 
+:root {
+  --color-primary: #047857;
+  --color-primary-hover: #065f46;
+  --color-primary-soft: #ecfdf5;
+  --color-secondary: #0f766e;
+  --color-secondary-soft: #f0fdfa;
+  --color-accent: #b7791f;
+  --color-accent-soft: #fffbeb;
+  --color-background: #f4f7f6;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #f8fbfa;
+  --color-border: #dce8e3;
+  --color-text: #1f2937;
+  --color-text-muted: #64748b;
+  --color-success: #15803d;
+  --color-warning: #b45309;
+  --color-danger: #be123c;
+  --color-info: #0369a1;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.05);
+  --shadow-md: 0 10px 24px rgb(15 118 110 / 0.08);
+  --transition-fast: 160ms ease;
+  --transition-normal: 210ms ease;
+}
+
 .annual-plan-print-root {
   display: none;
+}
+
+@media screen {
+  html {
+    background: var(--color-background);
+  }
+
+  body {
+    min-width: 320px;
+    margin: 0;
+    background: var(--color-background);
+    color: var(--color-text);
+    font-family: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', Tahoma, Arial, sans-serif;
+    text-rendering: optimizeLegibility;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    transition:
+      background-color var(--transition-fast),
+      border-color var(--transition-fast),
+      color var(--transition-fast),
+      box-shadow var(--transition-fast),
+      transform var(--transition-fast);
+  }
+
+  :focus-visible {
+    outline: 3px solid rgb(16 185 129 / 0.35);
+    outline-offset: 2px;
+  }
+
+  .app-shell {
+    background: var(--color-background) !important;
+    color: var(--color-text);
+  }
+
+  .app-shell main {
+    background: transparent;
+  }
+
+  .app-shell-header {
+    min-height: 4.25rem;
+    border-color: var(--color-border) !important;
+    background: rgb(255 255 255 / 0.94) !important;
+    box-shadow: var(--shadow-sm) !important;
+  }
+
+  .app-shell-header .bg-gradient-to-tr,
+  .app-shell-header .bg-gradient-to-r {
+    background-image: none !important;
+    background-color: var(--color-primary) !important;
+  }
+
+  .app-shell-sidebar {
+    border-color: rgb(255 255 255 / 0.12) !important;
+    background: #064e3b !important;
+    box-shadow: 12px 0 30px rgb(6 78 59 / 0.12);
+  }
+
+  .app-shell-sidebar .text-slate-400,
+  .app-shell-sidebar .text-slate-500,
+  .app-shell-sidebar .text-slate-600,
+  .app-shell-sidebar .text-slate-700,
+  .app-shell-sidebar .text-slate-800 {
+    color: rgb(236 253 245 / 0.72) !important;
+  }
+
+  .app-shell-sidebar .border-slate-100,
+  .app-shell-sidebar .border-slate-200 {
+    border-color: rgb(255 255 255 / 0.12) !important;
+  }
+
+  .app-shell-sidebar nav button,
+  .app-shell-sidebar > div > div:last-child {
+    border-radius: var(--radius-md);
+  }
+
+  .app-shell-sidebar nav button:hover,
+  .app-shell-sidebar nav button[class*='hover\\:bg-slate'] {
+    background: rgb(255 255 255 / 0.1) !important;
+    color: #fff !important;
+  }
+
+  .app-shell-sidebar nav button[class*='bg-blue-600'],
+  .app-shell-sidebar nav button[class*='bg-emerald-600'],
+  .app-shell-sidebar nav button[class*='bg-teal-700'],
+  .app-shell-sidebar nav button[class*='bg-purple-700'],
+  .app-shell-sidebar nav button[class*='bg-slate-900'] {
+    background: rgb(16 185 129 / 0.9) !important;
+    color: #fff !important;
+    box-shadow: 0 8px 18px rgb(2 44 34 / 0.2) !important;
+  }
+
+  .app-shell-sidebar .bg-gradient-to-br {
+    border-color: rgb(110 231 183 / 0.2) !important;
+    background: rgb(2 44 34 / 0.72) !important;
+  }
+
+  .app-shell .bg-white {
+    background-color: var(--color-surface) !important;
+  }
+
+  .app-shell .bg-slate-50 {
+    background-color: var(--color-background) !important;
+  }
+
+  .app-shell .bg-slate-100,
+  .app-shell .bg-slate-200 {
+    background-color: var(--color-surface-elevated) !important;
+  }
+
+  .app-shell .border-slate-100,
+  .app-shell .border-slate-200,
+  .app-shell .border-slate-300 {
+    border-color: var(--color-border) !important;
+  }
+
+  .app-shell .text-slate-900,
+  .app-shell .text-slate-800 {
+    color: var(--color-text) !important;
+  }
+
+  .app-shell .text-slate-400,
+  .app-shell .text-slate-500,
+  .app-shell .text-slate-600 {
+    color: var(--color-text-muted) !important;
+  }
+
+  .app-shell .bg-blue-600,
+  .app-shell .bg-blue-700 {
+    background-color: var(--color-primary) !important;
+  }
+
+  .app-shell .text-blue-500,
+  .app-shell .text-blue-600,
+  .app-shell .text-blue-700,
+  .app-shell .text-blue-800,
+  .app-shell .text-blue-900 {
+    color: var(--color-primary) !important;
+  }
+
+  .app-shell .border-blue-100,
+  .app-shell .border-blue-200,
+  .app-shell .border-blue-300,
+  .app-shell .border-blue-500 {
+    border-color: #a7f3d0 !important;
+  }
+
+  .app-shell .rounded-xl,
+  .app-shell .rounded-2xl {
+    border-radius: var(--radius-md);
+  }
+
+  .app-shell .shadow-md,
+  .app-shell .shadow-lg,
+  .app-shell .shadow-xl,
+  .app-shell .shadow-2xl {
+    box-shadow: var(--shadow-md) !important;
+  }
+
+  .app-shell input:not([type='checkbox']):not([type='radio']),
+  .app-shell select,
+  .app-shell textarea {
+    border-color: var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .app-shell input:not([type='checkbox']):not([type='radio']):focus,
+  .app-shell select:focus,
+  .app-shell textarea:focus {
+    border-color: var(--color-secondary);
+    box-shadow: 0 0 0 3px rgb(20 184 166 / 0.16);
+    outline: none;
+  }
+
+  .app-shell [class*='divide-slate'] > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--color-border);
+  }
+
+  .app-shell [class*='hover\\:bg-slate']:hover {
+    background-color: var(--color-surface-elevated) !important;
+  }
+
+  .app-shell .bg-rose-600,
+  .app-shell .bg-red-600 {
+    background-color: var(--color-danger) !important;
+  }
+
+  .app-shell .bg-amber-600,
+  .app-shell .bg-yellow-600 {
+    background-color: var(--color-warning) !important;
+  }
+
+  .app-shell .bg-emerald-600,
+  .app-shell .bg-emerald-700 {
+    background-color: var(--color-primary) !important;
+  }
+
+  .app-shell .text-emerald-600,
+  .app-shell .text-emerald-700,
+  .app-shell .text-emerald-800,
+  .app-shell .text-emerald-900 {
+    color: var(--color-primary) !important;
+  }
+
+  .app-shell [class*='hover\\:bg-blue']:hover,
+  .app-shell [class*='hover\\:bg-emerald']:hover {
+    background-color: var(--color-primary-hover) !important;
+    color: #fff !important;
+  }
+
+  .app-shell .app-empty-state,
+  .app-shell .surface-card {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .app-shell .app-empty-state {
+    color: var(--color-text-muted);
+  }
+
+  .app-shell .app-empty-state svg {
+    color: var(--color-primary);
+  }
+
+  .app-shell .app-mobile-drawer {
+    background: var(--color-surface);
+  }
+
+  .app-shell .app-shell-sidebar {
+    background: #064e3b !important;
+  }
+
+  .app-shell .app-shell-sidebar .text-slate-400,
+  .app-shell .app-shell-sidebar .text-slate-500,
+  .app-shell .app-shell-sidebar .text-slate-600,
+  .app-shell .app-shell-sidebar .text-slate-700,
+  .app-shell .app-shell-sidebar .text-slate-800 {
+    color: rgb(236 253 245 / 0.72) !important;
+  }
+
+  .app-shell .app-shell-sidebar .text-emerald-300,
+  .app-shell .app-shell-sidebar .text-emerald-400 {
+    color: #a7f3d0 !important;
+  }
+
+  .public-shell {
+    font-family: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', Tahoma, Arial, sans-serif;
+  }
+
+  .public-shell .bg-gradient-to-r,
+  .public-shell .bg-gradient-to-tr,
+  .public-shell .bg-gradient-to-br {
+    background-image: none !important;
+    background-color: var(--color-primary) !important;
+  }
+
+  .public-shell .bg-blue-600,
+  .public-shell .bg-blue-700,
+  .public-shell .bg-purple-600,
+  .public-shell .bg-purple-700,
+  .public-shell .bg-indigo-600,
+  .public-shell .bg-indigo-700 {
+    background-color: var(--color-primary) !important;
+  }
+
+  .public-shell .text-blue-300,
+  .public-shell .text-blue-400,
+  .public-shell .text-purple-200,
+  .public-shell .text-purple-300,
+  .public-shell .text-purple-400,
+  .public-shell .text-indigo-400 {
+    color: #a7f3d0 !important;
+  }
+
+  .public-shell .border-blue-500\/30,
+  .public-shell .border-purple-500\/30,
+  .public-shell .border-indigo-500\/30 {
+    border-color: rgb(52 211 153 / 0.3) !important;
+  }
+
+  .auth-shell,
+  .admin-auth-shell,
+  .pending-shell {
+    background: #052e2b !important;
+  }
 }
 
 .daily-notebook-print-root {

@@ -287,7 +287,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden font-sans">
+    <div className="public-shell auth-shell min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden font-sans">
       <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
 

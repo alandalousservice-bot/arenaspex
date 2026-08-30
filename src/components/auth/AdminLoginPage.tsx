@@ -33,7 +33,10 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
     onLoginSuccess(result.user);
   };
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4" dir="rtl">
+    <div
+      className="public-shell admin-auth-shell min-h-screen bg-slate-950 flex items-center justify-center p-4"
+      dir="rtl"
+    >
       <div className="w-full max-w-md rounded-3xl border border-purple-500/20 bg-slate-900/95 p-6 sm:p-8 text-white shadow-2xl">
         <button
           type="button"
