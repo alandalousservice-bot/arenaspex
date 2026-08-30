@@ -1,6 +1,15 @@
 @import 'tailwindcss';
 
 :root {
+  --font-arabic: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', Tahoma, Arial, sans-serif;
+  --type-page-title: 1.625rem;
+  --type-section-title: 1.375rem;
+  --type-card-title: 1.0625rem;
+  --type-body: 0.9375rem;
+  --type-control: 0.875rem;
+  --type-table: 0.8125rem;
+  --type-meta: 0.8125rem;
+  --type-badge: 0.75rem;
   --color-primary: #047857;
   --color-primary-hover: #065f46;
   --color-primary-soft: #ecfdf5;
@@ -41,7 +50,7 @@
     margin: 0;
     background: var(--color-background);
     color: var(--color-text);
-    font-family: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', Tahoma, Arial, sans-serif;
+    font-family: var(--font-arabic);
     text-rendering: optimizeLegibility;
   }
 
@@ -289,7 +298,143 @@
   }
 
   .public-shell {
-    font-family: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', Tahoma, Arial, sans-serif;
+    font-family: var(--font-arabic);
+  }
+
+  /* Arabic-first typography and semantic control alignment. These rules are
+     screen-only so official print renderers retain their own geometry and
+     document typography. */
+  :where(button, input, select, textarea) {
+    font-family: var(--font-arabic);
+  }
+
+  .app-shell main,
+  .app-shell-header,
+  .app-shell-sidebar,
+  .app-mobile-drawer,
+  .workspace-page {
+    font-family: var(--font-arabic);
+  }
+
+  :is(.workspace-page, .app-shell main) h1 {
+    font-size: var(--type-page-title);
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  :is(.workspace-page, .app-shell main) h2 {
+    font-size: var(--type-section-title);
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  :is(.workspace-page, .app-shell main) h3 {
+    font-size: var(--type-card-title);
+    font-weight: 700;
+    line-height: 1.45;
+  }
+
+  :is(.workspace-page, .app-shell main) p,
+  :is(.workspace-page, .app-shell main) li {
+    line-height: 1.6;
+  }
+
+  :is(.workspace-page, .app-shell main) table {
+    font-size: var(--type-table);
+    line-height: 1.5;
+  }
+
+  :is(.workspace-page, .app-shell main) button,
+  :is(.workspace-page, .app-shell main) label,
+  :is(.workspace-page, .app-shell main) select {
+    line-height: 1.35;
+  }
+
+  :is(.workspace-page, .app-shell main)
+    button[class*='flex'][class*='items-center']:not([class*='justify-between']),
+  :is(.workspace-page, .app-shell main)
+    label[class*='flex'][class*='items-center']:not([class*='justify-between']),
+  .app-shell-header button:not([class*='justify-between']) {
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  :is(.workspace-page, .app-shell main) .workspace-tabs > button,
+  :is(.workspace-page, .app-shell main) nav button:not([class*='justify-between']) {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    text-align: center;
+  }
+
+  .workspace-page .students-class-chip {
+    text-align: center;
+  }
+
+  .workspace-page .students-class-chip > span:first-child {
+    justify-content: center;
+  }
+
+  .workspace-page .students-class-chip > span:first-child > span {
+    flex: initial;
+  }
+
+  :is(.workspace-page, .app-shell main)
+    input:not([type='checkbox']):not([type='radio']):not([type='date']):not([type='number']),
+  :is(.workspace-page, .app-shell main) textarea {
+    direction: rtl;
+    text-align: right;
+  }
+
+  :is(.workspace-page, .app-shell main) select {
+    direction: rtl;
+    text-align: right;
+  }
+
+  :is(.workspace-page, .app-shell main) input[type='date'],
+  :is(.workspace-page, .app-shell main) input[type='number'],
+  :is(.workspace-page, .app-shell main) input[inputmode='numeric'],
+  :is(.workspace-page, .app-shell main) [dir='ltr'] {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+
+  :is(.workspace-page, .app-shell main) input[type='date'],
+  :is(.workspace-page, .app-shell main) input[type='number'],
+  :is(.workspace-page, .app-shell main) input[inputmode='numeric'] {
+    text-align: left;
+  }
+
+  :is(.workspace-page, .app-shell main) table thead th {
+    text-align: center;
+  }
+
+  :is(.workspace-page, .app-shell main) table tbody td:has(> button),
+  :is(.workspace-page, .app-shell main) table tbody td:has(> a),
+  :is(.workspace-page, .app-shell main) table tbody td:has(> input),
+  :is(.workspace-page, .app-shell main) table tbody td:has(> select),
+  :is(.workspace-page, .app-shell main) table tbody td:has([dir='ltr']) {
+    text-align: center;
+  }
+
+  :is(.workspace-page, .app-shell main) [class*='rounded-full'] {
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
+    line-height: 1.25;
+  }
+
+  .workspace-page .workspace-empty-state,
+  .app-shell .app-empty-state {
+    text-align: center;
+  }
+
+  .workspace-header h1 svg,
+  .workspace-header h2 svg,
+  .workspace-header h3 svg {
+    flex-shrink: 0;
   }
 
   .public-shell .bg-gradient-to-r,

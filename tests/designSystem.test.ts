@@ -83,6 +83,27 @@ describe('ArenaSpex Emerald design system', () => {
     expect(css.slice(printStart)).toContain('print-color-adjust: exact');
   });
 
+  it('standardizes Arabic typography and semantic RTL alignment on screen', () => {
+    const css = read('src/index.css');
+    const screenStart = css.indexOf('@media screen');
+    const printStart = css.indexOf('@media print');
+    const screenCss = css.slice(screenStart, printStart);
+
+    expect(css).toContain('--font-arabic:');
+    expect(css).toContain('--type-page-title:');
+    expect(css).toContain('--type-table:');
+    expect(screenCss).toContain('font-family: var(--font-arabic)');
+    expect(screenCss).toContain('justify-content: center');
+    expect(screenCss).toContain('direction: rtl');
+    expect(screenCss).toContain('unicode-bidi: isolate');
+    expect(screenCss).toContain('table thead th');
+    expect(screenCss).toContain('table tbody td:has(> button)');
+    expect(screenCss).toContain("not([class*='justify-between'])");
+    expect(css.slice(printStart)).not.toContain('--font-arabic');
+    expect(css.slice(printStart)).not.toContain('font-family: var(--font-arabic)');
+    expect(css.slice(printStart)).not.toContain('font-size: var(--type-table)');
+  });
+
   it('isolates academic-year numerals from RTL reordering', () => {
     const component = read('src/components/common/AcademicYearLabel.tsx');
     expect(component).toContain('dir="ltr"');
