@@ -1614,9 +1614,12 @@ function isValidGenerationDate(date: Date, academicYearId?: string): boolean {
   );
 }
 
-function isHoliday(date: Date): { holiday: boolean; name?: string; note?: string } {
+function isHoliday(
+  date: Date,
+  academicYearId?: string
+): { holiday: boolean; name?: string; note?: string } {
   const ymd = formatISODate(date);
-  const holiday = calendarEventForDate(ymd);
+  const holiday = calendarEventForDate(ymd, academicYearId);
   return holiday
     ? { holiday: true, name: holiday.name, note: `صادف ${holiday.name} - تم التأجيل تلقائياً` }
     : { holiday: false };
@@ -1642,26 +1645,6 @@ function getNextValidSchoolDate(from: Date, inclusive = true, academicYearId?: s
   throw new Error('لا توجد سعة تقويمية كافية لتوليد التوزيع السنوي ضمن السنة المحددة.');
 }
 
-function getNextValidSchoolDateOnWeekday(
-  from: Date,
-  weekday: number,
-  academicYearId?: string
-): Date {
-  let d = new Date(from);
-  let guard = 0;
-  while (guard < 365) {
-    if (d.getDay() === weekday && isValidGenerationDate(d, academicYearId)) return d;
-    d = addDays(d, 1);
-    guard++;
-  }
-  return getNextValidSchoolDate(d, true, academicYearId);
-}
-
-function getSecondWeekday(firstWeekday: number): number {
-  const second = (firstWeekday + 2) % 5;
-  return second;
-}
-
 interface AnnualScheduleSlot {
   desiredDate: Date;
   actualDate: Date;
@@ -1670,16 +1653,12 @@ interface AnnualScheduleSlot {
 function buildBoundedAnnualSchedule(
   count: number,
   startDateStr: string,
-  teachingDayOfWeek: number,
+  _teachingDayOfWeek: number,
   sessionsPerWeek: number,
   academicYearId: string
 ): AnnualScheduleSlot[] {
   const slots: AnnualScheduleSlot[] = [];
-  let weekAnchor = getNextValidSchoolDateOnWeekday(
-    parseISODate(startDateStr),
-    teachingDayOfWeek,
-    academicYearId
-  );
+  let weekAnchor = getNextValidSchoolDate(parseISODate(startDateStr), true, academicYearId);
   let slotInWeek = 0;
   let lastActualDate: Date | null = null;
 
@@ -1700,11 +1679,7 @@ function buildBoundedAnnualSchedule(
     } else {
       slotInWeek = 0;
       if (index < count - 1) {
-        weekAnchor = getNextValidSchoolDateOnWeekday(
-          addDays(weekAnchor, 7),
-          teachingDayOfWeek,
-          academicYearId
-        );
+        weekAnchor = getNextValidSchoolDate(addDays(weekAnchor, 7), true, academicYearId);
       }
     }
   }
@@ -1740,12 +1715,7 @@ export function generateAnnualTimeDistribution(
     }
   })();
 
-  let currentDate = parseISODate(startDateStr);
-  currentDate = getNextValidSchoolDate(currentDate, true);
-
-  if (currentDate.getDay() !== teachingDayOfWeek) {
-    currentDate = getNextValidSchoolDateOnWeekday(currentDate, teachingDayOfWeek);
-  }
+  let currentDate = getNextValidSchoolDate(parseISODate(startDateStr), true, academicYearId);
 
   const firstWeekEnd = addDays(parseISODate(startDateStr), 6);
 
@@ -1753,7 +1723,7 @@ export function generateAnnualTimeDistribution(
 
   if (gradeConfig.introSessions === 2) {
     const firstIntroDesired = new Date(currentDate);
-    const firstIntroActual = getNextValidSchoolDate(firstIntroDesired, true);
+    const firstIntroActual = getNextValidSchoolDate(firstIntroDesired, true, academicYearId);
     const isPostponed1 = formatISODate(firstIntroActual) !== formatISODate(firstIntroDesired);
     scheduled.push({
       globalSessionNumber: globalCounter++,
@@ -1780,11 +1750,11 @@ export function generateAnnualTimeDistribution(
     if (secondDesired > firstWeekEnd) {
       secondDesired = firstWeekEnd;
     }
-    let secondActual = getNextValidSchoolDate(secondDesired, true);
+    let secondActual = getNextValidSchoolDate(secondDesired, true, academicYearId);
     let attempts = 0;
     while (secondActual.getTime() === firstIntroActual.getTime() && attempts < 10) {
       secondDesired = addDays(secondDesired, 1);
-      secondActual = getNextValidSchoolDate(secondDesired, true);
+      secondActual = getNextValidSchoolDate(secondDesired, true, academicYearId);
       attempts++;
     }
     const isPostponed2 =
@@ -1808,11 +1778,10 @@ export function generateAnnualTimeDistribution(
       objectiveGroupId: 'intro_group',
     });
 
-    currentDate = addDays(parseISODate(startDateStr), 7);
-    currentDate = getNextValidSchoolDateOnWeekday(currentDate, teachingDayOfWeek);
+    currentDate = getNextValidSchoolDate(addDays(firstIntroActual, 7), true, academicYearId);
   } else {
     const desired = new Date(currentDate);
-    const actual = getNextValidSchoolDate(desired, true);
+    const actual = getNextValidSchoolDate(desired, true, academicYearId);
     const isPostponed = formatISODate(actual) !== formatISODate(desired);
     scheduled.push({
       globalSessionNumber: globalCounter++,
@@ -1832,13 +1801,10 @@ export function generateAnnualTimeDistribution(
       isIntro: true,
       objectiveGroupId: 'intro_group',
     });
-    currentDate = addDays(parseISODate(startDateStr), 7);
-    currentDate = getNextValidSchoolDateOnWeekday(currentDate, teachingDayOfWeek);
+    currentDate = getNextValidSchoolDate(addDays(actual, 7), true, academicYearId);
   }
 
   const fieldsSequence = ['f_locomotion', 'f_fundamentals', 'f_structuring'];
-  const secondWeekday = getSecondWeekday(teachingDayOfWeek);
-
   for (const fieldKey of fieldsSequence) {
     const fieldDetail = levelData.fields[fieldKey];
     if (!fieldDetail) continue;
@@ -1897,13 +1863,13 @@ export function generateAnnualTimeDistribution(
           }
           const wd = desiredDate.getDay();
           if (wd === 5 || wd === 6) {
-            desiredDate = getNextValidSchoolDate(desiredDate, true);
+            desiredDate = getNextValidSchoolDate(desiredDate, true, academicYearId);
           }
         }
 
-        const actualDate = getNextValidSchoolDate(desiredDate, true);
+        const actualDate = getNextValidSchoolDate(desiredDate, true, academicYearId);
         const isPostponed = formatISODate(actualDate) !== formatISODate(desiredDate);
-        const holidayCheck = isHoliday(actualDate);
+        const holidayCheck = isHoliday(actualDate, academicYearId);
         let note: string | undefined = undefined;
         if (isPostponed) {
           note = `تم ترحيل الحصة من ${formatISODate(desiredDate)} بسبب عطلة`;
@@ -1939,12 +1905,12 @@ export function generateAnnualTimeDistribution(
       if (grade === 1 || grade === 2 || grade === 3) {
         if (firstSessionActualDate) {
           const nextWeekDesired = addDays(firstSessionActualDate, 7);
-          currentDate = getNextValidSchoolDateOnWeekday(nextWeekDesired, teachingDayOfWeek);
+          currentDate = getNextValidSchoolDate(nextWeekDesired, true, academicYearId);
         }
       } else {
         if (firstSessionActualDate) {
           const nextDesired = addDays(firstSessionActualDate, 7);
-          currentDate = getNextValidSchoolDateOnWeekday(nextDesired, teachingDayOfWeek);
+          currentDate = getNextValidSchoolDate(nextDesired, true, academicYearId);
         }
       }
       objectiveCounter++;

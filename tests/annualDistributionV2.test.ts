@@ -64,14 +64,55 @@ describe('academic-year annual distribution generation v2', () => {
     ).toBe(true);
   });
 
-  it('keeps the selected school start as a lower bound while honoring the weekly anchor', () => {
+  it('uses the selected school start as the first session anchor', () => {
     const result = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
     expect(new Date('2026-09-21T00:00:00').getDay()).toBe(1);
-    expect(result.levels[0].firstSessionDate).toBe('2026-09-27');
-    expect(new Date(`${result.levels[0].firstSessionDate}T00:00:00`).getDay()).toBe(0);
+    expect(result.levels.every((level) => level.firstSessionDate === '2026-09-21')).toBe(true);
     expect(
       result.levels.every((level) => level.sessions.every((s) => s.plannedDate >= '2026-09-21'))
     ).toBe(true);
+  });
+
+  it('preserves the existing weekly and paired-session cadence from the selected anchor', () => {
+    const result = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
+    const gradeOne = result.levels.find((level) => level.levelId === 'lvl_p1')!;
+    const gradeFour = result.levels.find((level) => level.levelId === 'lvl_p4')!;
+
+    expect(gradeOne.sessions.slice(0, 3).map((session) => session.plannedDate)).toEqual([
+      '2026-09-21',
+      '2026-09-23',
+      '2026-09-28',
+    ]);
+    expect(gradeFour.sessions.slice(0, 2).map((session) => session.plannedDate)).toEqual([
+      '2026-09-21',
+      '2026-09-28',
+    ]);
+  });
+
+  it('anchors a rebuilt distribution to a changed selected start date', () => {
+    const firstBuild = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
+    const secondBuild = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-28');
+
+    expect(firstBuild.levels.map((level) => level.firstSessionDate)).toEqual([
+      '2026-09-21',
+      '2026-09-21',
+      '2026-09-21',
+      '2026-09-21',
+      '2026-09-21',
+    ]);
+    expect(secondBuild.levels.map((level) => level.firstSessionDate)).toEqual([
+      '2026-09-28',
+      '2026-09-28',
+      '2026-09-28',
+      '2026-09-28',
+      '2026-09-28',
+    ]);
+  });
+
+  it('skips a selected start date only when the academic calendar excludes it', () => {
+    const result = generateAllPrimaryLevelDistributions('2026-2027', '2026-10-29');
+
+    expect(result.levels.every((level) => level.firstSessionDate === '2026-11-09')).toBe(true);
   });
 
   it('uses the persisted level distribution as the editable source without a class', () => {
@@ -135,6 +176,19 @@ describe('academic-year annual distribution generation v2', () => {
     );
     expect(classA[0].id).not.toBe(classB[0].id);
     expect(classC.every((session) => session.durationMinutes === 90)).toBe(true);
+  });
+
+  it('keeps materialized class sessions synchronized with the level first date', () => {
+    const result = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
+    for (const level of result.levels) {
+      const seeds = buildClassPlannedSessionSeedsFromCanonicalSessions(
+        'teacher-1',
+        `class-${level.levelId}`,
+        '2026-2027',
+        level.sessions
+      );
+      expect(seeds[0].plannedDate.toISOString().slice(0, 10)).toBe(level.firstSessionDate);
+    }
   });
 
   it('keeps missing levels as distributions and never creates fake classes', () => {
