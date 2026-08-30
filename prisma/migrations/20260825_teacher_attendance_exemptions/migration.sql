@@ -35,6 +35,7 @@ CREATE INDEX "MedicalExemption_studentId_issuedOn_expiresOn_idx" ON "MedicalExem
 ALTER TABLE "StudentAttendance" ADD CONSTRAINT "StudentAttendance_teacherId_fkey" FOREIGN KEY ("teacherId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "StudentAttendance" ADD CONSTRAINT "StudentAttendance_classId_fkey" FOREIGN KEY ("classId") REFERENCES "StudentClass"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "StudentAttendance" ADD CONSTRAINT "StudentAttendance_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "StudentAttendance" ADD CONSTRAINT "StudentAttendance_classPlannedSessionId_fkey" FOREIGN KEY ("classPlannedSessionId") REFERENCES "ClassPlannedSession"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- The ClassPlannedSession FK is added by the ordered repair migration after
+-- 20260825090000_class_planned_sessions creates its referenced table.
 ALTER TABLE "MedicalExemption" ADD CONSTRAINT "MedicalExemption_teacherId_fkey" FOREIGN KEY ("teacherId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "MedicalExemption" ADD CONSTRAINT "MedicalExemption_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE;

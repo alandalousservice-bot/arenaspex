@@ -9,6 +9,17 @@ describe('persisted Teacher attendance and medical exemptions', () => {
     const migration = read(
       'prisma/migrations/20260825_teacher_attendance_exemptions/migration.sql'
     );
+    const classSessionMigration = read(
+      'prisma/migrations/20260825090000_class_planned_sessions/migration.sql'
+    );
+    const repairMigration = read(
+      'prisma/migrations/20260825091000_repair_teacher_attendance_session_fk/migration.sql'
+    );
+    expect(
+      '20260825091000_repair_teacher_attendance_session_fk'.localeCompare(
+        '20260825090000_class_planned_sessions'
+      )
+    ).toBeGreaterThan(0);
     expect(schema).toContain('model StudentAttendance');
     expect(schema).toContain('model MedicalExemption');
     expect(schema).toContain('attendanceDate        DateTime');
@@ -17,6 +28,14 @@ describe('persisted Teacher attendance and medical exemptions', () => {
     );
     expect(migration).toContain('CREATE TABLE "StudentAttendance"');
     expect(migration).toContain('CREATE TABLE "MedicalExemption"');
+    expect(migration).not.toContain('REFERENCES "ClassPlannedSession"');
+    expect(classSessionMigration).toContain('CREATE TABLE "ClassPlannedSession"');
+    const normalizedRepairMigration = repairMigration.replace(/\s+/g, ' ');
+    expect(normalizedRepairMigration).toContain('pg_constraint');
+    expect(normalizedRepairMigration).toContain(
+      'REFERENCES "ClassPlannedSession"("id") ON DELETE CASCADE ON UPDATE CASCADE'
+    );
+    expect(repairMigration).not.toMatch(/DROP\s+TABLE|TRUNCATE|DELETE\s+FROM/i);
   });
 
   it('exposes consolidated protected batch attendance and exemption routes', () => {
