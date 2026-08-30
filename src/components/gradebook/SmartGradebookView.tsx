@@ -453,7 +453,7 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
         {/* ========================================================================= */}
         <div className="space-y-5">
           {/* Pedagogical Philosophy Banner */}
-          <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-900 text-white rounded-3xl p-5 shadow-lg border border-blue-800/40 relative overflow-hidden">
+          <div className="gradebook-intelligence-panel bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-900 text-white rounded-3xl p-5 shadow-lg border border-blue-800/40 relative overflow-hidden">
             <div className="absolute left-0 top-0 bottom-0 w-1/3 bg-radial from-blue-500/10 to-transparent pointer-events-none" />
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1.5 max-w-3xl">

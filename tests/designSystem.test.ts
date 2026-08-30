@@ -104,6 +104,22 @@ describe('ArenaSpex Emerald design system', () => {
     expect(css.slice(printStart)).not.toContain('font-size: var(--type-table)');
   });
 
+  it('keeps Emerald surfaces and the Gradebook intelligence panel contrast-safe', () => {
+    const css = read('src/index.css');
+    const screenStart = css.indexOf('@media screen');
+    const printStart = css.indexOf('@media print');
+    const screenCss = css.slice(screenStart, printStart);
+
+    expect(screenCss).toContain('background-color: #ecfdf5 !important');
+    expect(screenCss).toContain('color: #065f46 !important');
+    expect(screenCss).toContain('background-color: #064e3b !important');
+    expect(screenCss).toContain('color: #fff !important');
+    expect(screenCss).toContain('.workspace-page--gradebook .gradebook-intelligence-panel');
+    expect(read('src/components/gradebook/SmartGradebookView.tsx')).toContain(
+      'gradebook-intelligence-panel'
+    );
+  });
+
   it('isolates academic-year numerals from RTL reordering', () => {
     const component = read('src/components/common/AcademicYearLabel.tsx');
     expect(component).toContain('dir="ltr"');

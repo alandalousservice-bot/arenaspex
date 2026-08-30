@@ -1,7 +1,8 @@
 @import 'tailwindcss';
 
 :root {
-  --font-arabic: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', Tahoma, Arial, sans-serif;
+  --font-arabic:
+    'Noto Kufi Arabic', 'IBM Plex Sans Arabic', 'Noto Sans Arabic', Tahoma, Arial, sans-serif;
   --type-page-title: 1.625rem;
   --type-section-title: 1.375rem;
   --type-card-title: 1.0625rem;
@@ -50,7 +51,7 @@
     margin: 0;
     background: var(--color-background);
     color: var(--color-text);
-    font-family: var(--font-arabic);
+    font-family: var(--font-arabic) !important;
     text-rendering: optimizeLegibility;
   }
 
@@ -417,6 +418,54 @@
   :is(.workspace-page, .app-shell main) table tbody td:has(> select),
   :is(.workspace-page, .app-shell main) table tbody td:has([dir='ltr']) {
     text-align: center;
+  }
+
+  /* Keep semantic text readable when legacy utility classes are remapped to
+     the Emerald palette. */
+  :is(.workspace-page, .app-shell main) .text-slate-400,
+  :is(.workspace-page, .app-shell main) .text-slate-500 {
+    color: #475569 !important;
+  }
+
+  :is(.workspace-page, .app-shell main) table thead tr[class*='bg-slate-900'] {
+    background-color: #065f46 !important;
+    color: #fff !important;
+  }
+
+  :is(.workspace-page, .app-shell main) [class*='bg-emerald-50'][class*='text-white'],
+  :is(.workspace-page, .app-shell main) [class*='bg-emerald-100'][class*='text-white'],
+  :is(.workspace-page, .app-shell main) [class*='bg-emerald-200'][class*='text-white'] {
+    background-color: #ecfdf5 !important;
+    color: #065f46 !important;
+  }
+
+  :is(.workspace-page, .app-shell main) [class*='bg-emerald-50'][class*='text-emerald-300'],
+  :is(.workspace-page, .app-shell main) [class*='bg-emerald-50'][class*='text-emerald-400'],
+  :is(.workspace-page, .app-shell main) [class*='bg-emerald-100'][class*='text-emerald-300'],
+  :is(.workspace-page, .app-shell main) [class*='bg-emerald-100'][class*='text-emerald-400'] {
+    color: #065f46 !important;
+  }
+
+  :is(.workspace-page, .app-shell main) [class*='bg-emerald-600'][class*='text-white'],
+  :is(.workspace-page, .app-shell main) [class*='bg-emerald-700'][class*='text-white'] {
+    color: #fff !important;
+  }
+
+  .workspace-hero button.bg-white[class*='text-blue-'] {
+    color: #065f46 !important;
+  }
+
+  .workspace-page--gradebook .gradebook-intelligence-panel {
+    background-color: #064e3b !important;
+    background-image: none !important;
+    border-color: rgb(110 231 183 / 0.35) !important;
+    color: #fff !important;
+  }
+
+  .workspace-page--gradebook .gradebook-intelligence-panel [class*='text-blue-'],
+  .workspace-page--gradebook .gradebook-intelligence-panel [class*='text-indigo-'],
+  .workspace-page--gradebook .gradebook-intelligence-panel [class*='text-purple-'] {
+    color: #d1fae5 !important;
   }
 
   :is(.workspace-page, .app-shell main) [class*='rounded-full'] {
