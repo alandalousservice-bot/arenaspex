@@ -22,6 +22,7 @@ import { mergeSchedule, MergedScheduledLesson } from '../../services/schedule/sc
 import { canonicalReferenceSessions } from '../../services/teacherPlanning.service';
 import {
   formatAcademicYearLabel,
+  formatAcademicYearSelectLabel,
   getCurrentAcademicYear,
   getOperationalAcademicYearOptions,
   isOperationalAcademicYear,
@@ -90,6 +91,11 @@ function sessionStateLabel(session: TeacherPlanningSession, memo?: LessonPlan): 
   if (session.status === 'منجزة') return 'حصة منجزة — المذكرة غير منشأة';
   if (session.status === 'مؤجلة') return 'حصة مؤجلة — المذكرة غير منشأة';
   return 'مذكرة غير منشأة';
+}
+
+function displayFieldName(domainId?: string, fieldName?: string): string {
+  if (!fieldName || domainId === 'intro' || fieldName.trim().toLowerCase() === 'intro') return '';
+  return fieldName;
 }
 
 type SourceSession = Parameters<typeof autoGenerateLessonPlan>[0];
@@ -185,9 +191,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         ? [
             {
               fieldId: scheduledContext.reference.domainId,
-              fieldName:
-                PE_FIELDS.find((field) => field.id === scheduledContext.reference.domainId)?.name ||
+              fieldName: displayFieldName(
                 scheduledContext.reference.domainId,
+                PE_FIELDS.find((field) => field.id === scheduledContext.reference.domainId)?.name
+              ),
               finalCompetency:
                 COMPLETE_ANNUAL_CURRICULUM[scheduledContext.reference.levelId]?.fields[
                   scheduledContext.reference.domainId
@@ -207,7 +214,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           ]
         : scheduledLessons.map((scheduled) => ({
             fieldId: scheduled.fieldId,
-            fieldName: scheduled.fieldName,
+            fieldName: displayFieldName(scheduled.fieldId, scheduled.fieldName),
             finalCompetency:
               COMPLETE_ANNUAL_CURRICULUM[scheduled.levelId]?.fields[scheduled.fieldId]
                 ?.finalCompetency || '',
@@ -255,10 +262,13 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         const nextSessions = sortOperationalSessions(result.sessions);
         setOperationalSessions(nextSessions);
         const requested = requestedSessionId || operationalSessionId;
-        const nextId = nextSessions.some((item) => item.id === requested)
-          ? requested
-          : nextSessions[0]?.id || '';
-        if (requestedSessionId && !nextSessions.some((item) => item.id === requestedSessionId)) {
+        const matchedById = nextSessions.find((item) => item.id === requested);
+        const matchedByReference = matchedById
+          ? undefined
+          : nextSessions.find((item) => item.referenceSessionId === requested);
+        const resolvedRequested = matchedById || matchedByReference;
+        const nextId = resolvedRequested?.id || nextSessions[0]?.id || '';
+        if (requestedSessionId && !resolvedRequested) {
           setScheduledError('الحصة التشغيلية المطلوبة غير موجودة ضمن أقسامك.');
           setOperationalSessionId('');
           return;
@@ -479,6 +489,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             </select>
             <label className="mb-1 block text-sm font-bold">السنة الدراسية</label>
             <select
+              dir="ltr"
               value={operationalAcademicYearId}
               onChange={(event) => {
                 setOperationalAcademicYearId(event.target.value);
@@ -488,7 +499,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             >
               {getOperationalAcademicYearOptions().map((year) => (
                 <option key={year} value={year}>
-                  {formatAcademicYearLabel(year)}
+                  {formatAcademicYearSelectLabel(year)}
                 </option>
               ))}
             </select>
@@ -531,6 +542,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                     <span>
                       <strong className="text-slate-800">النوع:</strong>{' '}
                       {scheduledContext.reference.sessionTypeLabel}
+                    </span>
+                    <span>
+                      <strong className="text-slate-800">السنة الدراسية:</strong>{' '}
+                      <bdi dir="ltr">{formatAcademicYearLabel(operationalAcademicYearId)}</bdi>
                     </span>
                     <span className="col-span-2">
                       <strong className="text-slate-800">الهدف:</strong>{' '}
@@ -675,6 +690,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           السنة الدراسية
           <select
             aria-label="السنة الدراسية"
+            dir="ltr"
             value={operationalAcademicYearId}
             onChange={(event) => {
               setOperationalAcademicYearId(event.target.value);
@@ -685,7 +701,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           >
             {getOperationalAcademicYearOptions().map((year) => (
               <option key={year} value={year}>
-                {formatAcademicYearLabel(year)}
+                {formatAcademicYearSelectLabel(year)}
               </option>
             ))}
           </select>
@@ -747,6 +763,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           {operationalSessions.map((session) => {
             const memo = findOperationalLessonPlan(lessonPlans, session, currentUser?.id || '');
             const reference = session.reference;
+            const fieldName = displayFieldName(reference?.domainId, reference?.fieldName);
             const isSelected = selectedOperationalSession?.id === session.id;
             return (
               <article
@@ -782,10 +799,12 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                       {reference?.objective || 'هدف غير محدد'}
                     </dd>
                   </div>
-                  <div>
-                    <dt className="font-bold text-slate-800">الميدان</dt>
-                    <dd className="mt-0.5">{reference?.fieldName || 'غير محدد'}</dd>
-                  </div>
+                  {fieldName && (
+                    <div>
+                      <dt className="font-bold text-slate-800">الميدان</dt>
+                      <dd className="mt-0.5">{fieldName}</dd>
+                    </div>
+                  )}
                   <div>
                     <dt className="font-bold text-slate-800">المدة والتوقيت</dt>
                     <dd className="mt-0.5">
@@ -842,6 +861,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     editing ? { ...presentationPlan, lessonRows: rows } : presentationPlan,
     { durationMinutes: effectiveDuration }
   );
+  const visibleFieldName = displayFieldName('', memoModel.header.field);
   const setRows = (lessonRows: LessonPlanRow[]) =>
     setDraft((previous) => previous && { ...previous, lessonRows });
   const grade = LEVELS.indexOf(plan.levelName) + 1;
@@ -1069,7 +1089,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             ['المؤسسة', memoModel.header.institution],
             ['المستوى', memoModel.header.grade],
             ['التاريخ', memoModel.header.date],
-            ['الميدان', memoModel.header.field],
+            ...(visibleFieldName ? [['الميدان', visibleFieldName]] : []),
             ['الوسائل', memoModel.header.equipment.join('، ')],
           ].map(([label, value]) => (
             <div key={label} className="rounded-xl border border-slate-200 bg-white shadow-sm">

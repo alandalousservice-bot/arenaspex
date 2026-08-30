@@ -47,6 +47,13 @@ export function formatAcademicYearLabel(academicYearId: string): string {
     : academicYearId;
 }
 
+/** Native select options need an explicit LTR mark because their popup can
+ * visually reverse the two years inside an RTL interface. */
+export function formatAcademicYearSelectLabel(academicYearId: string): string {
+  const label = formatAcademicYearLabel(academicYearId);
+  return `\u200E${label}\u200E`;
+}
+
 export function getAcademicYearOptions(referenceDate = new Date()): string[] {
   const current = Number(getAcademicYearForDate(referenceDate).slice(0, 4));
   return [-1, 0, 1].map((offset) => `${current + offset}-${current + offset + 1}`);
