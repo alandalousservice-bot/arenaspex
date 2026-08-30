@@ -85,14 +85,30 @@ describe('ArenaSpex Emerald design system', () => {
 
   it('standardizes Arabic typography and semantic RTL alignment on screen', () => {
     const css = read('src/index.css');
+    const html = read('index.html');
     const screenStart = css.indexOf('@media screen');
     const printStart = css.indexOf('@media print');
     const screenCss = css.slice(screenStart, printStart);
 
-    expect(css).toContain('--font-arabic:');
+    expect(css).toMatch(
+      /--font-arabic:\s*'Alexandria',\s*'Tajawal',\s*'Noto Sans Arabic',\s*system-ui,\s*sans-serif;/
+    );
+    expect(css).not.toContain('Noto Kufi Arabic');
+    expect(html).toContain('family=Alexandria:wght@400;500;600;700');
     expect(css).toContain('--type-page-title:');
+    expect(css).toContain('--type-section-title:');
+    expect(css).toContain('--type-body:');
+    expect(css).toContain('--type-control:');
     expect(css).toContain('--type-table:');
+    expect(css).toContain('--type-meta:');
+    expect(css).toContain('--type-badge:');
     expect(screenCss).toContain('font-family: var(--font-arabic)');
+    expect(screenCss).toContain('font-size: var(--type-page-title)');
+    expect(screenCss).toContain('font-size: var(--type-body)');
+    expect(screenCss).toContain('font-size: var(--type-control)');
+    expect(screenCss).toContain('font-weight: 400');
+    expect(screenCss).toContain('font-weight: 600');
+    expect(screenCss).toContain('font-weight: 700');
     expect(screenCss).toContain('justify-content: center');
     expect(screenCss).toContain('direction: rtl');
     expect(screenCss).toContain('unicode-bidi: isolate');
@@ -102,6 +118,8 @@ describe('ArenaSpex Emerald design system', () => {
     expect(css.slice(printStart)).not.toContain('--font-arabic');
     expect(css.slice(printStart)).not.toContain('font-family: var(--font-arabic)');
     expect(css.slice(printStart)).not.toContain('font-size: var(--type-table)');
+    expect(css.slice(printStart)).toContain('font-family: Tahoma, Arial, sans-serif');
+    expect(css.slice(printStart)).toContain('font-family: Cairo, Tahoma, Arial, sans-serif');
   });
 
   it('keeps Emerald surfaces and the Gradebook intelligence panel contrast-safe', () => {

@@ -1,10 +1,9 @@
 @import 'tailwindcss';
 
 :root {
-  --font-arabic:
-    'Noto Kufi Arabic', 'IBM Plex Sans Arabic', 'Noto Sans Arabic', Tahoma, Arial, sans-serif;
-  --type-page-title: 1.625rem;
-  --type-section-title: 1.375rem;
+  --font-arabic: 'Alexandria', 'Tajawal', 'Noto Sans Arabic', system-ui, sans-serif;
+  --type-page-title: 1.75rem;
+  --type-section-title: 1.5rem;
   --type-card-title: 1.0625rem;
   --type-body: 0.9375rem;
   --type-control: 0.875rem;
@@ -331,8 +330,13 @@
 
   :is(.workspace-page, .app-shell main) h3 {
     font-size: var(--type-card-title);
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1.45;
+  }
+
+  .workspace-page,
+  .app-shell main {
+    font-size: var(--type-body);
   }
 
   :is(.workspace-page, .app-shell main) p,
@@ -348,7 +352,17 @@
   :is(.workspace-page, .app-shell main) button,
   :is(.workspace-page, .app-shell main) label,
   :is(.workspace-page, .app-shell main) select {
+    font-size: var(--type-control);
+    font-weight: 600;
     line-height: 1.35;
+  }
+
+  :is(.workspace-page, .app-shell main) table th {
+    font-weight: 600;
+  }
+
+  :is(.workspace-page, .app-shell main) table td {
+    font-weight: 400;
   }
 
   :is(.workspace-page, .app-shell main)
