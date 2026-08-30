@@ -693,6 +693,70 @@ export async function initializeTeacherPlanningSessions(
   return data as TeacherPlanningSessionsResponse & { initialized: number };
 }
 
+export interface TeacherAnnualLevelDistributionSummary {
+  levelId: string;
+  grade: number;
+  sessionCount: number;
+  annualHours: number;
+  firstSessionDate: string | null;
+  lastSessionDate: string | null;
+  durationMinutes: number;
+  status: 'generated' | 'failed';
+  error?: string;
+}
+
+export interface TeacherAnnualClassLinkSummary {
+  classId: string;
+  className: string;
+  levelId: string;
+  normalizedLevelId: string | null;
+  sessionCount: number;
+  status: 'linked' | 'skipped';
+  error?: string;
+}
+
+export interface TeacherAnnualDistributionResponse {
+  success: boolean;
+  academicYearId: string;
+  planningStartDate: string;
+  endDate: string;
+  levels: TeacherAnnualLevelDistributionSummary[];
+  classes: TeacherAnnualClassLinkSummary[];
+  linkedClasses: number;
+  createdOrUpdatedSessions: number;
+}
+
+export async function initializeTeacherAnnualDistribution(
+  academicYearId: string,
+  planningStartDate: string
+): Promise<TeacherAnnualDistributionResponse> {
+  const res = await fetch('/api/teacher/planning/annual-distribution/initialize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ academicYearId, planningStartDate }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error = new Error(data.error || 'تعذر إنشاء التوزيع السنوي للمستويات.') as Error & {
+      annualDistribution?: TeacherAnnualDistributionResponse;
+    };
+    if (Array.isArray(data.levels)) {
+      error.annualDistribution = {
+        success: false,
+        academicYearId,
+        planningStartDate,
+        endDate: data.endDate || '',
+        levels: data.levels,
+        classes: data.classes || [],
+        linkedClasses: data.linkedClasses || 0,
+        createdOrUpdatedSessions: data.createdOrUpdatedSessions || 0,
+      };
+    }
+    throw error;
+  }
+  return data as TeacherAnnualDistributionResponse;
+}
+
 export async function updateTeacherPlanningSession(
   classId: string,
   sessionId: string,

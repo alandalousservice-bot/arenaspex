@@ -29,9 +29,12 @@ import { teacherAttendanceRouter } from './attendanceRouter.js';
 import { findActiveMedicalExemption } from './medicalExemption.service.js';
 import {
   buildClassPlannedSessionSeeds,
+  buildClassPlannedSessionSeedsFromCanonicalSessions,
   canonicalReferenceSessions,
   effectivePlanningObjective,
+  generateAllPrimaryLevelDistributions,
   isValidPlanningDate,
+  normalizePrimaryLevelId,
   type PlanningWordingOverrides,
 } from '../services/teacherPlanning.service.js';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../data/algerianCurriculum.js';
@@ -305,14 +308,16 @@ async function resolvePlanningReferences(
   teacherId: string,
   academicYearId: string
 ) {
+  const normalizedLevelId = normalizePrimaryLevelId(levelId);
+  if (!normalizedLevelId) return new Map();
   const [referenceSessions, wordingPlan] = await Promise.all([
-    Promise.resolve(canonicalReferenceSessions(levelId)),
+    Promise.resolve(canonicalReferenceSessions(normalizedLevelId)),
     prisma.annualPlan.findUnique({
       where: {
         teacherId_academicYearId_levelId_kind: {
           teacherId,
           academicYearId,
-          levelId,
+          levelId: normalizedLevelId,
           kind: 'section_wording',
         },
       },
@@ -321,7 +326,7 @@ async function resolvePlanningReferences(
   ]);
   const overrides = ((wordingPlan?.data as { overrides?: PlanningWordingOverrides } | null)
     ?.overrides || {}) as PlanningWordingOverrides;
-  const fields = COMPLETE_ANNUAL_CURRICULUM[levelId]?.fields || {};
+  const fields = COMPLETE_ANNUAL_CURRICULUM[normalizedLevelId]?.fields || {};
   return new Map(
     referenceSessions.map((reference) => [
       reference.referenceSessionId,
@@ -384,6 +389,135 @@ apiRouter.get(
 );
 
 apiRouter.post(
+  '/teacher/planning/annual-distribution/initialize',
+  requireRole('teacher'),
+  async (req, res) => {
+    const parsed = classPlanningInitializeSchema.safeParse(req.body);
+    if (!parsed.success)
+      return res
+        .status(400)
+        .json({ error: 'السنة الدراسية وتاريخ بداية التخطيط مطلوبان بصيغة صحيحة.' });
+
+    const { academicYearId, planningStartDate } = parsed.data;
+    const generation = generateAllPrimaryLevelDistributions(academicYearId, planningStartDate);
+    const levelViews = generation.levels.map(({ sessions: _sessions, ...level }) => level);
+    if (generation.levels.some((level) => level.status === 'failed')) {
+      return res.status(400).json({
+        error: 'تعذر إنشاء توزيع جميع المستويات ضمن السنة الدراسية المحددة.',
+        academicYearId,
+        planningStartDate,
+        endDate: generation.endDate,
+        levels: levelViews,
+        classes: [],
+        linkedClasses: 0,
+        createdOrUpdatedSessions: 0,
+      });
+    }
+
+    const classes = await prisma.studentClass.findMany({
+      where: { teacherId: req.user!.id },
+      orderBy: { name: 'asc' },
+    });
+    const distributionsByLevel = new Map(
+      generation.levels.map((distribution) => [distribution.levelId, distribution] as const)
+    );
+    const existingRows = await prisma.classPlannedSession.findMany({
+      where: { teacherId: req.user!.id, academicYearId },
+    });
+    const existingByClassReference = new Map(
+      existingRows.map((row) => [`${row.classId}|${row.referenceSessionId}`, row] as const)
+    );
+    const classLinks = classes.map((classRecord) => {
+      const normalizedLevelId = normalizePrimaryLevelId(classRecord.levelId);
+      const distribution = normalizedLevelId
+        ? distributionsByLevel.get(normalizedLevelId)
+        : undefined;
+      if (!distribution) {
+        return {
+          classId: classRecord.id,
+          className: classRecord.name,
+          levelId: classRecord.levelId,
+          normalizedLevelId: null,
+          sessionCount: 0,
+          status: 'skipped' as const,
+          error: 'مستوى القسم غير معروف؛ لم يتم إسناد منهج افتراضي له.',
+        };
+      }
+      return {
+        classId: classRecord.id,
+        className: classRecord.name,
+        levelId: classRecord.levelId,
+        normalizedLevelId,
+        sessionCount: distribution.sessions.length,
+        status: 'linked' as const,
+      };
+    });
+    const seedsByClass = new Map<
+      string,
+      ReturnType<typeof buildClassPlannedSessionSeedsFromCanonicalSessions>
+    >();
+    const conflicts = classLinks
+      .filter((link) => link.status === 'linked')
+      .flatMap((link) => {
+        const distribution = distributionsByLevel.get(link.normalizedLevelId!);
+        const seeds = buildClassPlannedSessionSeedsFromCanonicalSessions(
+          req.user!.id,
+          link.classId,
+          academicYearId,
+          distribution!.sessions
+        );
+        seedsByClass.set(link.classId, seeds);
+        return seeds
+          .filter((seed) => {
+            const existing = existingByClassReference.get(
+              `${seed.classId}|${seed.referenceSessionId}`
+            );
+            return (
+              existing?.status === 'منجزة' &&
+              existing.plannedDate.getTime() !== seed.plannedDate.getTime()
+            );
+          })
+          .map(() => link.className);
+      });
+    if (conflicts.length) {
+      return res.status(409).json({
+        error: `لا يمكن إعادة جدولة حصص منجزة في: ${[...new Set(conflicts)].join('، ')}.`,
+        levels: levelViews,
+        classes: classLinks,
+      });
+    }
+
+    const operations = [...seedsByClass.entries()].flatMap(([classId, seeds]) =>
+      seeds.flatMap((seed) => {
+        const existing = existingByClassReference.get(`${classId}|${seed.referenceSessionId}`);
+        if (existing) {
+          if (existing.status === 'منجزة') return [];
+          return [
+            prisma.classPlannedSession.update({
+              where: { id: existing.id },
+              data: { plannedDate: seed.plannedDate, durationMinutes: seed.durationMinutes },
+            }),
+          ];
+        }
+        return [prisma.classPlannedSession.create({ data: seed })];
+      })
+    );
+    if (operations.length) await prisma.$transaction(operations);
+
+    res.status(201).json({
+      success: true,
+      academicYearId,
+      planningStartDate,
+      endDate: generation.endDate,
+      levels: levelViews,
+      classes: classLinks,
+      linkedClasses: classLinks.filter((link) => link.status === 'linked').length,
+      createdOrUpdatedSessions: operations.length,
+    });
+  }
+);
+
+apiRouter.post(
   '/teacher/planning/classes/:classId/sessions/initialize',
   requireRole('teacher'),
   async (req, res) => {
@@ -396,13 +530,23 @@ apiRouter.post(
       where: { id: req.params.classId, teacherId: req.user!.id },
     });
     if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
-    const seeds = buildClassPlannedSessionSeeds(
-      req.user!.id,
-      classRecord.id,
-      parsed.data.academicYearId,
-      classRecord.levelId,
-      parsed.data.planningStartDate
-    );
+    let seeds;
+    try {
+      seeds = buildClassPlannedSessionSeeds(
+        req.user!.id,
+        classRecord.id,
+        parsed.data.academicYearId,
+        classRecord.levelId,
+        parsed.data.planningStartDate
+      );
+    } catch (error) {
+      return res.status(400).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : 'تعذر إنشاء تسلسل المنهاج ضمن السنة الدراسية المحددة.',
+      });
+    }
     if (!seeds.length)
       return res.status(400).json({ error: 'تعذر إنشاء تسلسل المنهاج لهذا المستوى.' });
     const existingRows = await prisma.classPlannedSession.findMany({

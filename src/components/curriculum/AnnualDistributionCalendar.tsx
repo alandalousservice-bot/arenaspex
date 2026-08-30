@@ -7,17 +7,23 @@ import {
   type AcademicCalendarEvent,
 } from '../../data/academicCalendars';
 import type { ClassRoom, User } from '../../types/spex';
-import type { TeacherPlanningReference, TeacherPlanningSession } from '../../services/api';
+import { normalizePrimaryLevelId } from '../../services/teacherPlanning.service';
+import type {
+  TeacherAnnualDistributionResponse,
+  TeacherPlanningReference,
+  TeacherPlanningSession,
+} from '../../services/api';
 
 interface AnnualDistributionCalendarProps {
   currentUser: User;
-  selectedClass: ClassRoom;
+  selectedClass: ClassRoom | null;
   academicYearId: string;
   planningStartDate: string;
   sessions: TeacherPlanningSession[];
   loading: boolean;
   saving: string | null;
   error: string;
+  annualGeneration: TeacherAnnualDistributionResponse | null;
   onPlanningStartDateChange: (value: string) => void;
   onInitialize: () => void;
   onUpdateDate: (session: TeacherPlanningSession, value: string) => void;
@@ -88,7 +94,8 @@ export function buildAnnualCompactRows(
   sessions: TeacherPlanningSession[],
   levelId: string
 ): AnnualCompactRow[] {
-  const grade = Number(levelId.replace('lvl_p', ''));
+  const normalizedLevelId = normalizePrimaryLevelId(levelId);
+  const grade = normalizedLevelId ? Number(normalizedLevelId.slice(-1)) : 0;
   const sorted = [...sessions].sort(
     (a, b) => a.plannedDate.localeCompare(b.plannedDate) || a.id.localeCompare(b.id)
   );
@@ -263,6 +270,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
   loading,
   saving,
   error,
+  annualGeneration,
   onPlanningStartDateChange,
   onInitialize,
   onUpdateDate,
@@ -270,11 +278,14 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
 }) => {
   const calendarRows = useMemo(() => buildAnnualCalendarRows(sessions), [sessions]);
   const compactRows = useMemo(
-    () => buildAnnualCompactRows(sessions, selectedClass.levelId),
-    [selectedClass.levelId, sessions]
+    () => (selectedClass ? buildAnnualCompactRows(sessions, selectedClass.levelId) : []),
+    [selectedClass, sessions]
   );
   const levelName =
-    PE_LEVELS.find((level) => level.id === selectedClass.levelId)?.name || selectedClass.levelId;
+    PE_LEVELS.find((level) => level.id === normalizePrimaryLevelId(selectedClass?.levelId))?.name ||
+    selectedClass?.levelName ||
+    selectedClass?.levelId ||
+    '—';
   const teacherName = `${currentUser.firstName} ${currentUser.lastName}`.trim();
 
   return (
@@ -283,12 +294,14 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-bold text-blue-600">التوزيع السنوي</p>
-            <h2 className="mt-1 text-lg font-extrabold text-slate-900">{selectedClass.name}</h2>
+            <h2 className="mt-1 text-lg font-extrabold text-slate-900">
+              إنشاء التوزيع السنوي للمستويات الخمسة
+            </h2>
             <p className="mt-1 text-xs text-slate-500">السنة الدراسية: {academicYearId}</p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <label className="text-xs font-bold text-slate-600">
-              بداية الحصص
+              بداية الموسم الدراسي
               <input
                 type="date"
                 value={planningStartDate}
@@ -302,7 +315,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
               className="flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
             >
               <RefreshCw className="h-4 w-4" />
-              {sessions.length ? 'إعادة المحاولة' : 'توليد التوزيع السنوي'}
+              {annualGeneration || sessions.length ? 'إعادة بناء التوزيع' : 'إنشاء التوزيع السنوي'}
             </button>
             <button
               type="button"
@@ -323,7 +336,51 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
         </div>
       </div>
 
-      {sessions.length > 0 && (
+      {annualGeneration && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-extrabold text-slate-900">ملخص التوزيع السنوي</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                من {annualGeneration.planningStartDate} إلى {annualGeneration.endDate} · الأقسام
+                المرتبطة: {annualGeneration.linkedClasses}
+              </p>
+            </div>
+            <span className="text-xs font-bold text-emerald-700">
+              {annualGeneration.levels.some((level) => level.status === 'failed')
+                ? 'تعذر توليد بعض المستويات'
+                : 'تم التوليد للمستويات الخمسة'}
+            </span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {annualGeneration.levels.map((level) => (
+              <div
+                key={level.levelId}
+                className={`rounded-xl border p-3 ${level.status === 'generated' ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}
+              >
+                <p className="text-xs font-extrabold text-slate-900">السنة {level.grade}</p>
+                <p className="mt-1 text-sm font-black text-slate-900">{level.sessionCount} حصة</p>
+                <p className="mt-1 text-[11px] font-bold text-slate-600">
+                  {level.annualHours} ساعة
+                </p>
+                <p className="mt-1 text-[10px] text-slate-500">
+                  {level.firstSessionDate || '—'} ← {level.lastSessionDate || '—'}
+                </p>
+                {level.error && (
+                  <p className="mt-1 text-[10px] font-bold text-red-700">{level.error}</p>
+                )}
+              </div>
+            ))}
+          </div>
+          {annualGeneration.classes.some((item) => item.status === 'skipped') && (
+            <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-900">
+              بعض الأقسام لم تُربط لأن مستوى القسم غير معروف؛ لم يتم إسناد منهج بديل لها.
+            </p>
+          )}
+        </section>
+      )}
+
+      {selectedClass && sessions.length > 0 && (
         <div className="annual-distribution-print-root">
           <header className="annual-distribution-document-header hidden border border-slate-300 bg-white p-4 text-center print:block">
             <p className="text-[10px] font-bold text-slate-600">

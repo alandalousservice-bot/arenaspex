@@ -1,0 +1,106 @@
+import fs from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import {
+  buildClassPlannedSessionSeedsFromCanonicalSessions,
+  generateAllPrimaryLevelDistributions,
+} from '../src/services/teacherPlanning.service';
+import { calendarEventForDate, getAcademicCalendar } from '../src/data/academicCalendars';
+
+const levelIds = ['lvl_p1', 'lvl_p2', 'lvl_p3', 'lvl_p4', 'lvl_p5'] as const;
+
+describe('academic-year annual distribution generation v2', () => {
+  it('generates all five canonical level distributions from one start date', () => {
+    const result = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
+    expect(result.levels.map((level) => level.levelId)).toEqual(levelIds);
+    expect(result.levels.map((level) => level.sessionCount)).toEqual([56, 56, 56, 34, 34]);
+    expect(result.levels.map((level) => level.durationMinutes)).toEqual([60, 60, 60, 90, 60]);
+    expect(result.levels.every((level) => level.status === 'generated')).toBe(true);
+  });
+
+  it('keeps every generated date inside the selected academic-year calendar', () => {
+    const result = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
+    const calendar = getAcademicCalendar(result.academicYearId);
+    for (const level of result.levels) {
+      expect(level.sessions.every((session) => session.plannedDate >= calendar.schoolStart)).toBe(
+        true
+      );
+      expect(level.sessions.every((session) => session.plannedDate <= result.endDate)).toBe(true);
+      expect(
+        level.sessions.every(
+          (session) => !calendarEventForDate(session.plannedDate, result.academicYearId)
+        )
+      ).toBe(true);
+    }
+  });
+
+  it('uses the selected academic-year end boundary when the calendar has a provisional end', () => {
+    const result = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
+    expect(result.endDate).toBe('2027-08-31');
+    expect(result.levels.map((level) => level.sessionCount)).toEqual([56, 56, 56, 34, 34]);
+    expect(
+      result.levels.every((level) =>
+        level.sessions.every(
+          (session) =>
+            session.plannedDate >= result.planningStartDate && session.plannedDate <= result.endDate
+        )
+      )
+    ).toBe(true);
+  });
+
+  it('materializes separate same-level class execution rows from one level structure', () => {
+    const result = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
+    const gradeTwo = result.levels.find((level) => level.levelId === 'lvl_p2')!;
+    const gradeFour = result.levels.find((level) => level.levelId === 'lvl_p4')!;
+    const classA = buildClassPlannedSessionSeedsFromCanonicalSessions(
+      'teacher-1',
+      'class-2a',
+      '2025-2026',
+      gradeTwo.sessions
+    );
+    const classB = buildClassPlannedSessionSeedsFromCanonicalSessions(
+      'teacher-1',
+      'class-2b',
+      '2025-2026',
+      gradeTwo.sessions
+    );
+    const classC = buildClassPlannedSessionSeedsFromCanonicalSessions(
+      'teacher-1',
+      'class-4a',
+      '2025-2026',
+      gradeFour.sessions
+    );
+
+    expect(classA).toHaveLength(56);
+    expect(classB).toHaveLength(56);
+    expect(classC).toHaveLength(34);
+    expect(classA.every((session) => session.classId === 'class-2a')).toBe(true);
+    expect(classB.every((session) => session.classId === 'class-2b')).toBe(true);
+    expect(classA.map((session) => session.referenceSessionId)).toEqual(
+      classB.map((session) => session.referenceSessionId)
+    );
+    expect(classA[0].id).not.toBe(classB[0].id);
+    expect(classC.every((session) => session.durationMinutes === 90)).toBe(true);
+  });
+
+  it('keeps missing levels as distributions and never creates fake classes', () => {
+    const result = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
+    expect(result.levels.find((level) => level.levelId === 'lvl_p5')?.sessionCount).toBe(34);
+    const router = fs.readFileSync('src/server/apiRouter.ts', 'utf8');
+    const globalRoute = router.slice(
+      router.indexOf("'/teacher/planning/annual-distribution/initialize'"),
+      router.indexOf("'/teacher/planning/classes/:classId/sessions/initialize'")
+    );
+    expect(router).toContain("'/teacher/planning/annual-distribution/initialize'");
+    expect(globalRoute).toContain('normalizePrimaryLevelId(classRecord.levelId)');
+    expect(globalRoute).toContain('prisma.studentClass.findMany');
+    expect(globalRoute).not.toContain('prisma.studentClass.create');
+  });
+
+  it('preserves safe regeneration and completed-session protection contracts', () => {
+    const router = fs.readFileSync('src/server/apiRouter.ts', 'utf8');
+    expect(router).toContain("existing.status === 'منجزة'");
+    expect(router).toContain('res.status(409)');
+    expect(router).toContain('prisma.$transaction(operations)');
+    expect(router).toContain('createdOrUpdatedSessions');
+  });
+});

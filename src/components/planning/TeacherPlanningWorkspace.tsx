@@ -7,9 +7,10 @@ import { AcademicCalendarView } from '../curriculum/AcademicCalendarView';
 import { WeeklyTimetableView } from '../schedule/WeeklyTimetableView';
 import {
   fetchTeacherPlanningSessions,
-  initializeTeacherPlanningSessions,
+  initializeTeacherAnnualDistribution,
   updateTeacherPlanningSession,
   TeacherPlanningSession,
+  TeacherAnnualDistributionResponse,
 } from '../../services/api';
 import {
   formatAcademicYearLabel,
@@ -78,6 +79,8 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     () => getAcademicCalendar(academicYearId).schoolStart
   );
   const [sessions, setSessions] = useState<TeacherPlanningSession[]>([]);
+  const [annualGeneration, setAnnualGeneration] =
+    useState<TeacherAnnualDistributionResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -132,6 +135,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     setAcademicYearId(next);
     setPlanningStartDate(getAcademicCalendar(next).schoolStart);
     setSessions([]);
+    setAnnualGeneration(null);
     setError('');
   };
 
@@ -146,7 +150,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
   };
 
   const initialize = async () => {
-    if (!selectedClassId || !planningStartDate) return;
+    if (!planningStartDate) return;
     if (!isPlanningStartDateConsistent(academicYearId, planningStartDate)) {
       setError(
         `لا يمكن أن يسبق تاريخ بداية الحصص الدخول المدرسي الرسمي للتلاميذ: ${getAcademicCalendar(academicYearId).schoolStart}.`
@@ -158,20 +162,26 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
       return;
     }
     if (
-      sessions.length &&
+      (sessions.length || annualGeneration) &&
       !window.confirm('سيتم إعادة حساب تواريخ التوزيع مع الحفاظ على هوية الحصص. هل تريد المتابعة؟')
     )
       return;
     setLoading(true);
     setError('');
     try {
-      const result = await initializeTeacherPlanningSessions(
-        selectedClassId,
-        academicYearId,
-        planningStartDate
-      );
-      setSessions(result.sessions);
+      const result = await initializeTeacherAnnualDistribution(academicYearId, planningStartDate);
+      setAnnualGeneration(result);
+      if (selectedClassId) {
+        const classResult = await fetchTeacherPlanningSessions(selectedClassId, academicYearId);
+        setSessions(classResult.sessions);
+      }
     } catch (reason: unknown) {
+      const details =
+        reason instanceof Error
+          ? (reason as Error & { annualDistribution?: TeacherAnnualDistributionResponse })
+              .annualDistribution
+          : undefined;
+      if (details) setAnnualGeneration(details);
       setError(reason instanceof Error ? reason.message : 'تعذر إنشاء التوزيع.');
     } finally {
       setLoading(false);
@@ -276,22 +286,25 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
         />
       )}
 
-      {operationalView && !selectedClass && section !== 'weekly' && (
-        <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center">
-          <h2 className="text-lg font-extrabold text-slate-900">لا توجد أقسام مسندة إليك بعد.</h2>
-          <p className="mt-2 text-sm text-slate-500">
-            أنشئ أو راجع إسناد القسم من فضاء القسم والتلاميذ.
-          </p>
-          <button
-            onClick={() => window.location.assign('/gradebook')}
-            className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"
-          >
-            فضاء القسم والتلاميذ
-          </button>
-        </div>
-      )}
+      {operationalView &&
+        !selectedClass &&
+        section !== 'weekly' &&
+        section !== 'annual-distribution' && (
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center">
+            <h2 className="text-lg font-extrabold text-slate-900">لا توجد أقسام مسندة إليك بعد.</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              أنشئ أو راجع إسناد القسم من فضاء القسم والتلاميذ.
+            </p>
+            <button
+              onClick={() => window.location.assign('/gradebook')}
+              className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"
+            >
+              فضاء القسم والتلاميذ
+            </button>
+          </div>
+        )}
 
-      {section === 'annual-distribution' && selectedClass && (
+      {section === 'annual-distribution' && (
         <AnnualDistributionCalendar
           currentUser={currentUser}
           selectedClass={selectedClass}
@@ -301,6 +314,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
           loading={loading}
           saving={saving}
           error={error}
+          annualGeneration={annualGeneration}
           onPlanningStartDateChange={setPlanningStartDate}
           onInitialize={() => void initialize()}
           onUpdateDate={(session, plannedDate) => void updateSession(session, { plannedDate })}

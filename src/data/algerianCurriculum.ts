@@ -1602,6 +1602,18 @@ function isSchoolDay(date: Date): boolean {
   return day >= 0 && day <= 4;
 }
 
+function isValidGenerationDate(date: Date, academicYearId?: string): boolean {
+  if (!academicYearId) return isValidSchoolDate(date);
+  const value = formatISODate(date);
+  const calendar = getAcademicCalendar(academicYearId);
+  const endDate = calendar.schoolEnd || `${academicYearId.slice(5)}-08-31`;
+  return (
+    value >= calendar.schoolStart &&
+    value <= endDate &&
+    isValidAcademicSchoolDate(value, academicYearId)
+  );
+}
+
 function isHoliday(date: Date): { holiday: boolean; name?: string; note?: string } {
   const ymd = formatISODate(date);
   const holiday = calendarEventForDate(ymd);
@@ -1615,29 +1627,34 @@ export function isValidSchoolDate(date: Date): boolean {
   return isSchoolDay(date) && isValidAcademicSchoolDate(value, academicYearForDate(value));
 }
 
-function getNextValidSchoolDate(from: Date, inclusive = true): Date {
+function getNextValidSchoolDate(from: Date, inclusive = true, academicYearId?: string): Date {
   let d = new Date(from);
   if (!inclusive) {
     d = addDays(d, 1);
   }
   let guard = 0;
   while (guard < 365) {
-    if (isValidSchoolDate(d)) return d;
+    if (isValidGenerationDate(d, academicYearId)) return d;
     d = addDays(d, 1);
     guard++;
   }
-  return d;
+  if (!academicYearId) return d;
+  throw new Error('لا توجد سعة تقويمية كافية لتوليد التوزيع السنوي ضمن السنة المحددة.');
 }
 
-function getNextValidSchoolDateOnWeekday(from: Date, weekday: number): Date {
+function getNextValidSchoolDateOnWeekday(
+  from: Date,
+  weekday: number,
+  academicYearId?: string
+): Date {
   let d = new Date(from);
   let guard = 0;
   while (guard < 365) {
-    if (d.getDay() === weekday && isValidSchoolDate(d)) return d;
+    if (d.getDay() === weekday && isValidGenerationDate(d, academicYearId)) return d;
     d = addDays(d, 1);
     guard++;
   }
-  return getNextValidSchoolDate(d, true);
+  return getNextValidSchoolDate(d, true, academicYearId);
 }
 
 function getSecondWeekday(firstWeekday: number): number {
@@ -1645,15 +1662,66 @@ function getSecondWeekday(firstWeekday: number): number {
   return second;
 }
 
+interface AnnualScheduleSlot {
+  desiredDate: Date;
+  actualDate: Date;
+}
+
+function buildBoundedAnnualSchedule(
+  count: number,
+  startDateStr: string,
+  teachingDayOfWeek: number,
+  sessionsPerWeek: number,
+  academicYearId: string
+): AnnualScheduleSlot[] {
+  const slots: AnnualScheduleSlot[] = [];
+  let weekAnchor = getNextValidSchoolDateOnWeekday(
+    parseISODate(startDateStr),
+    teachingDayOfWeek,
+    academicYearId
+  );
+  let slotInWeek = 0;
+  let lastActualDate: Date | null = null;
+
+  for (let index = 0; index < count; index += 1) {
+    let desiredDate = sessionsPerWeek > 1 && slotInWeek === 1 ? addDays(weekAnchor, 2) : weekAnchor;
+    if (lastActualDate && desiredDate <= lastActualDate) {
+      desiredDate = addDays(lastActualDate, 1);
+    }
+    let actualDate = getNextValidSchoolDate(desiredDate, true, academicYearId);
+    if (lastActualDate && actualDate <= lastActualDate) {
+      actualDate = getNextValidSchoolDate(addDays(lastActualDate, 1), true, academicYearId);
+    }
+    slots.push({ desiredDate, actualDate });
+    lastActualDate = actualDate;
+
+    if (sessionsPerWeek > 1 && slotInWeek === 0) {
+      slotInWeek = 1;
+    } else {
+      slotInWeek = 0;
+      if (index < count - 1) {
+        weekAnchor = getNextValidSchoolDateOnWeekday(
+          addDays(weekAnchor, 7),
+          teachingDayOfWeek,
+          academicYearId
+        );
+      }
+    }
+  }
+
+  return slots;
+}
+
 export function generateAnnualTimeDistribution(
   levelId: string = 'lvl_p1',
   startDateStr: string = '2025-09-21',
   teachingDayOfWeek: number = 0,
   _className: string = '1 ابتدائي 1',
-  _academicYearId?: string
+  academicYearId?: string
 ): ScheduledAnnualSession[] {
-  const levelData = COMPLETE_ANNUAL_CURRICULUM[levelId] || COMPLETE_ANNUAL_CURRICULUM['lvl_p1'];
+  const levelData = COMPLETE_ANNUAL_CURRICULUM[levelId];
   const grade = getGradeFromLevelId(levelId);
+  if (!levelData || !grade) return [];
   const scheduled: ScheduledAnnualSession[] = [];
   let globalCounter = 1;
 
@@ -1883,5 +1951,25 @@ export function generateAnnualTimeDistribution(
     }
   }
 
-  return scheduled;
+  if (!academicYearId) return scheduled;
+
+  const boundedSchedule = buildBoundedAnnualSchedule(
+    scheduled.length,
+    startDateStr,
+    teachingDayOfWeek,
+    gradeConfig.sessionsPerWeek,
+    academicYearId
+  );
+  return scheduled.map((session, index) => {
+    const slot = boundedSchedule[index];
+    const postponed = formatISODate(slot.actualDate) !== formatISODate(slot.desiredDate);
+    return {
+      ...session,
+      scheduledDate: formatISODate(slot.actualDate),
+      isHolidayPostponed: postponed,
+      holidayNote: postponed
+        ? `تم ترحيل الحصة من ${formatISODate(slot.desiredDate)} بسبب عطلة أو عدم توفر اليوم الدراسي`
+        : undefined,
+    };
+  });
 }

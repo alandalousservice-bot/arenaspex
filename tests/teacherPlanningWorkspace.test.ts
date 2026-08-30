@@ -25,7 +25,7 @@ describe('unified Teacher planning workspace', () => {
     expect(workspace).toContain('التوزيع السنوي');
     expect(workspace).toContain('التوزيع الأسبوعي');
     expect(workspace).toContain('fetchTeacherPlanningSessions');
-    expect(workspace).toContain('initializeTeacherPlanningSessions');
+    expect(workspace).toContain('initializeTeacherAnnualDistribution');
     expect(workspace).toContain('updateTeacherPlanningSession');
     expect(workspace).toContain('WeeklyTimetableView');
     expect(workspace).toContain('weeklySchedule');
