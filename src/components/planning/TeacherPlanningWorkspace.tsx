@@ -14,9 +14,9 @@ import {
 } from '../../services/api';
 import {
   formatAcademicYearLabel,
-  getAcademicYearOptions,
   getCurrentAcademicYear,
-  isCanonicalAcademicYearId,
+  getOperationalAcademicYearOptions,
+  isOperationalAcademicYear,
   isPlanningStartDateConsistent,
 } from '../../services/academicYear';
 import { getAcademicCalendar } from '../../data/academicCalendars';
@@ -82,10 +82,10 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
       params.get('academicYearId') ||
       window.localStorage.getItem(ACADEMIC_YEAR_PREFERENCE_KEY) ||
       '';
-    return isCanonicalAcademicYearId(stored) ? stored : getCurrentAcademicYear();
+    return isOperationalAcademicYear(stored) ? stored : getCurrentAcademicYear();
   });
   const [selectedLevelId, setSelectedLevelId] = useState<PrimaryLevelId>(initialLevelId);
-  const academicYearOptions = useMemo(() => getAcademicYearOptions(), []);
+  const academicYearOptions = useMemo(() => getOperationalAcademicYearOptions(), []);
   const [planningStartDate, setPlanningStartDate] = useState(
     () => getAcademicCalendar(academicYearId).schoolStart
   );

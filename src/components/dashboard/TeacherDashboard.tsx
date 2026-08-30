@@ -22,7 +22,7 @@ import { DailyScheduleList } from './teacher/DailyScheduleList';
 import { InspectorFeedPanel } from './teacher/InspectorFeedPanel';
 import { QuickAccessPanel } from './teacher/QuickAccessPanel';
 import { fetchTeacherPlanningSessions, TeacherPlanningSession } from '../../services/api';
-import { getCurrentAcademicYear } from '../../services/academicYear';
+import { getCurrentAcademicYear, isOperationalAcademicYear } from '../../services/academicYear';
 
 interface TeacherDashboardProps {
   user: User;
@@ -56,8 +56,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   useEffect(() => {
     const storedYear = window.localStorage.getItem('arenaspex:selectedAcademicYear');
-    const selectedYear =
-      storedYear && /^\d{4}-\d{4}$/.test(storedYear) ? storedYear : getCurrentAcademicYear();
+    const selectedYear = isOperationalAcademicYear(storedYear)
+      ? storedYear
+      : getCurrentAcademicYear();
     setAcademicYearId(selectedYear);
   }, []);
 

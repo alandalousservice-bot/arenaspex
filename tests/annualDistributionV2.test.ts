@@ -47,6 +47,21 @@ describe('academic-year annual distribution generation v2', () => {
     ).toBe(true);
   });
 
+  it('uses the 2026-2027 calendar bounds for launch-year generation', () => {
+    const result = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
+    const calendar = getAcademicCalendar('2026-2027');
+    expect(result.academicYearId).toBe('2026-2027');
+    expect(result.planningStartDate).toBe('2026-09-21');
+    expect(
+      result.levels.every((level) =>
+        level.sessions.every(
+          (session) =>
+            session.plannedDate >= calendar.schoolStart && session.plannedDate <= result.endDate
+        )
+      )
+    ).toBe(true);
+  });
+
   it('materializes separate same-level class execution rows from one level structure', () => {
     const result = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
     const gradeTwo = result.levels.find((level) => level.levelId === 'lvl_p2')!;

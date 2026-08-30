@@ -1,4 +1,5 @@
 import type { WeeklyScheduleSlot } from '../types/spex';
+import { LAUNCH_ACADEMIC_YEAR_ID } from './academicYear';
 
 export const WEEKDAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'] as const;
 export type WeeklyDay = (typeof WEEKDAYS)[number];
@@ -69,7 +70,7 @@ export function formatWeeklyMinutes(total: number): string {
 export function buildWeeklyTimetableSummary(input: WeeklyScheduleSlot[]): WeeklyTimetableSummary {
   const slots = input.map((slot) => {
     const times = parseSlotTimes(slot);
-    return { ...slot, ...times, academicYearId: slot.academicYearId || '2025-2026' };
+    return { ...slot, ...times, academicYearId: slot.academicYearId || LAUNCH_ACADEMIC_YEAR_ID };
   });
   const dailyTotals = Object.fromEntries(WEEKDAYS.map((day) => [day, 0])) as Record<
     WeeklyDay,

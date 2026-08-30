@@ -17,14 +17,16 @@ import {
   Calendar,
   ShieldCheck,
   RotateCcw,
-  PenLine
+  PenLine,
 } from 'lucide-react';
 import {
   PE_LEVELS,
   PE_FIELDS,
   COMPLETE_ANNUAL_CURRICULUM,
-  generateAnnualTimeDistribution
+  generateAnnualTimeDistribution,
 } from '../../data/algerianCurriculum';
+import { formatAcademicYearLabel, LAUNCH_ACADEMIC_YEAR_ID } from '../../services/academicYear';
+import { getAcademicCalendar } from '../../data/academicCalendars';
 import { User, LessonExecutionStatus } from '../../types/spex';
 import { useCurriculumOverrides } from '../../hooks/useCurriculumOverrides';
 import { mergeSchedule } from '../../services/schedule/scheduleMerge';
@@ -35,18 +37,20 @@ interface AnnualScheduleViewProps {
 }
 
 const STATUS_STYLES: Record<LessonExecutionStatus, string> = {
-  'مبرمجة': 'bg-blue-100 text-blue-800 border-blue-200',
-  'منجزة': 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  'مؤجلة': 'bg-amber-100 text-amber-800 border-amber-200',
-  'غير منجزة': 'bg-slate-200 text-slate-700 border-slate-300'
+  مبرمجة: 'bg-blue-100 text-blue-800 border-blue-200',
+  منجزة: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  مؤجلة: 'bg-amber-100 text-amber-800 border-amber-200',
+  'غير منجزة': 'bg-slate-200 text-slate-700 border-slate-300',
 };
 
 export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
   currentUser,
-  onNavigateToAnnualPlan
+  onNavigateToAnnualPlan,
 }) => {
   const [selectedLevelId, setSelectedLevelId] = useState<string>('lvl_p1');
-  const [startDate, setStartDate] = useState<string>('2025-09-21');
+  const [startDate, setStartDate] = useState<string>(
+    () => getAcademicCalendar(LAUNCH_ACADEMIC_YEAR_ID).schoolStart
+  );
   const [teachingDay, setTeachingDay] = useState<number>(0); // 0: الأحد, 1: الاثنين...
   const [className, setClassName] = useState<string>('1 ابتدائي 1');
   const [filterField, setFilterField] = useState<string>('all');
@@ -59,14 +63,20 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
     values: scheduleOverrides,
     setValueAndSave,
     restore: restoreLesson,
-    isLockedForTeacher
+    isLockedForTeacher,
   } = useCurriculumOverrides({ currentUser, levelId: selectedLevelId, kind: 'schedule_dates' });
 
   const canEdit = currentUser.role === 'teacher' && !isLockedForTeacher;
 
   // Calculate dynamic 30-session distribution (auto-computed base, holiday-avoiding)
   const baseSchedule = useMemo(() => {
-    return generateAnnualTimeDistribution(selectedLevelId, startDate, teachingDay, className);
+    return generateAnnualTimeDistribution(
+      selectedLevelId,
+      startDate,
+      teachingDay,
+      className,
+      LAUNCH_ACADEMIC_YEAR_ID
+    );
   }, [selectedLevelId, startDate, teachingDay, className]);
 
   const mergedSchedule = useMemo(
@@ -89,15 +99,22 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
     <div className="space-y-6 animate-in fade-in duration-200 print:space-y-3">
       {/* Printable Header */}
       <div className="hidden print:block text-center border-b-2 border-slate-900 pb-3 mb-4 space-y-1">
-        <h3 className="text-sm font-black text-slate-900">الجمهورية الجزائرية الديمقراطية الشعبية</h3>
-        <h4 className="text-xs font-bold text-slate-700">وزارة التربية الوطنية - {currentUser.schoolName || 'المدرسة الابتدائية'}</h4>
+        <h3 className="text-sm font-black text-slate-900">
+          الجمهورية الجزائرية الديمقراطية الشعبية
+        </h3>
+        <h4 className="text-xs font-bold text-slate-700">
+          وزارة التربية الوطنية - {currentUser.schoolName || 'المدرسة الابتدائية'}
+        </h4>
         <h5 className="text-xs font-extrabold text-blue-900 mt-1">
-          التوزيع الزمني السنوي للحصص التعليمية ({baseSchedule.length} حصة) - {selectedLevel.name} - قسم: {className}
+          التوزيع الزمني السنوي للحصص التعليمية ({baseSchedule.length} حصة) - {selectedLevel.name} -
+          قسم: {className}
         </h5>
         <div className="flex justify-between text-[11px] font-bold text-slate-600 pt-2 px-2">
           <span>تاريخ أول حصة: {startDate}</span>
-          <span>يوم التدريس: {['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'][teachingDay]}</span>
-          <span>الموسم الدراسي: 2025 / 2026</span>
+          <span>
+            يوم التدريس: {['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'][teachingDay]}
+          </span>
+          <span>الموسم الدراسي: {formatAcademicYearLabel(LAUNCH_ACADEMIC_YEAR_ID)}</span>
         </div>
       </div>
 
@@ -117,7 +134,8 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
             <span>التوزيع السنوي للحصص التعليمية</span>
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            برمجة/تأجيل/إعادة برمجة تاريخ كل حصة، مع التفادي الآلي للعطل — حصتان = هدف واحد للسنوات 1-3، 90 دقيقة للرابعة
+            برمجة/تأجيل/إعادة برمجة تاريخ كل حصة، مع التفادي الآلي للعطل — حصتان = هدف واحد للسنوات
+            1-3، 90 دقيقة للرابعة
           </p>
         </div>
 
@@ -146,7 +164,9 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
             <Layers className="w-6 h-6 text-amber-300" />
           </div>
           <div>
-            <span className="text-[11px] font-bold text-amber-300 block">الربط البيداغوجي المباشر بالمنهاج</span>
+            <span className="text-[11px] font-bold text-amber-300 block">
+              الربط البيداغوجي المباشر بالمنهاج
+            </span>
             <h3 className="text-sm sm:text-base font-extrabold text-white">
               الحصص مستوردة تلقائياً من المقاطع التعليمية ({selectedLevel.name})
             </h3>
@@ -205,7 +225,8 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
               خصائص التوزيع الزمني والتفادي التلقائي للعطل
             </h3>
             <p className="text-xs text-slate-500">
-              اختر تاريخ بداية الموسم ويوم التدريس لحساب تواريخ الحصص ({baseSchedule.length} حصة تشمل أسبوع التعارف والإدماجية 2) تلقائياً (يمكن لاحقاً تعديل أي حصة يدوياً)
+              اختر تاريخ بداية الموسم ويوم التدريس لحساب تواريخ الحصص ({baseSchedule.length} حصة
+              تشمل أسبوع التعارف والإدماجية 2) تلقائياً (يمكن لاحقاً تعديل أي حصة يدوياً)
             </p>
           </div>
 
@@ -265,10 +286,13 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
           <button
             onClick={() => setFilterField('all')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              filterField === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              filterField === 'all'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
-            جميع الميادين ({baseSchedule.filter((s) => !s.isIntro).length} حصة + {baseSchedule.filter((s) => s.isIntro).length} تعارف)
+            جميع الميادين ({baseSchedule.filter((s) => !s.isIntro).length} حصة +{' '}
+            {baseSchedule.filter((s) => s.isIntro).length} تعارف)
           </button>
           {PE_FIELDS.map((f) => {
             const count = baseSchedule.filter((s) => s.fieldId === f.id).length;
@@ -277,7 +301,9 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
                 key={f.id}
                 onClick={() => setFilterField(f.id)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  filterField === f.id ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  filterField === f.id
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
                 {f.name} ({count} حصة)
@@ -287,7 +313,9 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
           <button
             onClick={() => setFilterField('intro')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-              filterField === 'intro' ? 'bg-amber-500 text-white shadow-xs' : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+              filterField === 'intro'
+                ? 'bg-amber-500 text-white shadow-xs'
+                : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
             }`}
           >
             أسبوع التعارف ({baseSchedule.filter((s) => s.isIntro).length})
@@ -300,7 +328,9 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
         <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-bold text-slate-700">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-blue-600" />
-            <span>التوزيع الزمني الرسمي لـ {selectedLevel.name} - قسم: {className}</span>
+            <span>
+              التوزيع الزمني الرسمي لـ {selectedLevel.name} - قسم: {className}
+            </span>
           </div>
           <span className="text-blue-700 font-black bg-blue-100 px-3 py-1 rounded-xl">
             {filteredSchedule.length} حصة مبرمجة معروضة
@@ -329,8 +359,12 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
                   }`}
                 >
                   <td className="p-3 text-center font-extrabold text-slate-900">
-                    <span className={`w-8 h-8 rounded-xl font-black inline-flex items-center justify-center border ${(sess as any).isIntro ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
-                      {sess.globalSessionNumber < 10 ? '0' + sess.globalSessionNumber : sess.globalSessionNumber}
+                    <span
+                      className={`w-8 h-8 rounded-xl font-black inline-flex items-center justify-center border ${(sess as any).isIntro ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-blue-50 text-blue-700 border-blue-200'}`}
+                    >
+                      {sess.globalSessionNumber < 10
+                        ? '0' + sess.globalSessionNumber
+                        : sess.globalSessionNumber}
                     </span>
                   </td>
 
@@ -338,7 +372,11 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
                     {sess.fieldName}
                     <span className="block text-[10px] font-bold text-slate-400">
                       {(sess as any).isIntro ? 'تعارف' : `حصة ${sess.fieldSessionNumber}/10`}
-                      {(sess as any).objectiveGroupId ? ` • ${String((sess as any).objectiveGroupId).split('__').pop()}` : ''}
+                      {(sess as any).objectiveGroupId
+                        ? ` • ${String((sess as any).objectiveGroupId)
+                            .split('__')
+                            .pop()}`
+                        : ''}
                     </span>
                   </td>
 
@@ -348,12 +386,12 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
                         (sess as any).isIntro
                           ? 'bg-amber-100 text-amber-800 border border-amber-300'
                           : sess.sessionType === 'تقويم تشخيصي'
-                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                          : sess.sessionType === 'إدماجية'
-                          ? 'bg-purple-100 text-purple-800 border border-purple-200'
-                          : sess.sessionType === 'تقويم تحصيلي'
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                          : 'bg-blue-100 text-blue-800 border border-blue-200'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                            : sess.sessionType === 'إدماجية'
+                              ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                              : sess.sessionType === 'تقويم تحصيلي'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                : 'bg-blue-100 text-blue-800 border border-blue-200'
                       }`}
                     >
                       {sess.sessionTypeLabel}
@@ -381,7 +419,8 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
                     )}
                     {sess.isManuallyRescheduled && (
                       <span className="block text-[10px] font-bold text-amber-700 mt-1 flex items-center gap-1">
-                        <PenLine className="w-2.5 h-2.5" /> معدَّلة يدوياً (الأصل: {sess.originalScheduledDate})
+                        <PenLine className="w-2.5 h-2.5" /> معدَّلة يدوياً (الأصل:{' '}
+                        {sess.originalScheduledDate})
                         {canEdit && (
                           <button
                             onClick={() => restoreLesson(sess.key)}
@@ -398,7 +437,11 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
                     {canEdit ? (
                       <select
                         value={sess.status}
-                        onChange={(e) => setValueAndSave(sess.key, { status: e.target.value as LessonExecutionStatus })}
+                        onChange={(e) =>
+                          setValueAndSave(sess.key, {
+                            status: e.target.value as LessonExecutionStatus,
+                          })
+                        }
                         className={`px-2 py-1 rounded-lg font-bold text-[11px] border cursor-pointer outline-none ${STATUS_STYLES[sess.status]}`}
                       >
                         <option value="مبرمجة">مبرمجة</option>
@@ -407,7 +450,9 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
                         <option value="غير منجزة">غير منجزة</option>
                       </select>
                     ) : (
-                      <span className={`px-2.5 py-1 rounded-lg font-bold text-[11px] border ${STATUS_STYLES[sess.status]}`}>
+                      <span
+                        className={`px-2.5 py-1 rounded-lg font-bold text-[11px] border ${STATUS_STYLES[sess.status]}`}
+                      >
                         {sess.status}
                       </span>
                     )}

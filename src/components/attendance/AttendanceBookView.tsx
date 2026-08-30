@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Calendar, Trash2 } from 'lucide-react';
 import { fetchTeacherAttendanceByDate, saveTeacherAttendanceByDate } from '../../services/api';
 import type { TeacherDateAttendanceDto } from '../../services/api';
-import { getAcademicYearOptions, getCurrentAcademicYear } from '../../services/academicYear';
+import { getCurrentAcademicYear, isOperationalAcademicYear } from '../../services/academicYear';
 import type { AttendanceStatus, ClassRoom, Student, User } from '../../types/spex';
 
 interface AttendanceBookViewProps {
@@ -39,9 +39,7 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
   );
   const academicYearId = useMemo(() => {
     const requested = params.get('academicYearId');
-    return requested && getAcademicYearOptions().includes(requested)
-      ? requested
-      : getCurrentAcademicYear();
+    return requested && isOperationalAcademicYear(requested) ? requested : getCurrentAcademicYear();
   }, [params]);
   const [selectedClassId, setSelectedClassId] = useState(
     params.get('classId') || ownedClasses[0]?.id || ''

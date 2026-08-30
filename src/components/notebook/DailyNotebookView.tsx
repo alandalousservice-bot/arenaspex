@@ -40,9 +40,9 @@ import {
 import { DailyNotebookPrintDocument } from './DailyNotebookPrintDocument';
 import {
   formatAcademicYearLabel,
-  getAcademicYearOptions,
   getCurrentAcademicYear,
-  isCanonicalAcademicYearId,
+  getOperationalAcademicYearOptions,
+  isOperationalAcademicYear,
 } from '../../services/academicYear';
 
 type NotebookStatus = TeacherPlanningSession['status'];
@@ -90,7 +90,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   );
   const [academicYearId, setAcademicYearId] = useState(() => {
     const stored = window.localStorage.getItem(YEAR_KEY) || '';
-    return isCanonicalAcademicYearId(stored) ? stored : getCurrentAcademicYear();
+    return isOperationalAcademicYear(stored) ? stored : getCurrentAcademicYear();
   });
   const [selectedDate, setSelectedDate] = useState(query.get('date') || today());
   const [focusedSessionId, setFocusedSessionId] = useState(requestedSessionId);
@@ -102,7 +102,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   const [expandedPreviews, setExpandedPreviews] = useState<Set<string>>(() => new Set());
   const statusRequestVersions = useRef<Record<string, number>>({});
   const selectedClass = safeTeacherClasses.find((item) => item.id === selectedClassId);
-  const yearOptions = useMemo(() => getAcademicYearOptions(), []);
+  const yearOptions = useMemo(() => getOperationalAcademicYearOptions(), []);
   const references = useMemo(
     () =>
       new Map(

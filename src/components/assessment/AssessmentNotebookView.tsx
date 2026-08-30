@@ -27,8 +27,8 @@ import {
 } from '../../services/api';
 import {
   formatAcademicYearLabel,
-  getAcademicYearOptions,
   getCurrentAcademicYear,
+  getOperationalAcademicYearOptions,
 } from '../../services/academicYear';
 import type {
   AssessmentGrade,
@@ -116,7 +116,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
     () => teacherClasses.filter((item) => item.teacherId === currentUser.id),
     [teacherClasses, currentUser.id]
   );
-  const yearOptions = useMemo(() => getAcademicYearOptions(), []);
+  const yearOptions = useMemo(() => getOperationalAcademicYearOptions(), []);
   const requestedPlannedSessionId = params.get('classPlannedSessionId') || '';
   const requestedSection = params.get('section') as NotebookSection;
   const [section, setSection] = useState<NotebookSection>(

@@ -22,9 +22,9 @@ import { mergeSchedule, MergedScheduledLesson } from '../../services/schedule/sc
 import { canonicalReferenceSessions } from '../../services/teacherPlanning.service';
 import {
   formatAcademicYearLabel,
-  getAcademicYearOptions,
   getCurrentAcademicYear,
-  isCanonicalAcademicYearId,
+  getOperationalAcademicYearOptions,
+  isOperationalAcademicYear,
 } from '../../services/academicYear';
 import {
   findOperationalLessonPlan,
@@ -126,7 +126,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [operationalClassId, setOperationalClassId] = useState(requestedClassId);
   const [operationalAcademicYearId, setOperationalAcademicYearId] = useState(() => {
     const requestedYear = query.get('academicYearId') || localStorage.getItem(YEAR_KEY) || '';
-    return isCanonicalAcademicYearId(requestedYear) ? requestedYear : getCurrentAcademicYear();
+    return isOperationalAcademicYear(requestedYear) ? requestedYear : getCurrentAcademicYear();
   });
   const [operationalSessionId, setOperationalSessionId] = useState(requestedSessionId);
   const [operationalSessions, setOperationalSessions] = useState<TeacherPlanningSession[]>([]);
@@ -467,7 +467,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               }}
               className="mb-3 w-full rounded-xl border p-2"
             >
-              {getAcademicYearOptions().map((year) => (
+              {getOperationalAcademicYearOptions().map((year) => (
                 <option key={year} value={year}>
                   {formatAcademicYearLabel(year)}
                 </option>

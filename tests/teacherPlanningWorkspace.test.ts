@@ -34,6 +34,7 @@ describe('unified Teacher planning workspace', () => {
     expect(workspace).toContain('لا توجد أقسام مسندة إليك بعد.');
     expect(workspace).toContain('academicYearOptions');
     expect(workspace).toContain('getAcademicCalendar(academicYearId).schoolStart');
+    expect(workspace).toContain('getOperationalAcademicYearOptions');
     expect(workspace).not.toContain("getAcademicCalendar('2026-09-06')");
     expect(workspace).toContain('arenaspex:selectedAcademicYear');
     expect(workspace).not.toContain("const ACADEMIC_YEAR_ID = '2025-2026'");

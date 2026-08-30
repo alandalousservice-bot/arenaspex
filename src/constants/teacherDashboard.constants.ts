@@ -3,7 +3,7 @@
  * ثوابت لوحة قيادة الأستاذ: نصوص وتعيينات ثابتة كانت مضمّنة سابقاً داخل الـ Component
  */
 
-export const CURRENT_SCHOOL_YEAR_LABEL = 'السنة الدراسية 2025/2026 - الفصل الأول';
+export const CURRENT_SCHOOL_YEAR_LABEL = 'السنة الدراسية 2026/2027';
 
 export const DEFAULT_SCHOOL_NAME = 'المدرسة الابتدائية';
 export const DEFAULT_MUNICIPALITY = 'عين أزال';

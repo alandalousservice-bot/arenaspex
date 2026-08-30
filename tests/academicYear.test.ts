@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getCurrentAcademicYear,
   getAcademicYearForDate,
   getAcademicYearOptions,
+  getDefaultOperationalAcademicYear,
+  getOperationalAcademicYearOptions,
   isCanonicalAcademicYearId,
+  isOperationalAcademicYear,
   isPlanningStartDateConsistent,
 } from '../src/services/academicYear';
 import {
@@ -16,6 +20,19 @@ import {
 } from '../src/data/academicCalendars';
 
 describe('canonical academic year utility', () => {
+  it('uses the 2026-2027 launch year for operational defaults', () => {
+    expect(getCurrentAcademicYear()).toBe('2026-2027');
+    expect(getDefaultOperationalAcademicYear()).toBe('2026-2027');
+    expect(getOperationalAcademicYearOptions()).toEqual(['2026-2027']);
+    expect(isOperationalAcademicYear('2025-2026')).toBe(false);
+    expect(isOperationalAcademicYear('2026-2027')).toBe(true);
+  });
+
+  it('keeps future academic-year identities valid for later activation', () => {
+    expect(isCanonicalAcademicYearId('2027-2028')).toBe(true);
+    expect(isOperationalAcademicYear('2027-2028')).toBe(false);
+  });
+
   it('resolves the September-to-August boundary deterministically', () => {
     const cases = [
       ['2026-01-15', '2025-2026'],

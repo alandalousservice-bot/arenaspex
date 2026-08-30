@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import { LAUNCH_ACADEMIC_YEAR_ID } from '../services/academicYear';
 import { NavTab } from '../components/layout/Sidebar';
 import {
   syncUserToDB,
@@ -154,7 +155,10 @@ export function usePlatformStore({
       try {
         const parsed = JSON.parse(saved);
         return Array.isArray(parsed)
-          ? parsed.map((slot) => ({ ...slot, academicYearId: slot.academicYearId || '2025-2026' }))
+          ? parsed.map((slot) => ({
+              ...slot,
+              academicYearId: slot.academicYearId || LAUNCH_ACADEMIC_YEAR_ID,
+            }))
           : [];
       } catch (e) {
         void e;
