@@ -26,17 +26,21 @@ export const TeacherHeroBanner: React.FC<TeacherHeroBannerProps> = ({
       <div className="absolute top-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
       <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold text-blue-100 border border-white/20">
+          <div className="workspace-hero-academic-badge inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-semibold text-blue-100 border border-white/20">
             <Calendar className="w-3.5 h-3.5" />
             <span>{CURRENT_SCHOOL_YEAR_LABEL}</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
             أهلاً بك، أستاذ {user.firstName} {user.lastName} 👋
           </h2>
-          <p className="text-xs sm:text-sm text-blue-100 max-w-2xl leading-relaxed">
+          <p className="workspace-hero-secondary text-xs sm:text-sm text-blue-100 max-w-2xl leading-relaxed">
             مرحباً بك في بيئة عمل SPEX الذكية للتربية البدنية والرياضية. تم ربط حسابك بـ{' '}
-            <span className="font-bold underline decoration-blue-300">{schoolName}</span> (
-            {municipality}) • وتحت إشراف {districtLabel}.
+            <span className="workspace-hero-link font-bold underline decoration-blue-300">
+              {schoolName}
+            </span>{' '}
+            <span className="workspace-hero-metadata">
+              ({municipality}) • وتحت إشراف {districtLabel}.
+            </span>
           </p>
         </div>
 

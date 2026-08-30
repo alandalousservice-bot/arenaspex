@@ -588,6 +588,33 @@
     color: #d1fae5 !important;
   }
 
+  .workspace-page--dashboard .workspace-hero {
+    color: #fff !important;
+  }
+
+  .workspace-page--dashboard .workspace-hero h2 {
+    color: #fff !important;
+  }
+
+  .workspace-page--dashboard .workspace-hero .workspace-hero-secondary {
+    color: rgb(255 255 255 / 0.86) !important;
+  }
+
+  .workspace-page--dashboard .workspace-hero .workspace-hero-metadata {
+    color: rgb(255 255 255 / 0.76) !important;
+  }
+
+  .workspace-page--dashboard .workspace-hero .workspace-hero-link {
+    color: #fff !important;
+    text-decoration-color: #a7f3d0 !important;
+  }
+
+  .workspace-page--dashboard .workspace-hero .workspace-hero-academic-badge {
+    border-color: rgb(255 255 255 / 0.3) !important;
+    background-color: rgb(255 255 255 / 0.16) !important;
+    color: #fff !important;
+  }
+
   .workspace-hero [class*='bg-blue-'],
   .workspace-hero [class*='bg-indigo-'],
   .workspace-hero [class*='bg-purple-'] {
@@ -859,6 +886,11 @@
 
   .students-book-actions {
     max-inline-size: 100%;
+  }
+
+  .students-book-actions > button:empty,
+  .students-book-actions > label:empty {
+    display: none !important;
   }
 
   .students-class-selector {
