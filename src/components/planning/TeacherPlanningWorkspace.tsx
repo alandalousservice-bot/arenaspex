@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar, RefreshCw } from 'lucide-react';
 import { AnnualPlanView } from '../curriculum/AnnualPlanView';
 import { LearningSegmentsView } from '../curriculum/LearningSegmentsView';
@@ -20,7 +20,12 @@ import {
   isPlanningStartDateConsistent,
 } from '../../services/academicYear';
 import { getAcademicCalendar } from '../../data/academicCalendars';
-import { isValidPlanningDate } from '../../services/teacherPlanning.service';
+import {
+  isValidPlanningDate,
+  normalizePrimaryLevelId,
+  PRIMARY_PLANNING_LEVEL_IDS,
+} from '../../services/teacherPlanning.service';
+import type { PrimaryLevelId } from '../../services/primaryLevel.service';
 import type { ClassRoom, User } from '../../types/spex';
 import type { PlanningSection } from '../../lib/routes';
 
@@ -58,6 +63,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
   const requestedSection = params.get('section') as PlanningSection | null;
   const requestedClassId = params.get('classId') || '';
   const requestedLevelId = params.get('levelId') || '';
+  const initialLevelId = normalizePrimaryLevelId(requestedLevelId) || PRIMARY_PLANNING_LEVEL_IDS[0];
   const [section, setSection] = useState<PlanningSection>(
     requestedSection && sectionLabels[requestedSection] ? requestedSection : 'annual-plan'
   );
@@ -65,7 +71,11 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     if (requestedClassId && classes.some((item) => item.id === requestedClassId))
       return requestedClassId;
     if (requestedClassId) return '';
-    return classes.find((item) => item.levelId === requestedLevelId)?.id || classes[0]?.id || '';
+    return (
+      classes.find((item) => normalizePrimaryLevelId(item.levelId) === initialLevelId)?.id ||
+      classes[0]?.id ||
+      ''
+    );
   });
   const [academicYearId, setAcademicYearId] = useState(() => {
     const stored =
@@ -74,6 +84,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
       '';
     return isCanonicalAcademicYearId(stored) ? stored : getCurrentAcademicYear();
   });
+  const [selectedLevelId, setSelectedLevelId] = useState<PrimaryLevelId>(initialLevelId);
   const academicYearOptions = useMemo(() => getAcademicYearOptions(), []);
   const [planningStartDate, setPlanningStartDate] = useState(
     () => getAcademicCalendar(academicYearId).schoolStart
@@ -84,25 +95,35 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const sessionsRequestId = useRef(0);
 
   const selectedClass = classes.find((item) => item.id === selectedClassId);
   useEffect(() => {
     if (requestedClassId && ['annual-distribution', 'weekly'].includes(requestedSection || '')) {
-      if (classes.some((item) => item.id === requestedClassId)) {
+      if (!selectedClassId && classes.some((item) => item.id === requestedClassId)) {
         setSelectedClassId(requestedClassId);
         setError('');
-      } else if (classes.length) {
+      } else if (!classes.some((item) => item.id === requestedClassId) && classes.length) {
         setSelectedClassId('');
         setError('القسم المطلوب غير موجود ضمن أقسامك.');
       }
       return;
     }
-    if (!selectedClassId && classes.length) {
+    if (!selectedClassId && classes.length && section !== 'annual-distribution') {
       setSelectedClassId(
-        classes.find((item) => item.levelId === requestedLevelId)?.id || classes[0].id
+        classes.find((item) => normalizePrimaryLevelId(item.levelId) === selectedLevelId)?.id ||
+          classes[0].id
       );
     }
-  }, [classes, requestedClassId, requestedLevelId, requestedSection, selectedClassId]);
+  }, [
+    classes,
+    requestedClassId,
+    requestedLevelId,
+    requestedSection,
+    section,
+    selectedClassId,
+    selectedLevelId,
+  ]);
 
   useEffect(() => {
     if (!selectedClassId || section !== 'annual-distribution') {
@@ -110,17 +131,19 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
       return;
     }
     let cancelled = false;
+    const requestId = ++sessionsRequestId.current;
     setLoading(true);
     setError('');
     fetchTeacherPlanningSessions(selectedClassId, academicYearId)
       .then((result) => {
-        if (!cancelled) setSessions(result.sessions);
+        if (!cancelled && requestId === sessionsRequestId.current) setSessions(result.sessions);
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : 'تعذر تحميل التوزيع.');
+        if (!cancelled && requestId === sessionsRequestId.current)
+          setError(reason instanceof Error ? reason.message : 'تعذر تحميل التوزيع.');
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && requestId === sessionsRequestId.current) setLoading(false);
       });
     return () => {
       cancelled = true;
@@ -139,10 +162,21 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     setError('');
   };
 
+  const changeLevel = (next: PrimaryLevelId) => {
+    setSelectedLevelId(next);
+    const matchingClass = classes.find((item) => normalizePrimaryLevelId(item.levelId) === next);
+    setSelectedClassId(matchingClass?.id || '');
+    const nextParams = new URLSearchParams(window.location.search);
+    nextParams.set('levelId', next);
+    window.history.replaceState({}, '', `/planning?${nextParams.toString()}`);
+  };
+
   const changeSection = (next: PlanningSection, context?: { levelId?: string }) => {
     setSection(next);
+    const nextLevelId = normalizePrimaryLevelId(context?.levelId);
+    if (nextLevelId) setSelectedLevelId(nextLevelId);
     const nextParams = new URLSearchParams({ section: next });
-    const levelId = context?.levelId || selectedClass?.levelId;
+    const levelId = nextLevelId || selectedLevelId;
     if (levelId) nextParams.set('levelId', levelId);
     if (selectedClassId) nextParams.set('classId', selectedClassId);
     nextParams.set('academicYearId', academicYearId);
@@ -168,12 +202,14 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
       return;
     setLoading(true);
     setError('');
+    ++sessionsRequestId.current;
     try {
       const result = await initializeTeacherAnnualDistribution(academicYearId, planningStartDate);
       setAnnualGeneration(result);
       if (selectedClassId) {
+        const requestId = ++sessionsRequestId.current;
         const classResult = await fetchTeacherPlanningSessions(selectedClassId, academicYearId);
-        setSessions(classResult.sessions);
+        if (requestId === sessionsRequestId.current) setSessions(classResult.sessions);
       }
     } catch (reason: unknown) {
       const details =
@@ -209,6 +245,11 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
   };
 
   const operationalView = section === 'annual-distribution' || section === 'weekly';
+  const annualSelectedClass =
+    selectedClass && normalizePrimaryLevelId(selectedClass.levelId) === selectedLevelId
+      ? selectedClass
+      : null;
+  const annualSessions = annualSelectedClass ? sessions : [];
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200" dir="rtl">
@@ -307,14 +348,16 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
       {section === 'annual-distribution' && (
         <AnnualDistributionCalendar
           currentUser={currentUser}
-          selectedClass={selectedClass}
+          selectedClass={annualSelectedClass}
+          selectedLevelId={selectedLevelId}
           academicYearId={academicYearId}
           planningStartDate={planningStartDate}
-          sessions={sessions}
+          sessions={annualSessions}
           loading={loading}
           saving={saving}
           error={error}
           annualGeneration={annualGeneration}
+          onLevelChange={changeLevel}
           onPlanningStartDateChange={setPlanningStartDate}
           onInitialize={() => void initialize()}
           onUpdateDate={(session, plannedDate) => void updateSession(session, { plannedDate })}

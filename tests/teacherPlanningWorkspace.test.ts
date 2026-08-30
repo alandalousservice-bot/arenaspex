@@ -46,6 +46,29 @@ describe('unified Teacher planning workspace', () => {
     expect(read('src/server/apiRouter.ts')).toContain('اختر تاريخاً يقع في يوم دراسي');
   });
 
+  it('keeps annual level selection independent from class refreshes', () => {
+    const workspace = read('src/components/planning/TeacherPlanningWorkspace.tsx');
+    const distribution = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
+    expect(workspace).toContain('const [selectedLevelId, setSelectedLevelId]');
+    expect(workspace).toContain('initialLevelId');
+    expect(workspace).toContain('onLevelChange={changeLevel}');
+    expect(distribution).toContain('aria-label="اختيار مستوى التوزيع السنوي"');
+    expect(distribution).toContain('aria-pressed={selectedLevelId === levelId}');
+    expect(distribution).toContain('onClick={() => onLevelChange(levelId)}');
+    expect(workspace).not.toContain('setSelectedLevelId(selectedClass');
+  });
+
+  it('uses the controlled date input as the generation payload', () => {
+    const workspace = read('src/components/planning/TeacherPlanningWorkspace.tsx');
+    const distribution = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
+    const api = read('src/services/api.ts');
+    expect(distribution).toContain('value={planningStartDate}');
+    expect(workspace).toContain(
+      'initializeTeacherAnnualDistribution(academicYearId, planningStartDate)'
+    );
+    expect(api).toContain('body: JSON.stringify({ academicYearId, planningStartDate })');
+  });
+
   it('builds calendar slides from the authoritative academic calendar', () => {
     const slides = buildAcademicCalendarSlides('2026-2027');
     expect(
@@ -67,7 +90,7 @@ describe('unified Teacher planning workspace', () => {
     expect(workspace).toContain("section === 'calendar'");
     expect(workspace).toContain('AcademicCalendarView');
     expect(distribution).toContain('عرض رزنامة العطل والأعياد');
-    expect(workspace).toContain('const levelId = context?.levelId || selectedClass?.levelId');
+    expect(workspace).toContain('const levelId = nextLevelId || selectedLevelId');
     expect(workspace).toContain("changeSection('annual-distribution')");
   });
 

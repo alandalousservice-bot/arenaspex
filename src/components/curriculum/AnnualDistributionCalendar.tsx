@@ -8,6 +8,7 @@ import {
 } from '../../data/academicCalendars';
 import type { ClassRoom, User } from '../../types/spex';
 import { normalizePrimaryLevelId } from '../../services/teacherPlanning.service';
+import type { PrimaryLevelId } from '../../services/primaryLevel.service';
 import type {
   TeacherAnnualDistributionResponse,
   TeacherPlanningReference,
@@ -17,6 +18,7 @@ import type {
 interface AnnualDistributionCalendarProps {
   currentUser: User;
   selectedClass: ClassRoom | null;
+  selectedLevelId: PrimaryLevelId;
   academicYearId: string;
   planningStartDate: string;
   sessions: TeacherPlanningSession[];
@@ -24,6 +26,7 @@ interface AnnualDistributionCalendarProps {
   saving: string | null;
   error: string;
   annualGeneration: TeacherAnnualDistributionResponse | null;
+  onLevelChange: (levelId: PrimaryLevelId) => void;
   onPlanningStartDateChange: (value: string) => void;
   onInitialize: () => void;
   onUpdateDate: (session: TeacherPlanningSession, value: string) => void;
@@ -264,6 +267,7 @@ function AnnualDistributionCompactTable({ rows }: { rows: AnnualCompactRow[] }) 
 export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProps> = ({
   currentUser,
   selectedClass,
+  selectedLevelId,
   academicYearId,
   planningStartDate,
   sessions,
@@ -271,6 +275,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
   saving,
   error,
   annualGeneration,
+  onLevelChange,
   onPlanningStartDateChange,
   onInitialize,
   onUpdateDate,
@@ -298,6 +303,23 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
               إنشاء التوزيع السنوي للمستويات الخمسة
             </h2>
             <p className="mt-1 text-xs text-slate-500">السنة الدراسية: {academicYearId}</p>
+          </div>
+          <div className="flex flex-wrap gap-2" aria-label="اختيار مستوى التوزيع السنوي">
+            {PE_LEVELS.map((level) => {
+              const levelId = normalizePrimaryLevelId(level.id);
+              if (!levelId) return null;
+              return (
+                <button
+                  key={levelId}
+                  type="button"
+                  aria-pressed={selectedLevelId === levelId}
+                  onClick={() => onLevelChange(levelId)}
+                  className={`rounded-xl px-3 py-2 text-xs font-extrabold ${selectedLevelId === levelId ? 'bg-blue-600 text-white' : 'border border-slate-200 bg-white text-slate-600'}`}
+                >
+                  {level.name}
+                </button>
+              );
+            })}
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <label className="text-xs font-bold text-slate-600">
@@ -356,7 +378,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
             {annualGeneration.levels.map((level) => (
               <div
                 key={level.levelId}
-                className={`rounded-xl border p-3 ${level.status === 'generated' ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}
+                className={`rounded-xl border p-3 ${level.levelId === selectedLevelId ? 'ring-2 ring-blue-500' : ''} ${level.status === 'generated' ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}
               >
                 <p className="text-xs font-extrabold text-slate-900">السنة {level.grade}</p>
                 <p className="mt-1 text-sm font-black text-slate-900">{level.sessionCount} حصة</p>

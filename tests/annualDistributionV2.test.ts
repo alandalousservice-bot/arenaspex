@@ -103,4 +103,33 @@ describe('academic-year annual distribution generation v2', () => {
     expect(router).toContain('prisma.$transaction(operations)');
     expect(router).toContain('createdOrUpdatedSessions');
   });
+
+  it('recalculates future dates from a changed start date without changing identities', () => {
+    const startDateA = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
+    const startDateB = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-28');
+
+    expect(startDateB.levels.map((level) => level.sessionCount)).toEqual([56, 56, 56, 34, 34]);
+    for (const levelId of levelIds) {
+      const first = startDateA.levels.find((level) => level.levelId === levelId)!;
+      const second = startDateB.levels.find((level) => level.levelId === levelId)!;
+      expect(second.sessions.map((session) => session.referenceSessionId)).toEqual(
+        first.sessions.map((session) => session.referenceSessionId)
+      );
+      expect(second.sessions[0].plannedDate).not.toBe(first.sessions[0].plannedDate);
+      expect(second.sessions.map((session) => session.plannedDate)).not.toEqual(
+        first.sessions.map((session) => session.plannedDate)
+      );
+    }
+  });
+
+  it('keeps same-date regeneration idempotent and protects executed rows', () => {
+    const first = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
+    const second = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
+    expect(second.levels).toEqual(first.levels);
+
+    const router = fs.readFileSync('src/server/apiRouter.ts', 'utf8');
+    expect(router).toContain("if (existing.status === 'منجزة') return []");
+    expect(router).toContain('plannedDate: seed.plannedDate');
+    expect(router).toContain('لا يمكن إعادة جدولة حصص منجزة');
+  });
 });
