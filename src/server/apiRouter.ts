@@ -35,12 +35,15 @@ import {
   generateAllPrimaryLevelDistributions,
   isValidPlanningDate,
   normalizePrimaryLevelId,
+  applyPersistedAnnualDistributionDates,
+  decideClassSessionRebuild,
   type PlanningWordingOverrides,
 } from '../services/teacherPlanning.service.js';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../data/algerianCurriculum.js';
-import { isValidAcademicSchoolDate } from '../data/academicCalendars.js';
+import { getAcademicCalendar, isValidAcademicSchoolDate } from '../data/academicCalendars.js';
 import {
   isCanonicalAcademicYearId,
+  isPreLaunchAcademicYear,
   isPlanningStartDateConsistent,
 } from '../services/academicYear.js';
 import {
@@ -114,6 +117,7 @@ const classPlanningInitializeSchema = z
   .object({
     academicYearId: academicYearIdSchema,
     planningStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    preLaunchRebuild: z.boolean().optional().default(false),
   })
   .refine((value) => isPlanningStartDateConsistent(value.academicYearId, value.planningStartDate), {
     message: 'تاريخ بداية التوزيع يجب أن يقع ضمن السنة الدراسية المحددة.',
@@ -121,6 +125,11 @@ const classPlanningInitializeSchema = z
   .refine((value) => isValidPlanningDate(value.planningStartDate), {
     message: 'تاريخ بداية التوزيع يجب أن يقع في يوم دراسي صالح.',
   });
+
+const annualDistributionSessionUpdateSchema = z.object({
+  academicYearId: academicYearIdSchema,
+  plannedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
 
 const classPlanningUpdateSchema = z.object({
   plannedDate: z
@@ -349,6 +358,201 @@ async function resolvePlanningReferences(
   );
 }
 
+const ANNUAL_DISTRIBUTION_KIND = 'annual_distribution' as const;
+
+type AnnualDistributionPlanData = {
+  overrides?: Record<string, { date?: string }>;
+  note?: string;
+};
+
+function annualDistributionData(
+  plan: { data: unknown } | null | undefined
+): AnnualDistributionPlanData {
+  if (!plan?.data || typeof plan.data !== 'object' || Array.isArray(plan.data)) return {};
+  const data = plan.data as Record<string, unknown>;
+  const rawOverrides = data.overrides;
+  const overrides: Record<string, { date?: string }> = {};
+  if (rawOverrides && typeof rawOverrides === 'object' && !Array.isArray(rawOverrides)) {
+    for (const [key, value] of Object.entries(rawOverrides)) {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const date = (value as { date?: unknown }).date;
+        overrides[key] = { date: typeof date === 'string' ? date : undefined };
+      }
+    }
+  }
+  return { overrides, note: typeof data.note === 'string' ? data.note : undefined };
+}
+
+function isAllowedAnnualDistributionDate(
+  value: string,
+  academicYearId: string,
+  planningStartDate: string
+): boolean {
+  const calendar = getAcademicCalendar(academicYearId);
+  const endDate = calendar.schoolEnd || `${academicYearId.slice(5)}-08-31`;
+  return (
+    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    value >= planningStartDate &&
+    value >= calendar.schoolStart &&
+    value <= endDate &&
+    isValidAcademicSchoolDate(value, academicYearId)
+  );
+}
+
+function annualDistributionOverrides(
+  level: ReturnType<typeof generateAllPrimaryLevelDistributions>['levels'][number]
+) {
+  return Object.fromEntries(
+    level.sessions.map((session) => [session.referenceSessionId, { date: session.plannedDate }])
+  );
+}
+
+function annualDistributionSessionView(
+  teacherId: string,
+  academicYearId: string,
+  levelId: string,
+  session: ReturnType<
+    typeof generateAllPrimaryLevelDistributions
+  >['levels'][number]['sessions'][number],
+  reference: ReturnType<typeof resolvePlanningReferences> extends Promise<infer T>
+    ? T extends Map<string, infer V>
+      ? V
+      : never
+    : never
+) {
+  return {
+    id: `ads_${teacherId}_${academicYearId}_${levelId}_${session.referenceSessionId}`,
+    levelId,
+    academicYearId,
+    referenceSessionId: session.referenceSessionId,
+    plannedDate: session.plannedDate,
+    durationMinutes: session.durationMinutes,
+    status: 'مبرمجة' as const,
+    reference,
+  };
+}
+
+async function annualDistributionLevelViews(
+  generation: ReturnType<typeof generateAllPrimaryLevelDistributions>,
+  teacherId: string,
+  plans: Array<{ levelId: string; data: unknown }>
+) {
+  const plansByLevel = new Map(plans.map((plan) => [plan.levelId, plan] as const));
+  return Promise.all(
+    generation.levels.map(async (level) => {
+      const plan = annualDistributionData(plansByLevel.get(level.levelId));
+      const effectiveLevel = applyPersistedAnnualDistributionDates(level, plan.overrides, (value) =>
+        isAllowedAnnualDistributionDate(
+          value,
+          generation.academicYearId,
+          generation.planningStartDate
+        )
+      );
+      const references = await resolvePlanningReferences(
+        level.levelId,
+        teacherId,
+        generation.academicYearId
+      );
+      return {
+        levelId: effectiveLevel.levelId,
+        grade: effectiveLevel.grade,
+        sessionCount: effectiveLevel.sessionCount,
+        annualHours: effectiveLevel.annualHours,
+        firstSessionDate: effectiveLevel.sessions[0]?.plannedDate || null,
+        lastSessionDate: effectiveLevel.sessions.at(-1)?.plannedDate || null,
+        durationMinutes: effectiveLevel.durationMinutes,
+        status: effectiveLevel.status,
+        error: effectiveLevel.error,
+        sessions: effectiveLevel.sessions.map((session) =>
+          annualDistributionSessionView(
+            teacherId,
+            generation.academicYearId,
+            effectiveLevel.levelId,
+            session,
+            references.get(session.referenceSessionId) || {
+              referenceSessionId: session.referenceSessionId,
+              grade: session.grade,
+              domainId: session.domainId,
+              fieldName: session.domainId,
+              finalCompetency: '',
+              learningSectionId: session.learningSectionId,
+              objectiveId: session.objectiveId,
+              objectiveGroupId: session.objectiveGroupId,
+              objective: session.objective,
+              sessionType: session.sessionType,
+              sessionTypeLabel: session.sessionTypeLabel,
+              sequenceIndex: session.sequenceIndex,
+              fieldSessionNumber: session.fieldSessionNumber,
+            }
+          )
+        ),
+      };
+    })
+  );
+}
+
+function classLinkViews(
+  classes: Array<{ id: string; name: string; levelId: string }>,
+  distributions: ReturnType<typeof generateAllPrimaryLevelDistributions>['levels']
+) {
+  const distributionsByLevel = new Map(distributions.map((item) => [item.levelId, item] as const));
+  return classes.map((classRecord) => {
+    const normalizedLevelId = normalizePrimaryLevelId(classRecord.levelId);
+    const distribution = normalizedLevelId
+      ? distributionsByLevel.get(normalizedLevelId)
+      : undefined;
+    return distribution
+      ? {
+          classId: classRecord.id,
+          className: classRecord.name,
+          levelId: classRecord.levelId,
+          normalizedLevelId,
+          sessionCount: distribution.sessions.length,
+          status: 'linked' as const,
+        }
+      : {
+          classId: classRecord.id,
+          className: classRecord.name,
+          levelId: classRecord.levelId,
+          normalizedLevelId: null,
+          sessionCount: 0,
+          status: 'skipped' as const,
+          error: 'مستوى القسم غير معروف؛ لم يتم إسناد منهج افتراضي له.',
+        };
+  });
+}
+
+function jsonClassPlannedSessionId(data: unknown): string | null {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const value = (data as { classPlannedSessionId?: unknown }).classPlannedSessionId;
+  return typeof value === 'string' && value ? value : null;
+}
+
+async function executionDependencyIds(teacherId: string, sessionIds: string[]) {
+  if (!sessionIds.length) return new Set<string>();
+  const [assessments, attendance, lessonPlans, notebookEntries] = await Promise.all([
+    prisma.assessmentSession.findMany({
+      where: { teacherId, classPlannedSessionId: { in: sessionIds } },
+      select: { classPlannedSessionId: true },
+    }),
+    prisma.studentAttendance.findMany({
+      where: { teacherId, classPlannedSessionId: { in: sessionIds } },
+      select: { classPlannedSessionId: true },
+    }),
+    prisma.lessonPlan.findMany({ where: { ownerId: teacherId }, select: { data: true } }),
+    prisma.notebookEntry.findMany({ where: { ownerId: teacherId }, select: { data: true } }),
+  ]);
+  const ids = new Set<string>();
+  for (const row of [...assessments, ...attendance]) {
+    if (row.classPlannedSessionId) ids.add(row.classPlannedSessionId);
+  }
+  for (const row of [...lessonPlans, ...notebookEntries]) {
+    const id = jsonClassPlannedSessionId(row.data);
+    if (id && sessionIds.includes(id)) ids.add(id);
+  }
+  return ids;
+}
+
 apiRouter.get(
   '/teacher/planning/classes/:classId/sessions',
   requireRole('teacher'),
@@ -388,6 +592,52 @@ apiRouter.get(
   }
 );
 
+apiRouter.get('/teacher/planning/annual-distribution', requireRole('teacher'), async (req, res) => {
+  const parsed = classPlanningQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: 'السنة الدراسية مطلوبة.' });
+  const plans = await prisma.annualPlan.findMany({
+    where: {
+      teacherId: req.user!.id,
+      academicYearId: parsed.data.academicYearId,
+      kind: ANNUAL_DISTRIBUTION_KIND,
+    },
+    select: { levelId: true, data: true },
+  });
+  if (!plans.length) return res.json({ success: true, annualGeneration: null });
+  const storedStartDate = plans
+    .map((plan) => annualDistributionData(plan).note)
+    .find(
+      (value): value is string =>
+        Boolean(value) &&
+        isPlanningStartDateConsistent(parsed.data.academicYearId, value) &&
+        isValidPlanningDate(value)
+    );
+  const planningStartDate =
+    storedStartDate || getAcademicCalendar(parsed.data.academicYearId).schoolStart;
+  const generation = generateAllPrimaryLevelDistributions(
+    parsed.data.academicYearId,
+    planningStartDate
+  );
+  const levels = await annualDistributionLevelViews(generation, req.user!.id, plans);
+  const classes = await prisma.studentClass.findMany({
+    where: { teacherId: req.user!.id },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, levelId: true },
+  });
+  res.json({
+    annualGeneration: {
+      success: true,
+      academicYearId: generation.academicYearId,
+      planningStartDate: generation.planningStartDate,
+      endDate: generation.endDate,
+      levels,
+      classes: classLinkViews(classes, generation.levels),
+      linkedClasses: classes.filter((item) => normalizePrimaryLevelId(item.levelId)).length,
+      createdOrUpdatedSessions: 0,
+    },
+  });
+});
+
 apiRouter.post(
   '/teacher/planning/annual-distribution/initialize',
   requireRole('teacher'),
@@ -398,16 +648,19 @@ apiRouter.post(
         .status(400)
         .json({ error: 'السنة الدراسية وتاريخ بداية التخطيط مطلوبان بصيغة صحيحة.' });
 
-    const { academicYearId, planningStartDate } = parsed.data;
+    const { academicYearId, planningStartDate, preLaunchRebuild } = parsed.data;
+    if (preLaunchRebuild && !isPreLaunchAcademicYear(academicYearId)) {
+      return res.status(400).json({ error: 'إعادة البناء قبل الإطلاق متاحة لسنة الإطلاق فقط.' });
+    }
     const generation = generateAllPrimaryLevelDistributions(academicYearId, planningStartDate);
-    const levelViews = generation.levels.map(({ sessions: _sessions, ...level }) => level);
+    const levels = await annualDistributionLevelViews(generation, req.user!.id, []);
     if (generation.levels.some((level) => level.status === 'failed')) {
       return res.status(400).json({
         error: 'تعذر إنشاء توزيع جميع المستويات ضمن السنة الدراسية المحددة.',
         academicYearId,
         planningStartDate,
         endDate: generation.endDate,
-        levels: levelViews,
+        levels,
         classes: [],
         linkedClasses: 0,
         createdOrUpdatedSessions: 0,
@@ -417,6 +670,7 @@ apiRouter.post(
     const classes = await prisma.studentClass.findMany({
       where: { teacherId: req.user!.id },
       orderBy: { name: 'asc' },
+      select: { id: true, name: true, levelId: true },
     });
     const distributionsByLevel = new Map(
       generation.levels.map((distribution) => [distribution.levelId, distribution] as const)
@@ -427,89 +681,331 @@ apiRouter.post(
     const existingByClassReference = new Map(
       existingRows.map((row) => [`${row.classId}|${row.referenceSessionId}`, row] as const)
     );
-    const classLinks = classes.map((classRecord) => {
-      const normalizedLevelId = normalizePrimaryLevelId(classRecord.levelId);
-      const distribution = normalizedLevelId
-        ? distributionsByLevel.get(normalizedLevelId)
-        : undefined;
-      if (!distribution) {
-        return {
-          classId: classRecord.id,
-          className: classRecord.name,
-          levelId: classRecord.levelId,
-          normalizedLevelId: null,
-          sessionCount: 0,
-          status: 'skipped' as const,
-          error: 'مستوى القسم غير معروف؛ لم يتم إسناد منهج افتراضي له.',
-        };
-      }
-      return {
-        classId: classRecord.id,
-        className: classRecord.name,
-        levelId: classRecord.levelId,
-        normalizedLevelId,
-        sessionCount: distribution.sessions.length,
-        status: 'linked' as const,
-      };
-    });
+    const classLinks = classLinkViews(classes, generation.levels);
     const seedsByClass = new Map<
       string,
       ReturnType<typeof buildClassPlannedSessionSeedsFromCanonicalSessions>
     >();
-    const conflicts = classLinks
-      .filter((link) => link.status === 'linked')
-      .flatMap((link) => {
-        const distribution = distributionsByLevel.get(link.normalizedLevelId!);
-        const seeds = buildClassPlannedSessionSeedsFromCanonicalSessions(
+    for (const link of classLinks.filter((item) => item.status === 'linked')) {
+      const distribution = distributionsByLevel.get(link.normalizedLevelId!);
+      seedsByClass.set(
+        link.classId,
+        buildClassPlannedSessionSeedsFromCanonicalSessions(
           req.user!.id,
           link.classId,
           academicYearId,
           distribution!.sessions
+        )
+      );
+    }
+    const dependencyIds = await executionDependencyIds(
+      req.user!.id,
+      existingRows.map((row) => row.id)
+    );
+    const conflicts = [] as Array<{
+      classId: string;
+      className: string;
+      referenceSessionId: string;
+      existingDate: string;
+      requestedDate: string;
+      reason: 'execution-dependency' | 'completed-session';
+    }>;
+    for (const link of classLinks.filter((item) => item.status === 'linked')) {
+      for (const seed of seedsByClass.get(link.classId) || []) {
+        const existing = existingByClassReference.get(`${link.classId}|${seed.referenceSessionId}`);
+        const decision = decideClassSessionRebuild(
+          existing || null,
+          seed.plannedDate,
+          Boolean(existing && dependencyIds.has(existing.id)),
+          preLaunchRebuild
         );
-        seedsByClass.set(link.classId, seeds);
-        return seeds
-          .filter((seed) => {
-            const existing = existingByClassReference.get(
-              `${seed.classId}|${seed.referenceSessionId}`
-            );
-            return (
-              existing?.status === 'منجزة' &&
-              existing.plannedDate.getTime() !== seed.plannedDate.getTime()
-            );
-          })
-          .map(() => link.className);
-      });
+        if (decision === 'conflict' && existing) {
+          conflicts.push({
+            classId: link.classId,
+            className: link.className,
+            referenceSessionId: seed.referenceSessionId,
+            existingDate: existing.plannedDate.toISOString().slice(0, 10),
+            requestedDate: seed.plannedDate.toISOString().slice(0, 10),
+            reason: dependencyIds.has(existing.id) ? 'execution-dependency' : 'completed-session',
+          });
+        }
+      }
+    }
     if (conflicts.length) {
       return res.status(409).json({
-        error: `لا يمكن إعادة جدولة حصص منجزة في: ${[...new Set(conflicts)].join('، ')}.`,
-        levels: levelViews,
+        error: `تعذر إعادة بناء التوزيع بسبب حصص محمية في: ${[
+          ...new Set(conflicts.map((item) => item.className)),
+        ].join('، ')}.`,
+        academicYearId,
+        planningStartDate,
+        endDate: generation.endDate,
+        levels,
         classes: classLinks,
+        conflicts,
+        linkedClasses: classLinks.filter((link) => link.status === 'linked').length,
+        createdOrUpdatedSessions: 0,
       });
     }
 
     const operations = [...seedsByClass.entries()].flatMap(([classId, seeds]) =>
       seeds.flatMap((seed) => {
         const existing = existingByClassReference.get(`${classId}|${seed.referenceSessionId}`);
-        if (existing) {
-          if (existing.status === 'منجزة') return [];
-          return [
-            prisma.classPlannedSession.update({
-              where: { id: existing.id },
-              data: { plannedDate: seed.plannedDate, durationMinutes: seed.durationMinutes },
-            }),
-          ];
+        const decision = decideClassSessionRebuild(
+          existing || null,
+          seed.plannedDate,
+          Boolean(existing && dependencyIds.has(existing.id)),
+          preLaunchRebuild
+        );
+        if (decision === 'preserve') return [];
+        if (decision === 'update' && existing) {
+          const data =
+            preLaunchRebuild && !dependencyIds.has(existing.id)
+              ? {
+                  plannedDate: seed.plannedDate,
+                  durationMinutes: seed.durationMinutes,
+                  status: seed.status,
+                  startTime: null,
+                  venue: null,
+                  operationalNote: null,
+                }
+              : { plannedDate: seed.plannedDate, durationMinutes: seed.durationMinutes };
+          return [prisma.classPlannedSession.update({ where: { id: existing.id }, data })];
         }
         return [prisma.classPlannedSession.create({ data: seed })];
       })
     );
-    if (operations.length) await prisma.$transaction(operations);
+    const distributionRecords = generation.levels.map((level) =>
+      prisma.annualPlan.upsert({
+        where: {
+          teacherId_academicYearId_levelId_kind: {
+            teacherId: req.user!.id,
+            academicYearId,
+            levelId: level.levelId,
+            kind: ANNUAL_DISTRIBUTION_KIND,
+          },
+        },
+        create: {
+          id: `ad_${req.user!.id}_${academicYearId}_${level.levelId}`,
+          teacherId: req.user!.id,
+          academicYearId,
+          levelId: level.levelId,
+          kind: ANNUAL_DISTRIBUTION_KIND,
+          status: 'draft',
+          data: { overrides: annualDistributionOverrides(level), note: planningStartDate },
+        },
+        update: {
+          status: 'draft',
+          data: { overrides: annualDistributionOverrides(level), note: planningStartDate },
+        },
+      })
+    );
+    await prisma.$transaction([...distributionRecords, ...operations]);
 
     res.status(201).json({
       success: true,
       academicYearId,
       planningStartDate,
       endDate: generation.endDate,
-      levels: levelViews,
+      levels,
+      classes: classLinks,
+      linkedClasses: classLinks.filter((link) => link.status === 'linked').length,
+      createdOrUpdatedSessions: operations.length,
+    });
+  }
+);
+
+apiRouter.patch(
+  '/teacher/planning/annual-distribution/levels/:levelId/sessions/:referenceSessionId',
+  requireRole('teacher'),
+  async (req, res) => {
+    const parsed = annualDistributionSessionUpdateSchema.safeParse(req.body);
+    const levelId = normalizePrimaryLevelId(req.params.levelId);
+    if (!parsed.success || !levelId) {
+      return res.status(400).json({ error: 'بيانات تعديل توزيع المستوى غير صحيحة.' });
+    }
+    const { academicYearId, plannedDate } = parsed.data;
+    const plan = await prisma.annualPlan.findUnique({
+      where: {
+        teacherId_academicYearId_levelId_kind: {
+          teacherId: req.user!.id,
+          academicYearId,
+          levelId,
+          kind: ANNUAL_DISTRIBUTION_KIND,
+        },
+      },
+      select: { levelId: true, data: true },
+    });
+    if (!plan) return res.status(404).json({ error: 'توزيع المستوى غير محفوظ بعد.' });
+    const storedData = annualDistributionData(plan);
+    const planningStartDate =
+      storedData.note &&
+      isPlanningStartDateConsistent(academicYearId, storedData.note) &&
+      isValidPlanningDate(storedData.note)
+        ? storedData.note
+        : getAcademicCalendar(academicYearId).schoolStart;
+    if (!isAllowedAnnualDistributionDate(plannedDate, academicYearId, planningStartDate)) {
+      return res.status(400).json({
+        error: 'اختر تاريخاً دراسياً صالحاً لا يسبق بداية التخطيط ولا يقع ضمن عطلة.',
+      });
+    }
+
+    const generation = generateAllPrimaryLevelDistributions(academicYearId, planningStartDate);
+    const canonicalLevel = generation.levels.find((item) => item.levelId === levelId);
+    if (!canonicalLevel || canonicalLevel.status !== 'generated') {
+      return res.status(400).json({ error: 'تعذر تحميل توزيع المستوى المحدد.' });
+    }
+    const effectiveLevel = applyPersistedAnnualDistributionDates(
+      canonicalLevel,
+      storedData.overrides,
+      (value) => isAllowedAnnualDistributionDate(value, academicYearId, planningStartDate)
+    );
+    const targetSession = effectiveLevel.sessions.find(
+      (session) => session.referenceSessionId === req.params.referenceSessionId
+    );
+    if (!targetSession)
+      return res.status(404).json({ error: 'الحصة غير موجودة ضمن توزيع المستوى.' });
+    targetSession.plannedDate = plannedDate;
+
+    const classes = await prisma.studentClass.findMany({
+      where: { teacherId: req.user!.id },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, levelId: true },
+    });
+    const matchingClasses = classes.filter(
+      (item) => normalizePrimaryLevelId(item.levelId) === levelId
+    );
+    const existingRows = await prisma.classPlannedSession.findMany({
+      where: {
+        teacherId: req.user!.id,
+        academicYearId,
+        classId: { in: matchingClasses.map((item) => item.id) },
+      },
+    });
+    const existingByClassReference = new Map(
+      existingRows.map((row) => [`${row.classId}|${row.referenceSessionId}`, row] as const)
+    );
+    const dependencyIds = await executionDependencyIds(
+      req.user!.id,
+      existingRows.map((row) => row.id)
+    );
+    const conflicts: Array<{
+      classId: string;
+      className: string;
+      referenceSessionId: string;
+      existingDate: string;
+      requestedDate: string;
+      reason: 'execution-dependency' | 'completed-session';
+    }> = [];
+    const seedsByClass = matchingClasses.map((classRecord) => ({
+      classRecord,
+      seeds: buildClassPlannedSessionSeedsFromCanonicalSessions(
+        req.user!.id,
+        classRecord.id,
+        academicYearId,
+        effectiveLevel.sessions
+      ),
+    }));
+    for (const { classRecord, seeds } of seedsByClass) {
+      for (const seed of seeds) {
+        const existing = existingByClassReference.get(
+          `${classRecord.id}|${seed.referenceSessionId}`
+        );
+        const decision = decideClassSessionRebuild(
+          existing || null,
+          seed.plannedDate,
+          Boolean(existing && dependencyIds.has(existing.id)),
+          isPreLaunchAcademicYear(academicYearId)
+        );
+        if (decision === 'conflict' && existing) {
+          conflicts.push({
+            classId: classRecord.id,
+            className: classRecord.name,
+            referenceSessionId: seed.referenceSessionId,
+            existingDate: existing.plannedDate.toISOString().slice(0, 10),
+            requestedDate: seed.plannedDate.toISOString().slice(0, 10),
+            reason: dependencyIds.has(existing.id) ? 'execution-dependency' : 'completed-session',
+          });
+        }
+      }
+    }
+    if (conflicts.length) {
+      return res.status(409).json({
+        error: `تعذر مزامنة توزيع المستوى بسبب حصص محمية في: ${[
+          ...new Set(conflicts.map((item) => item.className)),
+        ].join('، ')}.`,
+        conflicts,
+      });
+    }
+
+    const operations = seedsByClass.flatMap(({ classRecord, seeds }) =>
+      seeds.flatMap((seed) => {
+        const existing = existingByClassReference.get(
+          `${classRecord.id}|${seed.referenceSessionId}`
+        );
+        const decision = decideClassSessionRebuild(
+          existing || null,
+          seed.plannedDate,
+          Boolean(existing && dependencyIds.has(existing.id)),
+          isPreLaunchAcademicYear(academicYearId)
+        );
+        if (decision === 'preserve') return [];
+        if (decision === 'update' && existing) {
+          return [
+            prisma.classPlannedSession.update({
+              where: { id: existing.id },
+              data: {
+                plannedDate: seed.plannedDate,
+                durationMinutes: seed.durationMinutes,
+                ...(isPreLaunchAcademicYear(academicYearId) && !dependencyIds.has(existing.id)
+                  ? {
+                      status: seed.status,
+                      startTime: null,
+                      venue: null,
+                      operationalNote: null,
+                    }
+                  : {}),
+              },
+            }),
+          ];
+        }
+        return [prisma.classPlannedSession.create({ data: seed })];
+      })
+    );
+    const nextOverrides = {
+      ...(storedData.overrides || {}),
+      [targetSession.referenceSessionId]: { date: plannedDate },
+    };
+    await prisma.$transaction([
+      prisma.annualPlan.update({
+        where: {
+          teacherId_academicYearId_levelId_kind: {
+            teacherId: req.user!.id,
+            academicYearId,
+            levelId,
+            kind: ANNUAL_DISTRIBUTION_KIND,
+          },
+        },
+        data: { data: { overrides: nextOverrides, note: planningStartDate } },
+      }),
+      ...operations,
+    ]);
+
+    const plans = await prisma.annualPlan.findMany({
+      where: {
+        teacherId: req.user!.id,
+        academicYearId,
+        kind: ANNUAL_DISTRIBUTION_KIND,
+      },
+      select: { levelId: true, data: true },
+    });
+    const levels = await annualDistributionLevelViews(generation, req.user!.id, plans);
+    const classLinks = classLinkViews(classes, generation.levels);
+    res.json({
+      success: true,
+      academicYearId,
+      planningStartDate,
+      endDate: generation.endDate,
+      levels,
       classes: classLinks,
       linkedClasses: classLinks.filter((link) => link.status === 'linked').length,
       createdOrUpdatedSessions: operations.length,
@@ -3260,7 +3756,14 @@ const annualPlanUpsertSchema = z.object({
   teacherId: z.string().min(1),
   academicYearId: academicYearIdSchema,
   levelId: z.string().min(1),
-  kind: z.enum(['plan', 'schedule', 'plan_components', 'section_wording', 'schedule_dates']),
+  kind: z.enum([
+    'plan',
+    'schedule',
+    'plan_components',
+    'section_wording',
+    'schedule_dates',
+    'annual_distribution',
+  ]),
   data: z.object({
     overrides: z.record(annualPlanOverrideValueSchema),
     note: z.string().trim().max(1000).optional(),

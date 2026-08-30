@@ -455,6 +455,7 @@ export interface PESession {
 // 'plan_components': تخصيص مركبات الكفاءة/الموارد التعلمية/المؤشرات على مستوى الميدان (المخطط السنوي) — المفتاح: fieldId
 // 'section_wording': تخصيص صياغة هدف الحصة وملاحظات الأستاذ على مستوى الحصة (المقاطع التعليمية) — المفتاح: `${fieldId}__${fieldSessionNumber}`
 // 'schedule_dates': تاريخ/حالة تنفيذ كل حصة (التوزيع السنوي والكراس اليومي) — المفتاح: `${fieldId}__${fieldSessionNumber}`
+// 'annual_distribution': التوزيع المحفوظ للمستوى قبل materialization للأقسام — المفتاح: referenceSessionId
 // 'annual_plan_new': الهيكلية الجديدة للمخطط السنوي 2025 — 3 ميادين فقط مع الكفاءة الشاملة و 6 حقول لكل ميدان
 export type AnnualPlanKind =
   | 'plan'
@@ -462,6 +463,7 @@ export type AnnualPlanKind =
   | 'plan_components'
   | 'section_wording'
   | 'schedule_dates'
+  | 'annual_distribution'
   | 'annual_plan_new';
 export type AnnualPlanStatus = 'draft' | 'proposed' | 'approved';
 export type LessonExecutionStatus = 'مبرمجة' | 'منجزة' | 'مؤجلة' | 'غير منجزة';

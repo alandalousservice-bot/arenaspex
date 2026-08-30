@@ -11,8 +11,8 @@ import { normalizePrimaryLevelId } from '../../services/teacherPlanning.service'
 import type { PrimaryLevelId } from '../../services/primaryLevel.service';
 import type {
   TeacherAnnualDistributionResponse,
+  TeacherAnnualDistributionSession,
   TeacherPlanningReference,
-  TeacherPlanningSession,
 } from '../../services/api';
 
 interface AnnualDistributionCalendarProps {
@@ -21,7 +21,7 @@ interface AnnualDistributionCalendarProps {
   selectedLevelId: PrimaryLevelId;
   academicYearId: string;
   planningStartDate: string;
-  sessions: TeacherPlanningSession[];
+  sessions: TeacherAnnualDistributionSession[];
   loading: boolean;
   saving: string | null;
   error: string;
@@ -29,7 +29,7 @@ interface AnnualDistributionCalendarProps {
   onLevelChange: (levelId: PrimaryLevelId) => void;
   onPlanningStartDateChange: (value: string) => void;
   onInitialize: () => void;
-  onUpdateDate: (session: TeacherPlanningSession, value: string) => void;
+  onUpdateDate: (session: TeacherAnnualDistributionSession, value: string) => void;
   onNavigateToCalendar: () => void;
 }
 
@@ -49,7 +49,7 @@ const MONTHS = [
 ];
 
 export type AnnualCalendarRow =
-  | { kind: 'lesson'; date: string; session: TeacherPlanningSession }
+  | { kind: 'lesson'; date: string; session: TeacherAnnualDistributionSession }
   | {
       kind: 'holiday';
       date: string;
@@ -57,10 +57,12 @@ export type AnnualCalendarRow =
     };
 
 export type AnnualCompactRow =
-  | { kind: 'lesson'; date: string; sessions: TeacherPlanningSession[] }
+  | { kind: 'lesson'; date: string; sessions: TeacherAnnualDistributionSession[] }
   | { kind: 'holiday'; date: string; holiday: AcademicCalendarEvent };
 
-export function buildAnnualCalendarRows(sessions: TeacherPlanningSession[]): AnnualCalendarRow[] {
+export function buildAnnualCalendarRows(
+  sessions: TeacherAnnualDistributionSession[]
+): AnnualCalendarRow[] {
   const lessonRows: AnnualCalendarRow[] = sessions.map((session) => ({
     kind: 'lesson',
     date: session.plannedDate,
@@ -94,7 +96,7 @@ function dayDistance(first: string, second: string): number {
 }
 
 export function buildAnnualCompactRows(
-  sessions: TeacherPlanningSession[],
+  sessions: TeacherAnnualDistributionSession[],
   levelId: string
 ): AnnualCompactRow[] {
   const normalizedLevelId = normalizePrimaryLevelId(levelId);
@@ -283,13 +285,13 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
 }) => {
   const calendarRows = useMemo(() => buildAnnualCalendarRows(sessions), [sessions]);
   const compactRows = useMemo(
-    () => (selectedClass ? buildAnnualCompactRows(sessions, selectedClass.levelId) : []),
-    [selectedClass, sessions]
+    () => buildAnnualCompactRows(sessions, selectedLevelId),
+    [selectedLevelId, sessions]
   );
   const levelName =
-    PE_LEVELS.find((level) => level.id === normalizePrimaryLevelId(selectedClass?.levelId))?.name ||
+    PE_LEVELS.find((level) => level.id === normalizePrimaryLevelId(selectedLevelId))?.name ||
     selectedClass?.levelName ||
-    selectedClass?.levelId ||
+    selectedLevelId ||
     '—';
   const teacherName = `${currentUser.firstName} ${currentUser.lastName}`.trim();
 
@@ -402,7 +404,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
         </section>
       )}
 
-      {selectedClass && sessions.length > 0 && (
+      {sessions.length > 0 && (
         <div className="annual-distribution-print-root">
           <header className="annual-distribution-document-header hidden border border-slate-300 bg-white p-4 text-center print:block">
             <p className="text-[10px] font-bold text-slate-600">
@@ -420,7 +422,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
                 ['المؤسسة', currentUser.schoolName || ''],
                 ['الأستاذ', teacherName],
                 ['المستوى', levelName],
-                ['القسم', selectedClass.name],
+                ['القسم', selectedClass?.name || 'غير مرتبط بقسم'],
                 ['السنة الدراسية', academicYearId],
               ].map(([label, value]) => (
                 <div key={label} className="border border-slate-200 bg-slate-50 px-2 py-1.5">
@@ -436,7 +438,8 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
           <div className="annual-distribution-table overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs print:hidden">
             <table className="w-full min-w-[720px] text-right text-xs print:min-w-0">
               <caption className="border-b border-slate-200 bg-slate-50 p-4 text-right text-sm font-extrabold text-slate-900 print:hidden">
-                التوزيع السنوي للحصص التعليمية — {selectedClass.name} — {academicYearId}
+                التوزيع السنوي للحصص التعليمية — {selectedClass?.name || 'كل أقسام المستوى'} —{' '}
+                {academicYearId}
               </caption>
               <thead className="bg-slate-900 text-white print:table-header-group">
                 <tr>
@@ -527,18 +530,22 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
                           </td>
                         )}
                         <td className="flex gap-2 p-3 print:hidden">
-                          <a
-                            href={`/lesson-plans?classId=${encodeURIComponent(row.session.classId)}&classPlannedSessionId=${encodeURIComponent(row.session.id)}&academicYearId=${encodeURIComponent(row.session.academicYearId)}`}
-                            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-2 py-1 font-bold text-blue-700"
-                          >
-                            <BookOpen className="h-3.5 w-3.5" /> المذكرة
-                          </a>
-                          <a
-                            href={`/daily-notebook?classId=${encodeURIComponent(row.session.classId)}&classPlannedSessionId=${encodeURIComponent(row.session.id)}&academicYearId=${encodeURIComponent(row.session.academicYearId)}`}
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 font-bold text-slate-700"
-                          >
-                            <NotebookPen className="h-3.5 w-3.5" /> الكراس
-                          </a>
+                          {selectedClass && (
+                            <>
+                              <a
+                                href={`/lesson-plans?classId=${encodeURIComponent(selectedClass.id)}&classPlannedSessionId=${encodeURIComponent(row.session.id)}&academicYearId=${encodeURIComponent(row.session.academicYearId)}`}
+                                className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-2 py-1 font-bold text-blue-700"
+                              >
+                                <BookOpen className="h-3.5 w-3.5" /> المذكرة
+                              </a>
+                              <a
+                                href={`/daily-notebook?classId=${encodeURIComponent(selectedClass.id)}&classPlannedSessionId=${encodeURIComponent(row.session.id)}&academicYearId=${encodeURIComponent(row.session.academicYearId)}`}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 font-bold text-slate-700"
+                              >
+                                <NotebookPen className="h-3.5 w-3.5" /> الكراس
+                              </a>
+                            </>
+                          )}
                         </td>
                       </tr>
                     );
@@ -568,7 +575,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
       )}
       {!loading && sessions.length === 0 && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600">
-          لم يتم إنشاء التوزيع السنوي لهذا القسم بعد. اختر تاريخ بداية الحصص ثم ولّد التوزيع.
+          لم يتم إنشاء توزيع المستويات بعد. اختر تاريخ بداية الحصص ثم ولّد التوزيع.
         </div>
       )}
     </section>

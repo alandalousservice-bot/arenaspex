@@ -3,6 +3,7 @@ export const ACADEMIC_YEAR_PATTERN = /^\d{4}-\d{4}$/;
 /** Launch policy for normal teacher-facing operations. Add future years here when activated. */
 export const OPERATIONAL_ACADEMIC_YEAR_IDS = ['2026-2027'] as const;
 export const LAUNCH_ACADEMIC_YEAR_ID = OPERATIONAL_ACADEMIC_YEAR_IDS[0];
+export const PRE_LAUNCH_ACADEMIC_YEAR_IDS = ['2026-2027'] as const;
 
 function yearParts(academicYearId: string): [number, number] | null {
   if (!ACADEMIC_YEAR_PATTERN.test(academicYearId)) return null;
@@ -16,6 +17,10 @@ export function isCanonicalAcademicYearId(value: string): boolean {
 
 export function isOperationalAcademicYear(value: string): boolean {
   return (OPERATIONAL_ACADEMIC_YEAR_IDS as readonly string[]).includes(value);
+}
+
+export function isPreLaunchAcademicYear(value: string): boolean {
+  return (PRE_LAUNCH_ACADEMIC_YEAR_IDS as readonly string[]).includes(value);
 }
 
 export function getAcademicYearForDate(date: Date): string {

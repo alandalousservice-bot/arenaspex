@@ -7,7 +7,9 @@ import { AcademicCalendarView } from '../curriculum/AcademicCalendarView';
 import { WeeklyTimetableView } from '../schedule/WeeklyTimetableView';
 import {
   fetchTeacherPlanningSessions,
+  fetchTeacherAnnualDistribution,
   initializeTeacherAnnualDistribution,
+  updateTeacherAnnualDistributionSession,
   updateTeacherPlanningSession,
   TeacherPlanningSession,
   TeacherAnnualDistributionResponse,
@@ -151,6 +153,27 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
   }, [selectedClassId, section, academicYearId]);
 
   useEffect(() => {
+    if (section !== 'annual-distribution') return;
+    let cancelled = false;
+    setLoading(true);
+    fetchTeacherAnnualDistribution(academicYearId)
+      .then((result) => {
+        if (cancelled || !result) return;
+        setAnnualGeneration(result);
+        setPlanningStartDate(result.planningStartDate);
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : 'تعذر تحميل التوزيع.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [academicYearId, section]);
+
+  useEffect(() => {
     window.localStorage.setItem(ACADEMIC_YEAR_PREFERENCE_KEY, academicYearId);
   }, [academicYearId]);
 
@@ -204,7 +227,11 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     setError('');
     ++sessionsRequestId.current;
     try {
-      const result = await initializeTeacherAnnualDistribution(academicYearId, planningStartDate);
+      const result = await initializeTeacherAnnualDistribution(
+        academicYearId,
+        planningStartDate,
+        true
+      );
       setAnnualGeneration(result);
       if (selectedClassId) {
         const requestId = ++sessionsRequestId.current;
@@ -212,12 +239,6 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
         if (requestId === sessionsRequestId.current) setSessions(classResult.sessions);
       }
     } catch (reason: unknown) {
-      const details =
-        reason instanceof Error
-          ? (reason as Error & { annualDistribution?: TeacherAnnualDistributionResponse })
-              .annualDistribution
-          : undefined;
-      if (details) setAnnualGeneration(details);
       setError(reason instanceof Error ? reason.message : 'تعذر إنشاء التوزيع.');
     } finally {
       setLoading(false);
@@ -244,12 +265,44 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     }
   };
 
+  const updateLevelSession = async (
+    session: import('../../services/api').TeacherAnnualDistributionSession,
+    plannedDate: string
+  ) => {
+    setSaving(session.id);
+    setError('');
+    try {
+      const result = await updateTeacherAnnualDistributionSession(
+        academicYearId,
+        session.levelId || selectedLevelId,
+        session.referenceSessionId,
+        plannedDate
+      );
+      setAnnualGeneration(result);
+      setPlanningStartDate(result.planningStartDate);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'تعذر حفظ تعديل توزيع المستوى.');
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const operationalView = section === 'annual-distribution' || section === 'weekly';
   const annualSelectedClass =
     selectedClass && normalizePrimaryLevelId(selectedClass.levelId) === selectedLevelId
       ? selectedClass
       : null;
-  const annualSessions = annualSelectedClass ? sessions : [];
+  const annualSessions = useMemo(() => {
+    const levelSessions =
+      annualGeneration?.levels.find((level) => level.levelId === selectedLevelId)?.sessions || [];
+    const materializedByReference = new Map(
+      sessions.map((session) => [session.referenceSessionId, session] as const)
+    );
+    return levelSessions.map((session) => {
+      const materialized = materializedByReference.get(session.referenceSessionId);
+      return materialized ? { ...session, id: materialized.id } : session;
+    });
+  }, [annualGeneration, selectedLevelId, sessions]);
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200" dir="rtl">
@@ -360,7 +413,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
           onLevelChange={changeLevel}
           onPlanningStartDateChange={setPlanningStartDate}
           onInitialize={() => void initialize()}
-          onUpdateDate={(session, plannedDate) => void updateSession(session, { plannedDate })}
+          onUpdateDate={(session, plannedDate) => void updateLevelSession(session, plannedDate)}
           onNavigateToCalendar={() => changeSection('calendar')}
         />
       )}

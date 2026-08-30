@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  applyPersistedAnnualDistributionDates,
   buildClassPlannedSessionSeedsFromCanonicalSessions,
+  decideClassSessionRebuild,
   generateAllPrimaryLevelDistributions,
 } from '../src/services/teacherPlanning.service';
 import { calendarEventForDate, getAcademicCalendar } from '../src/data/academicCalendars';
@@ -62,6 +64,44 @@ describe('academic-year annual distribution generation v2', () => {
     ).toBe(true);
   });
 
+  it('keeps the selected school start as a lower bound while honoring the weekly anchor', () => {
+    const result = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
+    expect(new Date('2026-09-21T00:00:00').getDay()).toBe(1);
+    expect(result.levels[0].firstSessionDate).toBe('2026-09-27');
+    expect(new Date(`${result.levels[0].firstSessionDate}T00:00:00`).getDay()).toBe(0);
+    expect(
+      result.levels.every((level) => level.sessions.every((s) => s.plannedDate >= '2026-09-21'))
+    ).toBe(true);
+  });
+
+  it('uses the persisted level distribution as the editable source without a class', () => {
+    const result = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
+    const level = result.levels.find((item) => item.levelId === 'lvl_p5')!;
+    const first = level.sessions[0];
+    const changed = applyPersistedAnnualDistributionDates(
+      level,
+      { [first.referenceSessionId]: { date: '2026-09-28' } },
+      (value) => value >= '2026-09-21'
+    );
+    expect(changed.sessions).toHaveLength(34);
+    expect(changed.sessions[0].plannedDate).toBe('2026-09-28');
+  });
+
+  it('rebuilds completed pre-launch setup rows but protects executed rows', () => {
+    const oldDate = new Date('2026-09-27T00:00:00.000Z');
+    const nextDate = new Date('2026-10-04T00:00:00.000Z');
+    expect(
+      decideClassSessionRebuild({ status: 'منجزة', plannedDate: oldDate }, nextDate, false, true)
+    ).toBe('update');
+    expect(
+      decideClassSessionRebuild({ status: 'منجزة', plannedDate: oldDate }, nextDate, true, true)
+    ).toBe('conflict');
+    expect(
+      decideClassSessionRebuild({ status: 'منجزة', plannedDate: oldDate }, nextDate, false, false)
+    ).toBe('conflict');
+    expect(decideClassSessionRebuild(null, nextDate, false, true)).toBe('create');
+  });
+
   it('materializes separate same-level class execution rows from one level structure', () => {
     const result = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
     const gradeTwo = result.levels.find((level) => level.levelId === 'lvl_p2')!;
@@ -106,17 +146,23 @@ describe('academic-year annual distribution generation v2', () => {
       router.indexOf("'/teacher/planning/classes/:classId/sessions/initialize'")
     );
     expect(router).toContain("'/teacher/planning/annual-distribution/initialize'");
-    expect(globalRoute).toContain('normalizePrimaryLevelId(classRecord.levelId)');
+    expect(globalRoute).toContain('classLinkViews(classes, generation.levels)');
+    expect(globalRoute).toContain('executionDependencyIds');
     expect(globalRoute).toContain('prisma.studentClass.findMany');
     expect(globalRoute).not.toContain('prisma.studentClass.create');
+    expect(router).toContain("'/teacher/planning/annual-distribution'");
+    expect(router).toContain('ANNUAL_DISTRIBUTION_KIND');
   });
 
   it('preserves safe regeneration and completed-session protection contracts', () => {
     const router = fs.readFileSync('src/server/apiRouter.ts', 'utf8');
-    expect(router).toContain("existing.status === 'منجزة'");
+    expect(router).toContain('decideClassSessionRebuild');
+    expect(router).toContain('executionDependencyIds');
+    expect(router).toContain('preLaunchRebuild');
     expect(router).toContain('res.status(409)');
-    expect(router).toContain('prisma.$transaction(operations)');
+    expect(router).toContain('prisma.$transaction([...distributionRecords, ...operations])');
     expect(router).toContain('createdOrUpdatedSessions');
+    expect(router).toContain('conflicts');
   });
 
   it('recalculates future dates from a changed start date without changing identities', () => {
@@ -143,8 +189,8 @@ describe('academic-year annual distribution generation v2', () => {
     expect(second.levels).toEqual(first.levels);
 
     const router = fs.readFileSync('src/server/apiRouter.ts', 'utf8');
-    expect(router).toContain("if (existing.status === 'منجزة') return []");
+    expect(router).toContain("if (decision === 'preserve') return []");
     expect(router).toContain('plannedDate: seed.plannedDate');
-    expect(router).toContain('لا يمكن إعادة جدولة حصص منجزة');
+    expect(router).toContain('annual_distribution');
   });
 });

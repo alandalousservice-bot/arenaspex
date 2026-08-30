@@ -57,6 +57,12 @@ describe('unified Teacher planning workspace', () => {
     expect(distribution).toContain('aria-pressed={selectedLevelId === levelId}');
     expect(distribution).toContain('onClick={() => onLevelChange(levelId)}');
     expect(workspace).not.toContain('setSelectedLevelId(selectedClass');
+    expect(workspace).toContain('annualGeneration?.levels.find');
+    expect(workspace).toContain('materializedByReference');
+    expect(workspace).toContain('fetchTeacherAnnualDistribution');
+    expect(workspace).toContain('updateTeacherAnnualDistributionSession');
+    expect(distribution).toContain('TeacherAnnualDistributionSession');
+    expect(distribution).toContain('{sessions.length > 0 && (');
   });
 
   it('uses the controlled date input as the generation payload', () => {
@@ -64,10 +70,12 @@ describe('unified Teacher planning workspace', () => {
     const distribution = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
     const api = read('src/services/api.ts');
     expect(distribution).toContain('value={planningStartDate}');
-    expect(workspace).toContain(
-      'initializeTeacherAnnualDistribution(academicYearId, planningStartDate)'
+    expect(workspace).toContain('initializeTeacherAnnualDistribution(');
+    expect(workspace).toContain('planningStartDate,');
+    expect(api).toContain('preLaunchRebuild');
+    expect(api).toContain(
+      'body: JSON.stringify({ academicYearId, planningStartDate, preLaunchRebuild })'
     );
-    expect(api).toContain('body: JSON.stringify({ academicYearId, planningStartDate })');
   });
 
   it('builds calendar slides from the authoritative academic calendar', () => {

@@ -65,6 +65,43 @@ export interface AnnualLevelDistribution {
   error?: string;
 }
 
+export interface PersistedAnnualDistributionOverride {
+  date?: string;
+}
+
+export type ClassSessionRebuildDecision = 'create' | 'update' | 'preserve' | 'conflict';
+
+/** Apply only validated persisted date overrides to the canonical level document. */
+export function applyPersistedAnnualDistributionDates(
+  level: AnnualLevelDistribution,
+  overrides: Record<string, PersistedAnnualDistributionOverride> | undefined,
+  isAllowedDate: (value: string) => boolean
+): AnnualLevelDistribution {
+  if (!overrides || level.status !== 'generated') return level;
+  return {
+    ...level,
+    sessions: level.sessions.map((session) => {
+      const date = overrides[session.referenceSessionId]?.date;
+      return date && isAllowedDate(date) ? { ...session, plannedDate: date } : session;
+    }),
+  };
+}
+
+export function decideClassSessionRebuild(
+  existing: { status: string; plannedDate: Date } | null,
+  nextDate: Date,
+  hasExecutionDependencies: boolean,
+  preLaunchRebuild: boolean
+): ClassSessionRebuildDecision {
+  if (!existing) return 'create';
+  const dateChanged = existing.plannedDate.getTime() !== nextDate.getTime();
+  if (existing.status === 'منجزة' && hasExecutionDependencies && dateChanged) return 'conflict';
+  if (existing.status === 'منجزة' && !preLaunchRebuild && dateChanged) return 'conflict';
+  if (existing.status === 'منجزة' && hasExecutionDependencies) return 'preserve';
+  if (existing.status === 'منجزة' && !preLaunchRebuild) return 'preserve';
+  return 'update';
+}
+
 export function effectivePlanningObjective(
   session: Pick<CanonicalPlanningSession, 'domainId' | 'objectiveId' | 'objective'>,
   overrides: PlanningWordingOverrides = {}

@@ -649,6 +649,17 @@ export interface TeacherPlanningSession {
   reference?: TeacherPlanningReference | null;
 }
 
+export interface TeacherAnnualDistributionSession {
+  id: string;
+  levelId?: string;
+  academicYearId: string;
+  referenceSessionId: string;
+  plannedDate: string;
+  durationMinutes: number;
+  status: ClassPlannedSessionStatus;
+  reference?: TeacherPlanningReference | null;
+}
+
 export interface TeacherPlanningClassContext {
   id: string;
   name: string;
@@ -703,6 +714,7 @@ export interface TeacherAnnualLevelDistributionSummary {
   durationMinutes: number;
   status: 'generated' | 'failed';
   error?: string;
+  sessions: TeacherAnnualDistributionSession[];
 }
 
 export interface TeacherAnnualClassLinkSummary {
@@ -724,20 +736,57 @@ export interface TeacherAnnualDistributionResponse {
   classes: TeacherAnnualClassLinkSummary[];
   linkedClasses: number;
   createdOrUpdatedSessions: number;
+  conflicts?: TeacherAnnualDistributionConflict[];
+}
+
+export interface TeacherAnnualDistributionConflict {
+  classId: string;
+  className: string;
+  referenceSessionId: string;
+  existingDate: string;
+  requestedDate: string;
+  reason: 'execution-dependency' | 'completed-session';
+}
+
+export async function fetchTeacherAnnualDistribution(
+  academicYearId: string
+): Promise<TeacherAnnualDistributionResponse | null> {
+  const query = new URLSearchParams({ academicYearId });
+  const res = await fetch(`/api/teacher/planning/annual-distribution?${query.toString()}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل التوزيع السنوي للمستويات.');
+  return (data.annualGeneration || null) as TeacherAnnualDistributionResponse | null;
 }
 
 export async function initializeTeacherAnnualDistribution(
   academicYearId: string,
-  planningStartDate: string
+  planningStartDate: string,
+  preLaunchRebuild = false
 ): Promise<TeacherAnnualDistributionResponse> {
   const res = await fetch('/api/teacher/planning/annual-distribution/initialize', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ academicYearId, planningStartDate }),
+    body: JSON.stringify({ academicYearId, planningStartDate, preLaunchRebuild }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const error = new Error(data.error || 'تعذر إنشاء التوزيع السنوي للمستويات.') as Error & {
+    const conflictDetails = Array.isArray(data.conflicts)
+      ? data.conflicts
+          .filter(
+            (item: unknown): item is TeacherAnnualDistributionConflict =>
+              Boolean(item) &&
+              typeof item === 'object' &&
+              typeof (item as TeacherAnnualDistributionConflict).className === 'string' &&
+              typeof (item as TeacherAnnualDistributionConflict).referenceSessionId === 'string'
+          )
+          .map(
+            (item) =>
+              `${item.className} — ${item.referenceSessionId} (${item.existingDate} ← ${item.requestedDate})`
+          )
+      : [];
+    const error = new Error(
+      [data.error || 'تعذر إنشاء التوزيع السنوي للمستويات.', ...conflictDetails].join(' ')
+    ) as Error & {
       annualDistribution?: TeacherAnnualDistributionResponse;
     };
     if (Array.isArray(data.levels)) {
@@ -750,9 +799,45 @@ export async function initializeTeacherAnnualDistribution(
         classes: data.classes || [],
         linkedClasses: data.linkedClasses || 0,
         createdOrUpdatedSessions: data.createdOrUpdatedSessions || 0,
+        conflicts: data.conflicts || [],
       };
     }
     throw error;
+  }
+  return data as TeacherAnnualDistributionResponse;
+}
+
+export async function updateTeacherAnnualDistributionSession(
+  academicYearId: string,
+  levelId: string,
+  referenceSessionId: string,
+  plannedDate: string
+): Promise<TeacherAnnualDistributionResponse> {
+  const res = await fetch(
+    `/api/teacher/planning/annual-distribution/levels/${encodeURIComponent(levelId)}/sessions/${encodeURIComponent(referenceSessionId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ academicYearId, plannedDate }),
+    }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const conflictDetails = Array.isArray(data.conflicts)
+      ? data.conflicts
+          .filter(
+            (item: unknown): item is TeacherAnnualDistributionConflict =>
+              Boolean(item) &&
+              typeof item === 'object' &&
+              typeof (item as TeacherAnnualDistributionConflict).className === 'string' &&
+              typeof (item as TeacherAnnualDistributionConflict).referenceSessionId === 'string'
+          )
+          .map(
+            (item) =>
+              `${item.className} — ${item.referenceSessionId} (${item.existingDate} ← ${item.requestedDate})`
+          )
+      : [];
+    throw new Error([data.error || 'تعذر تحديث توزيع المستوى.', ...conflictDetails].join(' '));
   }
   return data as TeacherAnnualDistributionResponse;
 }

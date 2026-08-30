@@ -7,6 +7,7 @@ import {
   getOperationalAcademicYearOptions,
   isCanonicalAcademicYearId,
   isOperationalAcademicYear,
+  isPreLaunchAcademicYear,
   isPlanningStartDateConsistent,
 } from '../src/services/academicYear';
 import {
@@ -26,6 +27,8 @@ describe('canonical academic year utility', () => {
     expect(getOperationalAcademicYearOptions()).toEqual(['2026-2027']);
     expect(isOperationalAcademicYear('2025-2026')).toBe(false);
     expect(isOperationalAcademicYear('2026-2027')).toBe(true);
+    expect(isPreLaunchAcademicYear('2026-2027')).toBe(true);
+    expect(isPreLaunchAcademicYear('2027-2028')).toBe(false);
   });
 
   it('keeps future academic-year identities valid for later activation', () => {
