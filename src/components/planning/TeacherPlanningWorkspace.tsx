@@ -323,6 +323,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
           <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
             السنة الدراسية
             <select
+              dir="ltr"
               value={academicYearId}
               onChange={(event) => changeAcademicYear(event.target.value)}
               className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
