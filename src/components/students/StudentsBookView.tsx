@@ -526,6 +526,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
         {/* Global Controls */}
         <div className="students-book-actions flex flex-wrap items-center gap-2">
           <button
+            data-students-action="add-class"
             onClick={() => setShowAddClassModal(true)}
             className="workspace-button-secondary flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl border shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
           >
@@ -534,6 +535,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
           </button>
 
           <button
+            data-students-action="add-student"
             onClick={() => setShowAddStudentModal(true)}
             className="workspace-button-primary flex items-center gap-2 px-3.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-2xl transition-all cursor-pointer"
           >
@@ -541,13 +543,17 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
             <span>إضافة تلميذ للقسم</span>
           </button>
 
-          <label className="workspace-button-outline flex items-center gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-2xl border shadow-md cursor-pointer">
+          <label
+            data-students-action="import-roster"
+            className="workspace-button-outline flex items-center gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-2xl border shadow-md cursor-pointer"
+          >
             <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleRosterFile} />
             <Users className="w-4 h-4" />
             <span>استيراد قائمة التلاميذ</span>
           </label>
 
           <button
+            data-students-action="print-roster"
             onClick={() => window.print()}
             className="workspace-button-secondary flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-2xl border transition-all cursor-pointer"
           >

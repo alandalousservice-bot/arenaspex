@@ -497,7 +497,18 @@ export default function App() {
                 onEndSession={handleEndLessonSession}
                 onCompletePlannedSession={handleCompletePlannedSession}
                 onUpdateTimingSettings={handleUpdateTimingSettings}
-                onNavigateToLessonPlans={() => navigateToTab('lesson_plans')}
+                onNavigateToLessonPlans={() => {
+                  if (activeLessonSession?.classPlannedSessionId) {
+                    const params = new URLSearchParams({
+                      classId: activeLessonSession.classId,
+                      classPlannedSessionId: activeLessonSession.classPlannedSessionId,
+                      academicYearId: activeLessonSession.academicYearId || '',
+                    });
+                    window.location.assign(`/lesson-plans?${params.toString()}`);
+                    return;
+                  }
+                  navigateToTab('lesson_plans');
+                }}
                 onAddNotebookEntry={handleAddNotebookEntry}
                 onOpenAssessment={() => {
                   if (!activeLessonSession?.classPlannedSessionId) return;

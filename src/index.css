@@ -930,11 +930,6 @@
     max-inline-size: 100%;
   }
 
-  .students-book-actions > button:empty,
-  .students-book-actions > label:empty {
-    display: none !important;
-  }
-
   .students-class-selector {
     overflow: visible;
   }

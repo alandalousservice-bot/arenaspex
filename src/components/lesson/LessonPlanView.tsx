@@ -68,6 +68,30 @@ const LEVEL_KEYS: Record<string, string> = {
 const LEVELS = Object.keys(LEVEL_KEYS);
 const YEAR_KEY = 'arenaspex:selectedAcademicYear';
 
+function displayLevelName(classRoom: ClassRoom): string {
+  return (
+    classRoom.levelName ||
+    Object.entries(LEVEL_KEYS).find(([, levelId]) => levelId === classRoom.levelId)?.[0] ||
+    'المستوى الدراسي'
+  );
+}
+
+function formatLessonDate(value: string): string {
+  const [year, month, day] = value.slice(0, 10).split('-');
+  return year && month && day ? `${day} / ${month} / ${year}` : value;
+}
+
+function formatSessionSequence(session: TeacherPlanningSession): string {
+  return String(session.reference?.sequenceIndex || '—');
+}
+
+function sessionStateLabel(session: TeacherPlanningSession, memo?: LessonPlan): string {
+  if (memo) return 'مذكرة محفوظة';
+  if (session.status === 'منجزة') return 'حصة منجزة — المذكرة غير منشأة';
+  if (session.status === 'مؤجلة') return 'حصة مؤجلة — المذكرة غير منشأة';
+  return 'مذكرة غير منشأة';
+}
+
 type SourceSession = Parameters<typeof autoGenerateLessonPlan>[0];
 
 function sessionsForLevel(levelName: string): SourceSession[] {
@@ -123,19 +147,18 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [generationError, setGenerationError] = useState('');
   const [draft, setDraft] = useState<LessonPlan | null>(null);
   const [memoMode, setMemoMode] = useState<LessonMemoMode>('operational');
-  const [operationalClassId, setOperationalClassId] = useState(requestedClassId);
+  const [operationalClassId, setOperationalClassId] = useState(
+    requestedClassId || teacherClasses[0]?.id || ''
+  );
   const [operationalAcademicYearId, setOperationalAcademicYearId] = useState(() => {
     const requestedYear = query.get('academicYearId') || localStorage.getItem(YEAR_KEY) || '';
     return isOperationalAcademicYear(requestedYear) ? requestedYear : getCurrentAcademicYear();
   });
   const [operationalSessionId, setOperationalSessionId] = useState(requestedSessionId);
   const [operationalSessions, setOperationalSessions] = useState<TeacherPlanningSession[]>([]);
-  const [operationalSelectionActive, setOperationalSelectionActive] = useState(
-    Boolean(requestedSessionId)
-  );
   const [scheduledError, setScheduledError] = useState('');
   const [scheduledLoading, setScheduledLoading] = useState(false);
-  const scheduledMode = Boolean(requestedSessionId) || operationalSelectionActive;
+  const scheduledMode = memoMode === 'operational' && Boolean(operationalClassId);
   const operationalClass = teacherClasses.find((item) => item.id === operationalClassId);
   const operationalSession = operationalSessions.find((item) => item.id === operationalSessionId);
   const scheduledContext = useMemo(() => {
@@ -219,9 +242,9 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
 
   useEffect(() => {
     const shouldLoad =
+      memoMode === 'operational' &&
       Boolean(operationalClassId) &&
-      Boolean(operationalAcademicYearId) &&
-      (Boolean(requestedSessionId) || (showGenerator && memoMode === 'operational'));
+      Boolean(operationalAcademicYearId);
     if (!shouldLoad) return;
     let cancelled = false;
     setScheduledLoading(true);
@@ -332,7 +355,6 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       }
       if (existingOperationalMemo) {
         setSelectedId(existingOperationalMemo.id);
-        setOperationalSelectionActive(true);
         setShowGenerator(false);
         setGenerationError('');
         return;
@@ -368,7 +390,6 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       setSelectedId(plan.id);
       setGenerationError('');
       setShowGenerator(false);
-      setOperationalSelectionActive(memoMode === 'operational');
     } catch {
       setGenerationError('تعذر توليد المذكرة. حاول إعادة فتح الحصة.');
     }
@@ -446,24 +467,22 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               onChange={(event) => {
                 setOperationalClassId(event.target.value);
                 setOperationalSessionId('');
-                setOperationalSelectionActive(false);
               }}
               className="mb-3 w-full rounded-xl border p-2"
             >
               <option value="">اختر قسماً</option>
               {teacherClasses.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.name} — {item.levelName || item.levelId}
+                  {item.name || displayLevelName(item)}
                 </option>
               ))}
             </select>
-            <label className="mb-1 block text-sm font-bold">الموسم الدراسي</label>
+            <label className="mb-1 block text-sm font-bold">السنة الدراسية</label>
             <select
               value={operationalAcademicYearId}
               onChange={(event) => {
                 setOperationalAcademicYearId(event.target.value);
                 setOperationalSessionId('');
-                setOperationalSelectionActive(false);
               }}
               className="mb-3 w-full rounded-xl border p-2"
             >
@@ -484,7 +503,6 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                   value={operationalSessionId}
                   onChange={(event) => {
                     setOperationalSessionId(event.target.value);
-                    setOperationalSelectionActive(true);
                     setGenerationError('');
                   }}
                   className="w-full rounded-xl border p-2 text-sm"
@@ -497,21 +515,36 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                     );
                     return (
                       <option key={session.id} value={session.id}>
-                        {session.plannedDate} · {session.reference?.sessionTypeLabel || 'حصة'} ·
-                        الحصة {session.reference?.sequenceIndex || '—'} ·{' '}
-                        {session.reference?.objective || 'هدف غير محدد'} ·{' '}
-                        {session.startTime || 'توقيت غير محدد'} ·{' '}
-                        {memo ? 'مذكرة موجودة' : 'غير منشأة'}
+                        {formatLessonDate(session.plannedDate)} ·{' '}
+                        {session.reference?.sessionTypeLabel || 'حصة'} · الحصة{' '}
+                        {formatSessionSequence(session)} · {memo ? 'مذكرة محفوظة' : 'غير منشأة'}
                       </option>
                     );
                   })}
                 </select>
                 {scheduledContext && (
-                  <p className="mt-2 text-xs text-slate-500">
-                    الهدف: {scheduledContext.reference.objective} · المدة:{' '}
-                    {scheduledContext.session.durationMinutes} دقيقة · التاريخ:{' '}
-                    {scheduledContext.session.plannedDate}
-                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+                    <span>
+                      <strong className="text-slate-800">التاريخ:</strong>{' '}
+                      <bdi dir="ltr">{formatLessonDate(scheduledContext.session.plannedDate)}</bdi>
+                    </span>
+                    <span>
+                      <strong className="text-slate-800">النوع:</strong>{' '}
+                      {scheduledContext.reference.sessionTypeLabel}
+                    </span>
+                    <span className="col-span-2">
+                      <strong className="text-slate-800">الهدف:</strong>{' '}
+                      {scheduledContext.reference.objective}
+                    </span>
+                    <span>
+                      <strong className="text-slate-800">المدة:</strong>{' '}
+                      {scheduledContext.session.durationMinutes} دقيقة
+                    </span>
+                    <span>
+                      <strong className="text-slate-800">التوقيت:</strong>{' '}
+                      {scheduledContext.session.startTime || 'غير محدد'}
+                    </span>
+                  </div>
                 )}
               </>
             ) : (
@@ -588,42 +621,212 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     </div>
   ) : null;
 
+  const selectedOperationalSession = operationalSessions.find(
+    (session) => session.id === operationalSessionId
+  );
+  const selectOperationalSession = (sessionId: string) => {
+    setOperationalSessionId(sessionId);
+    setGenerationError('');
+  };
+  const createOperationalMemo = (sessionId: string) => {
+    selectOperationalSession(sessionId);
+    setMemoMode('operational');
+    setShowGenerator(true);
+  };
+  const workspaceHeader = (
+    <header className="workspace-header lesson-memo-workspace-header flex flex-col gap-4 rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs xl:flex-row xl:items-end xl:justify-between">
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-800">
+            الوثائق التنفيذية
+          </span>
+          <span className="text-xs font-semibold text-slate-500">مذكرات الحصص</span>
+        </div>
+        <h1 className="mt-2 flex items-center gap-2 text-2xl font-bold text-slate-900">
+          <FileText className="h-6 w-6 text-emerald-700" />
+          مذكرات الحصص
+        </h1>
+        <p className="mt-1 text-sm text-slate-500">
+          إدارة مذكرات الحصص المرتبطة بالتوزيع السنوي والكراس اليومي
+        </p>
+      </div>
+      <div className="grid w-full gap-2 sm:grid-cols-2 xl:max-w-xl">
+        <label className="text-xs font-bold text-slate-700">
+          القسم
+          <select
+            aria-label="القسم"
+            value={operationalClassId}
+            onChange={(event) => {
+              setOperationalClassId(event.target.value);
+              setOperationalSessionId('');
+              setScheduledError('');
+            }}
+            className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold"
+          >
+            <option value="">اختر قسماً</option>
+            {teacherClasses.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name || displayLevelName(item)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs font-bold text-slate-700">
+          السنة الدراسية
+          <select
+            aria-label="السنة الدراسية"
+            value={operationalAcademicYearId}
+            onChange={(event) => {
+              setOperationalAcademicYearId(event.target.value);
+              setOperationalSessionId('');
+              setScheduledError('');
+            }}
+            className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold"
+          >
+            {getOperationalAcademicYearOptions().map((year) => (
+              <option key={year} value={year}>
+                {formatAcademicYearLabel(year)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </header>
+  );
+  const plannedSessionsList = (
+    <section
+      className="workspace-card rounded-3xl border border-slate-200/80 bg-white p-4 shadow-xs"
+      aria-labelledby="planned-sessions-heading"
+    >
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-2 border-b border-slate-100 pb-3">
+        <div>
+          <h2 id="planned-sessions-heading" className="text-lg font-bold text-slate-900">
+            الحصص المبرمجة والمذكرات
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            اختر حصة مرتبطة بالتوزيع السنوي لفتح المذكرة أو إنشائها.
+          </p>
+        </div>
+        {operationalClass && (
+          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">
+            {operationalClass.name || displayLevelName(operationalClass)} ·{' '}
+            <bdi dir="ltr">{formatAcademicYearLabel(operationalAcademicYearId)}</bdi>
+          </span>
+        )}
+      </div>
+      {scheduledError && (
+        <p role="alert" className="mb-3 rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">
+          {scheduledError}
+        </p>
+      )}
+      {!operationalClassId ? (
+        <div className="workspace-empty-state rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+          <p className="font-bold text-slate-700">اختر قسماً لعرض الحصص المبرمجة</p>
+        </div>
+      ) : scheduledLoading ? (
+        <div className="workspace-empty-state rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+          <p className="font-bold text-slate-600">جارٍ تحميل الحصص المبرمجة...</p>
+        </div>
+      ) : operationalSessions.length === 0 ? (
+        <div className="workspace-empty-state rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+          <p className="font-bold text-slate-700">لا توجد حصص مبرمجة لهذا القسم</p>
+          <button
+            type="button"
+            onClick={() =>
+              window.location.assign(
+                `/planning?section=annual-distribution&classId=${encodeURIComponent(operationalClassId)}&academicYearId=${encodeURIComponent(operationalAcademicYearId)}`
+              )
+            }
+            className="mt-3 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white"
+          >
+            فتح التوزيع السنوي
+          </button>
+        </div>
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {operationalSessions.map((session) => {
+            const memo = findOperationalLessonPlan(lessonPlans, session, currentUser?.id || '');
+            const reference = session.reference;
+            const isSelected = selectedOperationalSession?.id === session.id;
+            return (
+              <article
+                key={session.id}
+                className={`rounded-2xl border p-4 transition-colors ${
+                  isSelected
+                    ? 'border-emerald-400 bg-emerald-50/70 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-emerald-200'
+                }`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-bold text-slate-500">
+                      <bdi dir="ltr">{formatLessonDate(session.plannedDate)}</bdi> · الحصة{' '}
+                      {formatSessionSequence(session)}
+                    </p>
+                    <h3 className="mt-1 text-base font-bold text-slate-900">
+                      {reference?.sessionTypeLabel || 'حصة مبرمجة'}
+                    </h3>
+                  </div>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                      memo ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'
+                    }`}
+                  >
+                    {sessionStateLabel(session, memo)}
+                  </span>
+                </div>
+                <dl className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <dt className="font-bold text-slate-800">الهدف</dt>
+                    <dd className="mt-0.5 line-clamp-2">
+                      {reference?.objective || 'هدف غير محدد'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-bold text-slate-800">الميدان</dt>
+                    <dd className="mt-0.5">{reference?.fieldName || 'غير محدد'}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-bold text-slate-800">المدة والتوقيت</dt>
+                    <dd className="mt-0.5">
+                      {session.durationMinutes} دقيقة · {session.startTime || 'غير محدد'}
+                    </dd>
+                  </div>
+                </dl>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      memo
+                        ? selectOperationalSession(session.id)
+                        : createOperationalMemo(session.id)
+                    }
+                    className="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white"
+                  >
+                    {memo ? 'فتح المذكرة' : 'إنشاء المذكرة'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selectOperationalSession(session.id)}
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
+                  >
+                    عرض التفاصيل
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+
   const plan = editing ? draft : selected;
   if (!plan) {
     return (
-      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-8 text-center">
-        {scheduledLoading && (
-          <p className="font-bold text-slate-600">جارٍ تحميل الحصة التشغيلية...</p>
-        )}
-        {scheduledError && (
-          <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">
-            {scheduledError}
-          </p>
-        )}
-        {scheduledContext && (
-          <p className="font-bold text-slate-700">
-            حصة مبرمجة · {scheduledContext.classRoom.name} ·{' '}
-            {scheduledContext.session.plannedDate.slice(0, 10)} ·{' '}
-            {scheduledContext.session.durationMinutes} دقيقة
-          </p>
-        )}
-        {!scheduledError && !scheduledLoading && (
-          <p className="font-bold text-slate-600">
-            {scheduledContext ? 'لا توجد مذكرة محفوظة لهذه الحصة بعد.' : 'لا توجد مذكرات بعد.'}
-          </p>
-        )}
-        {!scheduledError && (
-          <button
-            className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white"
-            onClick={() => {
-              setMemoMode('operational');
-              setGenerationError('');
-              setShowGenerator(true);
-            }}
-          >
-            مذكرة حصة مبرمجة
-          </button>
-        )}
+      <div className="space-y-5">
+        {workspaceHeader}
+        {plannedSessionsList}
         {generatorModal}
       </div>
     );
@@ -709,6 +912,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
 
   return (
     <div className="space-y-5" dir="rtl">
+      {workspaceHeader}
+      {plannedSessionsList}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-5">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-extrabold text-slate-900">
@@ -841,7 +1046,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         </div>
       </div>
 
-      {!editing && lessonPlans.length > 1 && (
+      {!editing && !scheduledMode && lessonPlans.length > 1 && (
         <select
           value={selectedId}
           onChange={(event) => setSelectedId(event.target.value)}

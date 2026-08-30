@@ -38,10 +38,14 @@ describe('authenticated workspace visual regressions', () => {
     expect(students).toContain('setShowAddStudentModal(true)');
     expect(students).toContain('handleRosterFile');
     expect(students).toContain('window.print()');
+    expect(students).toContain('data-students-action="add-class"');
+    expect(students).toContain('data-students-action="add-student"');
+    expect(students).toContain('data-students-action="import-roster"');
+    expect(students).toContain('data-students-action="print-roster"');
     expect(students).not.toMatch(/students-book-actions[\s\S]*?<button[^>]*>\s*<\/button>/);
     expect(students).not.toMatch(/students-book-actions[\s\S]*?<label[^>]*>\s*<\/label>/);
-    expect(screenCss).toContain('.students-book-actions > button:empty');
-    expect(screenCss).toContain('.students-book-actions > label:empty');
+    expect(screenCss).not.toContain('.students-book-actions > button:empty');
+    expect(screenCss).not.toContain('.students-book-actions > label:empty');
   });
 
   it('treats Planning loading as a bounded route fallback with reachable errors', () => {
