@@ -25,11 +25,12 @@ import {
   COMPLETE_ANNUAL_CURRICULUM,
   generateAnnualTimeDistribution,
 } from '../../data/algerianCurriculum';
-import { formatAcademicYearLabel, LAUNCH_ACADEMIC_YEAR_ID } from '../../services/academicYear';
+import { LAUNCH_ACADEMIC_YEAR_ID } from '../../services/academicYear';
 import { getAcademicCalendar } from '../../data/academicCalendars';
 import { User, LessonExecutionStatus } from '../../types/spex';
 import { useCurriculumOverrides } from '../../hooks/useCurriculumOverrides';
 import { mergeSchedule } from '../../services/schedule/scheduleMerge';
+import { AcademicYearLabel } from '../common/AcademicYearLabel';
 
 interface AnnualScheduleViewProps {
   currentUser: User;
@@ -41,6 +42,11 @@ const STATUS_STYLES: Record<LessonExecutionStatus, string> = {
   منجزة: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   مؤجلة: 'bg-amber-100 text-amber-800 border-amber-200',
   'غير منجزة': 'bg-slate-200 text-slate-700 border-slate-300',
+};
+
+const formatDisplayDate = (value: string) => {
+  const [year, month, day] = value.slice(0, 10).split('-');
+  return year && month && day ? `${day} / ${month} / ${year}` : value;
 };
 
 export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
@@ -96,7 +102,7 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
   );
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200 print:space-y-3">
+    <div className="workspace-page workspace-page--annual-schedule space-y-6 animate-in fade-in duration-200 print:space-y-3">
       {/* Printable Header */}
       <div className="hidden print:block text-center border-b-2 border-slate-900 pb-3 mb-4 space-y-1">
         <h3 className="text-sm font-black text-slate-900">
@@ -110,16 +116,18 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
           قسم: {className}
         </h5>
         <div className="flex justify-between text-[11px] font-bold text-slate-600 pt-2 px-2">
-          <span>تاريخ أول حصة: {startDate}</span>
+          <span>تاريخ أول حصة: {formatDisplayDate(startDate)}</span>
           <span>
             يوم التدريس: {['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'][teachingDay]}
           </span>
-          <span>الموسم الدراسي: {formatAcademicYearLabel(LAUNCH_ACADEMIC_YEAR_ID)}</span>
+          <span>
+            الموسم الدراسي: <AcademicYearLabel value={LAUNCH_ACADEMIC_YEAR_ID} />
+          </span>
         </div>
       </div>
 
       {/* Main Header Screen */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
+      <div className="workspace-header bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg">
@@ -142,7 +150,7 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
         <div className="flex items-center gap-2 print:hidden">
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-2xl shadow-sm transition-all cursor-pointer"
+            className="workspace-button-secondary flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-2xl shadow-sm transition-all cursor-pointer"
           >
             <Printer className="w-4 h-4 text-blue-400" />
             <span>طباعة التوزيع السنوي</span>
@@ -158,7 +166,7 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
       )}
 
       {/* Direct Pedagogical Link Banner */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-3xl p-5 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-blue-800">
+      <div className="workspace-hero bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-3xl p-5 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-blue-800">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-white/10 rounded-2xl border border-white/10 shrink-0">
             <Layers className="w-6 h-6 text-amber-300" />

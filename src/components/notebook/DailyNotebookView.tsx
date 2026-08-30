@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookMarked,
   Calendar,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -367,6 +368,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                   setFocusedSessionId('');
                   setAcademicYearId(event.target.value);
                 }}
+                dir="ltr"
                 className="mt-1 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
               >
                 {yearOptions.map((year) => (
@@ -482,16 +484,26 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
             <ChevronLeft className="h-4 w-4" />
           </button>
         </div>
-        <div className="workspace-progress flex items-center justify-between rounded-2xl bg-blue-50/70 px-4 py-3 text-xs">
-          <span className="font-extrabold text-blue-950">التقدم في تنفيذ البرنامج</span>
-          <span className="font-bold text-blue-800">
-            {progress.completed} / {progress.total} حصة · {progress.percentage}%
-          </span>
+        <div className="workspace-progress rounded-2xl bg-blue-50/70 px-4 py-3 text-xs">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-extrabold text-blue-950">التقدم في تنفيذ البرنامج</span>
+            <span className="font-bold text-blue-800" dir="ltr" style={{ unicodeBidi: 'isolate' }}>
+              {progress.completed} / {progress.total} · {progress.percentage}%
+            </span>
+          </div>
+          <div className="workspace-progress-track mt-2 h-1.5 overflow-hidden rounded-full bg-white/80">
+            <div
+              className="workspace-progress-fill h-full rounded-full bg-blue-600 transition-all"
+              style={{ width: `${progress.percentage}%` }}
+            />
+          </div>
         </div>
       </header>
       {!selectedClass && (
-        <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center">
+        <div className="workspace-empty-state rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <CalendarDays className="mx-auto h-8 w-8 text-emerald-600" />
           <h2 className="font-extrabold text-slate-900">لا توجد أقسام مسندة إليك بعد.</h2>
+          <p className="mt-2 text-sm text-slate-500">أسنِد قسمًا للأستاذ لبدء تسجيل تنفيذ الحصص.</p>
           <button
             onClick={() => window.location.assign('/gradebook')}
             className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"
@@ -509,7 +521,8 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
         </p>
       )}
       {selectedClass && !loading && sessions.length === 0 && (
-        <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center">
+        <div className="workspace-empty-state rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <BookMarked className="mx-auto h-8 w-8 text-emerald-600" />
           <h2 className="font-extrabold text-slate-900">
             لم يتم إنشاء التوزيع السنوي لهذا القسم بعد.
           </h2>

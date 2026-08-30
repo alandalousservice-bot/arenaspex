@@ -14,6 +14,7 @@ import {
 import { useCurriculumOverrides } from '../../hooks/useCurriculumOverrides';
 import { effectiveCurriculumObjective } from '../../services/teacherPlanning.service';
 import type { User } from '../../types/spex';
+import { AcademicYearLabel } from '../common/AcademicYearLabel';
 
 interface LearningSegmentsViewProps {
   currentUser: User;
@@ -50,7 +51,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
 
   return (
     <div
-      className="planning-print-document learning-segments-print space-y-6 animate-in fade-in duration-200"
+      className="workspace-page workspace-page--learning-segments planning-print-document learning-segments-print space-y-6 animate-in fade-in duration-200"
       dir="rtl"
     >
       <header className="planning-print-header hidden border border-slate-300 bg-white p-4 text-center print:block">
@@ -74,7 +75,9 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
           ].map(([label, value]) => (
             <div key={label} className="border border-slate-200 bg-slate-50 px-2 py-1.5">
               <span className="block font-bold text-slate-500">{label}</span>
-              <span className="mt-0.5 block font-extrabold text-slate-900">{value || ' '}</span>
+              <span className="mt-0.5 block font-extrabold text-slate-900">
+                {label === 'السنة الدراسية' ? <AcademicYearLabel value={value} /> : value || ' '}
+              </span>
             </div>
           ))}
         </div>

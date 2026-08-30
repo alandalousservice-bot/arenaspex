@@ -14,6 +14,7 @@ import type {
   TeacherAnnualDistributionSession,
   TeacherPlanningReference,
 } from '../../services/api';
+import { AcademicYearLabel } from '../common/AcademicYearLabel';
 
 interface AnnualDistributionCalendarProps {
   currentUser: User;
@@ -296,7 +297,10 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
   const teacherName = `${currentUser.firstName} ${currentUser.lastName}`.trim();
 
   return (
-    <section className="annual-distribution-print space-y-4" dir="rtl">
+    <section
+      className="workspace-page workspace-page--annual-distribution annual-distribution-print space-y-4"
+      dir="rtl"
+    >
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs print:hidden">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -304,7 +308,9 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
             <h2 className="mt-1 text-lg font-extrabold text-slate-900">
               إنشاء التوزيع السنوي للمستويات الخمسة
             </h2>
-            <p className="mt-1 text-xs text-slate-500">السنة الدراسية: {academicYearId}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              السنة الدراسية: <AcademicYearLabel value={academicYearId} />
+            </p>
           </div>
           <div className="flex flex-wrap gap-2" aria-label="اختيار مستوى التوزيع السنوي">
             {PE_LEVELS.map((level) => {
@@ -316,7 +322,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
                   type="button"
                   aria-pressed={selectedLevelId === levelId}
                   onClick={() => onLevelChange(levelId)}
-                  className={`rounded-xl px-3 py-2 text-xs font-extrabold ${selectedLevelId === levelId ? 'bg-blue-600 text-white' : 'border border-slate-200 bg-white text-slate-600'}`}
+                  className={`workspace-level-selector rounded-xl px-3 py-2 text-xs font-extrabold ${selectedLevelId === levelId ? 'is-selected bg-blue-600 text-white' : 'border border-slate-200 bg-white text-slate-600'}`}
                 >
                   {level.name}
                 </button>
@@ -345,14 +351,14 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
               type="button"
               onClick={() => window.print()}
               disabled={!sessions.length || loading}
-              className="flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="workspace-button-secondary flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-900 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Printer className="h-4 w-4" /> طباعة التوزيع السنوي
             </button>
             <button
               type="button"
               onClick={onNavigateToCalendar}
-              className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800"
+              className="workspace-button-outline flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800"
             >
               <CalendarDays className="h-4 w-4" /> عرض رزنامة العطل والأعياد
             </button>
@@ -366,8 +372,9 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
             <div>
               <h2 className="text-sm font-extrabold text-slate-900">ملخص التوزيع السنوي</h2>
               <p className="mt-1 text-xs text-slate-500">
-                من {annualGeneration.planningStartDate} إلى {annualGeneration.endDate} · الأقسام
-                المرتبطة: {annualGeneration.linkedClasses}
+                من {displayDate(annualGeneration.planningStartDate)} إلى{' '}
+                {displayDate(annualGeneration.endDate)} · الأقسام المرتبطة:{' '}
+                {annualGeneration.linkedClasses}
               </p>
             </div>
             <span className="text-xs font-bold text-emerald-700">
@@ -380,7 +387,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
             {annualGeneration.levels.map((level) => (
               <div
                 key={level.levelId}
-                className={`rounded-xl border p-3 ${level.levelId === selectedLevelId ? 'ring-2 ring-blue-500' : ''} ${level.status === 'generated' ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}
+                className={`annual-distribution-summary-card rounded-xl border p-3 ${level.levelId === selectedLevelId ? 'is-selected' : ''} ${level.status === 'generated' ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}
               >
                 <p className="text-xs font-extrabold text-slate-900">السنة {level.grade}</p>
                 <p className="mt-1 text-sm font-black text-slate-900">{level.sessionCount} حصة</p>
@@ -427,7 +434,13 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
               ].map(([label, value]) => (
                 <div key={label} className="border border-slate-200 bg-slate-50 px-2 py-1.5">
                   <span className="block font-bold text-slate-500">{label}</span>
-                  <span className="mt-0.5 block font-extrabold text-slate-900">{value || ' '}</span>
+                  <span className="mt-0.5 block font-extrabold text-slate-900">
+                    {label === 'السنة الدراسية' ? (
+                      <AcademicYearLabel value={value} />
+                    ) : (
+                      value || ' '
+                    )}
+                  </span>
                 </div>
               ))}
             </div>
@@ -563,7 +576,9 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
             <div className="text-left">المفتش: </div>
             <div className="col-span-2 mt-2 flex justify-between border-t border-slate-200 pt-2 text-[10px] font-normal text-slate-500">
               <span>ArenaSpex</span>
-              <span>السنة الدراسية {academicYearId}</span>
+              <span>
+                السنة الدراسية <AcademicYearLabel value={academicYearId} />
+              </span>
             </div>
           </footer>
         </div>

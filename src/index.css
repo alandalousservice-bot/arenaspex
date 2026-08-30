@@ -438,6 +438,124 @@
     background-image: none !important;
   }
 
+  .workspace-page .workspace-button-primary {
+    background-color: var(--color-primary) !important;
+    background-image: none !important;
+    color: #fff !important;
+    box-shadow: 0 7px 16px rgb(4 120 87 / 0.18) !important;
+  }
+
+  .workspace-page .workspace-button-primary:hover:not(:disabled) {
+    background-color: var(--color-primary-hover) !important;
+  }
+
+  .workspace-page .workspace-button-primary:disabled {
+    background-color: #a7bdb5 !important;
+    color: #f0fdf4 !important;
+    box-shadow: none !important;
+  }
+
+  .workspace-page .workspace-button-secondary {
+    border-color: var(--color-border) !important;
+    background-color: var(--workspace-surface) !important;
+    color: var(--color-text) !important;
+  }
+
+  .workspace-page .workspace-button-secondary:hover:not(:disabled) {
+    border-color: var(--workspace-accent) !important;
+    color: var(--workspace-accent) !important;
+  }
+
+  .workspace-page .workspace-button-outline {
+    border-color: #8ac7b0 !important;
+    background-color: var(--workspace-accent-soft) !important;
+    color: #065f46 !important;
+  }
+
+  .workspace-page .workspace-button-outline:hover:not(:disabled) {
+    background-color: #d1fae5 !important;
+  }
+
+  .workspace-page .workspace-button-danger {
+    border-color: #fecdd3 !important;
+    background-color: #fff1f2 !important;
+    color: #be123c !important;
+  }
+
+  .workspace-page .workspace-button-danger:hover:not(:disabled) {
+    background-color: #ffe4e6 !important;
+  }
+
+  .workspace-page .workspace-level-selector.is-selected {
+    border-color: var(--workspace-accent) !important;
+    background-color: var(--workspace-accent) !important;
+    color: #fff !important;
+    box-shadow: 0 5px 14px rgb(4 120 87 / 0.18);
+  }
+
+  .workspace-page .annual-distribution-summary-card {
+    border-color: var(--color-border) !important;
+    background: var(--workspace-surface) !important;
+  }
+
+  .workspace-page .annual-distribution-summary-card.is-selected {
+    border-color: #34d399 !important;
+    background: var(--workspace-accent-soft) !important;
+    box-shadow: 0 0 0 2px rgb(16 185 129 / 0.2) !important;
+  }
+
+  .workspace-page .knowledge-engine-title-en {
+    display: inline-block;
+    margin-inline-start: 0.35rem;
+    color: var(--color-text-muted) !important;
+    font-size: 0.58em;
+    font-weight: 600;
+    letter-spacing: 0;
+    vertical-align: middle;
+  }
+
+  .workspace-page .workspace-empty-state {
+    max-height: 12rem;
+    padding-block: 1.5rem !important;
+    background: #f4fbf8 !important;
+    border-color: #9acdbb !important;
+  }
+
+  .workspace-page .workspace-empty-state svg {
+    margin-bottom: 0.5rem;
+  }
+
+  .workspace-page .workspace-progress-track {
+    border: 1px solid rgb(167 243 208 / 0.6);
+  }
+
+  .workspace-page .workspace-progress-fill {
+    background-color: var(--workspace-accent) !important;
+  }
+
+  .workspace-page--annual-plan > * + *,
+  .workspace-page--annual-distribution > * + *,
+  .workspace-page--daily-notebook > * + * {
+    margin-top: 1rem !important;
+  }
+
+  .workspace-page--knowledge > * + * {
+    margin-top: 1.25rem !important;
+  }
+
+  .workspace-page--annual-plan [class*='bg-slate-900'],
+  .workspace-page--annual-distribution [class*='bg-slate-900'],
+  .workspace-page--annual-schedule [class*='bg-slate-900'] {
+    background-color: #065f46 !important;
+  }
+
+  .workspace-page--annual-plan .annual-plan-table-wrapper caption,
+  .workspace-page--annual-distribution table thead,
+  .workspace-page--annual-distribution table thead tr {
+    background-color: #065f46 !important;
+    color: #fff !important;
+  }
+
   .workspace-tabs {
     scrollbar-width: thin;
     scrollbar-color: #a7f3d0 transparent;

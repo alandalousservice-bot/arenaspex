@@ -82,4 +82,30 @@ describe('ArenaSpex Emerald design system', () => {
     expect(screenCss).toContain('background-image: none !important');
     expect(css.slice(printStart)).toContain('print-color-adjust: exact');
   });
+
+  it('isolates academic-year numerals from RTL reordering', () => {
+    const component = read('src/components/common/AcademicYearLabel.tsx');
+    expect(component).toContain('dir="ltr"');
+    expect(component).toContain("unicodeBidi: 'isolate'");
+    expect(read('src/components/curriculum/AnnualPlanView.tsx')).toContain('AcademicYearLabel');
+    expect(read('src/components/curriculum/AnnualDistributionCalendar.tsx')).toContain(
+      'AcademicYearLabel'
+    );
+  });
+
+  it('keeps final workspace controls and states presentation-only', () => {
+    const annualPlan = read('src/components/curriculum/AnnualPlanView.tsx');
+    const annualDistribution = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
+    const notebook = read('src/components/notebook/DailyNotebookView.tsx');
+    const knowledge = read('src/components/knowledge/KnowledgeEngineView.tsx');
+
+    expect(annualPlan).toContain('workspace-button-primary');
+    expect(annualPlan).toContain('workspace-level-selector');
+    expect(annualDistribution).toContain('annual-distribution-summary-card');
+    expect(annualDistribution).toContain('workspace-button-outline');
+    expect(notebook).toContain('workspace-empty-state');
+    expect(notebook).toContain('workspace-progress-fill');
+    expect(knowledge).toContain('workspace-button-primary');
+    expect(knowledge).toContain('knowledge-engine-title-en');
+  });
 });

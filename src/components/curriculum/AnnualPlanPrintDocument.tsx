@@ -1,8 +1,8 @@
 import React from 'react';
 import type { User } from '../../types/spex';
 import type { AnnualPlanGradePresentation } from '../../services/annualPlanPresentation';
-import { formatAcademicYearLabel } from '../../services/academicYear';
 import { AnnualPlanPrintTable } from './AnnualPlanPrintTable';
+import { AcademicYearLabel } from '../common/AcademicYearLabel';
 
 export const ANNUAL_PLAN_PRINT_PAGE_WIDTH_MM = 289;
 export const ANNUAL_PLAN_PRINT_PAGE_HEIGHT_MM = 202;
@@ -38,7 +38,9 @@ export const AnnualPlanPrintDocument: React.FC<AnnualPlanPrintDocumentProps> = (
           </div>
           <div>
             <span>السنة الدراسية</span>
-            <strong>{formatAcademicYearLabel(academicYearId)}</strong>
+            <strong>
+              <AcademicYearLabel value={academicYearId} />
+            </strong>
           </div>
           <div>
             <span>المستوى</span>

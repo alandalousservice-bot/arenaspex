@@ -22,6 +22,7 @@ import { fetchAnnualPlans } from '../../services/api';
 import { formatAcademicYearLabel, getCurrentAcademicYear } from '../../services/academicYear';
 import { AnnualPlanOfficialTable, type AnnualPlanEditValues } from './AnnualPlanOfficialTable';
 import { AnnualPlanPrintDocument } from './AnnualPlanPrintDocument';
+import { AcademicYearLabel } from '../common/AcademicYearLabel';
 import {
   annualPlanTimeLabel,
   buildAnnualPlanPresentation,
@@ -228,7 +229,7 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
     );
   return (
     <>
-      <div className="annual-plan-screen space-y-5">
+      <div className="workspace-page workspace-page--annual-plan annual-plan-screen space-y-5">
         <header className="annual-plan-document-header planning-print-header rounded-3xl border border-slate-200 bg-white p-5 text-center shadow-sm print:rounded-none print:border-slate-400">
           <p className="text-xs font-bold text-slate-600">
             الجمهورية الجزائرية الديمقراطية الشعبية
@@ -249,7 +250,9 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
                 className="annual-plan-meta-card border border-slate-200 bg-slate-50 p-2"
               >
                 <span className="block font-bold text-slate-500">{label}</span>
-                <span className="block font-black text-slate-900">{value || ' '}</span>
+                <span className="block font-black text-slate-900">
+                  {label === 'السنة الدراسية' ? <AcademicYearLabel value={value} /> : value || ' '}
+                </span>
               </div>
             ))}
           </div>
@@ -269,21 +272,21 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
               <>
                 <button
                   onClick={startEdit}
-                  className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
+                  className="workspace-button-primary flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
                 >
                   <Pencil className="h-4 w-4" />
                   تعديل
                 </button>
                 <button
                   onClick={clear}
-                  className="flex items-center gap-2 rounded-xl border border-amber-300 px-3 py-2 text-xs font-bold text-amber-800"
+                  className="workspace-button-danger flex items-center gap-2 rounded-xl border border-amber-300 px-3 py-2 text-xs font-bold text-amber-800"
                 >
                   <Trash2 className="h-4 w-4" />
                   تفريغ
                 </button>
                 <button
                   onClick={restore}
-                  className="flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
+                  className="workspace-button-outline flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
                 >
                   <RefreshCcw className="h-4 w-4" />
                   استعادة النص المرجعي
@@ -312,7 +315,7 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
             )}
             <button
               onClick={() => void handlePrint()}
-              className="flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white"
+              className="workspace-button-secondary flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white"
             >
               <Printer className="h-4 w-4" />
               طباعة المخطط
@@ -328,7 +331,7 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
                 setIsEditing(false);
                 setEditValues(null);
               }}
-              className={`rounded-xl px-3 py-2 text-xs font-bold ${level.levelId === selectedLevelId ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-slate-50 text-slate-700'}`}
+              className={`workspace-level-selector rounded-xl px-3 py-2 text-xs font-bold ${level.levelId === selectedLevelId ? 'is-selected bg-slate-900 text-white' : 'border border-slate-200 bg-slate-50 text-slate-700'}`}
             >
               <GraduationCap className="ml-1 inline h-4 w-4" />
               {level.levelName}

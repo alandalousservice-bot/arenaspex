@@ -304,7 +304,10 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           </span>
           <h2 className="text-xl font-extrabold text-slate-900 mt-1 flex items-center gap-2">
             <BrainCircuit className="w-5 h-5 text-indigo-600" />
-            <span>محرك المعرفة التربوية (Educational Knowledge Engine)</span>
+            <span>
+              محرك المعرفة التربوية{' '}
+              <small className="knowledge-engine-title-en">Educational Knowledge Engine</small>
+            </span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
             مكتبة متكاملة للبحث والتنفيذ السريع للأهداف الألعاب التربوية، الوضعيات والأنشطة العلاجية
@@ -318,7 +321,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
             setSuggestionError('');
           }}
           disabled={isSuggestingGames}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-2xl text-xs shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+          className="workspace-button-primary flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-2xl text-xs shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
         >
           <Plus className="w-4 h-4" />
           <span>اقتراح لعبة تربوية</span>
