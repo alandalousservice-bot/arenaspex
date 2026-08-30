@@ -151,8 +151,8 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
   };
 
   return (
-    <div className="space-y-5" dir="rtl">
-      <div className="space-y-5 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs">
+    <div className="workspace-page workspace-page--attendance space-y-5" dir="rtl">
+      <div className="workspace-card workspace-header space-y-5 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs">
         <div className="flex flex-col items-start justify-between gap-4 border-b border-slate-100 pb-4 sm:flex-row sm:items-center">
           <div>
             <h3 className="flex items-center gap-2 text-base font-black text-slate-900">

@@ -141,7 +141,7 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
   const isInspector = user.role === 'inspector',
     isTeacher = user.role === 'teacher';
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="workspace-page workspace-page--admin space-y-6" dir="rtl">
       <button
         onClick={() => navigate('/admin/accounts')}
         className="inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-purple-700"

@@ -115,8 +115,8 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
     },
   ];
   return (
-    <div className="space-y-6 animate-in fade-in duration-200 dir-rtl">
-      <section className="rounded-3xl bg-gradient-to-br from-emerald-950 via-slate-900 to-teal-950 p-6 text-white shadow-md border border-emerald-800/40">
+    <div className="workspace-page workspace-page--inspector space-y-6 animate-in fade-in duration-200 dir-rtl">
+      <section className="workspace-hero rounded-3xl bg-gradient-to-br from-emerald-950 via-slate-900 to-teal-950 p-6 text-white shadow-md border border-emerald-800/40">
         <div className="flex items-center gap-3">
           <BookOpenCheck className="h-7 w-7 text-emerald-300" />
           <div>

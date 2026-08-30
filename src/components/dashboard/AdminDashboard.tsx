@@ -488,9 +488,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const directorsCount = managementUsers.filter((u) => u.role === 'director').length;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="workspace-page workspace-page--admin space-y-6 animate-in fade-in duration-200">
       {/* Admin Hero */}
-      <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 shadow-lg shadow-purple-900/15">
+      <div className="workspace-hero bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 shadow-lg shadow-purple-900/15">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-xs font-semibold text-purple-200 border border-white/20">

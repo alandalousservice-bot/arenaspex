@@ -176,7 +176,7 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
       );
     const teacher = detail.teacher;
     return (
-      <div className="space-y-5 dir-rtl">
+      <div className="workspace-page workspace-page--inspector space-y-5 dir-rtl">
         <button
           onClick={() => props.onNavigate('inspector_teachers')}
           className="text-xs font-bold text-emerald-700"

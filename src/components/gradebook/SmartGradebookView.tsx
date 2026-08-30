@@ -375,8 +375,11 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
   const printGradebook = () => window.print();
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200" dir="rtl">
-      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div
+      className="workspace-page workspace-page--gradebook space-y-6 animate-in fade-in duration-200"
+      dir="rtl"
+    >
+      <div className="workspace-header bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-extrabold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">

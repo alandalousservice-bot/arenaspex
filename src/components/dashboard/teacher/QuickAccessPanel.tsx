@@ -44,7 +44,7 @@ const TILES: QuickAccessTile[] = [
 
 export const QuickAccessPanel: React.FC<QuickAccessPanelProps> = ({ onNavigateTab }) => {
   return (
-    <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-3">
+    <div className="workspace-card workspace-quick-access bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-3">
       <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">
         الوصول السريع للوحدات
       </h3>

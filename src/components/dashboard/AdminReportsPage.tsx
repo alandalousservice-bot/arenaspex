@@ -56,7 +56,10 @@ export const AdminReportsPage: React.FC = () => {
   }, [range]);
   const o = report?.overview;
   return (
-    <div className="space-y-6 animate-in fade-in duration-200" dir="rtl">
+    <div
+      className="workspace-page workspace-page--admin space-y-6 animate-in fade-in duration-200"
+      dir="rtl"
+    >
       <header className="rounded-3xl bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 p-6 text-white shadow-lg">
         <div className="flex items-center justify-between gap-4">
           <div>

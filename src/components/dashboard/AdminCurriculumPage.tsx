@@ -87,8 +87,8 @@ export const AdminCurriculumPage: React.FC<{ knowledgeItems: KnowledgeItem[] }> 
   }, []);
 
   return (
-    <div dir="rtl" className="space-y-6">
-      <header className="rounded-3xl bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 p-6 text-white shadow-lg">
+    <div dir="rtl" className="workspace-page workspace-page--admin space-y-6">
+      <header className="workspace-hero rounded-3xl bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 p-6 text-white shadow-lg">
         <div className="flex items-start gap-3">
           <div className="rounded-2xl bg-white/10 p-3">
             <BookMarked className="h-6 w-6 text-purple-200" />

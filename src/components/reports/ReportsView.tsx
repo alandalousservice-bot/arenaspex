@@ -17,9 +17,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ user, lessonPlans, ins
   const [reportType, setReportType] = useState<'session' | 'annual' | 'inspection'>('session');
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="workspace-page workspace-page--reports space-y-6 animate-in fade-in duration-200">
       {/* Header */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="workspace-header bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">
             مركز التقارير والتصدير
@@ -47,7 +47,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ user, lessonPlans, ins
         <button
           onClick={() => setReportType('session')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            reportType === 'session' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-700 hover:bg-slate-100'
+            reportType === 'session'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-700 hover:bg-slate-100'
           }`}
         >
           تقرير نشاط الحصص
@@ -55,7 +57,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ user, lessonPlans, ins
         <button
           onClick={() => setReportType('annual')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            reportType === 'annual' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-700 hover:bg-slate-100'
+            reportType === 'annual'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-700 hover:bg-slate-100'
           }`}
         >
           حصيلة المخطط السنوي
@@ -63,7 +67,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ user, lessonPlans, ins
         <button
           onClick={() => setReportType('inspection')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            reportType === 'inspection' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-700 hover:bg-slate-100'
+            reportType === 'inspection'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-700 hover:bg-slate-100'
           }`}
         >
           تقرير المتابعة التفتيشية
@@ -74,7 +80,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ user, lessonPlans, ins
       <div className="bg-white rounded-3xl p-8 border border-slate-300 shadow-md space-y-6 max-w-4xl mx-auto printable-paper text-right">
         {/* Document Header */}
         <div className="text-center border-b-2 border-slate-900 pb-4 space-y-1">
-          <h3 className="text-sm font-black text-slate-900">الجمهورية الجزائرية الديمقراطية الشعبية</h3>
+          <h3 className="text-sm font-black text-slate-900">
+            الجمهورية الجزائرية الديمقراطية الشعبية
+          </h3>
           <h4 className="text-xs font-bold text-slate-700">
             وزارة التربية الوطنية - {user.directorateId || 'المديرية غير محددة'}
           </h4>
@@ -82,17 +90,31 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ user, lessonPlans, ins
             {reportType === 'session'
               ? 'التقرير الدوري لإنجاز حصص مادة التربية البدنية والرياضية'
               : reportType === 'annual'
-              ? 'تقرير حصيلة تنفيذ المخطط السنوي للتعلمات'
-              : 'تقرير التوجيهات والزيارات البيداغوجية التفتيشية'}
+                ? 'تقرير حصيلة تنفيذ المخطط السنوي للتعلمات'
+                : 'تقرير التوجيهات والزيارات البيداغوجية التفتيشية'}
           </h5>
         </div>
 
         {/* Info Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs font-bold">
-          <div><span className="text-slate-500">{user.role === 'inspector' ? 'المفتش المحرر:' : 'الأستاذ المحرر:'}</span> {user.firstName} {user.lastName}</div>
-          <div><span className="text-slate-500">المؤسسة / المدرسة:</span> {user.schoolName || 'المؤسسة غير محددة'}</div>
-          <div><span className="text-slate-500">المقاطعة:</span> {user.districtId || 'المقاطعة غير محددة'}</div>
-          <div><span className="text-slate-500">تاريخ التقرير:</span> {new Date().toLocaleDateString('ar-DZ')}</div>
+          <div>
+            <span className="text-slate-500">
+              {user.role === 'inspector' ? 'المفتش المحرر:' : 'الأستاذ المحرر:'}
+            </span>{' '}
+            {user.firstName} {user.lastName}
+          </div>
+          <div>
+            <span className="text-slate-500">المؤسسة / المدرسة:</span>{' '}
+            {user.schoolName || 'المؤسسة غير محددة'}
+          </div>
+          <div>
+            <span className="text-slate-500">المقاطعة:</span>{' '}
+            {user.districtId || 'المقاطعة غير محددة'}
+          </div>
+          <div>
+            <span className="text-slate-500">تاريخ التقرير:</span>{' '}
+            {new Date().toLocaleDateString('ar-DZ')}
+          </div>
         </div>
 
         {/* Content Section */}
@@ -121,7 +143,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ user, lessonPlans, ins
               حصيلة نسبة إنجاز الكفاءات الختامية:
             </h4>
             <p className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-              تفيد الحصيلة السنوية بتحقيق نسبة 88% من الأهداف الإجرائية المسطرة لميدان الجري السريع والكرة الطائرة، مع التحكم السليم للتلاميذ في معايير الأمن والسلامة الحركية بالميدان.
+              تفيد الحصيلة السنوية بتحقيق نسبة 88% من الأهداف الإجرائية المسطرة لميدان الجري السريع
+              والكرة الطائرة، مع التحكم السليم للتلاميذ في معايير الأمن والسلامة الحركية بالميدان.
             </p>
           </div>
         )}
@@ -132,7 +155,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ user, lessonPlans, ins
               توجيهات المفتش البيداغوجي المعتمدة:
             </h4>
             {inspectorNotes.map((n) => (
-              <div key={n.id} className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1">
+              <div
+                key={n.id}
+                className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1"
+              >
                 <span className="font-bold text-emerald-900 block">{n.title}</span>
                 <p className="text-emerald-800">{n.content}</p>
               </div>

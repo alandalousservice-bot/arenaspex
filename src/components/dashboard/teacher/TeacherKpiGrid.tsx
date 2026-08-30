@@ -36,7 +36,7 @@ export const TeacherKpiGrid: React.FC<TeacherKpiGridProps> = ({
   inspectorNotesCount,
 }) => {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="workspace-kpi-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <KpiCard
         label="نسبة تنفيذ المخطط السنوي"
         icon={<TrendingUp className="w-5 h-5" />}
@@ -48,7 +48,7 @@ export const TeacherKpiGrid: React.FC<TeacherKpiGridProps> = ({
             <ArrowUpRight className="w-3.5 h-3.5" /> منظم جداً
           </span>
         </div>
-        <div className="w-full bg-slate-100 rounded-full h-2 mt-3 overflow-hidden">
+        <div className="workspace-progress w-full bg-slate-100 rounded-full h-2 mt-3 overflow-hidden">
           <div
             className="bg-blue-600 h-2 rounded-full transition-all duration-500"
             style={{ width: `${executionPercentage}%` }}

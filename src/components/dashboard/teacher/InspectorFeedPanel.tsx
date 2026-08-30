@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Award, MessageSquare, CheckCircle2, Eye, X, ChevronRight, CornerDownLeft } from 'lucide-react';
-import { InspectorNote, InspectionVisit } from '../../../types/spex';
 import {
-  INSPECTOR_NOTE_MODULE_REF,
-} from '../../../constants/teacherDashboard.constants';
+  ShieldCheck,
+  Award,
+  MessageSquare,
+  CheckCircle2,
+  Eye,
+  X,
+  ChevronRight,
+  CornerDownLeft,
+} from 'lucide-react';
+import { InspectorNote, InspectionVisit } from '../../../types/spex';
+import { INSPECTOR_NOTE_MODULE_REF } from '../../../constants/teacherDashboard.constants';
 
 interface InspectorFeedPanelProps {
   inspectorNotes: InspectorNote[];
@@ -56,12 +63,16 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
   const totalItemsCount = inspectorNotes.length + inspectionVisits.length;
 
   return (
-    <div className="bg-gradient-to-br from-emerald-950 via-slate-900 to-teal-950 text-white rounded-3xl p-6 shadow-md border border-emerald-800/40 relative overflow-hidden space-y-4">
+    <div className="workspace-card workspace-inspector-feed bg-gradient-to-br from-emerald-950 via-slate-900 to-teal-950 text-white rounded-3xl p-6 shadow-md border border-emerald-800/40 relative overflow-hidden space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-emerald-800/50 pb-3">
         <span className="text-xs font-extrabold text-emerald-400 flex items-center gap-1.5">
           <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>{inspectorDisplayName ? `توجيهات وزيارات المفتش: ${inspectorDisplayName}` : 'لم يتم تعيين مفتش للمقاطعة بعد'}</span>
+          <span>
+            {inspectorDisplayName
+              ? `توجيهات وزيارات المفتش: ${inspectorDisplayName}`
+              : 'لم يتم تعيين مفتش للمقاطعة بعد'}
+          </span>
         </span>
         <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-md border border-emerald-500/30">
           {totalItemsCount} رسائل وتفاعلات
@@ -112,7 +123,9 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
             <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
               {inspectorNotes.map((note) => {
                 const badge = getNoteBadge(note);
-                const isRead = Boolean(readNoteIds[note.id] || (note.status as string) === 'مقروءة');
+                const isRead = Boolean(
+                  readNoteIds[note.id] || (note.status as string) === 'مقروءة'
+                );
                 return (
                   <div
                     key={note.id}
@@ -123,7 +136,9 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className={`font-bold px-2 py-0.5 rounded-md text-[10px] ${badge.className}`}>
+                      <span
+                        className={`font-bold px-2 py-0.5 rounded-md text-[10px] ${badge.className}`}
+                      >
                         {badge.label}
                       </span>
                       <div className="flex items-center gap-2">
@@ -133,7 +148,9 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
                           className="text-[10px] text-emerald-300 hover:text-white flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded-md cursor-pointer"
                           title="تأكيد الاطلاع"
                         >
-                          <CheckCircle2 className={`w-3 h-3 ${isRead ? 'text-emerald-400' : 'text-slate-400'}`} />
+                          <CheckCircle2
+                            className={`w-3 h-3 ${isRead ? 'text-emerald-400' : 'text-slate-400'}`}
+                          />
                           <span>{isRead ? 'تمت المطالعة' : 'تحديد كمقروء'}</span>
                         </button>
                       </div>
@@ -145,7 +162,9 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
                     </p>
 
                     <div className="flex items-center justify-between text-[10px] text-emerald-300/80 pt-1 border-t border-white/5">
-                      <span>المفتش المحرر: {note.inspectorName || inspectorDisplayName || 'المفتش'}</span>
+                      <span>
+                        المفتش المحرر: {note.inspectorName || inspectorDisplayName || 'المفتش'}
+                      </span>
                       <span className="dir-ltr">{note.createdAt?.split('T')[0]}</span>
                     </div>
                   </div>
@@ -183,7 +202,9 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
                           {visit.visitType}
                         </span>
                       </div>
-                      <span className="text-[10px] text-emerald-200/70 dir-ltr">{visit.visitDate}</span>
+                      <span className="text-[10px] text-emerald-200/70 dir-ltr">
+                        {visit.visitDate}
+                      </span>
                     </div>
 
                     <h4 className="text-xs font-extrabold text-white flex items-center gap-1.5">
@@ -193,7 +214,9 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
 
                     {visit.positivePoints && visit.positivePoints.length > 0 && (
                       <div className="text-[11px] text-emerald-200/90 bg-emerald-950/60 p-2.5 rounded-xl border border-emerald-800/40 space-y-1">
-                        <span className="font-bold text-emerald-400 block">أبرز النقاط الإيجابية المسجلة:</span>
+                        <span className="font-bold text-emerald-400 block">
+                          أبرز النقاط الإيجابية المسجلة:
+                        </span>
                         <ul className="list-disc list-inside space-y-0.5 text-[10px] text-emerald-100">
                           {visit.positivePoints.slice(0, 2).map((pt, idx) => (
                             <li key={idx}>{pt}</li>
@@ -247,8 +270,12 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
                   <Award className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-slate-900">تقرير الزيارة التفتيشية البيداغوجية</h3>
-                  <p className="text-xs text-slate-500">تاريخ الزيارة: {selectedVisitModal.visitDate}</p>
+                  <h3 className="text-sm font-black text-slate-900">
+                    تقرير الزيارة التفتيشية البيداغوجية
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    تاريخ الزيارة: {selectedVisitModal.visitDate}
+                  </p>
                 </div>
               </div>
 
@@ -262,12 +289,18 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
 
             <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 flex items-center justify-between">
               <div>
-                <span className="text-xs text-emerald-800 font-bold block">موضوع الحصة الملاحظة:</span>
-                <span className="text-sm font-extrabold text-emerald-950">{selectedVisitModal.lessonObservedTitle}</span>
+                <span className="text-xs text-emerald-800 font-bold block">
+                  موضوع الحصة الملاحظة:
+                </span>
+                <span className="text-sm font-extrabold text-emerald-950">
+                  {selectedVisitModal.lessonObservedTitle}
+                </span>
               </div>
               <div className="text-center bg-emerald-600 text-white p-2.5 rounded-2xl shadow-sm">
                 <span className="text-[10px] block font-bold">التقدير البيداغوجي</span>
-                <span className="text-lg font-black">{selectedVisitModal.pedagogicalGrade} / 20</span>
+                <span className="text-lg font-black">
+                  {selectedVisitModal.pedagogicalGrade} / 20
+                </span>
               </div>
             </div>
 
@@ -287,34 +320,36 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
             )}
 
             {/* Areas for Improvement */}
-            {selectedVisitModal.areasForImprovement && selectedVisitModal.areasForImprovement.length > 0 && (
-              <div className="space-y-1.5 text-xs">
-                <h4 className="font-extrabold text-amber-800 flex items-center gap-1">
-                  <CornerDownLeft className="w-4 h-4 text-amber-600" />
-                  <span>نقاط التحسين الموصى بها:</span>
-                </h4>
-                <ul className="list-disc list-inside bg-amber-50/60 p-3 rounded-xl border border-amber-200/80 space-y-1 text-amber-900">
-                  {selectedVisitModal.areasForImprovement.map((pt, idx) => (
-                    <li key={idx}>{pt}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {selectedVisitModal.areasForImprovement &&
+              selectedVisitModal.areasForImprovement.length > 0 && (
+                <div className="space-y-1.5 text-xs">
+                  <h4 className="font-extrabold text-amber-800 flex items-center gap-1">
+                    <CornerDownLeft className="w-4 h-4 text-amber-600" />
+                    <span>نقاط التحسين الموصى بها:</span>
+                  </h4>
+                  <ul className="list-disc list-inside bg-amber-50/60 p-3 rounded-xl border border-amber-200/80 space-y-1 text-amber-900">
+                    {selectedVisitModal.areasForImprovement.map((pt, idx) => (
+                      <li key={idx}>{pt}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
             {/* Official Recommendations */}
-            {selectedVisitModal.recommendations && selectedVisitModal.recommendations.length > 0 && (
-              <div className="space-y-1.5 text-xs">
-                <h4 className="font-extrabold text-blue-800 flex items-center gap-1">
-                  <ShieldCheck className="w-4 h-4 text-blue-600" />
-                  <span>التوصيات والقرارات التوجيهية:</span>
-                </h4>
-                <ul className="list-disc list-inside bg-blue-50/60 p-3 rounded-xl border border-blue-200/80 space-y-1 text-blue-900">
-                  {selectedVisitModal.recommendations.map((pt, idx) => (
-                    <li key={idx}>{pt}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {selectedVisitModal.recommendations &&
+              selectedVisitModal.recommendations.length > 0 && (
+                <div className="space-y-1.5 text-xs">
+                  <h4 className="font-extrabold text-blue-800 flex items-center gap-1">
+                    <ShieldCheck className="w-4 h-4 text-blue-600" />
+                    <span>التوصيات والقرارات التوجيهية:</span>
+                  </h4>
+                  <ul className="list-disc list-inside bg-blue-50/60 p-3 rounded-xl border border-blue-200/80 space-y-1 text-blue-900">
+                    {selectedVisitModal.recommendations.map((pt, idx) => (
+                      <li key={idx}>{pt}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
             <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
               <button

@@ -47,4 +47,39 @@ describe('ArenaSpex Emerald design system', () => {
     expect(read('src/components/layout/Sidebar.tsx')).toContain('app-shell-sidebar');
     expect(read('src/components/layout/Sidebar.tsx')).toContain('bg-emerald-700 text-white');
   });
+
+  it('marks internal workspaces with reusable presentation primitives', () => {
+    const roots = [
+      ['src/components/dashboard/TeacherDashboard.tsx', 'workspace-page--dashboard'],
+      ['src/components/planning/TeacherPlanningWorkspace.tsx', 'workspace-page--planning'],
+      ['src/components/notebook/DailyNotebookView.tsx', 'workspace-page--daily-notebook'],
+      ['src/components/knowledge/KnowledgeEngineView.tsx', 'workspace-page--knowledge'],
+      ['src/components/students/StudentsBookView.tsx', 'workspace-page--students'],
+      ['src/components/attendance/AttendanceBookView.tsx', 'workspace-page--attendance'],
+      ['src/components/gradebook/SmartGradebookView.tsx', 'workspace-page--gradebook'],
+      ['src/components/chat/DistrictChatView.tsx', 'workspace-page--communication'],
+      ['src/components/reports/ReportsView.tsx', 'workspace-page--reports'],
+      ['src/components/settings/SettingsView.tsx', 'workspace-page--settings'],
+      ['src/components/dashboard/InspectorDashboard.tsx', 'workspace-page--inspector'],
+    ] as const;
+
+    for (const [file, rootClass] of roots) expect(read(file)).toContain(rootClass);
+    expect(read('src/index.css')).toContain('.workspace-header');
+    expect(read('src/index.css')).toContain('.workspace-tabs');
+    expect(read('src/index.css')).toContain('.workspace-progress');
+    expect(read('src/index.css')).toContain(".workspace-page [class*='bg-gradient-to-']");
+  });
+
+  it('keeps the emerald workspace polish inside screen media rules', () => {
+    const css = read('src/index.css');
+    const screenStart = css.indexOf('@media screen');
+    const printStart = css.indexOf('@media print');
+    const screenCss = css.slice(screenStart, printStart);
+
+    expect(screenStart).toBeGreaterThanOrEqual(0);
+    expect(printStart).toBeGreaterThan(screenStart);
+    expect(screenCss).toContain('.workspace-page');
+    expect(screenCss).toContain('background-image: none !important');
+    expect(css.slice(printStart)).toContain('print-color-adjust: exact');
+  });
 });

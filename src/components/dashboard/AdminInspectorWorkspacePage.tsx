@@ -192,7 +192,7 @@ export const AdminInspectorWorkspacePage: React.FC<WorkspaceProps> = ({
       </div>
     );
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="workspace-page workspace-page--admin space-y-6" dir="rtl">
       <header className="rounded-3xl bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 p-6 text-white shadow-lg">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">

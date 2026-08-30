@@ -120,8 +120,11 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ users = [] }) => {
   ];
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200" dir="rtl">
-      <section className="rounded-3xl bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 p-6 sm:p-8 text-white shadow-lg shadow-purple-900/15">
+    <div
+      className="workspace-page workspace-page--admin space-y-6 animate-in fade-in duration-200"
+      dir="rtl"
+    >
+      <section className="workspace-hero rounded-3xl bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 p-6 sm:p-8 text-white shadow-lg shadow-purple-900/15">
         <div className="flex items-center gap-3">
           <Activity className="h-7 w-7 text-purple-300" />
           <div>

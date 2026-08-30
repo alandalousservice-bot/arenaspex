@@ -341,8 +341,11 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   };
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-200" dir="rtl">
-      <header className="space-y-4 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs">
+    <div
+      className="workspace-page workspace-page--daily-notebook space-y-5 animate-in fade-in duration-200"
+      dir="rtl"
+    >
+      <header className="workspace-header workspace-notebook-controls space-y-4 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-600">
@@ -479,7 +482,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
             <ChevronLeft className="h-4 w-4" />
           </button>
         </div>
-        <div className="flex items-center justify-between rounded-2xl bg-blue-50/70 px-4 py-3 text-xs">
+        <div className="workspace-progress flex items-center justify-between rounded-2xl bg-blue-50/70 px-4 py-3 text-xs">
           <span className="font-extrabold text-blue-950">التقدم في تنفيذ البرنامج</span>
           <span className="font-bold text-blue-800">
             {progress.completed} / {progress.total} حصة · {progress.percentage}%

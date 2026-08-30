@@ -94,7 +94,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const { schoolName, municipality, districtLabel } = notebookStats;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="workspace-page workspace-page--dashboard space-y-6 animate-in fade-in duration-200">
       <TeacherHeroBanner
         user={user}
         schoolName={schoolName}

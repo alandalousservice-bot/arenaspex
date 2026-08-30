@@ -49,7 +49,7 @@ export const DailyScheduleList: React.FC<DailyScheduleListProps> = ({
   onUpdateNotebookStatus,
 }) => {
   return (
-    <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
+    <div className="workspace-card workspace-schedule lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">

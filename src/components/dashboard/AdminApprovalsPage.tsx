@@ -123,8 +123,8 @@ export const AdminApprovalsPage: React.FC = () => {
   };
 
   return (
-    <div dir="rtl" className="space-y-6">
-      <header className="rounded-3xl bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 p-6 text-white shadow-lg">
+    <div dir="rtl" className="workspace-page workspace-page--admin space-y-6">
+      <header className="workspace-hero rounded-3xl bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 p-6 text-white shadow-lg">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2 text-purple-200">

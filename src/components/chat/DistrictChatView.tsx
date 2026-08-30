@@ -171,9 +171,12 @@ export const DistrictChatView: React.FC<DistrictChatViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200" dir="rtl">
+    <div
+      className="workspace-page workspace-page--communication space-y-6 animate-in fade-in duration-200"
+      dir="rtl"
+    >
       {/* Top Banner & District Condition Security Bar */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
+      <div className="workspace-hero bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 left-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">

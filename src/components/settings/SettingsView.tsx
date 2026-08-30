@@ -273,9 +273,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
     : directorateId || 'غير محددة';
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-200">
+    <div className="workspace-page workspace-page--settings space-y-6 max-w-4xl mx-auto animate-in fade-in duration-200">
       {/* Header */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs">
+      <div className="workspace-header bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs">
         <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">
           {isInspector
             ? 'إعدادات الحساب والأمان والانتساب الإداري'

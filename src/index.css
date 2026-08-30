@@ -323,6 +323,222 @@
     border-color: rgb(52 211 153 / 0.3) !important;
   }
 
+  /* Shared internal workspace language: calm surfaces, clear hierarchy, and
+     emerald as the product accent. These selectors stay screen-scoped so
+     official print documents keep their own geometry and colors. */
+  .workspace-page {
+    --workspace-surface: var(--color-surface);
+    --workspace-surface-muted: var(--color-surface-elevated);
+    --workspace-accent: var(--color-primary);
+    --workspace-accent-soft: var(--color-primary-soft);
+    color: var(--color-text);
+  }
+
+  .workspace-page > .workspace-header,
+  .workspace-page > .workspace-tabs,
+  .workspace-card {
+    border-color: var(--color-border) !important;
+    background: var(--workspace-surface) !important;
+    box-shadow: var(--shadow-sm) !important;
+  }
+
+  .workspace-header {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .workspace-header::before {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    width: 0.25rem;
+    background: var(--workspace-accent);
+    content: '';
+  }
+
+  .workspace-header h1,
+  .workspace-header h2,
+  .workspace-header h3 {
+    letter-spacing: -0.015em;
+  }
+
+  .workspace-header h1,
+  .workspace-header h2 {
+    color: var(--color-text) !important;
+  }
+
+  .workspace-hero {
+    background-color: #065f46 !important;
+    background-image: none !important;
+    border-color: rgb(52 211 153 / 0.35) !important;
+    box-shadow: 0 14px 30px rgb(6 78 59 / 0.14) !important;
+  }
+
+  .workspace-hero [class*='text-blue-'],
+  .workspace-hero [class*='text-indigo-'],
+  .workspace-hero [class*='text-purple-'] {
+    color: #d1fae5 !important;
+  }
+
+  .workspace-hero [class*='bg-blue-'],
+  .workspace-hero [class*='bg-indigo-'],
+  .workspace-hero [class*='bg-purple-'] {
+    background-color: rgb(16 185 129 / 0.2) !important;
+  }
+
+  .workspace-page [class*='bg-gradient-to-'] {
+    background-image: none !important;
+  }
+
+  .workspace-page [class*='from-blue-'],
+  .workspace-page [class*='from-indigo-'],
+  .workspace-page [class*='from-purple-'],
+  .workspace-page [class*='to-blue-'],
+  .workspace-page [class*='to-indigo-'],
+  .workspace-page [class*='to-purple-'] {
+    background-color: var(--workspace-accent-soft) !important;
+  }
+
+  .workspace-page [class*='bg-blue-600'],
+  .workspace-page [class*='bg-blue-700'],
+  .workspace-page [class*='bg-indigo-600'],
+  .workspace-page [class*='bg-indigo-700'],
+  .workspace-page [class*='bg-purple-600'],
+  .workspace-page [class*='bg-purple-700'] {
+    background-color: var(--workspace-accent) !important;
+    color: #fff !important;
+  }
+
+  .workspace-page [class*='text-blue-'],
+  .workspace-page [class*='text-indigo-'],
+  .workspace-page [class*='text-purple-'] {
+    color: var(--workspace-accent) !important;
+  }
+
+  .workspace-page [class*='border-blue-'],
+  .workspace-page [class*='border-indigo-'],
+  .workspace-page [class*='border-purple-'] {
+    border-color: #a7f3d0 !important;
+  }
+
+  .workspace-page [class*='bg-blue-50'],
+  .workspace-page [class*='bg-indigo-50'],
+  .workspace-page [class*='bg-purple-50'] {
+    background-color: var(--workspace-accent-soft) !important;
+  }
+
+  .workspace-page [class*='bg-blue-100'],
+  .workspace-page [class*='bg-indigo-100'],
+  .workspace-page [class*='bg-purple-100'] {
+    background-color: #d1fae5 !important;
+  }
+
+  .workspace-page .workspace-hero {
+    background-color: #065f46 !important;
+    background-image: none !important;
+  }
+
+  .workspace-tabs {
+    scrollbar-width: thin;
+    scrollbar-color: #a7f3d0 transparent;
+  }
+
+  .workspace-tabs > button,
+  .workspace-page nav button {
+    min-height: 2.5rem;
+    border-radius: var(--radius-md);
+  }
+
+  .workspace-tabs > button[class*='bg-indigo-600'],
+  .workspace-tabs > button[class*='bg-blue-600'],
+  .workspace-tabs > button[class*='bg-purple-600'] {
+    background: var(--workspace-accent) !important;
+    color: #fff !important;
+    box-shadow: 0 5px 14px rgb(4 120 87 / 0.16);
+  }
+
+  .workspace-progress {
+    border: 1px solid #bbf7d0;
+    background-color: var(--workspace-accent-soft) !important;
+    color: #065f46 !important;
+  }
+
+  .workspace-progress > div[class*='bg-blue-'] {
+    background-color: var(--workspace-accent) !important;
+  }
+
+  .workspace-page [class*='border-dashed'] {
+    border-color: #9acdbb !important;
+    background: var(--workspace-surface) !important;
+  }
+
+  .workspace-page input:not([type='checkbox']):not([type='radio']),
+  .workspace-page select,
+  .workspace-page textarea {
+    border-radius: var(--radius-md);
+  }
+
+  .workspace-page table {
+    border-color: var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .workspace-page table thead tr[class*='bg-slate-900'],
+  .workspace-page table thead tr[class*='bg-blue-'] {
+    background-color: #065f46 !important;
+  }
+
+  .workspace-page table thead th {
+    letter-spacing: 0.01em;
+  }
+
+  .workspace-page [class*='hover\\:border-blue']:hover,
+  .workspace-page [class*='focus\\:border-blue']:focus {
+    border-color: var(--workspace-accent) !important;
+  }
+
+  .workspace-page--dashboard .workspace-kpi-grid > *,
+  .workspace-page--inspector > div > button {
+    transition:
+      transform var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+
+  .workspace-page--dashboard .workspace-kpi-grid > *:hover,
+  .workspace-page--inspector > div > button:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md) !important;
+  }
+
+  .workspace-page--daily-notebook .workspace-notebook-controls {
+    gap: 0.75rem;
+  }
+
+  .workspace-page--knowledge .workspace-tabs,
+  .workspace-page--planning .workspace-tabs {
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 767px) {
+    .workspace-page {
+      padding-inline: 0.125rem;
+    }
+
+    .workspace-header,
+    .workspace-hero {
+      border-radius: var(--radius-lg) !important;
+    }
+
+    .workspace-header {
+      padding: 1rem !important;
+    }
+
+    .workspace-header h1,
+    .workspace-header h2 {
+      font-size: 1.1rem;
+    }
+  }
+
   .auth-shell,
   .admin-auth-shell,
   .pending-shell {

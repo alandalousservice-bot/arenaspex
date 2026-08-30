@@ -305,8 +305,11 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
   }, [annualGeneration, selectedLevelId, sessions]);
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-200" dir="rtl">
-      <header className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs">
+    <div
+      className="workspace-page workspace-page--planning space-y-5 animate-in fade-in duration-200"
+      dir="rtl"
+    >
+      <header className="workspace-header rounded-3xl border border-slate-200 bg-white p-5 shadow-xs">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-bold text-blue-600">فضاء الأستاذ</p>
@@ -350,7 +353,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
           )}
         </div>
         <nav
-          className="mt-5 flex gap-2 overflow-x-auto border-t border-slate-100 pt-4"
+          className="workspace-tabs mt-5 flex gap-2 overflow-x-auto border-t border-slate-100 pt-4"
           aria-label="أقسام التخطيط"
         >
           {(Object.keys(sectionLabels) as PlanningSection[]).map((item) => (
