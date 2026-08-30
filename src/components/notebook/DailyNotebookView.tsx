@@ -427,7 +427,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
               type="button"
               disabled={!printModel?.rows.length}
               onClick={() => void printDailyNotebook()}
-              className="flex items-center gap-1 rounded-xl bg-slate-900 px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-40"
+              className="workspace-button-secondary flex items-center gap-1 rounded-xl bg-slate-900 px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Printer className="h-3.5 w-3.5" /> طباعة الكراس اليومي
             </button>
