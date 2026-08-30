@@ -453,24 +453,24 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
         {/* ========================================================================= */}
         <div className="space-y-5">
           {/* Pedagogical Philosophy Banner */}
-          <div className="gradebook-intelligence-panel bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-900 text-white rounded-3xl p-5 shadow-lg border border-blue-800/40 relative overflow-hidden">
-            <div className="absolute left-0 top-0 bottom-0 w-1/3 bg-radial from-blue-500/10 to-transparent pointer-events-none" />
+          <div className="smart-gradebook-philosophy-panel bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-900 text-white rounded-3xl p-5 shadow-lg border border-blue-800/40 relative overflow-hidden">
+            <div className="smart-gradebook-philosophy-glow absolute left-0 top-0 bottom-0 w-1/3 bg-radial from-blue-500/10 to-transparent pointer-events-none" />
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1.5 max-w-3xl">
                 <div className="flex items-center gap-2">
-                  <span className="bg-amber-400 text-slate-950 font-black text-[11px] px-2.5 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
+                  <span className="smart-gradebook-philosophy-badge bg-amber-400 text-slate-950 font-black text-[11px] px-2.5 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
                     <Sparkles className="w-3 h-3 text-slate-950 fill-slate-950" />
                     فلسفة التقييم الذكي منصة SPEX
                   </span>
-                  <span className="text-xs text-blue-200 font-bold">
+                  <span className="smart-gradebook-philosophy-source text-xs text-blue-200 font-bold">
                     التربية البدنية والرياضية • المنهاج الجزائري
                   </span>
                 </div>
-                <h3 className="text-base font-black text-white">
+                <h3 className="smart-gradebook-philosophy-heading text-base font-black text-white">
                   دفتر التنقيط ليس آلة صماء تمنح العلامات، بل أداة مساعدة ذكية تضع التقديرات وتترك
                   القرار الأخير دائماً للأستاذ
                 </h3>
-                <p className="text-xs text-blue-100/90 leading-relaxed">
+                <p className="smart-gradebook-philosophy-description text-xs text-blue-100/90 leading-relaxed">
                   يحسب النظام العلامة المقترحة تلقائياً من 10 نقاط بناءً على: تملك الكفاءة الختامية
                   ({weights.competencyWeight}ن)، المشاركة الفعالة ({weights.participationWeight}ن)،
                   السلوك والانضباط ({weights.behaviorWeight}ن)، والمواظبة والحضور (
@@ -479,10 +479,10 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 self-start md:self-center">
+              <div className="smart-gradebook-philosophy-actions flex flex-wrap items-center gap-2 self-start md:self-center">
                 <button
                   onClick={() => setShowWeightsModal(true)}
-                  className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-2xl border border-white/20 transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-xs"
+                  className="smart-gradebook-philosophy-action px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-2xl border border-white/20 transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-xs"
                 >
                   <Sliders className="w-4 h-4 text-amber-300" />
                   <span>تعديل أوزان التقييم (⚙️)</span>
@@ -490,7 +490,7 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
 
                 <button
                   onClick={() => setShowAuditModal(true)}
-                  className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-2xl border border-white/20 transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-xs"
+                  className="smart-gradebook-philosophy-action px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-2xl border border-white/20 transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-xs"
                 >
                   <History className="w-4 h-4 text-blue-300" />
                   <span>

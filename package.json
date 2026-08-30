@@ -17,6 +17,7 @@
     "lint": "tsc --noEmit && eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
+    "diff-check": "git diff --check",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky || true",

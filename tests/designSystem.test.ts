@@ -132,9 +132,10 @@ describe('ArenaSpex Emerald design system', () => {
     expect(screenCss).toContain('color: #065f46 !important');
     expect(screenCss).toContain('background-color: #064e3b !important');
     expect(screenCss).toContain('color: #fff !important');
-    expect(screenCss).toContain('.workspace-page--gradebook .gradebook-intelligence-panel');
+    expect(screenCss).toContain('.workspace-page--gradebook .smart-gradebook-philosophy-panel');
+    expect(screenCss).toContain('.smart-gradebook-philosophy-action:disabled');
     expect(read('src/components/gradebook/SmartGradebookView.tsx')).toContain(
-      'gradebook-intelligence-panel'
+      'smart-gradebook-philosophy-panel'
     );
   });
 

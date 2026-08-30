@@ -469,19 +469,6 @@
     color: #065f46 !important;
   }
 
-  .workspace-page--gradebook .gradebook-intelligence-panel {
-    background-color: #064e3b !important;
-    background-image: none !important;
-    border-color: rgb(110 231 183 / 0.35) !important;
-    color: #fff !important;
-  }
-
-  .workspace-page--gradebook .gradebook-intelligence-panel [class*='text-blue-'],
-  .workspace-page--gradebook .gradebook-intelligence-panel [class*='text-indigo-'],
-  .workspace-page--gradebook .gradebook-intelligence-panel [class*='text-purple-'] {
-    color: #d1fae5 !important;
-  }
-
   :is(.workspace-page, .app-shell main) [class*='rounded-full'] {
     align-items: center;
     display: inline-flex;
@@ -666,6 +653,61 @@
   .workspace-page [class*='bg-indigo-100'],
   .workspace-page [class*='bg-purple-100'] {
     background-color: #d1fae5 !important;
+  }
+
+  /* Semantic dark-surface contract for the Smart Gradebook philosophy panel.
+     Keep this after generic workspace normalization so its component-owned
+     foreground hierarchy cannot be remapped by utility-class fallbacks. */
+  .workspace-page--gradebook .smart-gradebook-philosophy-panel {
+    background-color: #064e3b !important;
+    background-image: none !important;
+    border-color: rgb(110 231 183 / 0.35) !important;
+    color: #fff !important;
+  }
+
+  .workspace-page--gradebook .smart-gradebook-philosophy-glow {
+    background-color: rgb(16 185 129 / 0.1) !important;
+    background-image: none !important;
+  }
+
+  .workspace-page--gradebook .smart-gradebook-philosophy-heading {
+    color: #fff !important;
+  }
+
+  .workspace-page--gradebook .smart-gradebook-philosophy-source,
+  .workspace-page--gradebook .smart-gradebook-philosophy-description {
+    color: #d1fae5 !important;
+  }
+
+  .workspace-page--gradebook .smart-gradebook-philosophy-badge {
+    background-color: #fbbf24 !important;
+    color: #451a03 !important;
+  }
+
+  .workspace-page--gradebook .smart-gradebook-philosophy-badge svg {
+    color: #451a03 !important;
+    fill: #451a03 !important;
+  }
+
+  .workspace-page--gradebook .smart-gradebook-philosophy-action {
+    background-color: rgb(255 255 255 / 0.12) !important;
+    border-color: rgb(255 255 255 / 0.28) !important;
+    color: #fff !important;
+  }
+
+  .workspace-page--gradebook .smart-gradebook-philosophy-action:hover:not(:disabled) {
+    background-color: rgb(255 255 255 / 0.2) !important;
+  }
+
+  .workspace-page--gradebook .smart-gradebook-philosophy-action:disabled {
+    background-color: rgb(255 255 255 / 0.08) !important;
+    border-color: rgb(255 255 255 / 0.18) !important;
+    color: rgb(255 255 255 / 0.62) !important;
+    opacity: 0.72;
+  }
+
+  .workspace-page--gradebook .smart-gradebook-philosophy-action svg {
+    color: #a7f3d0 !important;
   }
 
   .workspace-page .workspace-hero {
