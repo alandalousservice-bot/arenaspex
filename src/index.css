@@ -55,7 +55,7 @@
 
   @page daily-notebook {
     size: A4 landscape;
-    margin: 6mm;
+    margin: 0;
   }
 
   html,
@@ -347,8 +347,14 @@
 
   html:has(.daily-notebook-print-root),
   body:has(.daily-notebook-print-root) {
+    box-sizing: border-box;
     width: 297mm;
     min-width: 297mm;
+    height: 210mm;
+    min-height: 210mm;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden;
     background: #fff !important;
   }
 
@@ -356,19 +362,27 @@
     position: absolute;
     inset: 0;
     display: block !important;
-    width: 100%;
+    box-sizing: border-box;
+    width: 297mm;
+    height: 210mm;
     margin: 0;
     padding: 0;
+    overflow: hidden;
     color: #0f172a;
-    font-family: Tahoma, Arial, sans-serif;
+    font-family: Cairo, Tahoma, Arial, sans-serif;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
   body:has(.daily-notebook-print-root) .daily-notebook-print-page {
+    display: flex;
+    flex-direction: column;
     box-sizing: border-box;
-    width: 100%;
-    min-height: 198mm;
+    width: 297mm;
+    height: 210mm;
+    padding: 19mm 11mm 16mm;
+    overflow: hidden;
+    position: relative;
     background: #fff;
   }
 
@@ -405,54 +419,92 @@
 
   body:has(.daily-notebook-print-root) .daily-notebook-print-identity {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.5mm;
     text-align: right;
   }
 
   body:has(.daily-notebook-print-root) .daily-notebook-print-identity > div {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: baseline;
     min-width: 0;
-    flex-direction: column;
-    gap: 0.5mm;
+    gap: 1.5mm;
     border: 0.2mm solid #bfdbfe;
     background: #eff6ff;
-    padding: 1.5mm 2mm;
+    padding: 1.1mm 1.8mm;
   }
 
   body:has(.daily-notebook-print-root) .daily-notebook-print-identity span {
     color: #1d4ed8;
-    font-size: 7pt;
+    font-size: 8.5pt;
     font-weight: 700;
   }
 
   body:has(.daily-notebook-print-root) .daily-notebook-print-identity strong {
     overflow-wrap: anywhere;
-    font-size: 8pt;
+    font-size: 9pt;
   }
 
   body:has(.daily-notebook-print-root) .daily-notebook-print-week {
-    margin-top: 2mm;
+    margin-top: 1.5mm;
+    border: 0.2mm solid #bfdbfe;
+    background: #eff6ff;
+    padding: 1mm 1.8mm;
     color: #334155;
-    font-size: 7.5pt;
+    font-size: 8.5pt;
     font-weight: 700;
+    text-align: right;
   }
 
   body:has(.daily-notebook-print-root) .daily-notebook-print-table {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0;
     width: 100%;
+    height: auto;
     table-layout: fixed;
     border-collapse: collapse;
     direction: rtl;
-    font-size: 7.5pt;
-    line-height: 1.3;
+    font-size: 9.5pt;
+    line-height: 1.25;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-table caption {
+    display: block;
+    flex: 0 0 auto;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-table thead {
+    display: block;
+    flex: 0 0 auto;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-table tbody {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 0;
+    flex-direction: column;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-table thead tr,
+  body:has(.daily-notebook-print-root) .daily-notebook-print-table tbody tr {
+    display: grid;
+    grid-template-columns: 8% 12% 27% 30% 8% 15%;
+  }
+
+  body:has(.daily-notebook-print-root) .daily-notebook-print-table tbody tr {
+    min-height: 0;
+    flex: 1 1 0;
   }
 
   body:has(.daily-notebook-print-root) .daily-notebook-print-table caption {
     border: 0.3mm solid #172554;
     background: #172554;
-    padding: 1.5mm 2mm;
+    padding: 1.2mm 2mm;
     color: #fff;
-    font-size: 9pt;
+    font-size: 10.5pt;
     font-weight: 800;
     text-align: right;
   }
@@ -461,7 +513,7 @@
   body:has(.daily-notebook-print-root) .daily-notebook-print-table td {
     box-sizing: border-box;
     border: 0.25mm solid #64748b;
-    padding: 1.5mm;
+    padding: 1.2mm;
     overflow-wrap: anywhere;
     vertical-align: top;
     white-space: normal;
@@ -470,7 +522,7 @@
   body:has(.daily-notebook-print-root) .daily-notebook-print-table thead th {
     background: #1e3a8a;
     color: #fff;
-    font-size: 8pt;
+    font-size: 10.5pt;
     text-align: center;
     vertical-align: middle;
   }
@@ -481,27 +533,27 @@
   }
 
   body:has(.daily-notebook-print-root) .daily-notebook-print-col-date {
-    width: 10%;
+    width: 8%;
   }
 
   body:has(.daily-notebook-print-root) .daily-notebook-print-col-session {
-    width: 15%;
+    width: 12%;
   }
 
   body:has(.daily-notebook-print-root) .daily-notebook-print-col-learning {
-    width: 28%;
+    width: 27%;
   }
 
   body:has(.daily-notebook-print-root) .daily-notebook-print-col-content {
-    width: 25%;
+    width: 30%;
   }
 
   body:has(.daily-notebook-print-root) .daily-notebook-print-col-memo {
-    width: 9%;
+    width: 8%;
   }
 
   body:has(.daily-notebook-print-root) .daily-notebook-print-col-notes {
-    width: 13%;
+    width: 15%;
   }
 
   body:has(.daily-notebook-print-root) .daily-notebook-print-date {
@@ -593,11 +645,11 @@
     gap: 4mm;
     break-inside: avoid;
     page-break-inside: avoid;
-    margin-top: 4mm;
+    margin-top: 2mm;
     border-top: 0.25mm solid #64748b;
-    padding-top: 3mm;
+    padding-top: 2mm;
     color: #334155;
-    font-size: 8pt;
+    font-size: 9pt;
     font-weight: 700;
     text-align: center;
   }

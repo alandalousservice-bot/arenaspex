@@ -54,7 +54,7 @@ export const DailyNotebookPrintDocument: React.FC<DailyNotebookPrintDocumentProp
   model,
 }) => (
   <section className="daily-notebook-print-root" dir="rtl" aria-label="وثيقة الكراس اليومي للطباعة">
-    <div className="daily-notebook-print-page">
+    <div className="daily-notebook-print-page daily-print-page">
       <header className="daily-notebook-print-header">
         <div className="daily-notebook-print-government">
           <div>الجمهورية الجزائرية الديمقراطية الشعبية</div>
