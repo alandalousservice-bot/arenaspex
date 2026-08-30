@@ -32,7 +32,6 @@ import {
 } from '../../services/studentRosterImport.service';
 
 type RegisterTab = 'roster' | 'exempted' | 'clubs';
-type WorkspaceSection = 'classes';
 
 export interface StudentsBookViewProps {
   classes?: ClassRoom[];
@@ -70,7 +69,6 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
   selectedStudentId,
 }) => {
   const workspaceParams = useMemo(() => new URLSearchParams(window.location.search), []);
-  const [workspaceSection, setWorkspaceSection] = useState<WorkspaceSection>('classes');
   const [activeRegister, setActiveRegister] = useState<RegisterTab>('roster');
   const [selectedClassId, setSelectedClassId] = useState<string>(
     workspaceParams.get('classId') ||
@@ -506,7 +504,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
         <StudentFollowUpCard student={selectedStudent} classRoom={activeClass} />
       )}
       {/* Top Banner & Header */}
-      <div className="workspace-header bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="workspace-header students-book-header bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-extrabold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
@@ -526,10 +524,10 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
         </div>
 
         {/* Global Controls */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="students-book-actions flex flex-wrap items-center gap-2">
           <button
             onClick={() => setShowAddClassModal(true)}
-            className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
+            className="workspace-button-secondary flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl border shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>إضافة قسم جديد</span>
@@ -537,13 +535,13 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
 
           <button
             onClick={() => setShowAddStudentModal(true)}
-            className="flex items-center gap-2 px-3.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+            className="workspace-button-primary flex items-center gap-2 px-3.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-2xl transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>إضافة تلميذ للقسم</span>
           </button>
 
-          <label className="flex items-center gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-2xl shadow-md cursor-pointer">
+          <label className="workspace-button-outline flex items-center gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-2xl border shadow-md cursor-pointer">
             <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleRosterFile} />
             <Users className="w-4 h-4" />
             <span>استيراد قائمة التلاميذ</span>
@@ -551,7 +549,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
 
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-2xl transition-all cursor-pointer"
+            className="workspace-button-secondary flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-2xl border transition-all cursor-pointer"
           >
             <Printer className="w-4 h-4" />
             <span>طباعة الدفتر الحالى</span>
@@ -559,53 +557,67 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
         </div>
       </div>
 
-      {/* Class Selector Row with Class Switching and Delete Option */}
-      <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 w-full sm:w-auto">
-          <span className="text-xs font-bold text-slate-500 whitespace-nowrap ml-2">
-            الأقسام المسندة للأستاذ:
-          </span>
+      {/* Compact class selector with wrapping cards and contextual delete action */}
+      <section className="students-class-selector workspace-card rounded-3xl p-4 border border-slate-200/80 shadow-xs">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-xs font-black text-slate-800">الأقسام المسندة للأستاذ</span>
+              <span className="text-[11px] font-semibold text-slate-400">
+                {classes.length} أقسام
+              </span>
+            </div>
+            <div className="students-selected-class mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-semibold text-slate-500">القسم المحدد</span>
+              <strong className="text-emerald-800">{activeClass.name || 'لا يوجد قسم محدد'}</strong>
+              <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-bold text-emerald-700">
+                {classStudents.length} تلميذاً
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => void handleConfirmDeleteClass(activeClass.id)}
+            disabled={classDeleteLoading}
+            className="workspace-button-danger inline-flex items-center gap-1.5 self-start rounded-xl border px-2.5 py-2 text-xs font-bold transition-colors cursor-pointer"
+            title="حذف هذا القسم"
+            aria-label="حذف القسم المحدد"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            <span>حذف القسم</span>
+          </button>
+        </div>
+
+        <div className="students-class-list mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {classes.map((cls) => {
             const isSelected = cls.id === activeClass.id;
             const count = students.filter((s) => s.classId === cls.id).length;
             return (
-              <div
+              <button
+                type="button"
                 key={cls.id}
-                className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                className={`students-class-chip min-w-0 rounded-2xl border px-3 py-2.5 text-right text-xs font-extrabold transition-all cursor-pointer ${
                   isSelected
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20 ring-2 ring-blue-500/30'
-                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
+                    ? 'is-selected border-blue-500 bg-blue-600 text-white shadow-md shadow-blue-600/20 ring-2 ring-blue-500/30'
+                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-200 hover:bg-emerald-50/60'
                 }`}
                 onClick={() => setSelectedClassId(cls.id)}
+                aria-pressed={isSelected}
               >
-                <Users className="w-3.5 h-3.5" />
-                <span>{cls.name}</span>
+                <span className="flex min-w-0 items-start gap-2">
+                  <Users className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                  <span className="min-w-0 flex-1 break-words">{cls.name}</span>
+                </span>
                 <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}
+                  className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}
                 >
                   {count} تلميذاً
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
-
-        {/* Delete current class button */}
-        <div className="flex items-center gap-2 self-end sm:self-center">
-          <span className="text-xs font-bold text-slate-600">
-            القسم المختار: <strong className="text-blue-900">{activeClass.name}</strong>
-          </span>
-          <button
-            onClick={() => void handleConfirmDeleteClass(activeClass.id)}
-            disabled={classDeleteLoading}
-            className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold border border-rose-200 flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="حذف هذا القسم"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>حذف القسم</span>
-          </button>
-        </div>
-      </div>
+      </section>
 
       {rosterError && !rosterPreview && (
         <div
@@ -628,426 +640,414 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
         </div>
       )}
 
-      <nav className="grid grid-cols-1 gap-2 rounded-2xl bg-slate-200/60 p-1.5 sm:grid-cols-2">
+      {/* Canonical Students Book sections */}
+      <nav
+        className="workspace-tabs students-book-tabs grid grid-cols-1 gap-1.5 rounded-2xl bg-slate-200/60 p-1.5 sm:grid-cols-3"
+        aria-label="أقسام دفتر التلاميذ"
+      >
         <button
-          onClick={() => setWorkspaceSection('classes')}
-          className={`rounded-xl px-4 py-3 text-xs font-extrabold transition-all ${workspaceSection === 'classes' ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-200' : 'text-slate-600 hover:bg-white/50'}`}
+          onClick={() => setActiveRegister('roster')}
+          className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-extrabold transition-all cursor-pointer ${
+            activeRegister === 'roster'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-800'
+          }`}
         >
-          الأقسام المسندة والقوائم الاسمية
+          <Users className="h-4 w-4" />
+          <span>القائمة الاسمية والمتابعة</span>
+        </button>
+
+        <button
+          onClick={() => setActiveRegister('exempted')}
+          className={`relative flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-extrabold transition-all cursor-pointer ${
+            activeRegister === 'exempted'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-800'
+          }`}
+        >
+          <ShieldAlert className="h-4 w-4" />
+          <span>المعفيون طبياً</span>
+          {exemptionsList.length > 0 && (
+            <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+              {exemptionsList.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveRegister('clubs')}
+          className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-extrabold transition-all cursor-pointer ${
+            activeRegister === 'clubs'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-800'
+          }`}
+        >
+          <Flag className="h-4 w-4" />
+          <span>البلديات والنوادي</span>
         </button>
       </nav>
 
-      {workspaceSection === 'classes' && (
-        <>
-          {/* Canonical Students Book sections */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 bg-slate-200/60 p-1.5 rounded-2xl">
-            <button
-              onClick={() => setActiveRegister('roster')}
-              className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                activeRegister === 'roster'
-                  ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-              }`}
-            >
-              <Users className="w-4 h-4 text-blue-600" />
-              <span>1. القائمة الاسمية والمتابعة</span>
-            </button>
-
-            <button
-              onClick={() => setActiveRegister('exempted')}
-              className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer relative ${
-                activeRegister === 'exempted'
-                  ? 'bg-white text-rose-700 shadow-md ring-1 ring-slate-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-              }`}
-            >
-              <ShieldAlert className="w-4 h-4 text-rose-500" />
-              <span>2. دفتر المعفيين طبياً</span>
-              {exemptionsList.length > 0 && (
-                <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                  {exemptionsList.length}
+      {activeRegister === 'roster' && (
+        <div className="students-book-section workspace-card bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-base font-black text-slate-900">القائمة الاسمية للقسم</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                {activeClass.name || 'لا يوجد قسم محدد'} — {classStudents.length} تلميذاً
+              </p>
+            </div>
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+              مصدر العضوية الرسمي
+            </span>
+          </div>
+          <div className="overflow-x-auto rounded-2xl border border-slate-200">
+            <table className="w-full text-right text-xs">
+              <thead>
+                <tr className="bg-slate-900 text-white font-bold">
+                  <th className="p-3">#</th>
+                  <th className="p-3">الاسم واللقب</th>
+                  <th className="p-3">رقم التسجيل</th>
+                  <th className="p-3">المستوى</th>
+                  <th className="p-3">المتابعة</th>
+                  <th className="p-3">حذف</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {classStudents.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="workspace-empty-state p-8 text-center text-slate-400"
+                    >
+                      لا يوجد تلاميذ مسجلون في هذا القسم.
+                    </td>
+                  </tr>
+                ) : (
+                  classStudents.map((std, index) => (
+                    <tr key={std.id} className="hover:bg-slate-50">
+                      <td className="p-3">{index + 1}</td>
+                      <td className="p-3 font-extrabold">
+                        {std.firstName} {std.lastName}
+                      </td>
+                      <td className="p-3 font-mono">
+                        <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>
+                          {std.matricule || std.registrationNumber || '—'}
+                        </span>
+                      </td>
+                      <td className="p-3">{activeClass.levelName || std.grade || '—'}</td>
+                      <td className="p-3">
+                        <a
+                          className="workspace-link-secondary font-bold text-blue-700 hover:underline"
+                          href={`/students/${encodeURIComponent(std.id)}?classId=${encodeURIComponent(activeClass.id)}`}
+                        >
+                          بطاقة المتابعة
+                        </a>
+                      </td>
+                      <td className="p-3">
+                        <button
+                          onClick={() =>
+                            handleConfirmDeleteStudent(std.id, `${std.firstName} ${std.lastName}`)
+                          }
+                          className="workspace-button-danger inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          حذف
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {/* REGISTER TAB 3: MEDICAL EXEMPTIONS (دفتر المعفيين طبياً) */}
+      {/* ========================================================================= */}
+      {activeRegister === 'exempted' && (
+        <div className="students-book-section workspace-card bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-rose-600" />
+                <span>دفتر التلاميذ المعفيين طبياً من المجهود البدني</span>
+                <span className="text-xs bg-rose-50 text-rose-700 font-bold px-2.5 py-0.5 rounded-lg border border-rose-100">
+                  {activeClass.name}
                 </span>
-              )}
-            </button>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                سجل حصر الشهادات الطبية والإعفاءات ومتابعة أدوارهم البديلة (تحكيم، تنظيم، ملاحظة)
+              </p>
+            </div>
 
             <button
-              onClick={() => setActiveRegister('clubs')}
-              className={`py-3 px-4 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                activeRegister === 'clubs'
-                  ? 'bg-white text-emerald-700 shadow-md ring-1 ring-slate-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-              }`}
+              onClick={() => setShowAddExemptionModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-rose-500/20 transition-all cursor-pointer"
             >
-              <Flag className="w-4 h-4 text-emerald-600" />
-              <span>3. دفتر البلديات والنوادي</span>
+              <Plus className="w-4 h-4" />
+              <span>تسجيل شهادة إعفاء طبية</span>
             </button>
           </div>
 
-          {activeRegister === 'roster' && (
-            <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div>
-                  <h3 className="text-base font-black text-slate-900">القائمة الاسمية للقسم</h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {activeClass.name || 'لا يوجد قسم محدد'} — {classStudents.length} تلميذاً
-                  </p>
+          <div className="overflow-x-auto rounded-2xl border border-slate-200">
+            <table className="w-full text-right text-xs">
+              <thead>
+                <tr className="bg-slate-900 text-white font-bold">
+                  <th className="p-3 w-10 text-center">#</th>
+                  <th className="p-3">اسم ولقب التلميذ المعفى</th>
+                  <th className="p-3">رقم الشهادة والجهة الطبية</th>
+                  <th className="p-3">سبب الإعفاء الطبي</th>
+                  <th className="p-3 text-center">الفترة المحددة</th>
+                  <th className="p-3">الدور المسند أثناء الحصة</th>
+                  <th className="p-3 text-center w-12">حذف</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {exemptionsLoading || exemptionsList.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="workspace-empty-state p-8 text-center text-slate-400 font-medium"
+                    >
+                      {exemptionsLoading
+                        ? 'جارٍ تحميل سجلات الإعفاء...'
+                        : 'لا توجد شهادات إعفاء طبية مسجلة لهذا القسم حتى الآن.'}
+                    </td>
+                  </tr>
+                ) : (
+                  exemptionsList.map((ex, idx) => (
+                    <tr key={ex.id} className="hover:bg-rose-50/20 transition-colors">
+                      <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
+                      <td className="p-3 font-extrabold text-slate-900">
+                        {ex.student
+                          ? `${ex.student.firstName} ${ex.student.lastName}`
+                          : students.find((student) => student.id === ex.studentId)?.firstName ||
+                            ex.studentId}
+                      </td>
+                      <td className="p-3 text-slate-600">
+                        <div>
+                          <strong className="text-slate-800">{ex.issuedOn.slice(0, 10)}</strong>
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {ex.expiresOn ? `إلى ${ex.expiresOn.slice(0, 10)}` : 'دون تاريخ انتهاء'}
+                        </div>
+                      </td>
+                      <td className="p-3 text-rose-700 font-bold">{ex.reason || ex.note || '—'}</td>
+                      <td className="p-3 text-center">
+                        <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2.5 py-1 rounded-full">
+                          {ex.expiresOn ? 'محددة بالتاريخ' : 'سارية'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-slate-700 font-semibold">
+                        {ex.note || 'إعفاء طبي من المجهود البدني'}
+                      </td>
+                      <td className="p-2 text-center">
+                        <button
+                          onClick={() => void handleDeleteExemption(ex.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="حذف الإعفاء"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* REGISTER TAB 4: EDUCATIONAL CLUBS (دفتر البلديات التربوية والنوادي) */}
+      {/* ========================================================================= */}
+      {activeRegister === 'clubs' && (
+        <div className="students-book-section workspace-card bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <Flag className="w-5 h-5 text-emerald-600" />
+                <span>دفتر البلديات التربوية والنوادي الرياضية للقسم</span>
+                <span className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2.5 py-0.5 rounded-lg border border-emerald-100">
+                  {activeClass.name}
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                توزيع تلاميذ هذا القسم تلقائياً إلى ناديين (نادي أ ونادي ب) ومتابعة الروح المنافسة
+                الشريفة
+              </p>
+            </div>
+
+            <button
+              onClick={handleAutoBalanceClubs}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
+            >
+              <Shuffle className="w-4 h-4 text-emerald-200" />
+              <span>إعادة موازنة الناديين تلقائياً (ذكور وإناث)</span>
+            </button>
+          </div>
+
+          {/* Editable Club Names & Slogans for Current Class */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Club A Info */}
+            <div className="students-club-card bg-gradient-to-br from-blue-50/70 to-indigo-50/50 p-4 rounded-2xl border border-blue-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+                  <h4 className="text-xs font-black text-blue-900">النادي الأول (نادي أ)</h4>
                 </div>
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-                  مصدر العضوية الرسمي
+                <span className="text-[10px] bg-blue-200/60 text-blue-900 font-extrabold px-2 py-0.5 rounded-full">
+                  {
+                    classStudents.filter((s) => (clubAssignments[s.id] || 'club_a') === 'club_a')
+                      .length
+                  }{' '}
+                  أعضاء
                 </span>
               </div>
-              <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                <table className="w-full text-right text-xs">
-                  <thead>
-                    <tr className="bg-slate-900 text-white font-bold">
-                      <th className="p-3">#</th>
-                      <th className="p-3">الاسم واللقب</th>
-                      <th className="p-3">رقم التسجيل</th>
-                      <th className="p-3">المستوى</th>
-                      <th className="p-3">المتابعة</th>
-                      <th className="p-3">حذف</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {classStudents.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-8 text-center text-slate-400">
-                          لا يوجد تلاميذ مسجلون في هذا القسم.
-                        </td>
-                      </tr>
-                    ) : (
-                      classStudents.map((std, index) => (
-                        <tr key={std.id} className="hover:bg-slate-50">
-                          <td className="p-3">{index + 1}</td>
-                          <td className="p-3 font-extrabold">
-                            {std.firstName} {std.lastName}
-                          </td>
-                          <td className="p-3 font-mono">
-                            {std.matricule || std.registrationNumber || '—'}
-                          </td>
-                          <td className="p-3">{activeClass.levelName || std.grade || '—'}</td>
-                          <td className="p-3">
-                            <a
-                              className="font-bold text-blue-700 hover:underline"
-                              href={`/students/${encodeURIComponent(std.id)}?classId=${encodeURIComponent(activeClass.id)}`}
-                            >
-                              بطاقة المتابعة
-                            </a>
-                          </td>
-                          <td className="p-3">
-                            <button
-                              onClick={() =>
-                                handleConfirmDeleteStudent(
-                                  std.id,
-                                  `${std.firstName} ${std.lastName}`
-                                )
-                              }
-                              className="text-rose-600"
-                            >
-                              حذف
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-          {/* REGISTER TAB 3: MEDICAL EXEMPTIONS (دفتر المعفيين طبياً) */}
-          {/* ========================================================================= */}
-          {activeRegister === 'exempted' && (
-            <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div className="space-y-2">
                 <div>
-                  <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                    <ShieldAlert className="w-5 h-5 text-rose-600" />
-                    <span>دفتر التلاميذ المعفيين طبياً من المجهود البدني</span>
-                    <span className="text-xs bg-rose-50 text-rose-700 font-bold px-2.5 py-0.5 rounded-lg border border-rose-100">
-                      {activeClass.name}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    سجل حصر الشهادات الطبية والإعفاءات ومتابعة أدوارهم البديلة (تحكيم، تنظيم،
-                    ملاحظة)
-                  </p>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                    اسم النادي:
+                  </label>
+                  <input
+                    type="text"
+                    value={currentClubs.aName}
+                    onChange={(e) => updateActiveClubDetails('aName', e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs font-bold bg-white rounded-xl border border-blue-200 text-blue-900 outline-none focus:border-blue-500"
+                  />
                 </div>
-
-                <button
-                  onClick={() => setShowAddExemptionModal(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-rose-500/20 transition-all cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>تسجيل شهادة إعفاء طبية</span>
-                </button>
-              </div>
-
-              <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                <table className="w-full text-right text-xs">
-                  <thead>
-                    <tr className="bg-slate-900 text-white font-bold">
-                      <th className="p-3 w-10 text-center">#</th>
-                      <th className="p-3">اسم ولقب التلميذ المعفى</th>
-                      <th className="p-3">رقم الشهادة والجهة الطبية</th>
-                      <th className="p-3">سبب الإعفاء الطبي</th>
-                      <th className="p-3 text-center">الفترة المحددة</th>
-                      <th className="p-3">الدور المسند أثناء الحصة</th>
-                      <th className="p-3 text-center w-12">حذف</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {exemptionsLoading || exemptionsList.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="p-8 text-center text-slate-400 font-medium">
-                          {exemptionsLoading
-                            ? 'جارٍ تحميل سجلات الإعفاء...'
-                            : 'لا توجد شهادات إعفاء طبية مسجلة لهذا القسم حتى الآن.'}
-                        </td>
-                      </tr>
-                    ) : (
-                      exemptionsList.map((ex, idx) => (
-                        <tr key={ex.id} className="hover:bg-rose-50/20 transition-colors">
-                          <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                          <td className="p-3 font-extrabold text-slate-900">
-                            {ex.student
-                              ? `${ex.student.firstName} ${ex.student.lastName}`
-                              : students.find((student) => student.id === ex.studentId)
-                                  ?.firstName || ex.studentId}
-                          </td>
-                          <td className="p-3 text-slate-600">
-                            <div>
-                              <strong className="text-slate-800">{ex.issuedOn.slice(0, 10)}</strong>
-                            </div>
-                            <div className="text-[10px] text-slate-400">
-                              {ex.expiresOn
-                                ? `إلى ${ex.expiresOn.slice(0, 10)}`
-                                : 'دون تاريخ انتهاء'}
-                            </div>
-                          </td>
-                          <td className="p-3 text-rose-700 font-bold">
-                            {ex.reason || ex.note || '—'}
-                          </td>
-                          <td className="p-3 text-center">
-                            <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2.5 py-1 rounded-full">
-                              {ex.expiresOn ? 'محددة بالتاريخ' : 'سارية'}
-                            </span>
-                          </td>
-                          <td className="p-3 text-slate-700 font-semibold">
-                            {ex.note || 'إعفاء طبي من المجهود البدني'}
-                          </td>
-                          <td className="p-2 text-center">
-                            <button
-                              onClick={() => void handleDeleteExemption(ex.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                              title="حذف الإعفاء"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* ========================================================================= */}
-          {/* REGISTER TAB 4: EDUCATIONAL CLUBS (دفتر البلديات التربوية والنوادي) */}
-          {/* ========================================================================= */}
-          {activeRegister === 'clubs' && (
-            <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                 <div>
-                  <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                    <Flag className="w-5 h-5 text-emerald-600" />
-                    <span>دفتر البلديات التربوية والنوادي الرياضية للقسم</span>
-                    <span className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2.5 py-0.5 rounded-lg border border-emerald-100">
-                      {activeClass.name}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    توزيع تلاميذ هذا القسم تلقائياً إلى ناديين (نادي أ ونادي ب) ومتابعة الروح
-                    المنافسة الشريفة
-                  </p>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                    شعار النادي:
+                  </label>
+                  <input
+                    type="text"
+                    value={currentClubs.aSlogan}
+                    onChange={(e) => updateActiveClubDetails('aSlogan', e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs text-slate-600 bg-white/80 rounded-xl border border-blue-200 outline-none focus:border-blue-500"
+                  />
                 </div>
-
-                <button
-                  onClick={handleAutoBalanceClubs}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
-                >
-                  <Shuffle className="w-4 h-4 text-emerald-200" />
-                  <span>إعادة موازنة الناديين تلقائياً (ذكور وإناث)</span>
-                </button>
-              </div>
-
-              {/* Editable Club Names & Slogans for Current Class */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Club A Info */}
-                <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/50 p-4 rounded-2xl border border-blue-200/80 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-blue-600"></div>
-                      <h4 className="text-xs font-black text-blue-900">النادي الأول (نادي أ)</h4>
-                    </div>
-                    <span className="text-[10px] bg-blue-200/60 text-blue-900 font-extrabold px-2 py-0.5 rounded-full">
-                      {
-                        classStudents.filter(
-                          (s) => (clubAssignments[s.id] || 'club_a') === 'club_a'
-                        ).length
-                      }{' '}
-                      أعضاء
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
-                        اسم النادي:
-                      </label>
-                      <input
-                        type="text"
-                        value={currentClubs.aName}
-                        onChange={(e) => updateActiveClubDetails('aName', e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs font-bold bg-white rounded-xl border border-blue-200 text-blue-900 outline-none focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
-                        شعار النادي:
-                      </label>
-                      <input
-                        type="text"
-                        value={currentClubs.aSlogan}
-                        onChange={(e) => updateActiveClubDetails('aSlogan', e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs text-slate-600 bg-white/80 rounded-xl border border-blue-200 outline-none focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Club B Info */}
-                <div className="bg-gradient-to-br from-purple-50/70 to-pink-50/50 p-4 rounded-2xl border border-purple-200/80 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-purple-600"></div>
-                      <h4 className="text-xs font-black text-purple-900">النادي الثاني (نادي ب)</h4>
-                    </div>
-                    <span className="text-[10px] bg-purple-200/60 text-purple-900 font-extrabold px-2 py-0.5 rounded-full">
-                      {classStudents.filter((s) => clubAssignments[s.id] === 'club_b').length} أعضاء
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
-                        اسم النادي:
-                      </label>
-                      <input
-                        type="text"
-                        value={currentClubs.bName}
-                        onChange={(e) => updateActiveClubDetails('bName', e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs font-bold bg-white rounded-xl border border-purple-200 text-purple-900 outline-none focus:border-purple-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-1">
-                        شعار النادي:
-                      </label>
-                      <input
-                        type="text"
-                        value={currentClubs.bSlogan}
-                        onChange={(e) => updateActiveClubDetails('bSlogan', e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs text-slate-600 bg-white/80 rounded-xl border border-purple-200 outline-none focus:border-purple-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Table of Students & Club Assignments */}
-              <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                <table className="w-full text-right text-xs">
-                  <thead>
-                    <tr className="bg-slate-900 text-white font-bold">
-                      <th className="p-3 w-10 text-center">#</th>
-                      <th className="p-3">اسم ولقب التلميذ</th>
-                      <th className="p-3 text-center">الجنس</th>
-                      <th className="p-3 text-center">النادي الانتماء</th>
-                      <th className="p-3 text-center">تغيير الانتماء</th>
-                      <th className="p-3 text-center w-12">حذف</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {classStudents.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-8 text-center text-slate-400">
-                          لا يوجد تلاميذ في هذا القسم.
-                        </td>
-                      </tr>
-                    ) : (
-                      classStudents.map((std, idx) => {
-                        const assignedClub =
-                          clubAssignments[std.id] || (idx % 2 === 0 ? 'club_a' : 'club_b');
-
-                        return (
-                          <tr key={std.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                            <td className="p-3 font-extrabold text-slate-900">
-                              {std.firstName} {std.lastName}
-                            </td>
-                            <td className="p-3 text-center">
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${std.gender === 'ذكر' ? 'bg-blue-50 text-blue-700' : 'bg-pink-50 text-pink-700'}`}
-                              >
-                                {std.gender}
-                              </span>
-                            </td>
-                            <td className="p-3 text-center">
-                              <span
-                                className={`px-3 py-1 rounded-xl text-xs font-black ${
-                                  assignedClub === 'club_a'
-                                    ? 'bg-blue-100 text-blue-900 border border-blue-200'
-                                    : 'bg-purple-100 text-purple-900 border border-purple-200'
-                                }`}
-                              >
-                                {assignedClub === 'club_a'
-                                  ? currentClubs.aName
-                                  : currentClubs.bName}
-                              </span>
-                            </td>
-                            <td className="p-3 text-center">
-                              <button
-                                onClick={() => toggleStudentClub(std.id)}
-                                className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
-                              >
-                                تبديل النادي 🔁
-                              </button>
-                            </td>
-                            <td className="p-2 text-center">
-                              <button
-                                onClick={() =>
-                                  handleConfirmDeleteStudent(
-                                    std.id,
-                                    `${std.firstName} ${std.lastName}`
-                                  )
-                                }
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                title="حذف التلميذ"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
               </div>
             </div>
-          )}
-        </>
+
+            {/* Club B Info */}
+            <div className="students-club-card bg-gradient-to-br from-purple-50/70 to-pink-50/50 p-4 rounded-2xl border border-purple-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-teal-600"></div>
+                  <h4 className="text-xs font-black text-purple-900">النادي الثاني (نادي ب)</h4>
+                </div>
+                <span className="text-[10px] bg-purple-200/60 text-purple-900 font-extrabold px-2 py-0.5 rounded-full">
+                  {classStudents.filter((s) => clubAssignments[s.id] === 'club_b').length} أعضاء
+                </span>
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                    اسم النادي:
+                  </label>
+                  <input
+                    type="text"
+                    value={currentClubs.bName}
+                    onChange={(e) => updateActiveClubDetails('bName', e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs font-bold bg-white rounded-xl border border-purple-200 text-purple-900 outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                    شعار النادي:
+                  </label>
+                  <input
+                    type="text"
+                    value={currentClubs.bSlogan}
+                    onChange={(e) => updateActiveClubDetails('bSlogan', e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs text-slate-600 bg-white/80 rounded-xl border border-purple-200 outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Table of Students & Club Assignments */}
+          <div className="overflow-x-auto rounded-2xl border border-slate-200">
+            <table className="w-full text-right text-xs">
+              <thead>
+                <tr className="bg-slate-900 text-white font-bold">
+                  <th className="p-3 w-10 text-center">#</th>
+                  <th className="p-3">اسم ولقب التلميذ</th>
+                  <th className="p-3 text-center">الجنس</th>
+                  <th className="p-3 text-center">النادي الانتماء</th>
+                  <th className="p-3 text-center">تغيير الانتماء</th>
+                  <th className="p-3 text-center w-12">حذف</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {classStudents.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="workspace-empty-state p-8 text-center text-slate-400"
+                    >
+                      لا يوجد تلاميذ في هذا القسم.
+                    </td>
+                  </tr>
+                ) : (
+                  classStudents.map((std, idx) => {
+                    const assignedClub =
+                      clubAssignments[std.id] || (idx % 2 === 0 ? 'club_a' : 'club_b');
+
+                    return (
+                      <tr key={std.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
+                        <td className="p-3 font-extrabold text-slate-900">
+                          {std.firstName} {std.lastName}
+                        </td>
+                        <td className="p-3 text-center">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${std.gender === 'ذكر' ? 'bg-blue-50 text-blue-700' : 'bg-pink-50 text-pink-700'}`}
+                          >
+                            {std.gender}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          <span
+                            className={`px-3 py-1 rounded-xl text-xs font-black ${
+                              assignedClub === 'club_a'
+                                ? 'bg-blue-100 text-blue-900 border border-blue-200'
+                                : 'bg-purple-100 text-purple-900 border border-purple-200'
+                            }`}
+                          >
+                            {assignedClub === 'club_a' ? currentClubs.aName : currentClubs.bName}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          <button
+                            onClick={() => toggleStudentClub(std.id)}
+                            className="workspace-button-secondary px-3 py-1 text-slate-700 text-xs font-bold rounded-xl border transition-all cursor-pointer"
+                          >
+                            تبديل النادي 🔁
+                          </button>
+                        </td>
+                        <td className="p-2 text-center">
+                          <button
+                            onClick={() =>
+                              handleConfirmDeleteStudent(std.id, `${std.firstName} ${std.lastName}`)
+                            }
+                            className="workspace-button-danger p-1.5 rounded-lg border transition-colors cursor-pointer"
+                            title="حذف التلميذ"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* ========================================================================= */}

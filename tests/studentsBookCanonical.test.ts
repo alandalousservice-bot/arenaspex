@@ -72,4 +72,29 @@ describe('canonical Teacher Students Book', () => {
     expect(attendance).toContain('saveTeacherAttendance');
     expect(attendance).not.toContain('createTeacherMedicalExemption');
   });
+
+  it('keeps the Students Book presentation compact without changing its handlers', () => {
+    const book = read('src/components/students/StudentsBookView.tsx');
+
+    expect(book).toContain('students-class-selector');
+    expect(book).toContain('students-class-chip');
+    expect(book).toContain('aria-pressed={isSelected}');
+    expect(book).not.toContain('overflow-x-auto pb-1 w-full sm:w-auto');
+    expect(book).not.toContain('الأقسام المسندة والقوائم الاسمية');
+    expect(book).toContain('workspace-button-primary');
+    expect(book).toContain('workspace-button-secondary');
+    expect(book).toContain('workspace-button-outline');
+    expect(book).toContain('workspace-button-danger');
+    expect(book).toContain('aria-label="أقسام دفتر التلاميذ"');
+    expect(book).toContain('القائمة الاسمية والمتابعة');
+    expect(book).toContain('المعفيون طبياً');
+    expect(book).toContain('البلديات والنوادي');
+    expect(book).not.toContain('1. القائمة الاسمية والمتابعة');
+    expect(book).not.toContain('2. دفتر المعفيين طبياً');
+    expect(book).not.toContain('3. دفتر البلديات والنوادي');
+    expect(book).toContain('onClick={() => void handleConfirmDeleteClass(activeClass.id)}');
+    expect(book).toContain('onClick={() => setSelectedClassId(cls.id)}');
+    expect(book).toContain('onClick={() => window.print()}');
+    expect(book).toContain("style={{ unicodeBidi: 'isolate' }}");
+  });
 });
