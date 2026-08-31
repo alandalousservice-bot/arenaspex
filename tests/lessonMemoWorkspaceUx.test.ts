@@ -142,6 +142,7 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(view).toContain('activeLessonPlanForContext || existingOperationalMemo');
     expect(view).toContain('const closeSavedMemo = () => {');
     expect(view).toContain("setScreenMode('list')");
+    expect(view).toContain('onClick={closeSavedMemo}');
     expect(view).toContain("screenMode !== 'saved' && plannedSessionsList");
     expect(view).toContain(
       'if (deepLinkDismissed || !requestedSessionId || !operationalSession) return;'

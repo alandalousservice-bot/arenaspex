@@ -931,10 +931,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             تعذر تحميل المذكرة المحفوظة. أعد تحميل البيانات وحاول مرة أخرى.
             <button
               type="button"
-              onClick={() => {
-                setActiveLessonPlanId('');
-                setScreenMode('list');
-              }}
+              onClick={closeSavedMemo}
               className="mr-3 rounded-lg border border-amber-300 bg-white px-3 py-1 text-xs font-bold text-amber-900"
             >
               العودة إلى الحصص
