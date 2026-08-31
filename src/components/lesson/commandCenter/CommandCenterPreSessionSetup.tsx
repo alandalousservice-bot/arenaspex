@@ -2,6 +2,7 @@ import React from 'react';
 import { Play, Users, FileText, Zap, ShieldAlert, Clock } from 'lucide-react';
 import { ClassRoom, LessonPlan, LessonSession, LessonSessionTiming } from '../../../types/spex';
 import { CONTINGENCY_MODES } from '../../../constants/lessonCommandCenter.constants';
+import { isLessonMemoEligible } from '../../../services/lessonPlanWorkflow.service';
 
 interface CommandCenterPreSessionSetupProps {
   teacherClasses: ClassRoom[];
@@ -34,6 +35,12 @@ export const CommandCenterPreSessionSetup: React.FC<CommandCenterPreSessionSetup
 }) => {
   const selectedClass = teacherClasses.find((c) => c.id === selectedClassId) || teacherClasses[0];
   const selectedPlan = lessonPlans.find((lp) => lp.id === selectedLessonPlanId) || lessonPlans[0];
+  const selectedPlanMemoEligible = selectedPlan
+    ? isLessonMemoEligible({
+        fieldName: selectedPlan.fieldName,
+        sessionType: selectedPlan.sessionType,
+      })
+    : true;
 
   const prepSecs = (timingSettings.preparationMinutes || 10) * 60;
   const sit1Secs = (timingSettings.situation1Minutes || 20) * 60;
@@ -48,16 +55,30 @@ export const CommandCenterPreSessionSetup: React.FC<CommandCenterPreSessionSetup
       className: selectedClass?.name || '1 ابتدائي 1',
       date: new Date().toISOString().split('T')[0],
       startTime: new Date().toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' }),
-      endTime: new Date(Date.now() + totalMins * 60000).toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' }),
+      endTime: new Date(Date.now() + totalMins * 60000).toLocaleTimeString('ar-DZ', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
       sessionTitle: selectedPlan?.sessionTitle || 'حصة بيداغوجية موجهة',
       lessonPlanId: selectedLessonPlanId || lessonPlans[0]?.id || 'lp_1',
-      educationalObjective: selectedPlan?.generalObjective || 'تطوير المهارات الحركية والتوافق البدني',
-      preparationObjective: selectedPlan?.warmupPhase?.pedagogicalWarmupGame?.title || 'الإحماء العام والخاص وتجهيز التلاميذ بدﻧياً ونفسياً',
-      situation1Title: selectedPlan?.mainPhase?.learningSituation1?.title || 'الوضعية التعلمية الأولى',
-      situation1Description: selectedPlan?.mainPhase?.learningSituation1?.description || 'بناء التعلمات والتطبيق الحركي الفردي والجماعي',
-      situation2Title: selectedPlan?.mainPhase?.learningSituation2?.title || 'الوضعية التعلمية الثانية',
-      situation2Description: selectedPlan?.mainPhase?.learningSituation2?.description || 'المنافسة المصغرة واللعب الموجه وفق القوانين',
-      finalObjective: selectedPlan?.coolDownPhase?.assessmentAndDialogue || 'العودة للهدوء وتفقد العتاد والتقويم الختامي',
+      educationalObjective:
+        selectedPlan?.generalObjective || 'تطوير المهارات الحركية والتوافق البدني',
+      preparationObjective:
+        selectedPlan?.warmupPhase?.pedagogicalWarmupGame?.title ||
+        'الإحماء العام والخاص وتجهيز التلاميذ بدﻧياً ونفسياً',
+      situation1Title:
+        selectedPlan?.mainPhase?.learningSituation1?.title || 'الوضعية التعلمية الأولى',
+      situation1Description:
+        selectedPlan?.mainPhase?.learningSituation1?.description ||
+        'بناء التعلمات والتطبيق الحركي الفردي والجماعي',
+      situation2Title:
+        selectedPlan?.mainPhase?.learningSituation2?.title || 'الوضعية التعلمية الثانية',
+      situation2Description:
+        selectedPlan?.mainPhase?.learningSituation2?.description ||
+        'المنافسة المصغرة واللعب الموجه وفق القوانين',
+      finalObjective:
+        selectedPlan?.coolDownPhase?.assessmentAndDialogue ||
+        'العودة للهدوء وتفقد العتاد والتقويم الختامي',
       status: 'in_progress',
       currentPhase: 'preparation',
       phaseRemainingSeconds: prepSecs,
@@ -66,13 +87,13 @@ export const CommandCenterPreSessionSetup: React.FC<CommandCenterPreSessionSetup
         preparation: prepSecs,
         situation1: sit1Secs,
         situation2: sit2Secs,
-        final: finalSecs
+        final: finalSecs,
       },
       actualPhaseSpent: {
         preparation: 0,
         situation1: 0,
         situation2: 0,
-        final: 0
+        final: 0,
       },
       isPaused: false,
       contingencyMode: (contingencyMode as LessonSession['contingencyMode']) || 'normal',
@@ -87,7 +108,9 @@ export const CommandCenterPreSessionSetup: React.FC<CommandCenterPreSessionSetup
         </div>
         <div>
           <h3 className="text-base font-extrabold text-slate-900">إعداد انطلاق الحصة الميدانية</h3>
-          <p className="text-xs text-slate-500">اختر القسم، المذكرة البيداغوجية، وظروف الحصة لبدء التوقيت الحي</p>
+          <p className="text-xs text-slate-500">
+            اختر القسم، المذكرة البيداغوجية، وظروف الحصة لبدء التوقيت الحي
+          </p>
         </div>
       </div>
 
@@ -156,11 +179,14 @@ export const CommandCenterPreSessionSetup: React.FC<CommandCenterPreSessionSetup
           <div className="flex items-center justify-between">
             <span className="font-extrabold text-slate-900">{selectedPlan.sessionTitle}</span>
             <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full">
-              {selectedPlan.durationMinutes ? `${selectedPlan.durationMinutes} دقيقة` : `${totalMins} دقيقة`}
+              {selectedPlan.durationMinutes
+                ? `${selectedPlan.durationMinutes} دقيقة`
+                : `${totalMins} دقيقة`}
             </span>
           </div>
           <p className="text-slate-600 leading-relaxed">
-            <strong>الهدف التعلمي:</strong> {selectedPlan.generalObjective || 'تنمية المهارات الحركية والتنقل بالتوازن'}
+            <strong>الهدف التعلمي:</strong>{' '}
+            {selectedPlan.generalObjective || 'تنمية المهارات الحركية والتنقل بالتوازن'}
           </p>
           <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-200/70">
             <span className="flex items-center gap-1 font-bold text-slate-700">
@@ -173,7 +199,10 @@ export const CommandCenterPreSessionSetup: React.FC<CommandCenterPreSessionSetup
               ['وضعية 2', sit2Secs / 60],
               ['ختام', finalSecs / 60],
             ].map(([label, mins]) => (
-              <span key={label} className="text-[10px] bg-white border border-slate-200 px-2 py-0.5 rounded-full font-bold text-slate-600">
+              <span
+                key={label}
+                className="text-[10px] bg-white border border-slate-200 px-2 py-0.5 rounded-full font-bold text-slate-600"
+              >
                 {label}: {mins} د
               </span>
             ))}
@@ -183,12 +212,18 @@ export const CommandCenterPreSessionSetup: React.FC<CommandCenterPreSessionSetup
 
       {/* Launch Button */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-        <button
-          onClick={onNavigateToLessonPlans}
-          className="text-xs font-bold text-slate-500 hover:text-slate-800 underline cursor-pointer"
-        >
-          + إضافة أو تعديل مذكرة بيداغوجية
-        </button>
+        {selectedPlanMemoEligible ? (
+          <button
+            onClick={onNavigateToLessonPlans}
+            className="text-xs font-bold text-slate-500 hover:text-slate-800 underline cursor-pointer"
+          >
+            + إضافة أو تعديل مذكرة بيداغوجية
+          </button>
+        ) : (
+          <span className="text-xs font-bold text-slate-500">
+            هذه الحصة التنظيمية لا تتطلب مذكرة
+          </span>
+        )}
 
         <button
           onClick={handleLaunch}

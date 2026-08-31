@@ -34,6 +34,7 @@ import {
   toDailyNotebookSessionDto,
 } from '../../services/dailyNotebook.service';
 import { formatLocalDate, getLocalWeekDates, shiftLocalDate } from '../../services/localDate';
+import { isLessonMemoEligible } from '../../services/lessonPlanWorkflow.service';
 import {
   buildDailyNotebookPrintModel,
   DailyNotebookPrintModel,
@@ -316,6 +317,11 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
     levelName: selectedClass ? levelLabel(selectedClass.levelId) : undefined,
   });
   const openMemo = (session: TeacherPlanningSession, entry?: DailyNotebookEntry) => {
+    const reference = references.get(session.referenceSessionId) || session.reference;
+    if (!isLessonMemoEligible(reference || {})) {
+      setError('هذه الحصة التنظيمية لا تتطلب مذكرة.');
+      return;
+    }
     window.location.assign(
       `/lesson-plans?classId=${encodeURIComponent(session.classId)}&classPlannedSessionId=${encodeURIComponent(session.id)}&academicYearId=${encodeURIComponent(session.academicYearId)}${entry?.lessonPlanId ? `&lessonPlanId=${encodeURIComponent(entry.lessonPlanId)}` : ''}`
     );
@@ -547,7 +553,8 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
       )}
       <div className="grid gap-4">
         {displayed.map((session) => {
-          const reference = references.get(session.referenceSessionId);
+          const reference = references.get(session.referenceSessionId) || session.reference;
+          const memoEligible = isLessonMemoEligible(reference || {});
           const entry = entriesBySession.get(session.id);
           const field = reference
             ? PE_FIELDS.find((item) => item.id === reference.domainId)
@@ -560,7 +567,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                   segment.fieldId === reference.domainId
               )?.title || 'المقطع غير محدد'
             : 'المقطع غير متاح';
-          const memoExists = memoBySession.has(session.id);
+          const memoExists = memoEligible && memoBySession.has(session.id);
           const sessionDto = toDailyNotebookSessionDto(session, {
             sessionNumber: reference?.sequenceIndex,
             sessionType: reference?.sessionTypeLabel,
@@ -572,7 +579,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
           });
           const statusMeta = DAILY_NOTEBOOK_STATUS_META[sessionDto.status];
           const pairInfo = getPairedSessionInfo(session, sessions, gradeOf(selectedClass.levelId));
-          const memoPlan = memoBySession.get(session.id);
+          const memoPlan = memoEligible ? memoBySession.get(session.id) : undefined;
           const memoPreview = buildLessonMemoPreview(memoPlan);
           const hasMemoPreview = Boolean(
             memoPreview &&
@@ -708,7 +715,12 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                     المقطع: {sectionLabel}
                   </span>
                   <span className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700">
-                    المذكرة: {sessionDto.memoExists ? 'موجودة' : 'غير منشأة'}
+                    المذكرة:{' '}
+                    {memoEligible
+                      ? sessionDto.memoExists
+                        ? 'موجودة'
+                        : 'غير منشأة'
+                      : 'لا تتطلب مذكرة'}
                   </span>
                   {memoPlan && hasMemoPreview && (
                     <button
@@ -726,18 +738,26 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                       {isPreviewExpanded ? 'إخفاء محتوى المذكرة' : 'عرض محتوى المذكرة'}
                     </button>
                   )}
-                  <button
-                    onClick={() => onOpenAIGeneratorForSession(sessionRef(session, reference))}
-                    className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700"
-                  >
-                    توليد المذكرة
-                  </button>
-                  <button
-                    onClick={() => openMemo(session, entry)}
-                    className="flex items-center gap-1 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-700"
-                  >
-                    <FileText className="h-3.5 w-3.5" /> فتح المذكرة
-                  </button>
+                  {memoEligible ? (
+                    <>
+                      <button
+                        onClick={() => onOpenAIGeneratorForSession(sessionRef(session, reference))}
+                        className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700"
+                      >
+                        توليد المذكرة
+                      </button>
+                      <button
+                        onClick={() => openMemo(session, entry)}
+                        className="flex items-center gap-1 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-700"
+                      >
+                        <FileText className="h-3.5 w-3.5" /> فتح المذكرة
+                      </button>
+                    </>
+                  ) : (
+                    <span className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
+                      حصة تنظيمية بدون مذكرة
+                    </span>
+                  )}
                   {reference &&
                     (reference.sessionType === 'تقويم تشخيصي' ||
                       reference.sessionType === 'تقويم تحصيلي') && (

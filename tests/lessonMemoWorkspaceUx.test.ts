@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { formatAcademicYearSelectLabel } from '../src/services/academicYear';
+import { isLessonMemoEligible } from '../src/services/lessonPlanWorkflow.service';
 
 const read = (file: string) => readFileSync(file, 'utf8');
 
@@ -15,9 +16,8 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(view).toContain(
       'fetchTeacherPlanningSessions(operationalClassId, operationalAcademicYearId)'
     );
-    expect(view).toContain(
-      "findOperationalLessonPlan(lessonPlans, session, currentUser?.id || '')"
-    );
+    expect(view).toContain('findOperationalLessonPlan(');
+    expect(view).toContain("currentUser?.id || ''");
     expect(view).toContain('إنشاء المذكرة');
     expect(view).toContain('فتح المذكرة');
     expect(api).toContain('/api/teacher/planning/classes/');
@@ -120,9 +120,8 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(view).toContain(
       'openOperationalMemo = (session: TeacherPlanningSession, memo?: LessonPlan)'
     );
-    expect(view).toContain(
-      "findOperationalLessonPlan(lessonPlans, session, currentUser?.id || '')"
-    );
+    expect(view).toContain('findOperationalLessonPlan(');
+    expect(view).toContain("currentUser?.id || ''");
     expect(view).toContain(
       'classPlannedSessionId=${encodeURIComponent(scheduledContext.session.id)}&academicYearId='
     );
@@ -149,5 +148,64 @@ describe('Lesson Memo session-first workspace presentation', () => {
     );
     expect(view).toContain('setActiveLessonPlanId(requestedMemo.id)');
     expect(view).toContain('تعذر تحميل المذكرة المحفوظة. أعد تحميل البيانات وحاول مرة أخرى.');
+  });
+
+  it('uses canonical session identity for memo eligibility', () => {
+    expect(
+      isLessonMemoEligible({
+        reference: {
+          domainId: 'intro',
+          sessionType: 'تعارف وتنظيم',
+          sessionTypeLabel: 'تعارف، تنظيم واتصال',
+        },
+      })
+    ).toBe(false);
+    expect(isLessonMemoEligible({ sessionType: 'تقويم تشخيصي' })).toBe(true);
+    expect(isLessonMemoEligible({ sessionType: 'تعلمية' })).toBe(true);
+    expect(isLessonMemoEligible({ sessionType: 'إدماجية' })).toBe(true);
+    expect(isLessonMemoEligible({ sessionType: 'تقويم تحصيلي' })).toBe(true);
+    expect(
+      isLessonMemoEligible({
+        domainId: 'field_1',
+        sessionType: 'تعلمية',
+        sessionTypeLabel: 'تعارف، تنظيم واتصال',
+      })
+    ).toBe(true);
+  });
+
+  it('keeps introductory sessions visible while removing memo actions', () => {
+    const view = read('src/components/lesson/LessonPlanView.tsx');
+    const dailyNotebook = read('src/components/notebook/DailyNotebookView.tsx');
+    const commandCenter = read(
+      'src/components/lesson/commandCenter/CommandCenterPreSessionSetup.tsx'
+    );
+    const curriculum = read('src/data/algerianCurriculum.ts');
+    const planning = read('src/services/teacherPlanning.service.ts');
+
+    expect(view).toContain('const memoEligible = isLessonMemoEligible(session);');
+    expect(view).toContain('لا تتطلب مذكرة');
+    expect(view).toContain('حصة تنظيمية بدون مذكرة');
+    expect(view).toContain('if (!isLessonMemoEligible(operationalSession))');
+    expect(view).toContain('if (!isLessonMemoEligible(scheduledContext.session))');
+    expect(dailyNotebook).toContain('const memoEligible = isLessonMemoEligible(reference || {});');
+    expect(dailyNotebook).toContain('المذكرة:');
+    expect(dailyNotebook).toContain('memoEligible');
+    expect(dailyNotebook).toContain('حصة تنظيمية بدون مذكرة');
+    expect(commandCenter).toContain('isLessonMemoEligible({');
+    expect(commandCenter).toContain('هذه الحصة التنظيمية لا تتطلب مذكرة');
+    expect(curriculum).toContain("fieldId: 'intro'");
+    expect(curriculum).toContain('isIntro: true');
+    expect(planning).toContain("session.fieldId === 'intro' ? 'intro'");
+  });
+
+  it('keeps data generation and persistence boundaries unchanged', () => {
+    const curriculum = read('src/data/algerianCurriculum.ts');
+    const planning = read('src/services/teacherPlanning.service.ts');
+    const view = read('src/components/lesson/LessonPlanView.tsx');
+
+    expect(curriculum).toContain('generateAnnualTimeDistribution');
+    expect(planning).toContain('buildClassPlannedSessionSeedsFromCanonicalSessions');
+    expect(view).toContain('classPlannedSessionId: operationalContext?.session.id');
+    expect(view).toContain('onSaveLessonPlan(plan);');
   });
 });

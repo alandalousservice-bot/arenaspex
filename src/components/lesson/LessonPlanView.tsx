@@ -29,6 +29,7 @@ import {
 } from '../../services/academicYear';
 import {
   findOperationalLessonPlan,
+  isLessonMemoEligible,
   isOwnedOperationalSession,
   LessonMemoMode,
   sortOperationalSessions,
@@ -86,7 +87,12 @@ function formatSessionSequence(session: TeacherPlanningSession): string {
   return String(session.reference?.sequenceIndex || '—');
 }
 
-function sessionStateLabel(session: TeacherPlanningSession, memo?: LessonPlan): string {
+function sessionStateLabel(
+  session: TeacherPlanningSession,
+  memo?: LessonPlan,
+  memoEligible = true
+): string {
+  if (!memoEligible) return 'لا تتطلب مذكرة';
   if (memo) return 'مذكرة محفوظة';
   if (session.status === 'منجزة') return 'حصة منجزة — المذكرة غير منشأة';
   if (session.status === 'مؤجلة') return 'حصة مؤجلة — المذكرة غير منشأة';
@@ -154,7 +160,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [draft, setDraft] = useState<LessonPlan | null>(null);
   const [memoMode, setMemoMode] = useState<LessonMemoMode>('operational');
   const [screenMode, setScreenMode] = useState<'list' | 'generator' | 'saved'>(
-    activeLessonId ? 'saved' : 'list'
+    activeLessonId && !requestedSessionId ? 'saved' : 'list'
   );
   const [activeLessonPlanId, setActiveLessonPlanId] = useState(activeLessonId || '');
   const [generatorReturnMode, setGeneratorReturnMode] = useState<'list' | 'saved'>('list');
@@ -187,12 +193,16 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       classRoom: operationalClass,
     };
   }, [operationalClass, operationalSession]);
-  const existingOperationalMemo = scheduledContext
-    ? findOperationalLessonPlan(lessonPlans, scheduledContext.session, currentUser?.id || '')
-    : undefined;
+  const operationalMemoEligible = scheduledContext
+    ? isLessonMemoEligible(scheduledContext.session)
+    : true;
+  const existingOperationalMemo =
+    scheduledContext && operationalMemoEligible
+      ? findOperationalLessonPlan(lessonPlans, scheduledContext.session, currentUser?.id || '')
+      : undefined;
   const activeLessonPlan = lessonPlans.find((plan) => plan.id === activeLessonPlanId);
   const activeLessonPlanForContext =
-    scheduledMode && operationalSession
+    scheduledMode && operationalSession && operationalMemoEligible
       ? activeLessonPlan?.teacherId === currentUser?.id &&
         activeLessonPlan.classId === operationalSession.classId &&
         activeLessonPlan.academicYearId === operationalSession.academicYearId &&
@@ -261,18 +271,25 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     setSessionIndex(0);
   }, [levelName]);
   useEffect(() => {
-    if (activeLessonId) {
+    if (activeLessonId && !requestedSessionId) {
       setSelectedId(activeLessonId);
       setActiveLessonPlanId(activeLessonId);
       setScreenMode('saved');
     }
-  }, [activeLessonId]);
+  }, [activeLessonId, requestedSessionId]);
   useEffect(() => {
     if (!operationalClassId && teacherClasses[0]) setOperationalClassId(teacherClasses[0].id);
   }, [operationalClassId, teacherClasses]);
 
   useEffect(() => {
     if (deepLinkDismissed || !requestedSessionId || !operationalSession) return;
+    if (!isLessonMemoEligible(operationalSession)) {
+      setActiveLessonPlanId('');
+      setScreenMode('list');
+      setShowGenerator(false);
+      setDeepLinkDismissed(true);
+      return;
+    }
     const requestedMemo = findOperationalLessonPlan(
       lessonPlans,
       operationalSession,
@@ -308,6 +325,14 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         if (requestedSessionId && !resolvedRequested) {
           setScheduledError('الحصة التشغيلية المطلوبة غير موجودة ضمن أقسامك.');
           setOperationalSessionId('');
+          return;
+        }
+        if (resolvedRequested && !isLessonMemoEligible(resolvedRequested)) {
+          setOperationalSessionId(resolvedRequested.id);
+          setActiveLessonPlanId('');
+          setScreenMode('list');
+          setShowGenerator(false);
+          setDeepLinkDismissed(true);
           return;
         }
         setOperationalSessionId(nextId);
@@ -398,6 +423,12 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         })
       ) {
         setGenerationError('اختر حصة مبرمجة صحيحة ضمن القسم والسنة الدراسية المحددين.');
+        return;
+      }
+      if (!isLessonMemoEligible(scheduledContext.session)) {
+        setGenerationError('هذه الحصة التنظيمية لا تتطلب مذكرة.');
+        setShowGenerator(false);
+        setScreenMode('list');
         return;
       }
       if (existingOperationalMemo) {
@@ -702,6 +733,13 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     setScheduledError('');
   };
   const createOperationalMemo = (sessionId: string) => {
+    const session = operationalSessions.find((item) => item.id === sessionId);
+    if (session && !isLessonMemoEligible(session)) {
+      setScheduledError('هذه الحصة التنظيمية لا تتطلب مذكرة.');
+      setScreenMode('list');
+      setShowGenerator(false);
+      return;
+    }
     selectOperationalSession(sessionId);
     setMemoMode('operational');
     setGeneratorReturnMode('list');
@@ -709,6 +747,13 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     setShowGenerator(true);
   };
   const openOperationalMemo = (session: TeacherPlanningSession, memo?: LessonPlan) => {
+    if (!isLessonMemoEligible(session)) {
+      setScheduledError('هذه الحصة التنظيمية لا تتطلب مذكرة.');
+      setScreenMode('list');
+      setShowGenerator(false);
+      setActiveLessonPlanId('');
+      return;
+    }
     if (!memo) {
       setScheduledError('تعذر فتح المذكرة المحفوظة. أعد تحميل البيانات وحاول مرة أخرى.');
       return;
@@ -843,7 +888,13 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {operationalSessions.map((session) => {
-            const memo = findOperationalLessonPlan(lessonPlans, session, currentUser?.id || '');
+            const memoEligible = isLessonMemoEligible(session);
+            const savedMemo = findOperationalLessonPlan(
+              lessonPlans,
+              session,
+              currentUser?.id || ''
+            );
+            const memo = memoEligible ? savedMemo : undefined;
             const reference = session.reference;
             const fieldName = displayFieldName(reference?.domainId, reference?.fieldName);
             const isSelected = selectedOperationalSession?.id === session.id;
@@ -868,10 +919,14 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                   </div>
                   <span
                     className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                      memo ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'
+                      !memoEligible
+                        ? 'bg-slate-100 text-slate-700'
+                        : memo
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-900'
                     }`}
                   >
-                    {sessionStateLabel(session, memo)}
+                    {sessionStateLabel(session, memo, memoEligible)}
                   </span>
                 </div>
                 <dl className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
@@ -895,15 +950,23 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                   </div>
                 </dl>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      memo ? openOperationalMemo(session, memo) : createOperationalMemo(session.id)
-                    }
-                    className="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white"
-                  >
-                    {memo ? 'فتح المذكرة' : 'إنشاء المذكرة'}
-                  </button>
+                  {memoEligible ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        memo
+                          ? openOperationalMemo(session, memo)
+                          : createOperationalMemo(session.id)
+                      }
+                      className="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white"
+                    >
+                      {memo ? 'فتح المذكرة' : 'إنشاء المذكرة'}
+                    </button>
+                  ) : (
+                    <span className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
+                      حصة تنظيمية بدون مذكرة
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={() => selectOperationalSession(session.id)}
