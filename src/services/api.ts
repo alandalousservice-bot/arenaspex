@@ -642,6 +642,7 @@ export interface TeacherPlanningSession {
   durationMinutes: number;
   status: ClassPlannedSessionStatus;
   startTime: string | null;
+  endTime?: string | null;
   venue: string | null;
   operationalNote: string | null;
   createdAt: string;

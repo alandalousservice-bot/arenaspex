@@ -80,6 +80,12 @@ const displayDate = (value: string) => {
 };
 const teacherDisplayName = (user: User) =>
   [user.firstName, user.lastName].filter(Boolean).join(' ');
+const sessionTimeLabel = (session: Pick<TeacherPlanningSession, 'startTime' | 'endTime'>) =>
+  session.startTime
+    ? session.endTime
+      ? `${session.startTime} - ${session.endTime}`
+      : session.startTime
+    : 'غير محدد';
 const referenceFieldName = (reference?: { domainId?: string; fieldName?: string } | null) =>
   reference?.fieldName || PE_FIELDS.find((field) => field.id === reference?.domainId)?.name;
 const lessonContent = (plan?: LessonPlan) =>
@@ -298,7 +304,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
         segmentTitle: references.get(session.referenceSessionId)?.learningSectionId,
         levelName: sessionClass ? levelLabel(sessionClass.levelId) : undefined,
         executionDate: updatedSession.plannedDate,
-        timeSlot: updatedSession.startTime || 'غير محدد',
+        timeSlot: sessionTimeLabel(updatedSession),
         status: status === 'مبرمجة' ? old?.status || 'غير منجزة' : status,
         note: old?.note,
         lessonPlanId: old?.lessonPlanId,
@@ -353,7 +359,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
         segmentTitle: references.get(session.referenceSessionId)?.learningSectionId,
         levelName: sessionClass ? levelLabel(sessionClass.levelId) : undefined,
         executionDate: session.plannedDate,
-        timeSlot: session.startTime || 'غير محدد',
+        timeSlot: sessionTimeLabel(session),
         status: session.status === 'مبرمجة' ? 'غير منجزة' : session.status,
         note: noteDrafts[session.id] || '',
         lessonPlanId: old?.lessonPlanId,
@@ -768,7 +774,8 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                       <div>
                         <span className="block text-[11px] font-bold text-slate-500">التوقيت</span>
                         <strong className="mt-0.5 block text-slate-950" dir="ltr">
-                          من {sessionDto.startTime}
+                          {sessionDto.startTime}{' '}
+                          {sessionDto.endTime ? `- ${sessionDto.endTime}` : ''}
                         </strong>
                       </div>
                     )}

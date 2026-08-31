@@ -62,11 +62,12 @@ describe('Daily Notebook pedagogical screen model', () => {
     expect(notebook).not.toContain('new Date(session.plannedDate)');
   });
 
-  it('renders only a persisted start time and never fabricates an end time', () => {
+  it('renders an authoritative timetable end time without fabricating one', () => {
     expect(notebook).toContain('sessionDto.startTime');
-    expect(notebook).not.toContain('sessionDto.endTime');
+    expect(notebook).toContain('sessionDto.endTime');
     expect(notebook).not.toContain('08:00 - 10:00');
     expect(toDailyNotebookSessionDto(session).startTime).toBeNull();
+    expect(toDailyNotebookSessionDto(session).endTime).toBeNull();
   });
 
   it('uses the canonical planning objective for التعلمات', () => {

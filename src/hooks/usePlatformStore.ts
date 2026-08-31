@@ -47,6 +47,7 @@ import {
   forceDeleteStudentClass,
   deleteTeacherStudent,
   updateTeacherPlanningSession,
+  fetchTeacherWeeklyTimetable,
   saveTeacherWeeklySlot,
   updateTeacherWeeklySlot,
   deleteTeacherWeeklySlot,
@@ -166,6 +167,19 @@ export function usePlatformStore({
     }
     return [];
   });
+
+  useEffect(() => {
+    if (!isAuthenticated || currentUser?.role !== 'teacher') return;
+    let active = true;
+    void fetchTeacherWeeklyTimetable(LAUNCH_ACADEMIC_YEAR_ID)
+      .then((slots) => {
+        if (active) setWeeklySchedule(slots as WeeklyScheduleSlot[]);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [currentUser?.role, isAuthenticated]);
 
   const [lessonPlans, setLessonPlans] = useState<LessonPlan[]>(() => {
     if (!currentUser?.id) return [];

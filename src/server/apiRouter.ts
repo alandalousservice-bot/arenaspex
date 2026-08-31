@@ -28,8 +28,9 @@ import { providerIsUsable } from './generationAccess.policy.js';
 import { teacherAttendanceRouter } from './attendanceRouter.js';
 import { findActiveMedicalExemption } from './medicalExemption.service.js';
 import {
-  buildClassPlannedSessionSeeds,
   buildClassPlannedSessionSeedsFromCanonicalSessions,
+  canonicalPlanningSessions,
+  materializeClassPlannedSessionSeedsFromTimetable,
   canonicalReferenceSessions,
   effectivePlanningObjective,
   generateAllPrimaryLevelDistributions,
@@ -280,21 +281,24 @@ apiRouter.delete('/teacher/weekly-timetable/:slotId', requireRole('teacher'), as
   res.json({ success: true });
 });
 
-function classPlannedSessionView(row: {
-  id: string;
-  teacherId: string;
-  classId: string;
-  academicYearId: string;
-  referenceSessionId: string;
-  plannedDate: Date;
-  durationMinutes: number;
-  status: string;
-  startTime: string | null;
-  venue: string | null;
-  operationalNote: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
+function classPlannedSessionView(
+  row: {
+    id: string;
+    teacherId: string;
+    classId: string;
+    academicYearId: string;
+    referenceSessionId: string;
+    plannedDate: Date;
+    durationMinutes: number;
+    status: string;
+    startTime: string | null;
+    venue: string | null;
+    operationalNote: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  },
+  timetableSlot?: { startTime: string; endTime: string } | null
+) {
   return {
     id: row.id,
     teacherId: row.teacherId,
@@ -304,12 +308,22 @@ function classPlannedSessionView(row: {
     plannedDate: row.plannedDate.toISOString().slice(0, 10),
     durationMinutes: row.durationMinutes,
     status: row.status,
-    startTime: row.startTime,
+    startTime: row.startTime || timetableSlot?.startTime || null,
+    endTime: timetableSlot?.endTime || null,
     venue: row.venue,
     operationalNote: row.operationalNote,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+function timetableSlotForSession(
+  row: { plannedDate: Date; startTime: string | null },
+  slots: Array<{ weekday: number; startTime: string; endTime: string }>
+) {
+  const weekday = row.plannedDate.getUTCDay();
+  const sameDay = slots.filter((slot) => slot.weekday === weekday);
+  return sameDay.find((slot) => slot.startTime === row.startTime) || sameDay[0] || null;
 }
 
 async function resolvePlanningReferences(
@@ -598,6 +612,13 @@ apiRouter.get('/teacher/planning/sessions', requireRole('teacher'), async (req, 
     parsed.data.academicYearId
   );
   const classesById = new Map(classes.map((classRecord) => [classRecord.id, classRecord] as const));
+  const timetableSlots = await weeklySlotsForTeacher(req.user!.id, parsed.data.academicYearId);
+  const timetableSlotsByClass = new Map<string, typeof timetableSlots>();
+  for (const slot of timetableSlots) {
+    const current = timetableSlotsByClass.get(slot.classId) || [];
+    current.push(slot);
+    timetableSlotsByClass.set(slot.classId, current);
+  }
   const rows = await prisma.classPlannedSession.findMany({
     where: {
       teacherId: req.user!.id,
@@ -610,7 +631,10 @@ apiRouter.get('/teacher/planning/sessions', requireRole('teacher'), async (req, 
     success: true,
     classes,
     sessions: rows.map((row) => ({
-      ...classPlannedSessionView(row),
+      ...classPlannedSessionView(
+        row,
+        timetableSlotForSession(row, timetableSlotsByClass.get(row.classId) || [])
+      ),
       reference:
         referenceByLevel
           .get(classesById.get(row.classId)?.levelId || '')
@@ -629,6 +653,7 @@ apiRouter.get(
       where: { id: req.params.classId, teacherId: req.user!.id },
     });
     if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+    const timetableSlots = await weeklySlotsForTeacher(req.user!.id, parsed.data.academicYearId);
     const rows = await prisma.classPlannedSession.findMany({
       where: {
         classId: classRecord.id,
@@ -651,7 +676,7 @@ apiRouter.get(
         institutionId: classRecord.institutionId,
       },
       sessions: rows.map((row) => ({
-        ...classPlannedSessionView(row),
+        ...classPlannedSessionView(row, timetableSlotForSession(row, timetableSlots)),
         reference: references.get(row.referenceSessionId) || null,
       })),
     });
@@ -748,21 +773,49 @@ apiRouter.post(
       existingRows.map((row) => [`${row.classId}|${row.referenceSessionId}`, row] as const)
     );
     const classLinks = classLinkViews(classes, generation.levels);
+    const timetableSlots = await weeklySlotsForTeacher(req.user!.id, academicYearId);
+    const timetableSlotsByClass = new Map<string, typeof timetableSlots>();
+    for (const slot of timetableSlots) {
+      const current = timetableSlotsByClass.get(slot.classId) || [];
+      current.push(slot);
+      timetableSlotsByClass.set(slot.classId, current);
+    }
     const seedsByClass = new Map<
       string,
       ReturnType<typeof buildClassPlannedSessionSeedsFromCanonicalSessions>
     >();
+    const materializationErrors: Array<{ classId: string; className: string; error: string }> = [];
     for (const link of classLinks.filter((item) => item.status === 'linked')) {
       const distribution = distributionsByLevel.get(link.normalizedLevelId!);
-      seedsByClass.set(
+      const materialized = materializeClassPlannedSessionSeedsFromTimetable(
+        req.user!.id,
         link.classId,
-        buildClassPlannedSessionSeedsFromCanonicalSessions(
-          req.user!.id,
-          link.classId,
-          academicYearId,
-          distribution!.sessions
-        )
+        academicYearId,
+        distribution!.sessions,
+        timetableSlotsByClass.get(link.classId) || []
       );
+      if (materialized.error) {
+        materializationErrors.push({
+          classId: link.classId,
+          className: link.className,
+          error: materialized.error,
+        });
+      } else {
+        seedsByClass.set(link.classId, materialized.seeds);
+      }
+    }
+    if (materializationErrors.length) {
+      return res.status(400).json({
+        error: 'اضبط التوقيت الأسبوعي لكل قسم قبل إنشاء حصص الكراس اليومي.',
+        academicYearId,
+        planningStartDate,
+        endDate: generation.endDate,
+        levels,
+        classes: classLinks,
+        missingSchedule: materializationErrors,
+        linkedClasses: classLinks.filter((link) => link.status === 'linked').length,
+        createdOrUpdatedSessions: 0,
+      });
     }
     const dependencyIds = await executionDependencyIds(
       req.user!.id,
@@ -830,11 +883,15 @@ apiRouter.post(
                   plannedDate: seed.plannedDate,
                   durationMinutes: seed.durationMinutes,
                   status: seed.status,
-                  startTime: null,
+                  startTime: seed.startTime,
                   venue: null,
                   operationalNote: null,
                 }
-              : { plannedDate: seed.plannedDate, durationMinutes: seed.durationMinutes };
+              : {
+                  plannedDate: seed.plannedDate,
+                  durationMinutes: seed.durationMinutes,
+                  startTime: seed.startTime,
+                };
           return [prisma.classPlannedSession.update({ where: { id: existing.id }, data })];
         }
         return [prisma.classPlannedSession.create({ data: seed })];
@@ -950,6 +1007,14 @@ apiRouter.patch(
     const existingByClassReference = new Map(
       existingRows.map((row) => [`${row.classId}|${row.referenceSessionId}`, row] as const)
     );
+    const timetableSlots = await weeklySlotsForTeacher(req.user!.id, academicYearId);
+    const timetableSlotsByClass = new Map<string, typeof timetableSlots>();
+    for (const slot of timetableSlots) {
+      const current = timetableSlotsByClass.get(slot.classId) || [];
+      current.push(slot);
+      timetableSlotsByClass.set(slot.classId, current);
+    }
+    const materializationErrors: Array<{ classId: string; className: string; error: string }> = [];
     const dependencyIds = await executionDependencyIds(
       req.user!.id,
       existingRows.map((row) => row.id)
@@ -964,14 +1029,34 @@ apiRouter.patch(
     }> = [];
     const seedsByClass = matchingClasses.map((classRecord) => ({
       classRecord,
-      seeds: buildClassPlannedSessionSeedsFromCanonicalSessions(
+      materialized: materializeClassPlannedSessionSeedsFromTimetable(
         req.user!.id,
         classRecord.id,
         academicYearId,
-        effectiveLevel.sessions
+        effectiveLevel.sessions,
+        timetableSlotsByClass.get(classRecord.id) || []
       ),
     }));
-    for (const { classRecord, seeds } of seedsByClass) {
+    for (const { classRecord, materialized } of seedsByClass) {
+      if (materialized.error) {
+        materializationErrors.push({
+          classId: classRecord.id,
+          className: classRecord.name,
+          error: materialized.error,
+        });
+      }
+    }
+    if (materializationErrors.length) {
+      return res.status(400).json({
+        error: 'اضبط التوقيت الأسبوعي لكل قسم قبل مزامنة التوزيع.',
+        missingSchedule: materializationErrors,
+      });
+    }
+    const materializedSeedsByClass = seedsByClass.map(({ classRecord, materialized }) => ({
+      classRecord,
+      seeds: materialized.seeds,
+    }));
+    for (const { classRecord, seeds } of materializedSeedsByClass) {
       for (const seed of seeds) {
         const existing = existingByClassReference.get(
           `${classRecord.id}|${seed.referenceSessionId}`
@@ -1003,7 +1088,7 @@ apiRouter.patch(
       });
     }
 
-    const operations = seedsByClass.flatMap(({ classRecord, seeds }) =>
+    const operations = materializedSeedsByClass.flatMap(({ classRecord, seeds }) =>
       seeds.flatMap((seed) => {
         const existing = existingByClassReference.get(
           `${classRecord.id}|${seed.referenceSessionId}`
@@ -1025,7 +1110,7 @@ apiRouter.patch(
                 ...(isPreLaunchAcademicYear(academicYearId) && !dependencyIds.has(existing.id)
                   ? {
                       status: seed.status,
-                      startTime: null,
+                      startTime: seed.startTime,
                       venue: null,
                       operationalNote: null,
                     }
@@ -1092,15 +1177,23 @@ apiRouter.post(
       where: { id: req.params.classId, teacherId: req.user!.id },
     });
     if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+    const timetableSlots = await weeklySlotsForTeacher(req.user!.id, parsed.data.academicYearId);
     let seeds;
     try {
-      seeds = buildClassPlannedSessionSeeds(
+      const canonicalSessions = canonicalPlanningSessions(
+        classRecord.levelId,
+        parsed.data.planningStartDate,
+        parsed.data.academicYearId
+      );
+      const materialized = materializeClassPlannedSessionSeedsFromTimetable(
         req.user!.id,
         classRecord.id,
         parsed.data.academicYearId,
-        classRecord.levelId,
-        parsed.data.planningStartDate
+        canonicalSessions,
+        timetableSlots.filter((slot) => slot.classId === classRecord.id)
       );
+      if (materialized.error) return res.status(400).json({ error: materialized.error });
+      seeds = materialized.seeds;
     } catch (error) {
       return res.status(400).json({
         error:
@@ -1110,7 +1203,9 @@ apiRouter.post(
       });
     }
     if (!seeds.length)
-      return res.status(400).json({ error: 'تعذر إنشاء تسلسل المنهاج لهذا المستوى.' });
+      return res.status(400).json({
+        error: 'اضبط التوقيت الأسبوعي للقسم قبل إنشاء حصص الكراس اليومي.',
+      });
     const existingRows = await prisma.classPlannedSession.findMany({
       where: {
         classId: classRecord.id,
@@ -1139,7 +1234,11 @@ apiRouter.post(
         return existing
           ? prisma.classPlannedSession.update({
               where: { id: existing.id },
-              data: { plannedDate: seed.plannedDate, durationMinutes: seed.durationMinutes },
+              data: {
+                plannedDate: seed.plannedDate,
+                durationMinutes: seed.durationMinutes,
+                startTime: seed.startTime,
+              },
             })
           : prisma.classPlannedSession.create({ data: seed });
       })
@@ -1167,7 +1266,7 @@ apiRouter.post(
         institutionId: classRecord.institutionId,
       },
       sessions: rows.map((row) => ({
-        ...classPlannedSessionView(row),
+        ...classPlannedSessionView(row, timetableSlotForSession(row, timetableSlots)),
         reference: references.get(row.referenceSessionId) || null,
       })),
     });
@@ -1185,6 +1284,7 @@ apiRouter.patch(
       where: { id: req.params.sessionId, classId: req.params.classId, teacherId: req.user!.id },
     });
     if (!existing) return res.status(404).json({ error: 'الحصة التشغيلية غير موجودة ضمن أقسامك.' });
+    const timetableSlots = await weeklySlotsForTeacher(req.user!.id, existing.academicYearId);
     if (parsed.data.plannedDate) {
       if (
         existing.status === 'منجزة' &&
@@ -1212,7 +1312,10 @@ apiRouter.patch(
       data.operationalNote = parsed.data.operationalNote;
     if (parsed.data.status !== undefined) data.status = parsed.data.status;
     const saved = await prisma.classPlannedSession.update({ where: { id: existing.id }, data });
-    res.json({ success: true, session: classPlannedSessionView(saved) });
+    res.json({
+      success: true,
+      session: classPlannedSessionView(saved, timetableSlotForSession(saved, timetableSlots)),
+    });
   }
 );
 

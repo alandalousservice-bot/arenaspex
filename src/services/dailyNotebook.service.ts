@@ -45,6 +45,7 @@ export interface DailyNotebookSessionDto {
   section: string | null;
   durationMinutes: number;
   startTime: string | null;
+  endTime: string | null;
   venue: string | null;
   status: DailyNotebookStatus;
   executionNote: string | null;
@@ -78,6 +79,7 @@ export function toDailyNotebookSessionDto(
     section: details.section ?? null,
     durationMinutes: session.durationMinutes,
     startTime: session.startTime,
+    endTime: session.endTime ?? null,
     venue: session.venue,
     status: session.status,
     executionNote: details.executionNote ?? null,
@@ -158,7 +160,9 @@ export function filterPlanningSessions(
     : sessions.filter((session) => session.classId === classFilter);
 }
 
-export function earliestPlanningDate(sessions: TeacherPlanningSession[]): string | null {
+export function earliestPlanningDate(
+  sessions: Array<Pick<TeacherPlanningSession, 'plannedDate'>>
+): string | null {
   return sessions.reduce<string | null>(
     (earliest, session) =>
       !earliest || session.plannedDate < earliest ? session.plannedDate : earliest,
@@ -340,6 +344,7 @@ export function normalizePlanningSession(value: unknown): TeacherPlanningSession
     durationMinutes,
     status: status as TeacherPlanningSession['status'],
     startTime: nullableString(value.startTime),
+    endTime: nullableString(value.endTime),
     venue: nullableString(value.venue),
     operationalNote: nullableString(value.operationalNote),
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : '',
