@@ -51,6 +51,8 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(view).toContain('createOperationalMemo(session.id)');
     expect(view).toContain('openOperationalMemo(session, memo)');
     expect(view).toContain('setSelectedId(memo.id)');
+    expect(view).toContain('setActiveLessonPlanId(memo.id)');
+    expect(view).toContain("setScreenMode('saved')");
     expect(view).toContain('setShowGenerator(false)');
     expect(view).toContain('تعذر فتح المذكرة المحفوظة. أعد تحميل البيانات وحاول مرة أخرى.');
     expect(view).not.toContain(
@@ -127,5 +129,24 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(view).toContain(
       'classPlannedSessionId=${encodeURIComponent(scheduledContext.session.id)}'
     );
+  });
+
+  it('keeps the saved viewer stable during refresh and closes only explicitly', () => {
+    const view = read('src/components/lesson/LessonPlanView.tsx');
+
+    expect(view).toContain(
+      "const [screenMode, setScreenMode] = useState<'list' | 'generator' | 'saved'>"
+    );
+    expect(view).toContain('const [activeLessonPlanId, setActiveLessonPlanId]');
+    expect(view).toContain('const [deepLinkDismissed, setDeepLinkDismissed]');
+    expect(view).toContain('activeLessonPlanForContext || existingOperationalMemo');
+    expect(view).toContain('const closeSavedMemo = () => {');
+    expect(view).toContain("setScreenMode('list')");
+    expect(view).toContain("screenMode !== 'saved' && plannedSessionsList");
+    expect(view).toContain(
+      'if (deepLinkDismissed || !requestedSessionId || !operationalSession) return;'
+    );
+    expect(view).toContain('setActiveLessonPlanId(requestedMemo.id)');
+    expect(view).toContain('تعذر تحميل المذكرة المحفوظة. أعد تحميل البيانات وحاول مرة أخرى.');
   });
 });

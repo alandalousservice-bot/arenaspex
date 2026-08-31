@@ -153,6 +153,12 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [generationError, setGenerationError] = useState('');
   const [draft, setDraft] = useState<LessonPlan | null>(null);
   const [memoMode, setMemoMode] = useState<LessonMemoMode>('operational');
+  const [screenMode, setScreenMode] = useState<'list' | 'generator' | 'saved'>(
+    activeLessonId ? 'saved' : 'list'
+  );
+  const [activeLessonPlanId, setActiveLessonPlanId] = useState(activeLessonId || '');
+  const [generatorReturnMode, setGeneratorReturnMode] = useState<'list' | 'saved'>('list');
+  const [deepLinkDismissed, setDeepLinkDismissed] = useState(false);
   const [operationalClassId, setOperationalClassId] = useState(
     requestedClassId || teacherClasses[0]?.id || ''
   );
@@ -184,6 +190,16 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const existingOperationalMemo = scheduledContext
     ? findOperationalLessonPlan(lessonPlans, scheduledContext.session, currentUser?.id || '')
     : undefined;
+  const activeLessonPlan = lessonPlans.find((plan) => plan.id === activeLessonPlanId);
+  const activeLessonPlanForContext =
+    scheduledMode && operationalSession
+      ? activeLessonPlan?.teacherId === currentUser?.id &&
+        activeLessonPlan.classId === operationalSession.classId &&
+        activeLessonPlan.academicYearId === operationalSession.academicYearId &&
+        activeLessonPlan.classPlannedSessionId === operationalSession.id
+        ? activeLessonPlan
+        : undefined
+      : activeLessonPlan;
   const sessions = useMemo(() => sessionsForLevel(levelName), [levelName]);
   const generatorSessions = useMemo<SourceSession[]>(
     () =>
@@ -234,18 +250,39 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     [memoMode, scheduledContext, scheduledLessons]
   );
   const selected = scheduledMode
-    ? existingOperationalMemo
-    : lessonPlans.find((plan) => plan.id === selectedId) || lessonPlans[0];
+    ? screenMode === 'saved'
+      ? activeLessonPlanForContext || existingOperationalMemo
+      : undefined
+    : activeLessonPlanForContext ||
+      lessonPlans.find((plan) => plan.id === selectedId) ||
+      lessonPlans[0];
 
   useEffect(() => {
     setSessionIndex(0);
   }, [levelName]);
   useEffect(() => {
-    if (activeLessonId) setSelectedId(activeLessonId);
+    if (activeLessonId) {
+      setSelectedId(activeLessonId);
+      setActiveLessonPlanId(activeLessonId);
+      setScreenMode('saved');
+    }
   }, [activeLessonId]);
   useEffect(() => {
     if (!operationalClassId && teacherClasses[0]) setOperationalClassId(teacherClasses[0].id);
   }, [operationalClassId, teacherClasses]);
+
+  useEffect(() => {
+    if (deepLinkDismissed || !requestedSessionId || !operationalSession) return;
+    const requestedMemo = findOperationalLessonPlan(
+      lessonPlans,
+      operationalSession,
+      currentUser?.id || ''
+    );
+    if (!requestedMemo) return;
+    setSelectedId(requestedMemo.id);
+    setActiveLessonPlanId(requestedMemo.id);
+    setScreenMode('saved');
+  }, [currentUser?.id, deepLinkDismissed, lessonPlans, operationalSession, requestedSessionId]);
 
   useEffect(() => {
     const shouldLoad =
@@ -365,6 +402,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       }
       if (existingOperationalMemo) {
         setSelectedId(existingOperationalMemo.id);
+        setActiveLessonPlanId(existingOperationalMemo.id);
+        setScreenMode('saved');
         setShowGenerator(false);
         setGenerationError('');
         return;
@@ -398,6 +437,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       if (!plan.lessonRows?.length) throw new Error('empty memo');
       onSaveLessonPlan(plan);
       setSelectedId(plan.id);
+      setActiveLessonPlanId(plan.id);
+      setScreenMode('saved');
       setGenerationError('');
       setShowGenerator(false);
     } catch {
@@ -436,6 +477,14 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     setDraft(null);
   };
 
+  const closeSavedMemo = () => {
+    setEditing(false);
+    setDraft(null);
+    setActiveLessonPlanId('');
+    setDeepLinkDismissed(true);
+    setScreenMode('list');
+  };
+
   const generatorModal = showGenerator ? (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
       <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
@@ -443,7 +492,13 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           <h3 className="font-extrabold">
             {memoMode === 'operational' ? 'مذكرة حصة مبرمجة' : 'مذكرة مستقلة'}
           </h3>
-          <button onClick={() => setShowGenerator(false)} aria-label="إغلاق">
+          <button
+            onClick={() => {
+              setShowGenerator(false);
+              setScreenMode(generatorReturnMode);
+            }}
+            aria-label="إغلاق"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -477,6 +532,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               onChange={(event) => {
                 setOperationalClassId(event.target.value);
                 setOperationalSessionId('');
+                closeSavedMemo();
               }}
               className="mb-3 w-full rounded-xl border p-2"
             >
@@ -494,6 +550,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               onChange={(event) => {
                 setOperationalAcademicYearId(event.target.value);
                 setOperationalSessionId('');
+                closeSavedMemo();
               }}
               className="mb-3 w-full rounded-xl border p-2"
             >
@@ -647,6 +704,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const createOperationalMemo = (sessionId: string) => {
     selectOperationalSession(sessionId);
     setMemoMode('operational');
+    setGeneratorReturnMode('list');
+    setScreenMode('generator');
     setShowGenerator(true);
   };
   const openOperationalMemo = (session: TeacherPlanningSession, memo?: LessonPlan) => {
@@ -656,8 +715,18 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     }
     selectOperationalSession(session.id);
     setSelectedId(memo.id);
+    setActiveLessonPlanId(memo.id);
+    setDeepLinkDismissed(false);
     setMemoMode('operational');
+    setScreenMode('saved');
     setShowGenerator(false);
+  };
+  const openGenerator = (mode: LessonMemoMode, returnMode: 'list' | 'saved') => {
+    setMemoMode(mode);
+    setGeneratorReturnMode(returnMode);
+    setScreenMode('generator');
+    setGenerationError('');
+    setShowGenerator(true);
   };
   const workspaceHeader = (
     <header className="workspace-header lesson-memo-workspace-header flex flex-col gap-4 rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs xl:flex-row xl:items-end xl:justify-between">
@@ -686,6 +755,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               setOperationalClassId(event.target.value);
               setOperationalSessionId('');
               setScheduledError('');
+              closeSavedMemo();
             }}
             className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold"
           >
@@ -707,6 +777,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               setOperationalAcademicYearId(event.target.value);
               setOperationalSessionId('');
               setScheduledError('');
+              closeSavedMemo();
             }}
             className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold"
           >
@@ -854,7 +925,22 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     return (
       <div className="space-y-5">
         {workspaceHeader}
-        {plannedSessionsList}
+        {screenMode !== 'saved' && plannedSessionsList}
+        {screenMode === 'saved' && (
+          <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+            تعذر تحميل المذكرة المحفوظة. أعد تحميل البيانات وحاول مرة أخرى.
+            <button
+              type="button"
+              onClick={() => {
+                setActiveLessonPlanId('');
+                setScreenMode('list');
+              }}
+              className="mr-3 rounded-lg border border-amber-300 bg-white px-3 py-1 text-xs font-bold text-amber-900"
+            >
+              العودة إلى الحصص
+            </button>
+          </div>
+        )}
         {generatorModal}
       </div>
     );
@@ -942,7 +1028,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   return (
     <div className="space-y-5" dir="rtl">
       {workspaceHeader}
-      {plannedSessionsList}
+      {screenMode !== 'saved' && plannedSessionsList}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-5">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-extrabold text-slate-900">
@@ -961,11 +1047,18 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           </span>
         </div>
         <div className="flex flex-wrap gap-2">
+          {screenMode === 'saved' && (
+            <button
+              type="button"
+              onClick={closeSavedMemo}
+              className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
+            >
+              العودة إلى الحصص
+            </button>
+          )}
           <button
             onClick={() => {
-              setMemoMode('operational');
-              setGenerationError('');
-              setShowGenerator(true);
+              openGenerator('operational', 'saved');
             }}
             className="flex items-center gap-1 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
           >
@@ -975,9 +1068,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           <button
             type="button"
             onClick={() => {
-              setMemoMode('standalone');
-              setGenerationError('');
-              setShowGenerator(true);
+              openGenerator('standalone', 'saved');
             }}
             className="flex items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
           >
