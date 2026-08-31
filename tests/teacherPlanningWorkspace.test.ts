@@ -78,6 +78,19 @@ describe('unified Teacher planning workspace', () => {
     );
   });
 
+  it('surfaces explicit rebuild reconciliation results without changing planning data', () => {
+    const calendar = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
+    const api = read('src/services/api.ts');
+    expect(calendar).toContain("rebuildStatus === 'partial'");
+    expect(calendar).toContain('sessionsCreated');
+    expect(calendar).toContain('sessionsReconciled');
+    expect(calendar).toContain('sessionsProtected');
+    expect(calendar).toContain('sessionsRemovedOrRetired');
+    expect(api).toContain("status?: 'rebuilt' | 'partial' | 'blocked' | 'unchanged'");
+    expect(api).toContain('missingTimetableClasses');
+    expect(api).toContain('orphaned-generated-session');
+  });
+
   it('builds calendar slides from the authoritative academic calendar', () => {
     const slides = buildAcademicCalendarSlides('2026-2027');
     expect(

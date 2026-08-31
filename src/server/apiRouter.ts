@@ -755,6 +755,15 @@ apiRouter.post(
         classes: [],
         linkedClasses: 0,
         createdOrUpdatedSessions: 0,
+        status: 'blocked',
+        classesProcessed: 0,
+        sessionsCreated: 0,
+        sessionsReconciled: 0,
+        sessionsUnchanged: 0,
+        sessionsProtected: 0,
+        sessionsRemovedOrRetired: 0,
+        missingTimetableClasses: [],
+        conflicts: [],
       });
     }
 
@@ -813,8 +822,17 @@ apiRouter.post(
         levels,
         classes: classLinks,
         missingSchedule: materializationErrors,
+        missingTimetableClasses: materializationErrors,
         linkedClasses: classLinks.filter((link) => link.status === 'linked').length,
         createdOrUpdatedSessions: 0,
+        status: 'blocked',
+        classesProcessed: 0,
+        sessionsCreated: 0,
+        sessionsReconciled: 0,
+        sessionsUnchanged: 0,
+        sessionsProtected: 0,
+        sessionsRemovedOrRetired: 0,
+        conflicts: [],
       });
     }
     const dependencyIds = await executionDependencyIds(
@@ -826,9 +844,14 @@ apiRouter.post(
       className: string;
       referenceSessionId: string;
       existingDate: string;
-      requestedDate: string;
-      reason: 'execution-dependency' | 'completed-session';
+      requestedDate: string | null;
+      reason: 'execution-dependency' | 'completed-session' | 'orphaned-generated-session';
     }>;
+    let sessionsCreated = 0;
+    let sessionsReconciled = 0;
+    let sessionsUnchanged = 0;
+    let sessionsProtected = 0;
+    let sessionsRemovedOrRetired = 0;
     for (const link of classLinks.filter((item) => item.status === 'linked')) {
       for (const seed of seedsByClass.get(link.classId) || []) {
         const existing = existingByClassReference.get(`${link.classId}|${seed.referenceSessionId}`);
@@ -839,6 +862,7 @@ apiRouter.post(
           preLaunchRebuild
         );
         if (decision === 'conflict' && existing) {
+          sessionsProtected += 1;
           conflicts.push({
             classId: link.classId,
             className: link.className,
@@ -850,6 +874,39 @@ apiRouter.post(
         }
       }
     }
+    const linkedClassIds = new Set(
+      classLinks.filter((item) => item.status === 'linked').map((item) => item.classId)
+    );
+    const classNameById = new Map(
+      classLinks.map((item) => [item.classId, item.className] as const)
+    );
+    const seedKeys = new Set(
+      [...seedsByClass.entries()].flatMap(([classId, seeds]) =>
+        seeds.map((seed) => `${classId}|${seed.referenceSessionId}`)
+      )
+    );
+    const orphanRows = existingRows.filter(
+      (row) =>
+        linkedClassIds.has(row.classId) && !seedKeys.has(`${row.classId}|${row.referenceSessionId}`)
+    );
+    const orphanOperations = orphanRows.flatMap((row) => {
+      const isProtected = row.status === 'منجزة' || dependencyIds.has(row.id);
+      if (isProtected) {
+        sessionsProtected += 1;
+        conflicts.push({
+          classId: row.classId,
+          className: classNameById.get(row.classId) || row.classId,
+          referenceSessionId: row.referenceSessionId,
+          existingDate: row.plannedDate.toISOString().slice(0, 10),
+          requestedDate: null,
+          reason: dependencyIds.has(row.id) ? 'execution-dependency' : 'orphaned-generated-session',
+        });
+        return [];
+      }
+      if (!preLaunchRebuild) return [];
+      sessionsRemovedOrRetired += 1;
+      return [prisma.classPlannedSession.delete({ where: { id: row.id } })];
+    });
     const operations = [...seedsByClass.entries()].flatMap(([classId, seeds]) =>
       seeds.flatMap((seed) => {
         const existing = existingByClassReference.get(`${classId}|${seed.referenceSessionId}`);
@@ -860,8 +917,12 @@ apiRouter.post(
           preLaunchRebuild
         );
         if (decision === 'conflict') return [];
-        if (decision === 'preserve') return [];
+        if (decision === 'preserve') {
+          sessionsUnchanged += 1;
+          return [];
+        }
         if (decision === 'update' && existing) {
+          sessionsReconciled += 1;
           const data =
             preLaunchRebuild && !dependencyIds.has(existing.id)
               ? {
@@ -879,13 +940,20 @@ apiRouter.post(
                 };
           return [prisma.classPlannedSession.update({ where: { id: existing.id }, data })];
         }
+        sessionsCreated += 1;
         return [prisma.classPlannedSession.create({ data: seed })];
       })
     );
+    const allOperations = [...operations, ...orphanOperations];
+    const linkedClasses = classLinks.filter((link) => link.status === 'linked').length;
+    const createdOrUpdatedSessions = sessionsCreated + sessionsReconciled;
     if (conflicts.length) {
       // A protected row must not block safe pre-launch reconciliation of the
       // remaining generated rows. Protected rows are reported unchanged.
-      if (preLaunchRebuild && operations.length) await prisma.$transaction(operations);
+      if (preLaunchRebuild && allOperations.length) await prisma.$transaction(allOperations);
+      const appliedCreated = preLaunchRebuild ? sessionsCreated : 0;
+      const appliedReconciled = preLaunchRebuild ? sessionsReconciled : 0;
+      const appliedRemoved = preLaunchRebuild ? sessionsRemovedOrRetired : 0;
       return res.status(409).json({
         error: `تعذر إعادة بناء التوزيع بسبب حصص محمية في: ${[
           ...new Set(conflicts.map((item) => item.className)),
@@ -896,9 +964,17 @@ apiRouter.post(
         levels,
         classes: classLinks,
         conflicts,
-        reconciledSessions: preLaunchRebuild ? operations.length : 0,
-        linkedClasses: classLinks.filter((link) => link.status === 'linked').length,
-        createdOrUpdatedSessions: preLaunchRebuild ? operations.length : 0,
+        status: preLaunchRebuild && allOperations.length ? 'partial' : 'blocked',
+        classesProcessed: linkedClasses,
+        sessionsCreated: appliedCreated,
+        sessionsReconciled: appliedReconciled,
+        sessionsUnchanged,
+        sessionsProtected,
+        sessionsRemovedOrRetired: appliedRemoved,
+        missingTimetableClasses: [],
+        reconciledSessions: appliedReconciled,
+        linkedClasses,
+        createdOrUpdatedSessions: appliedCreated + appliedReconciled,
       });
     }
     const distributionRecords = generation.levels.map((level) =>
@@ -926,7 +1002,7 @@ apiRouter.post(
         },
       })
     );
-    await prisma.$transaction([...distributionRecords, ...operations]);
+    await prisma.$transaction([...distributionRecords, ...allOperations]);
 
     res.status(201).json({
       success: true,
@@ -935,8 +1011,17 @@ apiRouter.post(
       endDate: generation.endDate,
       levels,
       classes: classLinks,
-      linkedClasses: classLinks.filter((link) => link.status === 'linked').length,
-      createdOrUpdatedSessions: operations.length,
+      status: allOperations.length ? 'rebuilt' : 'unchanged',
+      classesProcessed: linkedClasses,
+      sessionsCreated,
+      sessionsReconciled,
+      sessionsUnchanged,
+      sessionsProtected: 0,
+      sessionsRemovedOrRetired,
+      missingTimetableClasses: [],
+      conflicts: [],
+      linkedClasses,
+      createdOrUpdatedSessions,
     });
   }
 );

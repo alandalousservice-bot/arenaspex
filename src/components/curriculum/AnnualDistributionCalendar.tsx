@@ -295,6 +295,17 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
     selectedLevelId ||
     '—';
   const teacherName = `${currentUser.firstName} ${currentUser.lastName}`.trim();
+  const rebuildStatus = annualGeneration?.status;
+  const rebuildStatusLabel =
+    rebuildStatus === 'rebuilt'
+      ? 'اكتملت إعادة البناء'
+      : rebuildStatus === 'partial'
+        ? 'اكتملت المصالحة الجزئية مع بقاء صفوف محمية'
+        : rebuildStatus === 'blocked'
+          ? 'توقفت إعادة البناء بسبب تعارضات محمية'
+          : rebuildStatus === 'unchanged'
+            ? 'التوزيع متزامن ولا يحتاج إلى تغيير'
+            : null;
 
   return (
     <section
@@ -377,12 +388,31 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
                 {annualGeneration.linkedClasses}
               </p>
             </div>
-            <span className="text-xs font-bold text-emerald-700">
-              {annualGeneration.levels.some((level) => level.status === 'failed')
-                ? 'تعذر توليد بعض المستويات'
-                : 'تم التوليد للمستويات الخمسة'}
+            <span
+              className={`text-xs font-bold ${
+                rebuildStatus === 'blocked' || rebuildStatus === 'partial'
+                  ? 'text-amber-700'
+                  : 'text-emerald-700'
+              }`}
+            >
+              {rebuildStatusLabel ||
+                (annualGeneration.levels.some((level) => level.status === 'failed')
+                  ? 'تعذر توليد بعض المستويات'
+                  : 'تم التوليد للمستويات الخمسة')}
             </span>
           </div>
+          {rebuildStatus && (
+            <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+              <p className="font-bold">{rebuildStatusLabel}</p>
+              <p className="mt-1">
+                أُنشئت {annualGeneration.sessionsCreated || 0} · صُححت{' '}
+                {annualGeneration.sessionsReconciled || annualGeneration.reconciledSessions || 0} ·
+                دون تغيير {annualGeneration.sessionsUnchanged || 0} · محمية{' '}
+                {annualGeneration.sessionsProtected || 0} · أزيلت أو أحيلت للتقاعد{' '}
+                {annualGeneration.sessionsRemovedOrRetired || 0}.
+              </p>
+            </div>
+          )}
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             {annualGeneration.levels.map((level) => (
               <div

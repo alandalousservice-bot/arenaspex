@@ -746,6 +746,7 @@ export interface TeacherAnnualClassLinkSummary {
 
 export interface TeacherAnnualDistributionResponse {
   success: boolean;
+  status?: 'rebuilt' | 'partial' | 'blocked' | 'unchanged';
   academicYearId: string;
   planningStartDate: string;
   endDate: string;
@@ -754,6 +755,13 @@ export interface TeacherAnnualDistributionResponse {
   linkedClasses: number;
   createdOrUpdatedSessions: number;
   reconciledSessions?: number;
+  classesProcessed?: number;
+  sessionsCreated?: number;
+  sessionsReconciled?: number;
+  sessionsUnchanged?: number;
+  sessionsProtected?: number;
+  sessionsRemovedOrRetired?: number;
+  missingTimetableClasses?: Array<{ classId: string; className: string; error?: string }>;
   conflicts?: TeacherAnnualDistributionConflict[];
 }
 
@@ -762,8 +770,8 @@ export interface TeacherAnnualDistributionConflict {
   className: string;
   referenceSessionId: string;
   existingDate: string;
-  requestedDate: string;
-  reason: 'execution-dependency' | 'completed-session';
+  requestedDate: string | null;
+  reason: 'execution-dependency' | 'completed-session' | 'orphaned-generated-session';
 }
 
 export async function fetchTeacherAnnualDistribution(
@@ -810,6 +818,7 @@ export async function initializeTeacherAnnualDistribution(
     if (Array.isArray(data.levels)) {
       error.annualDistribution = {
         success: false,
+        status: data.status || 'blocked',
         academicYearId,
         planningStartDate,
         endDate: data.endDate || '',
@@ -818,6 +827,13 @@ export async function initializeTeacherAnnualDistribution(
         linkedClasses: data.linkedClasses || 0,
         createdOrUpdatedSessions: data.createdOrUpdatedSessions || 0,
         reconciledSessions: data.reconciledSessions || 0,
+        classesProcessed: data.classesProcessed || 0,
+        sessionsCreated: data.sessionsCreated || 0,
+        sessionsReconciled: data.sessionsReconciled || 0,
+        sessionsUnchanged: data.sessionsUnchanged || 0,
+        sessionsProtected: data.sessionsProtected || 0,
+        sessionsRemovedOrRetired: data.sessionsRemovedOrRetired || 0,
+        missingTimetableClasses: data.missingTimetableClasses || [],
         conflicts: data.conflicts || [],
       };
     }

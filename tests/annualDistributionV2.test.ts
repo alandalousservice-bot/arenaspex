@@ -204,6 +204,7 @@ describe('academic-year annual distribution generation v2', () => {
     expect(globalRoute).toContain('executionDependencyIds');
     expect(globalRoute).toContain('prisma.studentClass.findMany');
     expect(globalRoute).not.toContain('prisma.studentClass.create');
+    expect(globalRoute).toContain('materializationErrors');
     expect(router).toContain("'/teacher/planning/annual-distribution'");
     expect(router).toContain('ANNUAL_DISTRIBUTION_KIND');
   });
@@ -214,14 +215,23 @@ describe('academic-year annual distribution generation v2', () => {
     expect(router).toContain('executionDependencyIds');
     expect(router).toContain('preLaunchRebuild');
     expect(router).toContain('res.status(409)');
-    expect(router).toContain('prisma.$transaction([...distributionRecords, ...operations])');
+    expect(router).toContain('prisma.$transaction([...distributionRecords, ...allOperations])');
     expect(router).toContain('createdOrUpdatedSessions');
     expect(router).toContain('conflicts');
     expect(router).toContain("if (decision === 'conflict') return [];");
     expect(router).toContain(
-      'if (preLaunchRebuild && operations.length) await prisma.$transaction(operations);'
+      'if (preLaunchRebuild && allOperations.length) await prisma.$transaction(allOperations);'
     );
     expect(router).toContain('reconciledSessions');
+    expect(router).toContain('prisma.classPlannedSession.delete({ where: { id: row.id } })');
+    expect(router).not.toContain('classPlannedSession.deleteMany');
+    expect(router).toContain('sessionsRemovedOrRetired');
+    expect(router).toContain(
+      "status: preLaunchRebuild && allOperations.length ? 'partial' : 'blocked'"
+    );
+    expect(router).toContain("status: allOperations.length ? 'rebuilt' : 'unchanged'");
+    expect(router).toContain('missingTimetableClasses');
+    expect(router).toContain('orphaned-generated-session');
   });
 
   it('recalculates future dates from a changed start date without changing identities', () => {
