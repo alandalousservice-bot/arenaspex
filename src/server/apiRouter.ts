@@ -850,22 +850,6 @@ apiRouter.post(
         }
       }
     }
-    if (conflicts.length) {
-      return res.status(409).json({
-        error: `تعذر إعادة بناء التوزيع بسبب حصص محمية في: ${[
-          ...new Set(conflicts.map((item) => item.className)),
-        ].join('، ')}.`,
-        academicYearId,
-        planningStartDate,
-        endDate: generation.endDate,
-        levels,
-        classes: classLinks,
-        conflicts,
-        linkedClasses: classLinks.filter((link) => link.status === 'linked').length,
-        createdOrUpdatedSessions: 0,
-      });
-    }
-
     const operations = [...seedsByClass.entries()].flatMap(([classId, seeds]) =>
       seeds.flatMap((seed) => {
         const existing = existingByClassReference.get(`${classId}|${seed.referenceSessionId}`);
@@ -875,6 +859,7 @@ apiRouter.post(
           Boolean(existing && dependencyIds.has(existing.id)),
           preLaunchRebuild
         );
+        if (decision === 'conflict') return [];
         if (decision === 'preserve') return [];
         if (decision === 'update' && existing) {
           const data =
@@ -897,6 +882,25 @@ apiRouter.post(
         return [prisma.classPlannedSession.create({ data: seed })];
       })
     );
+    if (conflicts.length) {
+      // A protected row must not block safe pre-launch reconciliation of the
+      // remaining generated rows. Protected rows are reported unchanged.
+      if (preLaunchRebuild && operations.length) await prisma.$transaction(operations);
+      return res.status(409).json({
+        error: `تعذر إعادة بناء التوزيع بسبب حصص محمية في: ${[
+          ...new Set(conflicts.map((item) => item.className)),
+        ].join('، ')}.`,
+        academicYearId,
+        planningStartDate,
+        endDate: generation.endDate,
+        levels,
+        classes: classLinks,
+        conflicts,
+        reconciledSessions: preLaunchRebuild ? operations.length : 0,
+        linkedClasses: classLinks.filter((link) => link.status === 'linked').length,
+        createdOrUpdatedSessions: preLaunchRebuild ? operations.length : 0,
+      });
+    }
     const distributionRecords = generation.levels.map((level) =>
       prisma.annualPlan.upsert({
         where: {

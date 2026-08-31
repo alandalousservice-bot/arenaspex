@@ -753,6 +753,7 @@ export interface TeacherAnnualDistributionResponse {
   classes: TeacherAnnualClassLinkSummary[];
   linkedClasses: number;
   createdOrUpdatedSessions: number;
+  reconciledSessions?: number;
   conflicts?: TeacherAnnualDistributionConflict[];
 }
 
@@ -816,6 +817,7 @@ export async function initializeTeacherAnnualDistribution(
         classes: data.classes || [],
         linkedClasses: data.linkedClasses || 0,
         createdOrUpdatedSessions: data.createdOrUpdatedSessions || 0,
+        reconciledSessions: data.reconciledSessions || 0,
         conflicts: data.conflicts || [],
       };
     }

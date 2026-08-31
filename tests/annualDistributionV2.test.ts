@@ -217,6 +217,11 @@ describe('academic-year annual distribution generation v2', () => {
     expect(router).toContain('prisma.$transaction([...distributionRecords, ...operations])');
     expect(router).toContain('createdOrUpdatedSessions');
     expect(router).toContain('conflicts');
+    expect(router).toContain("if (decision === 'conflict') return [];");
+    expect(router).toContain(
+      'if (preLaunchRebuild && operations.length) await prisma.$transaction(operations);'
+    );
+    expect(router).toContain('reconciledSessions');
   });
 
   it('recalculates future dates from a changed start date without changing identities', () => {

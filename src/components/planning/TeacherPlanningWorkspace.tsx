@@ -239,6 +239,21 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
         if (requestId === sessionsRequestId.current) setSessions(classResult.sessions);
       }
     } catch (reason: unknown) {
+      const annualError = reason as Error & {
+        annualDistribution?: TeacherAnnualDistributionResponse;
+      };
+      if (annualError.annualDistribution) {
+        setAnnualGeneration(annualError.annualDistribution);
+        if (selectedClassId) {
+          const requestId = ++sessionsRequestId.current;
+          const classResult = await fetchTeacherPlanningSessions(
+            selectedClassId,
+            academicYearId
+          ).catch(() => null);
+          if (classResult && requestId === sessionsRequestId.current)
+            setSessions(classResult.sessions);
+        }
+      }
       setError(reason instanceof Error ? reason.message : 'تعذر إنشاء التوزيع.');
     } finally {
       setLoading(false);
