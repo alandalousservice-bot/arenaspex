@@ -57,7 +57,7 @@ describe('Daily Notebook P0 persistence contracts', () => {
       'teacher-1'
     );
     expect(entries).toHaveLength(3);
-    expect(notebook).toContain('entry.classId === selectedClassId');
+    expect(notebook).toContain("(classFilter === 'all' || entry.classId === classFilter)");
     expect(notebook).toContain('entry.academicYearId === academicYearId');
   });
 

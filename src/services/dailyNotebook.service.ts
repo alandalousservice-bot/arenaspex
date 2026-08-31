@@ -147,11 +147,34 @@ export function buildLessonMemoPreview(plan?: LessonPlan | null): DailyNotebookM
     : { situations: [], equipment: [], contentSummary: null };
 }
 
-export function sortPlanningSessions(sessions: TeacherPlanningSession[]): TeacherPlanningSession[] {
+export type DailyNotebookClassFilter = 'all' | string;
+
+export function filterPlanningSessions(
+  sessions: TeacherPlanningSession[],
+  classFilter: DailyNotebookClassFilter
+): TeacherPlanningSession[] {
+  return classFilter === 'all'
+    ? [...sessions]
+    : sessions.filter((session) => session.classId === classFilter);
+}
+
+export function earliestPlanningDate(sessions: TeacherPlanningSession[]): string | null {
+  return sessions.reduce<string | null>(
+    (earliest, session) =>
+      !earliest || session.plannedDate < earliest ? session.plannedDate : earliest,
+    null
+  );
+}
+
+export function sortPlanningSessions(
+  sessions: TeacherPlanningSession[],
+  classNames?: ReadonlyMap<string, string>
+): TeacherPlanningSession[] {
   return [...sessions].sort(
     (a, b) =>
       (a.startTime ? 0 : 1) - (b.startTime ? 0 : 1) ||
       (a.startTime || '').localeCompare(b.startTime || '') ||
+      (classNames?.get(a.classId) || '').localeCompare(classNames?.get(b.classId) || '') ||
       (a.reference?.sequenceIndex ?? Number.MAX_SAFE_INTEGER) -
         (b.reference?.sequenceIndex ?? Number.MAX_SAFE_INTEGER) ||
       a.id.localeCompare(b.id)

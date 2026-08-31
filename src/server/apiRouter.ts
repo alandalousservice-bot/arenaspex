@@ -319,25 +319,26 @@ async function resolvePlanningReferences(
 ) {
   const normalizedLevelId = normalizePrimaryLevelId(levelId);
   if (!normalizedLevelId) return new Map();
-  const [referenceSessions, wordingPlan] = await Promise.all([
-    Promise.resolve(canonicalReferenceSessions(normalizedLevelId)),
-    prisma.annualPlan.findUnique({
-      where: {
-        teacherId_academicYearId_levelId_kind: {
-          teacherId,
-          academicYearId,
-          levelId: normalizedLevelId,
-          kind: 'section_wording',
-        },
+  const wordingPlan = await prisma.annualPlan.findUnique({
+    where: {
+      teacherId_academicYearId_levelId_kind: {
+        teacherId,
+        academicYearId,
+        levelId: normalizedLevelId,
+        kind: 'section_wording',
       },
-      select: { data: true },
-    }),
-  ]);
-  const overrides = ((wordingPlan?.data as { overrides?: PlanningWordingOverrides } | null)
-    ?.overrides || {}) as PlanningWordingOverrides;
-  const fields = COMPLETE_ANNUAL_CURRICULUM[normalizedLevelId]?.fields || {};
+    },
+    select: { data: true },
+  });
+  return buildPlanningReferenceMap(normalizedLevelId, wordingPlan?.data);
+}
+
+function buildPlanningReferenceMap(levelId: string, wordingData: unknown) {
+  const overrides = ((wordingData as { overrides?: PlanningWordingOverrides } | null)?.overrides ||
+    {}) as PlanningWordingOverrides;
+  const fields = COMPLETE_ANNUAL_CURRICULUM[levelId]?.fields || {};
   return new Map(
-    referenceSessions.map((reference) => [
+    canonicalReferenceSessions(levelId).map((reference) => [
       reference.referenceSessionId,
       {
         referenceSessionId: reference.referenceSessionId,
@@ -354,6 +355,33 @@ async function resolvePlanningReferences(
         sequenceIndex: reference.sequenceIndex,
         fieldSessionNumber: reference.fieldSessionNumber,
       },
+    ])
+  );
+}
+
+async function resolvePlanningReferencesForLevels(
+  levelIds: string[],
+  teacherId: string,
+  academicYearId: string
+) {
+  const normalizedLevelIds = [
+    ...new Set(levelIds.map(normalizePrimaryLevelId).filter(Boolean)),
+  ] as string[];
+  if (!normalizedLevelIds.length) return new Map();
+  const wordingPlans = await prisma.annualPlan.findMany({
+    where: {
+      teacherId,
+      academicYearId,
+      levelId: { in: normalizedLevelIds },
+      kind: 'section_wording',
+    },
+    select: { levelId: true, data: true },
+  });
+  const wordingByLevel = new Map(wordingPlans.map((plan) => [plan.levelId, plan.data] as const));
+  return new Map(
+    normalizedLevelIds.map((levelId) => [
+      levelId,
+      buildPlanningReferenceMap(levelId, wordingByLevel.get(levelId)),
     ])
   );
 }
@@ -552,6 +580,44 @@ async function executionDependencyIds(teacherId: string, sessionIds: string[]) {
   }
   return ids;
 }
+
+apiRouter.get('/teacher/planning/sessions', requireRole('teacher'), async (req, res) => {
+  const parsed = classPlanningQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: 'السنة الدراسية مطلوبة.' });
+
+  const classes = await prisma.studentClass.findMany({
+    where: { teacherId: req.user!.id },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, levelId: true, institutionId: true },
+  });
+  if (!classes.length) return res.json({ success: true, classes: [], sessions: [] });
+
+  const referenceByLevel = await resolvePlanningReferencesForLevels(
+    classes.map((classRecord) => classRecord.levelId),
+    req.user!.id,
+    parsed.data.academicYearId
+  );
+  const classesById = new Map(classes.map((classRecord) => [classRecord.id, classRecord] as const));
+  const rows = await prisma.classPlannedSession.findMany({
+    where: {
+      teacherId: req.user!.id,
+      academicYearId: parsed.data.academicYearId,
+      classId: { in: classes.map((classRecord) => classRecord.id) },
+    },
+    orderBy: [{ plannedDate: 'asc' }, { id: 'asc' }],
+  });
+  res.json({
+    success: true,
+    classes,
+    sessions: rows.map((row) => ({
+      ...classPlannedSessionView(row),
+      reference:
+        referenceByLevel
+          .get(classesById.get(row.classId)?.levelId || '')
+          ?.get(row.referenceSessionId) || null,
+    })),
+  });
+});
 
 apiRouter.get(
   '/teacher/planning/classes/:classId/sessions',

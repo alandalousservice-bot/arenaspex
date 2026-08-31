@@ -15,6 +15,7 @@ import type { ClassRoom, DailyNotebookEntry, LessonPlan, User } from '../../type
 import { LEARNING_SEGMENTS, PE_FIELDS, PE_LEVELS } from '../../data/algerianCurriculum';
 import {
   fetchTeacherPlanningSessions,
+  fetchTeacherPlanningSessionsForTeacher,
   TeacherPlanningSession,
   TeacherPlanningReference,
   updateTeacherPlanningSession,
@@ -26,6 +27,8 @@ import {
   countSessionsByDate,
   DAILY_NOTEBOOK_STATUS_META,
   getPairedSessionInfo,
+  earliestPlanningDate,
+  filterPlanningSessions,
   normalizeClassRooms,
   normalizeDailyNotebookEntries,
   normalizePlanningSession,
@@ -85,16 +88,15 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   const query = new URLSearchParams(window.location.search);
   const requestedClassId = query.get('classId') || '';
   const requestedSessionId = query.get('classPlannedSessionId') || '';
-  const [selectedClassId, setSelectedClassId] = useState(
-    safeTeacherClasses.some((item) => item.id === requestedClassId)
-      ? requestedClassId
-      : safeTeacherClasses[0]?.id || ''
+  const requestedDate = query.get('date') || '';
+  const [classFilter, setClassFilter] = useState<'all' | string>(
+    safeTeacherClasses.some((item) => item.id === requestedClassId) ? requestedClassId : 'all'
   );
   const [academicYearId, setAcademicYearId] = useState(() => {
     const stored = window.localStorage.getItem(YEAR_KEY) || '';
     return isOperationalAcademicYear(stored) ? stored : getCurrentAcademicYear();
   });
-  const [selectedDate, setSelectedDate] = useState(query.get('date') || today());
+  const [selectedDate, setSelectedDate] = useState(requestedDate || today());
   const [focusedSessionId, setFocusedSessionId] = useState(requestedSessionId);
   const [sessions, setSessions] = useState<TeacherPlanningSession[]>([]);
   const [loading, setLoading] = useState(false);
@@ -103,17 +105,23 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [expandedPreviews, setExpandedPreviews] = useState<Set<string>>(() => new Set());
   const statusRequestVersions = useRef<Record<string, number>>({});
+  const initializedDateYears = useRef<Set<string>>(new Set());
+  const selectedClassId = classFilter === 'all' ? '' : classFilter;
   const selectedClass = safeTeacherClasses.find((item) => item.id === selectedClassId);
+  const classesById = useMemo(
+    () => new Map(safeTeacherClasses.map((item) => [item.id, item] as const)),
+    [safeTeacherClasses]
+  );
   const yearOptions = useMemo(() => getOperationalAcademicYearOptions(), []);
   const references = useMemo(
     () =>
       new Map(
         [
-          ...(selectedClass ? canonicalReferenceSessions(selectedClass.levelId) : []),
+          ...safeTeacherClasses.flatMap((item) => canonicalReferenceSessions(item.levelId)),
           ...sessions.flatMap((item) => (item.reference ? [item.reference] : [])),
         ].map((item) => [item.referenceSessionId, item])
       ),
-    [selectedClass, sessions]
+    [safeTeacherClasses, sessions]
   );
   const entriesBySession = useMemo(
     () =>
@@ -122,14 +130,17 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
           .filter(
             (entry) =>
               Boolean(entry.classPlannedSessionId) &&
-              entry.classId === selectedClassId &&
+              (classFilter === 'all' || entry.classId === classFilter) &&
               entry.academicYearId === academicYearId
           )
           .map((entry) => [entry.classPlannedSessionId, entry])
       ),
-    [safeNotebookEntries, selectedClassId, academicYearId]
+    [safeNotebookEntries, classFilter, academicYearId]
   );
-  const safeLessonPlans = Array.isArray(lessonPlans) ? lessonPlans : [];
+  const safeLessonPlans = useMemo(
+    () => (Array.isArray(lessonPlans) ? lessonPlans : []),
+    [lessonPlans]
+  );
   const memoBySession = useMemo(
     () =>
       new Map(
@@ -138,12 +149,12 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
             (plan) =>
               plan.teacherId === currentUser.id &&
               Boolean(plan?.classPlannedSessionId) &&
-              plan.classId === selectedClassId &&
+              (classFilter === 'all' || plan.classId === classFilter) &&
               plan.academicYearId === academicYearId
           )
           .map((plan) => [plan.classPlannedSessionId!, plan] as const)
       ),
-    [safeLessonPlans, currentUser.id, selectedClassId, academicYearId]
+    [safeLessonPlans, currentUser.id, classFilter, academicYearId]
   );
   const progress = useMemo(() => calculateExecutionProgress(sessions), [sessions]);
   const weekDates = useMemo(() => getLocalWeekDates(selectedDate), [selectedDate]);
@@ -179,18 +190,27 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
     window.localStorage.setItem(YEAR_KEY, academicYearId);
   }, [academicYearId]);
   useEffect(() => {
-    if (!selectedClassId) {
-      setSessions([]);
-      return;
-    }
     let cancelled = false;
     setLoading(true);
     setError('');
-    fetchTeacherPlanningSessions(selectedClassId, academicYearId)
+    const request =
+      classFilter === 'all'
+        ? fetchTeacherPlanningSessionsForTeacher(academicYearId)
+        : selectedClassId
+          ? fetchTeacherPlanningSessions(selectedClassId, academicYearId)
+          : Promise.resolve({ sessions: [] });
+    request
       .then((result) => {
         if (cancelled) return;
         const safeSessions = normalizePlanningSessions(result?.sessions);
         setSessions(safeSessions);
+        if (!requestedDate && !initializedDateYears.current.has(academicYearId)) {
+          const earliest = earliestPlanningDate(safeSessions);
+          if (earliest) {
+            setSelectedDate((current) => (current < earliest ? earliest : current));
+          }
+          initializedDateYears.current.add(academicYearId);
+        }
         const linked = requestedSessionId
           ? safeSessions.find((item) => item.id === requestedSessionId)
           : undefined;
@@ -206,15 +226,23 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [selectedClassId, academicYearId, requestedSessionId]);
+  }, [academicYearId, classFilter, requestedDate, requestedSessionId, selectedClassId]);
 
   const displayed = useMemo(
     () =>
       focusedSessionId
-        ? sessions.filter((item) => item.id === focusedSessionId)
-        : sortPlanningSessions(sessions.filter((item) => item.plannedDate === selectedDate)),
-    [sessions, selectedDate, focusedSessionId]
+        ? filterPlanningSessions(sessions, classFilter).filter(
+            (item) => item.id === focusedSessionId
+          )
+        : sortPlanningSessions(
+            filterPlanningSessions(sessions, classFilter).filter(
+              (item) => item.plannedDate === selectedDate
+            ),
+            new Map(safeTeacherClasses.map((item) => [item.id, item.name]))
+          ),
+    [classFilter, focusedSessionId, safeTeacherClasses, selectedDate, sessions]
   );
+  const classForSession = (session: TeacherPlanningSession) => classesById.get(session.classId);
   const updateStatus = async (session: TeacherPlanningSession, status: NotebookStatus) => {
     const requestVersion = (statusRequestVersions.current[session.id] || 0) + 1;
     statusRequestVersions.current[session.id] = requestVersion;
@@ -227,15 +255,16 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
       if (!updatedSession) throw new Error('استجابة الحصة التشغيلية غير صالحة.');
       if (statusRequestVersions.current[session.id] !== requestVersion) return;
       const old = entriesBySession.get(session.id);
+      const sessionClass = classForSession(session);
       await onPersistNotebookEntry({
         teacherId: currentUser.id,
         classPlannedSessionId: session.id,
         academicYearId: session.academicYearId,
         classId: session.classId,
-        className: selectedClass?.name || session.classId,
+        className: sessionClass?.name || session.classId,
         sessionTitle: references.get(session.referenceSessionId)?.objective,
         segmentTitle: references.get(session.referenceSessionId)?.learningSectionId,
-        levelName: selectedClass ? levelLabel(selectedClass.levelId) : undefined,
+        levelName: sessionClass ? levelLabel(sessionClass.levelId) : undefined,
         executionDate: updatedSession.plannedDate,
         timeSlot: updatedSession.startTime || 'غير محدد',
         status: status === 'مبرمجة' ? old?.status || 'غير منجزة' : status,
@@ -281,15 +310,16 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
     const old = entriesBySession.get(session.id);
     const previousNote = old?.note || '';
     try {
+      const sessionClass = classForSession(session);
       await onPersistNotebookEntry({
         teacherId: currentUser.id,
         classPlannedSessionId: session.id,
         academicYearId: session.academicYearId,
         classId: session.classId,
-        className: selectedClass?.name || session.classId,
+        className: sessionClass?.name || session.classId,
         sessionTitle: references.get(session.referenceSessionId)?.objective,
         segmentTitle: references.get(session.referenceSessionId)?.learningSectionId,
-        levelName: selectedClass ? levelLabel(selectedClass.levelId) : undefined,
+        levelName: sessionClass ? levelLabel(sessionClass.levelId) : undefined,
         executionDate: session.plannedDate,
         timeSlot: session.startTime || 'غير محدد',
         status: session.status === 'مبرمجة' ? 'غير منجزة' : session.status,
@@ -305,7 +335,8 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   };
   const sessionRef = (
     session: TeacherPlanningSession,
-    reference?: PlanningReferenceSummary
+    reference: PlanningReferenceSummary | undefined,
+    sessionClass?: ClassRoom
   ): SessionRef => ({
     id: session.id,
     classId: session.classId,
@@ -314,7 +345,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
     fieldName: reference
       ? PE_FIELDS.find((field) => field.id === reference.domainId)?.name
       : undefined,
-    levelName: selectedClass ? levelLabel(selectedClass.levelId) : undefined,
+    levelName: sessionClass ? levelLabel(sessionClass.levelId) : undefined,
   });
   const openMemo = (session: TeacherPlanningSession, entry?: DailyNotebookEntry) => {
     const reference = references.get(session.referenceSessionId) || session.reference;
@@ -361,9 +392,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
             <h1 className="mt-2 flex items-center gap-2 text-xl font-extrabold text-slate-900">
               <BookMarked className="h-5 w-5 text-blue-600" /> الكراس اليومي
             </h1>
-            <p className="mt-1 text-xs text-slate-500">
-              تنفيذ الحصص المحفوظة في التوزيع التشغيلي للقسم.
-            </p>
+            <p className="mt-1 text-xs text-slate-500">تنفيذ الحصص المحفوظة في التوزيع التشغيلي.</p>
           </div>
           <div className="flex flex-wrap items-end gap-2 text-xs font-bold text-slate-600">
             <label>
@@ -387,14 +416,14 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
             <label>
               القسم
               <select
-                value={selectedClassId}
+                value={classFilter}
                 onChange={(event) => {
                   setFocusedSessionId('');
-                  setSelectedClassId(event.target.value);
+                  setClassFilter(event.target.value);
                 }}
                 className="mt-1 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
               >
-                <option value="">اختر قسماً</option>
+                <option value="all">كل الأقسام</option>
                 {safeTeacherClasses.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.name}
@@ -437,6 +466,11 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
             >
               <Printer className="h-3.5 w-3.5" /> طباعة الكراس اليومي
             </button>
+            {classFilter === 'all' && (
+              <span className="basis-full text-[11px] font-normal text-slate-500">
+                اختر قسماً محدداً لطباعة الكراس اليومي.
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50/80 p-2">
@@ -492,20 +526,32 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
         </div>
         <div className="workspace-progress rounded-2xl bg-blue-50/70 px-4 py-3 text-xs">
           <div className="flex items-center justify-between gap-3">
-            <span className="font-extrabold text-blue-950">التقدم في تنفيذ البرنامج</span>
-            <span className="font-bold text-blue-800" dir="ltr" style={{ unicodeBidi: 'isolate' }}>
-              {progress.completed} / {progress.total} · {progress.percentage}%
+            <span className="font-extrabold text-blue-950">
+              {classFilter === 'all' ? 'ملخص الحصص اليومية' : 'التقدم في تنفيذ البرنامج'}
             </span>
+            {classFilter === 'all' ? (
+              <span className="font-bold text-blue-800">حصص اليوم: {displayed.length}</span>
+            ) : (
+              <span
+                className="font-bold text-blue-800"
+                dir="ltr"
+                style={{ unicodeBidi: 'isolate' }}
+              >
+                {progress.completed} / {progress.total} · {progress.percentage}%
+              </span>
+            )}
           </div>
-          <div className="workspace-progress-track mt-2 h-1.5 overflow-hidden rounded-full bg-white/80">
-            <div
-              className="workspace-progress-fill h-full rounded-full bg-blue-600 transition-all"
-              style={{ width: `${progress.percentage}%` }}
-            />
-          </div>
+          {classFilter !== 'all' && (
+            <div className="workspace-progress-track mt-2 h-1.5 overflow-hidden rounded-full bg-white/80">
+              <div
+                className="workspace-progress-fill h-full rounded-full bg-blue-600 transition-all"
+                style={{ width: `${progress.percentage}%` }}
+              />
+            </div>
+          )}
         </div>
       </header>
-      {!selectedClass && (
+      {safeTeacherClasses.length === 0 && (
         <div className="workspace-empty-state rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center">
           <CalendarDays className="mx-auto h-8 w-8 text-emerald-600" />
           <h2 className="font-extrabold text-slate-900">لا توجد أقسام مسندة إليك بعد.</h2>
@@ -518,19 +564,21 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
           </button>
         </div>
       )}
-      {selectedClass && error && (
+      {safeTeacherClasses.length > 0 && error && (
         <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>
       )}
-      {selectedClass && loading && (
+      {safeTeacherClasses.length > 0 && loading && (
         <p className="rounded-2xl bg-white p-6 text-sm text-slate-500">
           جارٍ تحميل الجلسات المحفوظة...
         </p>
       )}
-      {selectedClass && !loading && sessions.length === 0 && (
+      {safeTeacherClasses.length > 0 && !loading && sessions.length === 0 && (
         <div className="workspace-empty-state rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center">
           <BookMarked className="mx-auto h-8 w-8 text-emerald-600" />
           <h2 className="font-extrabold text-slate-900">
-            لم يتم إنشاء التوزيع السنوي لهذا القسم بعد.
+            {classFilter === 'all'
+              ? 'لم يتم إنشاء التوزيع السنوي للأقسام المسندة إليك بعد.'
+              : 'لم يتم إنشاء التوزيع السنوي لهذا القسم بعد.'}
           </h2>
           <p className="mt-2 text-sm text-slate-500">
             أنشئ التوزيع من مساحة التخطيط قبل تسجيل التنفيذ.
@@ -543,16 +591,22 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
           </button>
         </div>
       )}
-      {selectedClass && !loading && sessions.length > 0 && displayed.length === 0 && (
-        <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center">
-          <Calendar className="mx-auto h-10 w-10 text-slate-300" />
-          <p className="mt-3 text-sm font-bold text-slate-600">
-            لا توجد حصة محفوظة لهذا القسم في التاريخ المحدد.
-          </p>
-        </div>
-      )}
+      {safeTeacherClasses.length > 0 &&
+        !loading &&
+        sessions.length > 0 &&
+        displayed.length === 0 && (
+          <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center">
+            <Calendar className="mx-auto h-10 w-10 text-slate-300" />
+            <p className="mt-3 text-sm font-bold text-slate-600">
+              {classFilter === 'all'
+                ? 'لا توجد حصة محفوظة للأقسام المحددة في التاريخ المحدد.'
+                : 'لا توجد حصة محفوظة لهذا القسم في التاريخ المحدد.'}
+            </p>
+          </div>
+        )}
       <div className="grid gap-4">
         {displayed.map((session) => {
+          const sessionClass = classForSession(session);
           const reference = references.get(session.referenceSessionId) || session.reference;
           const memoEligible = isLessonMemoEligible(reference || {});
           const entry = entriesBySession.get(session.id);
@@ -563,7 +617,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
           const sectionLabel = reference
             ? LEARNING_SEGMENTS.find(
                 (segment) =>
-                  segment.levelId === selectedClass.levelId &&
+                  segment.levelId === sessionClass?.levelId &&
                   segment.fieldId === reference.domainId
               )?.title || 'المقطع غير محدد'
             : 'المقطع غير متاح';
@@ -578,7 +632,11 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
             memoExists,
           });
           const statusMeta = DAILY_NOTEBOOK_STATUS_META[sessionDto.status];
-          const pairInfo = getPairedSessionInfo(session, sessions, gradeOf(selectedClass.levelId));
+          const pairInfo = getPairedSessionInfo(
+            session,
+            sessions.filter((item) => item.classId === session.classId),
+            sessionClass ? gradeOf(sessionClass.levelId) : reference?.grade || 0
+          );
           const memoPlan = memoEligible ? memoBySession.get(session.id) : undefined;
           const memoPreview = buildLessonMemoPreview(memoPlan);
           const hasMemoPreview = Boolean(
@@ -608,10 +666,10 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                       </span>
                     )}
                     <span className="rounded-xl bg-indigo-50 px-3 py-1 text-indigo-800">
-                      القسم: {selectedClass.name}
+                      القسم: {sessionClass?.name || 'القسم غير محدد'}
                     </span>
                     <span className="rounded-xl bg-slate-100 px-3 py-1">
-                      {levelLabel(selectedClass.levelId)}
+                      {sessionClass ? levelLabel(sessionClass.levelId) : 'المستوى غير محدد'}
                     </span>
                     <span className="rounded-xl bg-blue-50 px-3 py-1 text-blue-800">
                       <Calendar className="ml-1 inline h-3.5 w-3.5" /> {sessionDto.plannedDate}
@@ -741,7 +799,9 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                   {memoEligible ? (
                     <>
                       <button
-                        onClick={() => onOpenAIGeneratorForSession(sessionRef(session, reference))}
+                        onClick={() =>
+                          onOpenAIGeneratorForSession(sessionRef(session, reference, sessionClass))
+                        }
                         className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700"
                       >
                         توليد المذكرة

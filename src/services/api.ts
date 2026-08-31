@@ -673,6 +673,12 @@ export interface TeacherPlanningSessionsResponse {
   sessions: TeacherPlanningSession[];
 }
 
+export interface TeacherPlanningAllSessionsResponse {
+  success: boolean;
+  classes: TeacherPlanningClassContext[];
+  sessions: TeacherPlanningSession[];
+}
+
 export async function fetchTeacherPlanningSessions(
   classId: string,
   academicYearId: string
@@ -684,6 +690,16 @@ export async function fetchTeacherPlanningSessions(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'تعذر تحميل توزيع القسم.');
   return data as TeacherPlanningSessionsResponse;
+}
+
+export async function fetchTeacherPlanningSessionsForTeacher(
+  academicYearId: string
+): Promise<TeacherPlanningAllSessionsResponse> {
+  const query = new URLSearchParams({ academicYearId });
+  const res = await fetch(`/api/teacher/planning/sessions?${query.toString()}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل حصص الأستاذ.');
+  return data as TeacherPlanningAllSessionsResponse;
 }
 
 export async function initializeTeacherPlanningSessions(
