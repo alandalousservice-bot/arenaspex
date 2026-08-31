@@ -158,15 +158,6 @@ function weekStartFor(value: string): string {
   return formatPlanningDate(date);
 }
 
-function nextValidPlanningDate(value: string, academicYearId: string, notBefore?: string): string {
-  let candidate = value < (notBefore || value) ? notBefore! : value;
-  for (let guard = 0; guard < 370; guard += 1) {
-    if (isValidAcademicSchoolDate(candidate, academicYearId)) return candidate;
-    candidate = addPlanningDays(candidate, 1);
-  }
-  throw new Error('لا توجد سعة تقويمية كافية لمطابقة التوزيع بالتوقيت الأسبوعي.');
-}
-
 export function referenceSessionIdFor(session: ScheduledAnnualSession): string {
   return `${session.levelId}:${session.fieldId}:sequence:${session.globalSessionNumber}`;
 }
@@ -374,9 +365,9 @@ export function buildClassPlannedSessionSeedsFromCanonicalSessions(
 }
 
 /**
- * Materialize the pedagogical sequence on the class's persisted weekly slots.
- * The canonical session date identifies its academic week; the timetable
- * supplies the class weekday and start time. No fallback weekday is allowed.
+ * Materialize the pedagogical sequence on chronological occurrences of the
+ * class's persisted weekly slots. Each valid timetable occurrence is consumed
+ * once, in order, and no fallback weekday is allowed.
  */
 export function materializeClassPlannedSessionSeedsFromTimetable(
   teacherId: string,
@@ -399,49 +390,55 @@ export function materializeClassPlannedSessionSeedsFromTimetable(
     return { seeds: [], error: 'لا يمكن إنشاء حصص القسم قبل ضبط توقيته الأسبوعي.' };
   }
 
-  const sessionsPerWeek = (sessions[0]?.grade || 5) <= 3 ? 2 : 1;
-  const sessionGroups: CanonicalPlanningSession[][] = [];
-  for (let index = 0; index < sessions.length; index += sessionsPerWeek) {
-    sessionGroups.push(sessions.slice(index, index + sessionsPerWeek));
+  const planningStartDate = sessions[0]?.plannedDate || '';
+  const calendar = getAcademicCalendar(academicYearId);
+  const weekStart = weekStartFor(planningStartDate);
+  const occurrences: Array<{ plannedDate: string; startTime: string; endTime: string }> = [];
+  for (let weekIndex = 0; weekIndex < 80 && occurrences.length < sessions.length; weekIndex += 1) {
+    for (const slot of slots) {
+      const requestedDate = addPlanningDays(weekStart, weekIndex * 7 + slot.weekday);
+      if (
+        requestedDate < planningStartDate ||
+        requestedDate < calendar.schoolStart ||
+        (calendar.schoolEnd && requestedDate > calendar.schoolEnd)
+      ) {
+        continue;
+      }
+      // A holiday consumes no occurrence; the same weekday resumes next week.
+      if (!isValidAcademicSchoolDate(requestedDate, academicYearId)) continue;
+      occurrences.push({
+        plannedDate: requestedDate,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+      });
+      if (occurrences.length === sessions.length) break;
+    }
+  }
+  if (occurrences.length < sessions.length) {
+    return {
+      seeds: [],
+      error: 'لا توجد حصص أسبوعية كافية لمطابقة كامل التوزيع السنوي لهذا القسم.',
+    };
   }
 
-  const seeds: ClassPlannedSessionSeed[] = [];
-  let previousDate = '';
-  for (const weekSessions of sessionGroups) {
-    const week = weekStartFor(weekSessions[0].plannedDate);
-    if (weekSessions.length > slots.length) {
+  return {
+    seeds: sessions.map((session, index) => {
+      const occurrence = occurrences[index];
       return {
-        seeds: [],
-        error: `لا يحتوي توقيت القسم على حصص أسبوعية كافية للأسبوع ${week}.`,
-      };
-    }
-    for (const [index, session] of weekSessions.entries()) {
-      const slot = slots[index];
-      let requestedDate = addPlanningDays(week, slot.weekday);
-      if (requestedDate < session.plannedDate && session.plannedDate === week) {
-        requestedDate = addPlanningDays(requestedDate, 7);
-      }
-      let plannedDate = nextValidPlanningDate(requestedDate, academicYearId, previousDate);
-      if (previousDate && plannedDate <= previousDate) {
-        plannedDate = nextValidPlanningDate(addPlanningDays(previousDate, 1), academicYearId);
-      }
-      previousDate = plannedDate;
-      seeds.push({
         id: `cps_${classId}_${academicYearId}_${session.referenceSessionId}`,
         teacherId,
         classId,
         academicYearId,
         referenceSessionId: session.referenceSessionId,
-        plannedDate: toDate(plannedDate),
+        plannedDate: toDate(occurrence.plannedDate),
         durationMinutes: session.durationMinutes,
         status: 'مبرمجة',
-        startTime: slot.startTime,
+        startTime: occurrence.startTime,
         venue: null,
         operationalNote: null,
-      });
-    }
-  }
-  return { seeds };
+      };
+    }),
+  };
 }
 
 export function findCanonicalPlanningSession(

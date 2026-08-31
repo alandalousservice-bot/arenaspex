@@ -70,6 +70,76 @@ describe('Daily Notebook timetable materialization', () => {
     expect(classB.seeds[0].startTime).toBe('10:00');
   });
 
+  it('consumes five Monday slots as five distinct same-day occurrences', () => {
+    const result = materializeClassPlannedSessionSeedsFromTimetable(
+      'teacher-1',
+      'class-five-slots',
+      '2025-2026',
+      canonicalPlanningSessions('lvl_p4', '2025-09-21', '2025-2026'),
+      [
+        slot(1, '08:00', '09:30'),
+        slot(1, '09:45', '11:15'),
+        slot(1, '11:30', '13:00'),
+        slot(1, '13:30', '15:00'),
+        slot(1, '15:15', '16:45'),
+      ]
+    );
+
+    const firstDay = result.seeds.slice(0, 5);
+    expect(firstDay).toHaveLength(5);
+    expect(
+      firstDay.every((item) => item.plannedDate.toISOString().slice(0, 10) === '2025-09-22')
+    ).toBe(true);
+    expect(firstDay.map((item) => item.startTime)).toEqual([
+      '08:00',
+      '09:45',
+      '11:30',
+      '13:30',
+      '15:15',
+    ]);
+    expect(
+      new Set(result.seeds.map((item) => `${item.plannedDate.toISOString()}|${item.startTime}`))
+        .size
+    ).toBe(result.seeds.length);
+  });
+
+  it('does not duplicate a G1–3 session when only one weekly slot exists', () => {
+    const result = materializeClassPlannedSessionSeedsFromTimetable(
+      'teacher-1',
+      'class-single-slot-p1',
+      '2025-2026',
+      canonicalPlanningSessions('lvl_p1', '2025-09-21', '2025-2026'),
+      [slot(1, '08:00', '09:00')]
+    );
+
+    expect(result.seeds).toEqual([]);
+    expect(result.error).toContain('كافية');
+  });
+
+  it('assigns two G1–3 sessions per week only when two distinct occurrences exist', () => {
+    const result = materializeClassPlannedSessionSeedsFromTimetable(
+      'teacher-1',
+      'class-two-slots-p1',
+      '2025-2026',
+      canonicalPlanningSessions('lvl_p1', '2025-09-21', '2025-2026').slice(0, 4),
+      [slot(1, '08:00', '09:00'), slot(1, '10:00', '11:00')]
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(
+      result.seeds.map((item) => [item.plannedDate.toISOString().slice(0, 10), item.startTime])
+    ).toEqual([
+      ['2025-09-22', '08:00'],
+      ['2025-09-22', '10:00'],
+      ['2025-09-29', '08:00'],
+      ['2025-09-29', '10:00'],
+    ]);
+    expect(
+      new Set(result.seeds.map((item) => `${item.plannedDate.toISOString()}|${item.startTime}`))
+        .size
+    ).toBe(result.seeds.length);
+  });
+
   it('preserves both weekly slots for grades 1–3 without an arbitrary session cap', () => {
     const annual = canonicalPlanningSessions('lvl_p1', '2025-09-21', '2025-2026');
     const result = materializeClassPlannedSessionSeedsFromTimetable(
@@ -160,6 +230,12 @@ describe('Daily Notebook timetable materialization', () => {
     expect(
       result.seeds.some((item) => item.plannedDate.toISOString().slice(0, 10) === '2025-12-22')
     ).toBe(false);
+    expect(
+      result.seeds.some((item) => item.plannedDate.toISOString().slice(0, 10) === '2025-12-23')
+    ).toBe(false);
+    expect(
+      result.seeds.some((item) => item.plannedDate.toISOString().slice(0, 10) === '2026-01-05')
+    ).toBe(true);
   });
 
   it('keeps pedagogical identity, operational identity, and first-date behavior stable', () => {
