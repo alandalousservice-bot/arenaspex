@@ -49,6 +49,10 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(view).toContain("const nextId = resolvedRequested?.id || nextSessions[0]?.id || ''");
     expect(view).toContain('classPlannedSessionId: operationalContext?.session.id');
     expect(view).toContain('createOperationalMemo(session.id)');
+    expect(view).toContain('openOperationalMemo(session, memo)');
+    expect(view).toContain('setSelectedId(memo.id)');
+    expect(view).toContain('setShowGenerator(false)');
+    expect(view).toContain('تعذر فتح المذكرة المحفوظة. أعد تحميل البيانات وحاول مرة أخرى.');
     expect(view).not.toContain(
       'classPlannedSessionId: operationalContext?.session.referenceSessionId'
     );
@@ -106,5 +110,22 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(view).toContain('exportLessonPlanToPdf(plan)');
     expect(view).toContain('exportLessonPlanToWord(plan)');
     expect(print).toContain('exportLessonPlanToPdf');
+  });
+
+  it('keeps saved-memo navigation bound to the same operational context', () => {
+    const view = read('src/components/lesson/LessonPlanView.tsx');
+
+    expect(view).toContain(
+      'openOperationalMemo = (session: TeacherPlanningSession, memo?: LessonPlan)'
+    );
+    expect(view).toContain(
+      "findOperationalLessonPlan(lessonPlans, session, currentUser?.id || '')"
+    );
+    expect(view).toContain(
+      'classPlannedSessionId=${encodeURIComponent(scheduledContext.session.id)}&academicYearId='
+    );
+    expect(view).toContain(
+      'classPlannedSessionId=${encodeURIComponent(scheduledContext.session.id)}'
+    );
   });
 });

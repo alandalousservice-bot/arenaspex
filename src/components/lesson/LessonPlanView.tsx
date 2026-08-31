@@ -642,11 +642,22 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const selectOperationalSession = (sessionId: string) => {
     setOperationalSessionId(sessionId);
     setGenerationError('');
+    setScheduledError('');
   };
   const createOperationalMemo = (sessionId: string) => {
     selectOperationalSession(sessionId);
     setMemoMode('operational');
     setShowGenerator(true);
+  };
+  const openOperationalMemo = (session: TeacherPlanningSession, memo?: LessonPlan) => {
+    if (!memo) {
+      setScheduledError('تعذر فتح المذكرة المحفوظة. أعد تحميل البيانات وحاول مرة أخرى.');
+      return;
+    }
+    selectOperationalSession(session.id);
+    setSelectedId(memo.id);
+    setMemoMode('operational');
+    setShowGenerator(false);
   };
   const workspaceHeader = (
     <header className="workspace-header lesson-memo-workspace-header flex flex-col gap-4 rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs xl:flex-row xl:items-end xl:justify-between">
@@ -816,9 +827,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                   <button
                     type="button"
                     onClick={() =>
-                      memo
-                        ? selectOperationalSession(session.id)
-                        : createOperationalMemo(session.id)
+                      memo ? openOperationalMemo(session, memo) : createOperationalMemo(session.id)
                     }
                     className="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white"
                   >
@@ -1342,7 +1351,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           <button
             onClick={() =>
               window.location.assign(
-                `/daily-notebook?classId=${encodeURIComponent(scheduledContext.classRoom.id)}&classPlannedSessionId=${encodeURIComponent(scheduledContext.session.id)}`
+                `/daily-notebook?classId=${encodeURIComponent(scheduledContext.classRoom.id)}&classPlannedSessionId=${encodeURIComponent(scheduledContext.session.id)}&academicYearId=${encodeURIComponent(scheduledContext.session.academicYearId)}`
               )
             }
             className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-blue-700"
