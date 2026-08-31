@@ -5,14 +5,13 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Clock,
   FileText,
   MapPin,
   Printer,
   Target,
 } from 'lucide-react';
 import type { ClassRoom, DailyNotebookEntry, LessonPlan, User } from '../../types/spex';
-import { LEARNING_SEGMENTS, PE_FIELDS, PE_LEVELS } from '../../data/algerianCurriculum';
+import { PE_FIELDS, PE_LEVELS } from '../../data/algerianCurriculum';
 import {
   fetchTeacherPlanningSessions,
   fetchTeacherPlanningSessionsForTeacher,
@@ -75,6 +74,19 @@ const today = () => formatLocalDate();
 const levelLabel = (id: string) => PE_LEVELS.find((level) => level.id === id)?.name || id;
 const gradeOf = (levelId: string) => Number(levelId.replace('lvl_p', ''));
 const dayNumber = (value: string) => Number(value.slice(8, 10));
+const displayDate = (value: string) => {
+  const [year, month, day] = value.slice(0, 10).split('-');
+  return year && month && day ? `${day}/${month}/${year}` : '';
+};
+const teacherDisplayName = (user: User) =>
+  [user.firstName, user.lastName].filter(Boolean).join(' ');
+const referenceFieldName = (reference?: { domainId?: string; fieldName?: string } | null) =>
+  reference?.fieldName || PE_FIELDS.find((field) => field.id === reference?.domainId)?.name;
+const lessonContent = (plan?: LessonPlan) =>
+  plan?.lessonRows
+    ?.map((row) => (typeof row?.learningContent === 'string' ? row.learningContent.trim() : ''))
+    .filter(Boolean)
+    .filter((value, index, values) => values.indexOf(value) === index) || [];
 
 export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   currentUser,
@@ -253,6 +265,15 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
           ),
     [filteredSessions, focusedSessionId, safeTeacherClasses, selectedDate]
   );
+  const commonDomain = useMemo(() => {
+    const domainNames = displayed
+      .map((session) => {
+        const reference = references.get(session.referenceSessionId) || session.reference;
+        return referenceFieldName(reference);
+      })
+      .filter((value): value is string => Boolean(value));
+    return new Set(domainNames).size === 1 ? domainNames[0] : null;
+  }, [displayed, references]);
   const classForSession = (session: TeacherPlanningSession) => classesById.get(session.classId);
   const updateStatus = async (session: TeacherPlanningSession, status: NotebookStatus) => {
     const requestVersion = (statusRequestVersions.current[session.id] || 0) + 1;
@@ -400,20 +421,22 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
       className="workspace-page workspace-page--daily-notebook space-y-5 animate-in fade-in duration-200"
       dir="rtl"
     >
-      <header className="workspace-header workspace-notebook-controls space-y-4 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <header className="workspace-header workspace-notebook-controls space-y-5 rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs sm:p-6">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-600">
-              الوثائق التنفيذية الرسمية
+            <span className="inline-flex rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
+              السجل التربوي التنفيذي
             </span>
-            <h1 className="mt-2 flex items-center gap-2 text-xl font-extrabold text-slate-900">
-              <BookMarked className="h-5 w-5 text-blue-600" /> الكراس اليومي
+            <h1 className="mt-3 flex items-center gap-2 text-2xl font-extrabold text-slate-950">
+              <BookMarked className="h-6 w-6 text-blue-700" /> الكراس اليومي الرقمي
             </h1>
-            <p className="mt-1 text-xs text-slate-500">تنفيذ الحصص المحفوظة في التوزيع التشغيلي.</p>
+            <p className="mt-2 max-w-2xl text-sm text-slate-600">
+              سجل تربوي رقمي للحصص المنفذة والمبرمجة والملاحظات اليومية.
+            </p>
           </div>
-          <div className="flex flex-wrap items-end gap-2 text-xs font-bold text-slate-600">
-            <label>
-              السنة الدراسية
+          <div className="grid gap-3 text-xs font-bold text-slate-700 sm:grid-cols-2 xl:min-w-[42rem] xl:grid-cols-3">
+            <label className="min-w-0">
+              <span className="block">السنة الدراسية</span>
               <select
                 value={academicYearId}
                 onChange={(event) => {
@@ -421,7 +444,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                   setAcademicYearId(event.target.value);
                 }}
                 dir="ltr"
-                className="mt-1 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
               >
                 {yearOptions.map((year) => (
                   <option key={year} value={year}>
@@ -430,15 +453,15 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                 ))}
               </select>
             </label>
-            <label>
-              القسم
+            <label className="min-w-0">
+              <span className="block">القسم</span>
               <select
                 value={classFilter}
                 onChange={(event) => {
                   setFocusedSessionId('');
                   setClassFilter(event.target.value);
                 }}
-                className="mt-1 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
               >
                 <option value="all">كل الأقسام</option>
                 {safeTeacherClasses.map((item) => (
@@ -448,31 +471,34 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                 ))}
               </select>
             </label>
-            <label>
-              التاريخ
+            <label className="min-w-0">
+              <span className="block">التاريخ</span>
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(event) => selectDate(event.target.value)}
                 min={operationalMinimumDate || undefined}
-                className="mt-1 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-normal"
+                className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-normal"
               />
             </label>
             <button
+              type="button"
               onClick={() => shiftDate(-1)}
-              className="rounded-xl border border-slate-200 px-3 py-2"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 transition hover:border-blue-300 hover:text-blue-700"
             >
               السابق
             </button>
             <button
+              type="button"
               onClick={() => selectDate(today())}
-              className="rounded-xl border border-slate-200 px-3 py-2"
+              className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-blue-800 transition hover:border-blue-400"
             >
               اليوم
             </button>
             <button
+              type="button"
               onClick={() => shiftDate(1)}
-              className="rounded-xl border border-slate-200 px-3 py-2"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 transition hover:border-blue-300 hover:text-blue-700"
             >
               التالي
             </button>
@@ -480,16 +506,46 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
               type="button"
               disabled={!printModel?.rows.length}
               onClick={() => void printDailyNotebook()}
-              className="workspace-button-secondary flex items-center gap-1 rounded-xl bg-slate-900 px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-40"
+              className="workspace-button-secondary flex items-center justify-center gap-1 rounded-xl bg-slate-900 px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Printer className="h-3.5 w-3.5" /> طباعة الكراس اليومي
             </button>
             {classFilter === 'all' && (
-              <span className="basis-full text-[11px] font-normal text-slate-500">
+              <span className="text-[11px] font-normal text-slate-500 sm:col-span-2 xl:col-span-3">
                 اختر قسماً محدداً لطباعة الكراس اليومي.
               </span>
             )}
           </div>
+        </div>
+        <div className="grid gap-3 border-y border-slate-100 py-4 sm:grid-cols-2 lg:grid-cols-4">
+          {currentUser.schoolName && (
+            <div className="rounded-2xl bg-slate-50 px-4 py-3">
+              <span className="block text-[11px] font-bold text-slate-500">المؤسسة</span>
+              <strong className="mt-1 block text-sm text-slate-900">
+                {currentUser.schoolName}
+              </strong>
+            </div>
+          )}
+          <div className="rounded-2xl bg-slate-50 px-4 py-3">
+            <span className="block text-[11px] font-bold text-slate-500">السنة الدراسية</span>
+            <strong className="mt-1 block text-sm text-slate-900" dir="ltr">
+              {formatAcademicYearLabel(academicYearId)}
+            </strong>
+          </div>
+          {teacherDisplayName(currentUser) && (
+            <div className="rounded-2xl bg-slate-50 px-4 py-3">
+              <span className="block text-[11px] font-bold text-slate-500">الأستاذ</span>
+              <strong className="mt-1 block text-sm text-slate-900">
+                {teacherDisplayName(currentUser)}
+              </strong>
+            </div>
+          )}
+          {commonDomain && (
+            <div className="rounded-2xl bg-blue-50 px-4 py-3">
+              <span className="block text-[11px] font-bold text-blue-700">الميدان</span>
+              <strong className="mt-1 block text-sm text-blue-950">{commonDomain}</strong>
+            </div>
+          )}
         </div>
         <div className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50/80 p-2">
           <button
@@ -628,24 +684,14 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
           const reference = references.get(session.referenceSessionId) || session.reference;
           const memoEligible = isLessonMemoEligible(reference || {});
           const entry = entriesBySession.get(session.id);
-          const field = reference
-            ? PE_FIELDS.find((item) => item.id === reference.domainId)
-            : undefined;
           const status = session.status;
-          const sectionLabel = reference
-            ? LEARNING_SEGMENTS.find(
-                (segment) =>
-                  segment.levelId === sessionClass?.levelId &&
-                  segment.fieldId === reference.domainId
-              )?.title || 'المقطع غير محدد'
-            : 'المقطع غير متاح';
+          const fieldName = referenceFieldName(reference);
           const memoExists = memoEligible && memoBySession.has(session.id);
           const sessionDto = toDailyNotebookSessionDto(session, {
             sessionNumber: reference?.sequenceIndex,
             sessionType: reference?.sessionTypeLabel,
             objective: reference?.objective,
-            domain: field?.name || (reference ? 'الميدان غير محدد' : null),
-            section: sectionLabel,
+            domain: fieldName,
             executionNote: entry?.note,
             memoExists,
           });
@@ -657,6 +703,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
           );
           const memoPlan = memoEligible ? memoBySession.get(session.id) : undefined;
           const memoPreview = buildLessonMemoPreview(memoPlan);
+          const content = lessonContent(memoPlan);
           const hasMemoPreview = Boolean(
             memoPreview &&
             (memoPreview.situations.length > 0 ||
@@ -667,107 +714,153 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
           return (
             <article
               key={session.id}
-              className="space-y-4 rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs"
+              className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xs"
             >
-              <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
-                    <span className="rounded-xl bg-indigo-50 px-3 py-1 text-indigo-800">
-                      نوع الحصة: {sessionDto.sessionType || 'غير محدد'}
-                    </span>
-                    <span className={`rounded-xl px-3 py-1 ${statusMeta.className}`}>
-                      {statusMeta.label}
-                    </span>
-                    {pairInfo && (
-                      <span className="rounded-xl bg-violet-50 px-3 py-1 text-violet-800">
-                        الهدف المشترك — الحصة {pairInfo.position} من {pairInfo.total}
-                      </span>
-                    )}
-                    <span className="rounded-xl bg-indigo-50 px-3 py-1 text-indigo-800">
-                      القسم: {sessionClass?.name || 'القسم غير محدد'}
-                    </span>
-                    <span className="rounded-xl bg-slate-100 px-3 py-1">
-                      {sessionClass ? levelLabel(sessionClass.levelId) : 'المستوى غير محدد'}
-                    </span>
-                    <span className="rounded-xl bg-blue-50 px-3 py-1 text-blue-800">
-                      <Calendar className="ml-1 inline h-3.5 w-3.5" /> {sessionDto.plannedDate}
-                    </span>
-                  </div>
-                  <h2 className="mt-3 text-lg font-extrabold text-slate-900">
-                    {sessionDto.objective || 'تعذر تحميل المرجع البيداغوجي لهذه الحصة.'}
-                  </h2>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {reference
-                      ? `${sessionDto.domain} · ${sessionDto.section} · ${sessionDto.sessionType} · الحصة ${sessionDto.sessionNumber ?? '—'}`
-                      : 'تعذر تحميل المرجع البيداغوجي لهذه الحصة.'}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-600">
-                  <span className="flex items-center gap-1 rounded-xl bg-slate-50 px-3 py-2">
-                    <Clock className="h-3.5 w-3.5" /> {sessionDto.startTime || 'غير محدد'}
+              <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/80 px-4 py-3 text-xs font-bold text-slate-700">
+                {sessionDto.sessionType && (
+                  <span className="rounded-xl bg-indigo-50 px-3 py-1.5 text-indigo-800">
+                    {sessionDto.sessionType}
                   </span>
-                  <span className="rounded-xl bg-slate-50 px-3 py-2">
-                    {sessionDto.durationMinutes} دقيقة
-                  </span>
-                  <span className="flex items-center gap-1 rounded-xl bg-slate-50 px-3 py-2">
-                    <MapPin className="h-3.5 w-3.5" /> {sessionDto.venue || 'غير محدد'}
-                  </span>
-                </div>
-              </div>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                {status === 'مؤجلة' ? (
-                  <span className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
-                    {statusMeta.description}
-                  </span>
-                ) : (
-                  <span className="text-xs font-bold text-slate-400">سجل التنفيذ للحصة</span>
                 )}
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    disabled={savingId === session.id}
-                    onClick={() => updateStatus(session, 'منجزة')}
-                    className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
-                  >
-                    منجزة
-                  </button>
-                  <button
-                    disabled={savingId === session.id}
-                    onClick={() => updateStatus(session, 'مؤجلة')}
-                    className="rounded-xl bg-amber-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
-                  >
-                    مؤجلة
-                  </button>
-                  <button
-                    disabled={savingId === session.id}
-                    onClick={() => updateStatus(session, 'غير منجزة')}
-                    className="rounded-xl bg-slate-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
-                  >
-                    غير منجزة
-                  </button>
-                  <button
-                    disabled={savingId === session.id}
-                    onClick={() => updateStatus(session, 'مبرمجة')}
-                    className="rounded-xl bg-blue-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
-                  >
-                    مبرمجة
-                  </button>
-                  {status === 'مؤجلة' && (
-                    <button
-                      onClick={() =>
-                        window.location.assign(
-                          `/planning?section=annual-distribution&classId=${encodeURIComponent(session.classId)}&classPlannedSessionId=${encodeURIComponent(session.id)}&academicYearId=${encodeURIComponent(session.academicYearId)}`
-                        )
-                      }
-                      className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800"
-                    >
-                      إعادة البرمجة
-                    </button>
-                  )}
-                </div>
+                <span
+                  title={statusMeta.description}
+                  className={`rounded-xl px-3 py-1.5 ${statusMeta.className}`}
+                >
+                  {statusMeta.label}
+                </span>
+                {pairInfo && (
+                  <span className="rounded-xl bg-violet-50 px-3 py-1.5 text-violet-800">
+                    الهدف المشترك — الحصة {pairInfo.position} من {pairInfo.total}
+                  </span>
+                )}
               </div>
-              <div className="flex flex-col gap-2 rounded-2xl bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-1 items-center gap-2">
-                  <input
+              <div className="grid gap-px bg-slate-200 lg:grid-cols-[1.05fr_1.2fr_1.35fr_1.1fr_1.55fr]">
+                <section className="bg-white p-4">
+                  <h2 className="text-xs font-extrabold text-blue-800">
+                    التاريخ / القسم / التوقيت
+                  </h2>
+                  <div className="mt-3 space-y-2 text-sm text-slate-700">
+                    <div>
+                      <span className="block text-[11px] font-bold text-slate-500">التاريخ</span>
+                      <strong className="mt-0.5 block text-slate-950" dir="ltr">
+                        {displayDate(sessionDto.plannedDate)}
+                      </strong>
+                    </div>
+                    {sessionClass && (
+                      <>
+                        <div>
+                          <span className="block text-[11px] font-bold text-slate-500">
+                            المستوى
+                          </span>
+                          <strong className="mt-0.5 block text-slate-950">
+                            {levelLabel(sessionClass.levelId)}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="block text-[11px] font-bold text-slate-500">الفوج</span>
+                          <strong className="mt-0.5 block text-slate-950">
+                            {sessionClass.name}
+                          </strong>
+                        </div>
+                      </>
+                    )}
+                    {sessionDto.startTime && (
+                      <div>
+                        <span className="block text-[11px] font-bold text-slate-500">التوقيت</span>
+                        <strong className="mt-0.5 block text-slate-950" dir="ltr">
+                          من {sessionDto.startTime}
+                        </strong>
+                      </div>
+                    )}
+                    {sessionDto.durationMinutes > 0 && (
+                      <div className="text-xs text-slate-600">
+                        المدة: {sessionDto.durationMinutes} دقيقة
+                      </div>
+                    )}
+                    {sessionDto.venue && (
+                      <div className="flex items-center gap-1 text-xs text-slate-600">
+                        <MapPin className="h-3.5 w-3.5" /> {sessionDto.venue}
+                      </div>
+                    )}
+                  </div>
+                </section>
+                <section className="bg-white p-4">
+                  <h2 className="text-xs font-extrabold text-blue-800">التعلمات</h2>
+                  {sessionDto.objective && (
+                    <p className="mt-3 text-sm font-bold leading-7 text-slate-900">
+                      {sessionDto.objective}
+                    </p>
+                  )}
+                </section>
+                <section className="bg-white p-4">
+                  <h2 className="text-xs font-extrabold text-blue-800">محتوى التعلم</h2>
+                  {content.length > 0 && (
+                    <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+                      {content.map((item) => (
+                        <li key={item}>• {item}</li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+                <section className="bg-white p-4">
+                  <h2 className="text-xs font-extrabold text-blue-800">المذكرة</h2>
+                  <div className="mt-3 space-y-3">
+                    {!memoEligible ? (
+                      <p className="text-sm font-bold text-slate-700">حصة تنظيمية بدون مذكرة</p>
+                    ) : (
+                      <>
+                        <p
+                          className={`text-sm font-bold ${memoExists ? 'text-emerald-700' : 'text-amber-700'}`}
+                        >
+                          {memoExists ? 'المذكرة جاهزة' : 'لم تُنشأ بعد'}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {memoExists ? (
+                            <button
+                              type="button"
+                              onClick={() => openMemo(session, entry)}
+                              className="flex items-center gap-1 rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700"
+                            >
+                              <FileText className="h-3.5 w-3.5" /> فتح المذكرة
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onOpenAIGeneratorForSession(
+                                  sessionRef(session, reference, sessionClass)
+                                )
+                              }
+                              className="rounded-xl bg-blue-700 px-3 py-2 text-xs font-bold text-white"
+                            >
+                              إنشاء المذكرة
+                            </button>
+                          )}
+                          {memoPlan && hasMemoPreview && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedPreviews((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(session.id)) next.delete(session.id);
+                                  else next.add(session.id);
+                                  return next;
+                                })
+                              }
+                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"
+                            >
+                              {isPreviewExpanded ? 'إخفاء المحتوى' : 'عرض المحتوى'}
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </section>
+                <section className="bg-white p-4">
+                  <h2 className="text-xs font-extrabold text-blue-800">الملاحظات</h2>
+                  <textarea
+                    aria-label="الملاحظات"
                     value={noteDrafts[session.id] ?? entry?.note ?? ''}
                     onChange={(event) =>
                       setNoteDrafts((current) => ({
@@ -775,104 +868,105 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                         [session.id]: event.target.value,
                       }))
                     }
-                    placeholder="ملاحظة التنفيذ"
-                    className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
+                    placeholder="أضف ملاحظة التنفيذ"
+                    rows={3}
+                    className="mt-3 min-h-20 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                   />
                   <button
+                    type="button"
                     disabled={savingId === session.id}
                     onClick={() => saveNote(session)}
-                    className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 disabled:opacity-50"
+                    className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 disabled:opacity-50"
                   >
-                    حفظ الملاحظة
+                    حفظ الملاحظات
                   </button>
-                </div>
-                <div className="flex gap-2">
-                  <span className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700">
-                    المقطع: {sectionLabel}
-                  </span>
-                  <span className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700">
-                    المذكرة:{' '}
-                    {memoEligible
-                      ? sessionDto.memoExists
-                        ? 'موجودة'
-                        : 'غير منشأة'
-                      : 'لا تتطلب مذكرة'}
-                  </span>
-                  {memoPlan && hasMemoPreview && (
+                </section>
+              </div>
+              <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-3 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-bold text-slate-500">إجراءات التنفيذ</span>
+                  <button
+                    type="button"
+                    disabled={savingId === session.id}
+                    onClick={() => updateStatus(session, 'منجزة')}
+                    className="rounded-xl bg-emerald-600 px-3 py-2 font-bold text-white disabled:opacity-50"
+                  >
+                    منجزة
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savingId === session.id}
+                    onClick={() => updateStatus(session, 'مؤجلة')}
+                    className="rounded-xl bg-amber-600 px-3 py-2 font-bold text-white disabled:opacity-50"
+                  >
+                    مؤجلة
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savingId === session.id}
+                    onClick={() => updateStatus(session, 'غير منجزة')}
+                    className="rounded-xl bg-slate-700 px-3 py-2 font-bold text-white disabled:opacity-50"
+                  >
+                    غير منجزة
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savingId === session.id}
+                    onClick={() => updateStatus(session, 'مبرمجة')}
+                    className="rounded-xl bg-blue-700 px-3 py-2 font-bold text-white disabled:opacity-50"
+                  >
+                    مبرمجة
+                  </button>
+                  {status === 'مؤجلة' && (
                     <button
                       type="button"
                       onClick={() =>
-                        setExpandedPreviews((current) => {
-                          const next = new Set(current);
-                          if (next.has(session.id)) next.delete(session.id);
-                          else next.add(session.id);
-                          return next;
-                        })
+                        window.location.assign(
+                          `/planning?section=annual-distribution&classId=${encodeURIComponent(session.classId)}&classPlannedSessionId=${encodeURIComponent(session.id)}&academicYearId=${encodeURIComponent(session.academicYearId)}`
+                        )
                       }
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"
+                      className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 font-bold text-amber-800"
                     >
-                      {isPreviewExpanded ? 'إخفاء محتوى المذكرة' : 'عرض محتوى المذكرة'}
+                      إعادة البرمجة
                     </button>
                   )}
-                  {memoEligible ? (
-                    <>
-                      <button
-                        onClick={() =>
-                          onOpenAIGeneratorForSession(sessionRef(session, reference, sessionClass))
-                        }
-                        className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700"
-                      >
-                        توليد المذكرة
-                      </button>
-                      <button
-                        onClick={() => openMemo(session, entry)}
-                        className="flex items-center gap-1 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-700"
-                      >
-                        <FileText className="h-3.5 w-3.5" /> فتح المذكرة
-                      </button>
-                    </>
-                  ) : (
-                    <span className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
-                      حصة تنظيمية بدون مذكرة
-                    </span>
-                  )}
                   {reference &&
                     (reference.sessionType === 'تقويم تشخيصي' ||
                       reference.sessionType === 'تقويم تحصيلي') && (
-                      <button
-                        onClick={() =>
-                          window.location.assign(
-                            '/gradebook?classId=' +
-                              encodeURIComponent(session.classId) +
-                              '&academicYearId=' +
-                              encodeURIComponent(session.academicYearId) +
-                              '&classPlannedSessionId=' +
-                              encodeURIComponent(session.id)
-                          )
-                        }
-                        className="flex items-center gap-1 rounded-xl bg-purple-50 px-3 py-2 text-xs font-bold text-purple-700"
-                      >
-                        <Target className="h-3.5 w-3.5" /> فتح التقويم
-                      </button>
-                    )}
-                  {reference &&
-                    (reference.sessionType === 'تقويم تشخيصي' ||
-                      reference.sessionType === 'تقويم تحصيلي') && (
-                      <button
-                        onClick={() =>
-                          window.location.assign(
-                            '/attendance?classId=' +
-                              encodeURIComponent(session.classId) +
-                              '&academicYearId=' +
-                              encodeURIComponent(session.academicYearId) +
-                              '&classPlannedSessionId=' +
-                              encodeURIComponent(session.id)
-                          )
-                        }
-                        className="flex items-center gap-1 rounded-xl bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700"
-                      >
-                        <Target className="h-3.5 w-3.5" /> تسجيل الحضور
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            window.location.assign(
+                              '/gradebook?classId=' +
+                                encodeURIComponent(session.classId) +
+                                '&academicYearId=' +
+                                encodeURIComponent(session.academicYearId) +
+                                '&classPlannedSessionId=' +
+                                encodeURIComponent(session.id)
+                            )
+                          }
+                          className="flex items-center gap-1 rounded-xl bg-purple-50 px-3 py-2 font-bold text-purple-700"
+                        >
+                          <Target className="h-3.5 w-3.5" /> فتح التقويم
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            window.location.assign(
+                              '/attendance?classId=' +
+                                encodeURIComponent(session.classId) +
+                                '&academicYearId=' +
+                                encodeURIComponent(session.academicYearId) +
+                                '&classPlannedSessionId=' +
+                                encodeURIComponent(session.id)
+                            )
+                          }
+                          className="flex items-center gap-1 rounded-xl bg-blue-50 px-3 py-2 font-bold text-blue-700"
+                        >
+                          <Target className="h-3.5 w-3.5" /> تسجيل الحضور
+                        </button>
+                      </>
                     )}
                 </div>
               </div>

@@ -93,7 +93,7 @@ describe('Daily Notebook P1 execution workflow', () => {
   });
 
   it('keeps memo, attendance, and assessment actions as links to canonical workspaces', () => {
-    expect(notebook).toContain('المذكرة:');
+    expect(notebook).toContain('>المذكرة</h2>');
     expect(notebook).toContain("'/gradebook?classId='");
     expect(notebook).toContain("'/attendance?classId='");
     expect(notebook).toContain('classPlannedSessionId');

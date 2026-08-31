@@ -171,23 +171,23 @@ describe('Daily Notebook P2 weekly experience', () => {
       equipment: [],
       contentSummary: null,
     });
-    expect(notebook).toContain('عرض محتوى المذكرة');
-    expect(notebook).toContain('إخفاء محتوى المذكرة');
+    expect(notebook).toContain('عرض المحتوى');
+    expect(notebook).toContain('إخفاء المحتوى');
     expect(notebook).not.toContain('fetchLessonPlan');
   });
 
   it('keeps technical section and domain identifiers out of primary labels', () => {
     expect(notebook).not.toContain('|| reference.learningSectionId');
     expect(notebook).not.toContain('domain: field?.name || reference?.domainId');
-    expect(notebook).toContain('الميدان غير محدد');
-    expect(notebook).toContain('المقطع غير محدد');
-    expect(notebook).toContain('المقطع:');
+    expect(notebook).not.toContain('الميدان غير محدد');
+    expect(notebook).not.toContain('المقطع غير محدد');
+    expect(notebook).toContain('محتوى التعلم');
   });
 
   it('keeps memo absence and P0/P1 links safe without fake content or new daily requests', () => {
     expect(buildLessonMemoPreview(null)).toBeNull();
-    expect(notebook).toContain('المذكرة:');
-    expect(notebook).toContain("'غير منشأة'");
+    expect(notebook).toContain('>المذكرة</h2>');
+    expect(notebook).toContain("'لم تُنشأ بعد'");
     expect(notebook).toContain("'/gradebook?classId='");
     expect(notebook).toContain("'/attendance?classId='");
     expect(notebook).toContain('statusRequestVersions');

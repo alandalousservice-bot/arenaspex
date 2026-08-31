@@ -200,7 +200,8 @@ describe('Daily Notebook all-classes day view', () => {
 
   it('renders each card from the session class context', () => {
     expect(notebook).toContain('const sessionClass = classForSession(session);');
-    expect(notebook).toContain('القسم: {sessionClass?.name');
+    expect(notebook).toContain('>الفوج</span>');
+    expect(notebook).toContain('{sessionClass.name}');
   });
 
   it('binds status persistence to the exact session class and id', () => {

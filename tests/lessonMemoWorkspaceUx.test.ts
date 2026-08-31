@@ -188,7 +188,7 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(view).toContain('if (!isLessonMemoEligible(operationalSession))');
     expect(view).toContain('if (!isLessonMemoEligible(scheduledContext.session))');
     expect(dailyNotebook).toContain('const memoEligible = isLessonMemoEligible(reference || {});');
-    expect(dailyNotebook).toContain('المذكرة:');
+    expect(dailyNotebook).toContain('>المذكرة</h2>');
     expect(dailyNotebook).toContain('memoEligible');
     expect(dailyNotebook).toContain('حصة تنظيمية بدون مذكرة');
     expect(commandCenter).toContain('isLessonMemoEligible({');
