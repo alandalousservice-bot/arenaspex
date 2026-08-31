@@ -33,6 +33,7 @@ import {
   normalizeDailyNotebookEntries,
   normalizePlanningSession,
   normalizePlanningSessions,
+  resolveOperationalDate,
   sortPlanningSessions,
   toDailyNotebookSessionDto,
 } from '../../services/dailyNotebook.service';
@@ -156,11 +157,19 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
       ),
     [safeLessonPlans, currentUser.id, classFilter, academicYearId]
   );
-  const progress = useMemo(() => calculateExecutionProgress(sessions), [sessions]);
+  const filteredSessions = useMemo(
+    () => filterPlanningSessions(sessions, classFilter),
+    [classFilter, sessions]
+  );
+  const operationalMinimumDate = useMemo(
+    () => earliestPlanningDate(filteredSessions),
+    [filteredSessions]
+  );
+  const progress = useMemo(() => calculateExecutionProgress(filteredSessions), [filteredSessions]);
   const weekDates = useMemo(() => getLocalWeekDates(selectedDate), [selectedDate]);
   const weekSessionCounts = useMemo(
-    () => countSessionsByDate(sessions, weekDates),
-    [sessions, weekDates]
+    () => countSessionsByDate(filteredSessions, weekDates),
+    [filteredSessions, weekDates]
   );
   const printModel = useMemo<DailyNotebookPrintModel | null>(
     () =>
@@ -204,10 +213,16 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
         if (cancelled) return;
         const safeSessions = normalizePlanningSessions(result?.sessions);
         setSessions(safeSessions);
-        if (!requestedDate && !initializedDateYears.current.has(academicYearId)) {
+        if (!initializedDateYears.current.has(academicYearId)) {
           const earliest = earliestPlanningDate(safeSessions);
           if (earliest) {
-            setSelectedDate((current) => (current < earliest ? earliest : current));
+            setSelectedDate((current) =>
+              resolveOperationalDate({
+                requestedDate: current,
+                localToday: today(),
+                firstPlannedDate: earliest,
+              })
+            );
           }
           initializedDateYears.current.add(academicYearId);
         }
@@ -231,16 +246,12 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   const displayed = useMemo(
     () =>
       focusedSessionId
-        ? filterPlanningSessions(sessions, classFilter).filter(
-            (item) => item.id === focusedSessionId
-          )
+        ? filteredSessions.filter((item) => item.id === focusedSessionId)
         : sortPlanningSessions(
-            filterPlanningSessions(sessions, classFilter).filter(
-              (item) => item.plannedDate === selectedDate
-            ),
+            filteredSessions.filter((item) => item.plannedDate === selectedDate),
             new Map(safeTeacherClasses.map((item) => [item.id, item.name]))
           ),
-    [classFilter, focusedSessionId, safeTeacherClasses, selectedDate, sessions]
+    [filteredSessions, focusedSessionId, safeTeacherClasses, selectedDate]
   );
   const classForSession = (session: TeacherPlanningSession) => classesById.get(session.classId);
   const updateStatus = async (session: TeacherPlanningSession, status: NotebookStatus) => {
@@ -357,17 +368,23 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
       `/lesson-plans?classId=${encodeURIComponent(session.classId)}&classPlannedSessionId=${encodeURIComponent(session.id)}&academicYearId=${encodeURIComponent(session.academicYearId)}${entry?.lessonPlanId ? `&lessonPlanId=${encodeURIComponent(entry.lessonPlanId)}` : ''}`
     );
   };
+  const resolveDate = (requestedDate: string) =>
+    resolveOperationalDate({
+      requestedDate,
+      localToday: today(),
+      firstPlannedDate: operationalMinimumDate,
+    });
   const shiftDate = (days: number) => {
     setFocusedSessionId('');
-    setSelectedDate(shiftLocalDate(selectedDate, days));
+    setSelectedDate(resolveDate(shiftLocalDate(selectedDate, days)));
   };
   const selectDate = (date: string) => {
     setFocusedSessionId('');
-    setSelectedDate(date);
+    setSelectedDate(resolveDate(date));
   };
   const shiftWeek = (weeks: number) => {
     setFocusedSessionId('');
-    setSelectedDate(shiftLocalDate(selectedDate, weeks * 7));
+    setSelectedDate(resolveDate(shiftLocalDate(selectedDate, weeks * 7)));
   };
   const printDailyNotebook = async () => {
     if (!printModel?.rows.length) return;
@@ -437,6 +454,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                 type="date"
                 value={selectedDate}
                 onChange={(event) => selectDate(event.target.value)}
+                min={operationalMinimumDate || undefined}
                 className="mt-1 block rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-normal"
               />
             </label>

@@ -99,7 +99,7 @@ describe('Daily Notebook P2 weekly experience', () => {
     expect([...countSessionsByDate([...selected, otherClass, otherYear], dates).values()]).toEqual([
       0, 3, 0, 2, 0, 0, 0,
     ]);
-    expect(notebook).toContain('sessions, weekDates');
+    expect(notebook).toContain('filteredSessions, weekDates');
     expect(notebook).toContain('selectedClassId');
     expect(notebook).toContain('academicYearId');
   });

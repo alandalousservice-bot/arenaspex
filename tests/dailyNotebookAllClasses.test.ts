@@ -239,10 +239,9 @@ describe('Daily Notebook all-classes day view', () => {
 
   it('anchors an initial before-school date only to the first loaded planning date', () => {
     expect(notebook).toContain('earliestPlanningDate(safeSessions)');
-    expect(notebook).toContain('current < earliest ? earliest : current');
-    expect(notebook).toContain(
-      '!requestedDate && !initializedDateYears.current.has(academicYearId)'
-    );
+    expect(notebook).toContain('resolveOperationalDate({');
+    expect(notebook).toContain('firstPlannedDate: earliest');
+    expect(notebook).toContain('!initializedDateYears.current.has(academicYearId)');
   });
 
   it('has distinct all-day and class-day empty-state branches', () => {

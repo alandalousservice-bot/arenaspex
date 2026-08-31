@@ -63,7 +63,7 @@ describe('Daily Notebook P1 execution workflow', () => {
       ])
     ).toEqual({ completed: 5, total: 10, percentage: 50 });
     expect(notebook).toContain('التقدم في تنفيذ البرنامج');
-    expect(notebook).toContain('calculateExecutionProgress(sessions)');
+    expect(notebook).toContain('calculateExecutionProgress(filteredSessions)');
   });
 
   it('keeps progress independent for separate classes and same-grade sections', () => {

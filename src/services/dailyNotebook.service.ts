@@ -166,6 +166,19 @@ export function earliestPlanningDate(sessions: TeacherPlanningSession[]): string
   );
 }
 
+export function resolveOperationalDate({
+  requestedDate,
+  localToday,
+  firstPlannedDate,
+}: {
+  requestedDate: string;
+  localToday: string;
+  firstPlannedDate?: string | null;
+}): string {
+  const candidate = requestedDate || localToday;
+  return firstPlannedDate && candidate < firstPlannedDate ? firstPlannedDate : candidate;
+}
+
 export function sortPlanningSessions(
   sessions: TeacherPlanningSession[],
   classNames?: ReadonlyMap<string, string>
