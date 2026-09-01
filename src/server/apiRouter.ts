@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
+import type { Prisma } from '@prisma/client';
 import {
   generatePELessonPlan,
   improvePELessonWording,
@@ -595,6 +596,230 @@ async function executionDependencyIds(teacherId: string, sessionIds: string[]) {
   return ids;
 }
 
+class ProtectedPlanningMoveError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly statusCode = 409
+  ) {
+    super(message);
+    this.name = 'ProtectedPlanningMoveError';
+  }
+}
+
+function movedLessonPlanSnapshot(
+  data: unknown,
+  plannedDate: string,
+  startTime: string
+): Prisma.InputJsonValue | null {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const snapshot = data as Record<string, unknown>;
+  const next = { ...snapshot };
+  let changed = false;
+  if (typeof snapshot.date === 'string' && snapshot.date !== plannedDate) {
+    next.date = plannedDate;
+    changed = true;
+  }
+  if ('plannedStartTime' in snapshot && snapshot.plannedStartTime !== startTime) {
+    next.plannedStartTime = startTime;
+    changed = true;
+  }
+  return changed ? (next as Prisma.InputJsonValue) : null;
+}
+
+apiRouter.post(
+  '/teacher/planning/sessions/:sessionId/move-to-canonical-slot',
+  requireRole('teacher'),
+  async (req, res) => {
+    const parsed = classPlanningQuerySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'السنة الدراسية مطلوبة بصيغة صحيحة.' });
+    }
+    try {
+      const { academicYearId } = parsed.data;
+      const existing = await prisma.classPlannedSession.findFirst({
+        where: { id: req.params.sessionId, teacherId: req.user!.id },
+        include: { class: { select: { id: true, name: true, levelId: true } } },
+      });
+      if (!existing) {
+        return res.status(404).json({ error: 'الحصة التشغيلية غير موجودة ضمن أقسامك.' });
+      }
+      if (existing.academicYearId !== academicYearId) {
+        throw new ProtectedPlanningMoveError(
+          'academic-year-mismatch',
+          'لا يمكن نقل الحصة ضمن سنة دراسية مختلفة.'
+        );
+      }
+      if (!isPreLaunchAcademicYear(academicYearId)) {
+        throw new ProtectedPlanningMoveError(
+          'post-launch-move-blocked',
+          'نقل الحصص المحمية متاح قبل انطلاق السنة الدراسية فقط.'
+        );
+      }
+      const normalizedLevelId = normalizePrimaryLevelId(existing.class.levelId);
+      if (!normalizedLevelId) {
+        throw new ProtectedPlanningMoveError(
+          'unknown-class-level',
+          'لا يمكن تحديد المنهاج المعتمد لهذا القسم.'
+        );
+      }
+      const annualPlan = await prisma.annualPlan.findFirst({
+        where: {
+          teacherId: req.user!.id,
+          academicYearId,
+          levelId: normalizedLevelId,
+          kind: ANNUAL_DISTRIBUTION_KIND,
+        },
+        select: { data: true },
+      });
+      const storedData = annualDistributionData(annualPlan);
+      const planningStartDate =
+        storedData.note &&
+        isPlanningStartDateConsistent(academicYearId, storedData.note) &&
+        isValidPlanningDate(storedData.note)
+          ? storedData.note
+          : getAcademicCalendar(academicYearId).schoolStart;
+      const generation = generateAllPrimaryLevelDistributions(academicYearId, planningStartDate);
+      const distribution = generation.levels.find((level) => level.levelId === normalizedLevelId);
+      if (!distribution || distribution.status !== 'generated') {
+        throw new ProtectedPlanningMoveError(
+          'missing-canonical-sequence',
+          'لا يمكن تحديد الحصة المقابلة ضمن التوزيع السنوي.'
+        );
+      }
+      const timetableSlots = await weeklySlotsForTeacher(req.user!.id, academicYearId);
+      const classSlots = timetableSlots.filter((slot) => slot.classId === existing.classId);
+      const materialized = materializeClassPlannedSessionSeedsFromTimetable(
+        req.user!.id,
+        existing.classId,
+        academicYearId,
+        distribution.sessions,
+        classSlots
+      );
+      if (materialized.error) {
+        throw new ProtectedPlanningMoveError('missing-canonical-slot', materialized.error, 400);
+      }
+      const target = materialized.seeds.find(
+        (seed) => seed.referenceSessionId === existing.referenceSessionId
+      );
+      if (!target) {
+        throw new ProtectedPlanningMoveError(
+          'incompatible-reference',
+          'لا توجد حصة canonical متوافقة مع هوية الحصة المحمية.'
+        );
+      }
+      if (
+        existing.plannedDate.getTime() === target.plannedDate.getTime() &&
+        existing.startTime === target.startTime &&
+        existing.durationMinutes === target.durationMinutes
+      ) {
+        throw new ProtectedPlanningMoveError(
+          'already-canonical',
+          'هذه الحصة موجودة أصلاً في موعدها المعتمد.'
+        );
+      }
+      const dependencyIds = await executionDependencyIds(req.user!.id, [existing.id]);
+      if (existing.status !== 'منجزة' || !dependencyIds.has(existing.id)) {
+        throw new ProtectedPlanningMoveError(
+          'not-protected',
+          'هذه الحصة ليست تعارضاً محمياً؛ استخدم إعادة بناء التوزيع لمزامنتها.'
+        );
+      }
+      const [attendanceRows, assessmentRows, lessonPlans] = await Promise.all([
+        prisma.studentAttendance.findMany({
+          where: { teacherId: req.user!.id, classPlannedSessionId: existing.id },
+          select: { id: true },
+        }),
+        prisma.assessmentSession.findMany({
+          where: { teacherId: req.user!.id, classPlannedSessionId: existing.id },
+          select: { id: true },
+        }),
+        prisma.lessonPlan.findMany({
+          where: { ownerId: req.user!.id },
+          select: { id: true, data: true },
+        }),
+      ]);
+      if (attendanceRows.length) {
+        throw new ProtectedPlanningMoveError(
+          'attendance-dependency',
+          'لا يمكن نقل الحصة لوجود بيانات غياب/حضور مرتبطة بها.'
+        );
+      }
+      if (assessmentRows.length) {
+        throw new ProtectedPlanningMoveError(
+          'assessment-dependency',
+          'لا يمكن نقل الحصة لوجود تقييمات مرتبطة بها.'
+        );
+      }
+      const linkedLessonPlans = lessonPlans
+        .filter((plan) => jsonClassPlannedSessionId(plan.data) === existing.id)
+        .map((plan) => ({
+          id: plan.id,
+          data: movedLessonPlanSnapshot(
+            plan.data,
+            target.plannedDate.toISOString().slice(0, 10),
+            target.startTime
+          ),
+        }));
+      const moved = await prisma.$transaction(async (tx) => {
+        const occupied = await tx.classPlannedSession.findFirst({
+          where: {
+            teacherId: req.user!.id,
+            classId: existing.classId,
+            academicYearId,
+            plannedDate: target.plannedDate,
+            startTime: target.startTime,
+            id: { not: existing.id },
+          },
+          select: { id: true },
+        });
+        if (occupied) {
+          throw new ProtectedPlanningMoveError(
+            'destination-occupied',
+            'لا يمكن نقل الحصة لأن الموعد المعتمد مشغول بحصة تشغيلية أخرى.'
+          );
+        }
+        const saved = await tx.classPlannedSession.update({
+          where: { id: existing.id },
+          data: {
+            plannedDate: target.plannedDate,
+            startTime: target.startTime,
+            durationMinutes: target.durationMinutes,
+          },
+        });
+        for (const lessonPlan of linkedLessonPlans) {
+          if (lessonPlan.data) {
+            await tx.lessonPlan.update({
+              where: { id: lessonPlan.id },
+              data: { data: lessonPlan.data },
+            });
+          }
+        }
+        return saved;
+      });
+      return res.json({
+        success: true,
+        moved: true,
+        session: classPlannedSessionView(moved, timetableSlotForSession(moved, timetableSlots)),
+        previous: {
+          plannedDate: existing.plannedDate.toISOString().slice(0, 10),
+          startTime: existing.startTime,
+        },
+        canonical: {
+          plannedDate: target.plannedDate.toISOString().slice(0, 10),
+          startTime: target.startTime,
+          durationMinutes: target.durationMinutes,
+        },
+      });
+    } catch (error) {
+      if (error instanceof ProtectedPlanningMoveError) {
+        return res.status(error.statusCode).json({ error: error.message, code: error.code });
+      }
+      throw error;
+    }
+  }
+);
+
 apiRouter.get('/teacher/planning/sessions', requireRole('teacher'), async (req, res) => {
   const parsed = classPlanningQuerySchema.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ error: 'السنة الدراسية مطلوبة.' });
@@ -840,11 +1065,15 @@ apiRouter.post(
       existingRows.map((row) => row.id)
     );
     const conflicts = [] as Array<{
+      sessionId: string;
       classId: string;
       className: string;
       referenceSessionId: string;
       existingDate: string;
       requestedDate: string | null;
+      currentStartTime: string | null;
+      requestedStartTime: string | null;
+      sessionTypeLabel?: string;
       reason: 'execution-dependency' | 'completed-session' | 'orphaned-generated-session';
     }>;
     let sessionsCreated = 0;
@@ -863,12 +1092,19 @@ apiRouter.post(
         );
         if (decision === 'conflict' && existing) {
           sessionsProtected += 1;
+          const reference = canonicalReferenceSessions(link.normalizedLevelId!).find(
+            (item) => item.referenceSessionId === seed.referenceSessionId
+          );
           conflicts.push({
+            sessionId: existing.id,
             classId: link.classId,
             className: link.className,
             referenceSessionId: seed.referenceSessionId,
             existingDate: existing.plannedDate.toISOString().slice(0, 10),
             requestedDate: seed.plannedDate.toISOString().slice(0, 10),
+            currentStartTime: existing.startTime,
+            requestedStartTime: seed.startTime,
+            sessionTypeLabel: reference?.sessionTypeLabel,
             reason: dependencyIds.has(existing.id) ? 'execution-dependency' : 'completed-session',
           });
         }
@@ -894,11 +1130,14 @@ apiRouter.post(
       if (isProtected) {
         sessionsProtected += 1;
         conflicts.push({
+          sessionId: row.id,
           classId: row.classId,
           className: classNameById.get(row.classId) || row.classId,
           referenceSessionId: row.referenceSessionId,
           existingDate: row.plannedDate.toISOString().slice(0, 10),
           requestedDate: null,
+          currentStartTime: row.startTime,
+          requestedStartTime: null,
           reason: dependencyIds.has(row.id) ? 'execution-dependency' : 'orphaned-generated-session',
         });
         return [];

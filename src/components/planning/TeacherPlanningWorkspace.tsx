@@ -9,10 +9,12 @@ import {
   fetchTeacherPlanningSessions,
   fetchTeacherAnnualDistribution,
   initializeTeacherAnnualDistribution,
+  moveTeacherPlanningSessionToCanonicalSlot,
   updateTeacherAnnualDistributionSession,
   updateTeacherPlanningSession,
   TeacherPlanningSession,
   TeacherAnnualDistributionResponse,
+  TeacherAnnualDistributionConflict,
 } from '../../services/api';
 import {
   formatAcademicYearLabel,
@@ -260,6 +262,39 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     }
   };
 
+  const moveProtectedSession = async (conflict: TeacherAnnualDistributionConflict) => {
+    if (!conflict.sessionId) {
+      setError('تعذر تحديد الحصة المحمية لنقلها بأمان.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      await moveTeacherPlanningSessionToCanonicalSlot(conflict.sessionId, academicYearId);
+      setAnnualGeneration((current) => {
+        if (!current) return current;
+        const conflicts = (current.conflicts || []).filter(
+          (item) => item.sessionId !== conflict.sessionId
+        );
+        return {
+          ...current,
+          conflicts,
+          sessionsProtected: Math.max(0, (current.sessionsProtected || 0) - 1),
+          status: conflicts.length ? 'partial' : 'rebuilt',
+        };
+      });
+      if (selectedClassId) {
+        const requestId = ++sessionsRequestId.current;
+        const classResult = await fetchTeacherPlanningSessions(selectedClassId, academicYearId);
+        if (requestId === sessionsRequestId.current) setSessions(classResult.sessions);
+      }
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'تعذر نقل الحصة المحمية.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const updateSession = async (
     session: TeacherPlanningSession,
     updates: Partial<
@@ -433,6 +468,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
           onPlanningStartDateChange={setPlanningStartDate}
           onInitialize={() => void initialize()}
           onUpdateDate={(session, plannedDate) => void updateLevelSession(session, plannedDate)}
+          onMoveProtectedSession={(conflict) => void moveProtectedSession(conflict)}
           onNavigateToCalendar={() => changeSection('calendar')}
         />
       )}

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BookOpen, CalendarDays, NotebookPen, Printer, RefreshCw } from 'lucide-react';
 import { PE_FIELDS, PE_LEVELS } from '../../data/algerianCurriculum';
 import {
@@ -11,6 +11,7 @@ import { normalizePrimaryLevelId } from '../../services/teacherPlanning.service'
 import type { PrimaryLevelId } from '../../services/primaryLevel.service';
 import type {
   TeacherAnnualDistributionResponse,
+  TeacherAnnualDistributionConflict,
   TeacherAnnualDistributionSession,
   TeacherPlanningReference,
 } from '../../services/api';
@@ -31,6 +32,7 @@ interface AnnualDistributionCalendarProps {
   onPlanningStartDateChange: (value: string) => void;
   onInitialize: () => void;
   onUpdateDate: (session: TeacherAnnualDistributionSession, value: string) => void;
+  onMoveProtectedSession: (conflict: TeacherAnnualDistributionConflict) => void;
   onNavigateToCalendar: () => void;
 }
 
@@ -282,8 +284,11 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
   onPlanningStartDateChange,
   onInitialize,
   onUpdateDate,
+  onMoveProtectedSession,
   onNavigateToCalendar,
 }) => {
+  const [pendingMoveKey, setPendingMoveKey] = useState<string | null>(null);
+  const [keptConflictKeys, setKeptConflictKeys] = useState<Set<string>>(() => new Set());
   const calendarRows = useMemo(() => buildAnnualCalendarRows(sessions), [sessions]);
   const compactRows = useMemo(
     () => buildAnnualCompactRows(sessions, selectedLevelId),
@@ -411,6 +416,95 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
                 {annualGeneration.sessionsProtected || 0} · أزيلت أو أحيلت للتقاعد{' '}
                 {annualGeneration.sessionsRemovedOrRetired || 0}.
               </p>
+            </div>
+          )}
+          {annualGeneration.conflicts && annualGeneration.conflicts.length > 0 && (
+            <div className="mb-3 space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+              <p className="font-bold">تعذر إعادة جدولة الحصص المحمية التالية:</p>
+              {annualGeneration.conflicts.map((conflict) => {
+                const conflictKey =
+                  conflict.sessionId || `${conflict.classId}|${conflict.referenceSessionId}`;
+                const isPending = pendingMoveKey === conflictKey;
+                const isKept = keptConflictKeys.has(conflictKey);
+                const reason =
+                  conflict.reason === 'execution-dependency'
+                    ? 'حصة منجزة ولها بيانات تنفيذ محفوظة'
+                    : conflict.reason === 'completed-session'
+                      ? 'حصة منجزة'
+                      : 'حصة محمية مرتبطة ببيانات تنفيذ';
+                return (
+                  <div
+                    key={conflictKey}
+                    className="rounded-lg border border-amber-200 bg-white p-3"
+                  >
+                    <p className="font-bold">
+                      {conflict.className} · {conflict.sessionTypeLabel || 'حصة تنفيذية محمية'}
+                    </p>
+                    <p className="mt-1">
+                      الحالي: {displayDate(conflict.existingDate)}
+                      {conflict.currentStartTime ? ` — ${conflict.currentStartTime}` : ''}
+                      {' · الموعد الجديد: '}
+                      {conflict.requestedDate
+                        ? `${displayDate(conflict.requestedDate)}${conflict.requestedStartTime ? ` — ${conflict.requestedStartTime}` : ''}`
+                        : 'غير متاح'}
+                    </p>
+                    <p className="mt-1">السبب: {reason}</p>
+                    {isKept ? (
+                      <p className="mt-2 font-bold text-slate-600">تم الاحتفاظ بالموعد الحالي.</p>
+                    ) : isPending ? (
+                      <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-2">
+                        <p>
+                          سيتم نقل هذه الحصة إلى الموعد الجديد مع الاحتفاظ بالمذكرة والملاحظات
+                          والبيانات المرتبطة بها. لن يتم حذف محتوى الحصة.
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPendingMoveKey(null);
+                              onMoveProtectedSession(conflict);
+                            }}
+                            className="rounded-lg bg-blue-700 px-3 py-1.5 font-bold text-white"
+                          >
+                            تأكيد النقل
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPendingMoveKey(null)}
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-bold text-slate-700"
+                          >
+                            إلغاء
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={!conflict.sessionId}
+                          onClick={() => setPendingMoveKey(conflictKey)}
+                          className="rounded-lg bg-blue-700 px-3 py-1.5 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          نقل الحصة إلى الموعد الجديد
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setKeptConflictKeys((current) => {
+                              const next = new Set(current);
+                              next.add(conflictKey);
+                              return next;
+                            })
+                          }
+                          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-bold text-slate-700"
+                        >
+                          الاحتفاظ بالموعد الحالي
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">

@@ -766,11 +766,15 @@ export interface TeacherAnnualDistributionResponse {
 }
 
 export interface TeacherAnnualDistributionConflict {
+  sessionId?: string;
   classId: string;
   className: string;
   referenceSessionId: string;
   existingDate: string;
   requestedDate: string | null;
+  currentStartTime?: string | null;
+  requestedStartTime?: string | null;
+  sessionTypeLabel?: string;
   reason: 'execution-dependency' | 'completed-session' | 'orphaned-generated-session';
 }
 
@@ -807,7 +811,7 @@ export async function initializeTeacherAnnualDistribution(
           )
           .map(
             (item) =>
-              `${item.className} — ${item.referenceSessionId} (${item.existingDate} ← ${item.requestedDate})`
+              `${item.className} (${item.existingDate} ← ${item.requestedDate || 'الموعد الجديد'})`
           )
       : [];
     const error = new Error(
@@ -842,6 +846,31 @@ export async function initializeTeacherAnnualDistribution(
   return data as TeacherAnnualDistributionResponse;
 }
 
+export interface ProtectedPlanningSessionMoveResponse {
+  success: boolean;
+  moved: boolean;
+  session: TeacherPlanningSession;
+  previous: { plannedDate: string; startTime: string | null };
+  canonical: { plannedDate: string; startTime: string; durationMinutes: number };
+}
+
+export async function moveTeacherPlanningSessionToCanonicalSlot(
+  sessionId: string,
+  academicYearId: string
+): Promise<ProtectedPlanningSessionMoveResponse> {
+  const res = await fetch(
+    `/api/teacher/planning/sessions/${encodeURIComponent(sessionId)}/move-to-canonical-slot`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ academicYearId }),
+    }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر نقل الحصة إلى الموعد المعتمد.');
+  return data as ProtectedPlanningSessionMoveResponse;
+}
+
 export async function updateTeacherAnnualDistributionSession(
   academicYearId: string,
   levelId: string,
@@ -869,7 +898,7 @@ export async function updateTeacherAnnualDistributionSession(
           )
           .map(
             (item) =>
-              `${item.className} — ${item.referenceSessionId} (${item.existingDate} ← ${item.requestedDate})`
+              `${item.className} (${item.existingDate} ← ${item.requestedDate || 'الموعد الجديد'})`
           )
       : [];
     throw new Error([data.error || 'تعذر تحديث توزيع المستوى.', ...conflictDetails].join(' '));
