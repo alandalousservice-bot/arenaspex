@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookMarked,
   Calendar,
@@ -19,7 +19,10 @@ import {
   TeacherPlanningReference,
   updateTeacherPlanningSession,
 } from '../../services/api';
-import { canonicalReferenceSessions } from '../../services/teacherPlanning.service';
+import {
+  basePlanningReferenceId,
+  canonicalReferenceSessions,
+} from '../../services/teacherPlanning.service';
 import {
   calculateExecutionProgress,
   buildLessonMemoPreview,
@@ -142,6 +145,13 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
         ].map((item) => [item.referenceSessionId, item])
       ),
     [safeTeacherClasses, sessions]
+  );
+  const referenceForSession = useCallback(
+    (session: TeacherPlanningSession) =>
+      references.get(session.referenceSessionId) ||
+      references.get(basePlanningReferenceId(session.referenceSessionId)) ||
+      session.reference,
+    [references]
   );
   const entriesBySession = useMemo(
     () =>
@@ -274,13 +284,13 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   );
   const commonDomain = useMemo(() => {
     const domainNames = displayed.map((session) => {
-      const reference = references.get(session.referenceSessionId) || session.reference;
+      const reference = referenceForSession(session);
       return referenceFieldName(reference);
     });
     if (domainNames.some((value) => !value)) return null;
     const validDomainNames = domainNames.filter((value): value is string => Boolean(value));
     return new Set(validDomainNames).size === 1 ? validDomainNames[0] : null;
-  }, [displayed, references]);
+  }, [displayed, referenceForSession]);
   const classForSession = (session: TeacherPlanningSession) => classesById.get(session.classId);
   const updateStatus = async (session: TeacherPlanningSession, status: NotebookStatus) => {
     const requestVersion = (statusRequestVersions.current[session.id] || 0) + 1;
@@ -301,8 +311,8 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
         academicYearId: session.academicYearId,
         classId: session.classId,
         className: sessionClass?.name || session.classId,
-        sessionTitle: references.get(session.referenceSessionId)?.objective,
-        segmentTitle: references.get(session.referenceSessionId)?.learningSectionId,
+        sessionTitle: referenceForSession(session)?.objective,
+        segmentTitle: referenceForSession(session)?.learningSectionId,
         levelName: sessionClass ? levelLabel(sessionClass.levelId) : undefined,
         executionDate: updatedSession.plannedDate,
         timeSlot: sessionTimeLabel(updatedSession),
@@ -356,8 +366,8 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
         academicYearId: session.academicYearId,
         classId: session.classId,
         className: sessionClass?.name || session.classId,
-        sessionTitle: references.get(session.referenceSessionId)?.objective,
-        segmentTitle: references.get(session.referenceSessionId)?.learningSectionId,
+        sessionTitle: referenceForSession(session)?.objective,
+        segmentTitle: referenceForSession(session)?.learningSectionId,
         levelName: sessionClass ? levelLabel(sessionClass.levelId) : undefined,
         executionDate: session.plannedDate,
         timeSlot: sessionTimeLabel(session),
@@ -387,7 +397,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
     levelName: sessionClass ? levelLabel(sessionClass.levelId) : undefined,
   });
   const openMemo = (session: TeacherPlanningSession, entry?: DailyNotebookEntry) => {
-    const reference = references.get(session.referenceSessionId) || session.reference;
+    const reference = referenceForSession(session);
     if (!isLessonMemoEligible(reference || {})) {
       setError('هذه الحصة التنظيمية لا تتطلب مذكرة.');
       return;
@@ -688,7 +698,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
       <div className="grid gap-4">
         {displayed.map((session) => {
           const sessionClass = classForSession(session);
-          const reference = references.get(session.referenceSessionId) || session.reference;
+          const reference = referenceForSession(session);
           const memoEligible = isLessonMemoEligible(reference || {});
           const entry = entriesBySession.get(session.id);
           const status = session.status;

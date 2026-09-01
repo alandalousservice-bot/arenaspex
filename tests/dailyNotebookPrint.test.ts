@@ -238,7 +238,7 @@ describe('Daily Notebook dedicated print document', () => {
     expect(css).toContain('white-space: pre-line');
   });
 
-  it('preserves canonical paired-session indicators and avoids G4 artificial pairs', () => {
+  it('preserves canonical paired-session indicators for Grades 1–4 and avoids Grade 5 pairs', () => {
     const pairReference = {
       ...session('ref', '2026-05-01').reference!,
       objectiveGroupId: 'group-1',
@@ -262,7 +262,7 @@ describe('Daily Notebook dedicated print document', () => {
         ],
       })
     );
-    expect(gradeFour.rows.map((row) => row.pairPosition)).toEqual([null, null]);
+    expect(gradeFour.rows.map((row) => row.pairPosition)).toEqual([1, 2]);
   });
 
   it('exposes a dedicated print-only document and scoped landscape CSS', () => {
@@ -286,7 +286,9 @@ describe('Daily Notebook dedicated print document', () => {
     expect(dailyPageRule).toContain('size: A4 landscape');
     expect(dailyPageRule).toContain('margin: 0;');
     expect(dailyPageRule).not.toContain('portrait');
-    expect(css).toMatch(/\.daily-notebook-print-page\s*\{[\s\S]*?width:\s*297mm;[\s\S]*?height:\s*210mm;[\s\S]*?padding:\s*19mm 11mm 16mm;/);
+    expect(css).toMatch(
+      /\.daily-notebook-print-page\s*\{[\s\S]*?width:\s*297mm;[\s\S]*?height:\s*210mm;[\s\S]*?padding:\s*19mm 11mm 16mm;/
+    );
     expect(css).toMatch(/\.daily-notebook-print-page\s*\{[\s\S]*?overflow:\s*hidden;/);
     expect(css).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
     expect(css).toContain('tbody {');

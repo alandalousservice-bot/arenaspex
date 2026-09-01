@@ -9,7 +9,10 @@ import {
   Target,
   Users,
 } from 'lucide-react';
-import { canonicalReferenceSessions } from '../../services/teacherPlanning.service';
+import {
+  basePlanningReferenceId,
+  canonicalReferenceSessions,
+} from '../../services/teacherPlanning.service';
 import { calculateAssessmentMastery } from '../../services/assessmentMastery';
 import {
   createOrReuseTeacherAssessmentSession,
@@ -193,7 +196,9 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
     () =>
       activeClass && plannedSession
         ? canonicalReferenceSessions(activeClass.levelId).find(
-            (reference) => reference.referenceSessionId === plannedSession.referenceSessionId
+            (reference) =>
+              reference.referenceSessionId ===
+              basePlanningReferenceId(plannedSession.referenceSessionId)
           )
         : null,
     [activeClass, plannedSession]
@@ -249,7 +254,8 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
           const scheduled = planning.sessions.find((item) => item.id === requestedPlannedSessionId);
           const reference = scheduled
             ? canonicalReferenceSessions(activeClass?.levelId || '').find(
-                (item) => item.referenceSessionId === scheduled.referenceSessionId
+                (item) =>
+                  item.referenceSessionId === basePlanningReferenceId(scheduled.referenceSessionId)
               )
             : null;
           if (!scheduled || !reference)

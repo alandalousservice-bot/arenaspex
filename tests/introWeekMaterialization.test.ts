@@ -27,8 +27,8 @@ const materialize = (
 
 describe('official entry week operational materialization', () => {
   it('excludes Sunday before official entry and starts Sunday pedagogical work next week', () => {
-    const result = materialize('lvl_p4', [slot(0, '08:00', '09:30')]);
-    const canonical = canonicalPlanningSessions('lvl_p4', '2026-09-21', '2026-2027');
+    const result = materialize('lvl_p5', [slot(0, '08:00', '09:30')]);
+    const canonical = canonicalPlanningSessions('lvl_p5', '2026-09-21', '2026-2027');
 
     expect(result.error).toBeUndefined();
     expect(result.seeds.filter((seed) => seed.referenceSessionId.includes(':intro:'))).toEqual([]);
@@ -42,7 +42,7 @@ describe('official entry week operational materialization', () => {
     [3, '2026-09-23'],
     [4, '2026-09-24'],
   ])('materializes a real %s timetable occurrence as intro on %s', (weekday, date) => {
-    const result = materialize('lvl_p4', [slot(weekday, '08:00', '09:30')]);
+    const result = materialize('lvl_p5', [slot(weekday, '08:00', '09:30')]);
     const intro = result.seeds.find((seed) => seed.referenceSessionId.includes(':intro:'));
 
     expect(intro?.plannedDate.toISOString().slice(0, 10)).toBe(date);
@@ -84,11 +84,11 @@ describe('official entry week operational materialization', () => {
     );
     expect(counts).toEqual([56, 56, 56, 34, 34]);
 
-    const result = materialize('lvl_p4', [slot(1, '08:00', '09:30')]);
+    const result = materialize('lvl_p4', [slot(1, '08:00', '09:30'), slot(3, '08:00', '09:30')]);
     expect(result.seeds.filter((seed) => seed.referenceSessionId.includes(':intro:'))).toHaveLength(
-      1
+      2
     );
-    expect(result.seeds).toHaveLength(35);
+    expect(result.seeds).toHaveLength(57);
   });
 
   it('supports different same-level timetables without changing pedagogical identity order', () => {
@@ -143,7 +143,7 @@ describe('official entry week operational materialization', () => {
   });
 
   it('skips excluded dates without shifting a timetable occurrence to another weekday', () => {
-    const result = materialize('lvl_p4', [slot(1, '08:00', '09:30')]);
+    const result = materialize('lvl_p5', [slot(1, '08:00', '09:30')]);
     expect(
       result.seeds.every((seed) =>
         isValidAcademicSchoolDate(seed.plannedDate.toISOString().slice(0, 10), '2026-2027')
@@ -156,7 +156,7 @@ describe('official entry week operational materialization', () => {
   });
 
   it('keeps intro identity separate, memo behavior unchanged, and avoids UI scheduling hacks', () => {
-    const result = materialize('lvl_p4', [slot(1, '08:00', '09:30')]);
+    const result = materialize('lvl_p5', [slot(1, '08:00', '09:30')]);
     const intro = result.seeds.find((seed) => seed.referenceSessionId.includes(':intro:'))!;
     const diagnostic = result.seeds.find((seed) => !seed.referenceSessionId.includes(':intro:'))!;
     const planning = read('src/services/teacherPlanning.service.ts');

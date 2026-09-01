@@ -19,7 +19,10 @@ import {
   TeacherPlanningSession,
 } from '../../services/api';
 import { mergeSchedule, MergedScheduledLesson } from '../../services/schedule/scheduleMerge';
-import { canonicalReferenceSessions } from '../../services/teacherPlanning.service';
+import {
+  basePlanningReferenceId,
+  canonicalReferenceSessions,
+} from '../../services/teacherPlanning.service';
 import {
   formatAcademicYearLabel,
   formatAcademicYearSelectLabel,
@@ -182,7 +185,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const scheduledContext = useMemo(() => {
     if (!operationalClass || !operationalSession) return null;
     const canonicalReference = canonicalReferenceSessions(operationalClass.levelId).find(
-      (item) => item.referenceSessionId === operationalSession.referenceSessionId
+      (item) =>
+        item.referenceSessionId === basePlanningReferenceId(operationalSession.referenceSessionId)
     );
     if (!canonicalReference) return null;
     return {
@@ -344,7 +348,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         if (
           located &&
           !canonicalReferenceSessions(operationalClass?.levelId || '').some(
-            (item) => item.referenceSessionId === located.referenceSessionId
+            (item) =>
+              item.referenceSessionId === basePlanningReferenceId(located.referenceSessionId)
           )
         ) {
           setScheduledError('تعذر تحميل المرجع البيداغوجي لهذه الحصة.');

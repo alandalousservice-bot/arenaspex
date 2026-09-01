@@ -25,14 +25,14 @@ describe('Daily Notebook timetable materialization', () => {
       'class-monday',
       '2025-2026',
       annual,
-      [slot(1, '08:00', '09:30')]
+      [slot(1, '08:00', '09:30'), slot(3, '08:00', '09:30')]
     );
     const tuesday = materializeClassPlannedSessionSeedsFromTimetable(
       'teacher-1',
       'class-tuesday',
       '2025-2026',
       annual,
-      [slot(2, '10:00', '11:30')]
+      [slot(2, '10:00', '11:30'), slot(4, '10:00', '11:30')]
     );
 
     expect(monday.error).toBeUndefined();
@@ -51,14 +51,14 @@ describe('Daily Notebook timetable materialization', () => {
       'class-a',
       '2025-2026',
       annual,
-      [slot(1, '08:00', '09:30')]
+      [slot(1, '08:00', '09:30'), slot(3, '08:00', '09:30')]
     );
     const classB = materializeClassPlannedSessionSeedsFromTimetable(
       'teacher-1',
       'class-b',
       '2025-2026',
       annual,
-      [slot(1, '10:00', '11:30')]
+      [slot(1, '10:00', '11:30'), slot(3, '10:00', '11:30')]
     );
 
     const classAPedagogical = classA.seeds.filter(
@@ -67,8 +67,8 @@ describe('Daily Notebook timetable materialization', () => {
     const classBPedagogical = classB.seeds.filter(
       (item) => !item.referenceSessionId.includes(':intro:')
     );
-    expect(classAPedagogical).toHaveLength(34);
-    expect(classBPedagogical).toHaveLength(34);
+    expect(classAPedagogical).toHaveLength(55);
+    expect(classBPedagogical).toHaveLength(55);
     expect(classA.seeds[0].plannedDate.toISOString().slice(0, 10)).toBe(
       classB.seeds[0].plannedDate.toISOString().slice(0, 10)
     );
@@ -76,12 +76,12 @@ describe('Daily Notebook timetable materialization', () => {
     expect(classB.seeds[0].startTime).toBe('10:00');
   });
 
-  it('consumes five Monday slots as five distinct same-day occurrences', () => {
+  it('consumes five same-day slots without a fixed daily cap for Grade 5', () => {
     const result = materializeClassPlannedSessionSeedsFromTimetable(
       'teacher-1',
       'class-five-slots',
       '2025-2026',
-      canonicalPlanningSessions('lvl_p4', '2025-09-21', '2025-2026'),
+      canonicalPlanningSessions('lvl_p5', '2025-09-21', '2025-2026'),
       [
         slot(1, '08:00', '09:30'),
         slot(1, '09:45', '11:15'),
@@ -122,25 +122,22 @@ describe('Daily Notebook timetable materialization', () => {
     expect(result.error).toContain('كافية');
   });
 
-  it('assigns two G1–3 sessions per week only when two distinct occurrences exist', () => {
+  it('assigns a G1–3 learning objective to two different timetable weekdays', () => {
     const result = materializeClassPlannedSessionSeedsFromTimetable(
       'teacher-1',
       'class-two-slots-p1',
       '2025-2026',
       canonicalPlanningSessions('lvl_p1', '2025-09-21', '2025-2026').slice(0, 4),
-      [slot(1, '08:00', '09:00'), slot(1, '10:00', '11:00')]
+      [slot(1, '08:00', '09:00'), slot(3, '10:00', '11:00')]
     );
 
     expect(result.error).toBeUndefined();
-    const pedagogical = result.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
-    expect(
-      pedagogical.map((item) => [item.plannedDate.toISOString().slice(0, 10), item.startTime])
-    ).toEqual([
-      ['2025-09-29', '08:00'],
-      ['2025-09-29', '10:00'],
-      ['2025-10-06', '08:00'],
-      ['2025-10-06', '10:00'],
-    ]);
+    const learningPair = result.seeds.filter((item) =>
+      item.referenceSessionId.includes('f_locomotion:sequence:4')
+    );
+    expect(learningPair).toHaveLength(2);
+    expect(new Set(learningPair.map((item) => item.plannedDate.getUTCDay())).size).toBe(2);
+    expect(learningPair.map((item) => item.startTime)).toEqual(['08:00', '10:00']);
     expect(
       new Set(result.seeds.map((item) => `${item.plannedDate.toISOString()}|${item.startTime}`))
         .size
@@ -168,7 +165,7 @@ describe('Daily Notebook timetable materialization', () => {
       ['2025-09-29', '08:00'],
       ['2025-10-01', '10:00'],
       ['2025-10-06', '08:00'],
-      ['2025-10-08', '10:00'],
+      ['2025-10-13', '08:00'],
     ]);
     expect(result.seeds.every((item) => item.durationMinutes === 60)).toBe(true);
   });
@@ -179,7 +176,7 @@ describe('Daily Notebook timetable materialization', () => {
       'class-p4',
       '2025-2026',
       canonicalPlanningSessions('lvl_p4', '2025-09-21', '2025-2026'),
-      [slot(2, '08:00', '09:30')]
+      [slot(2, '08:00', '09:30'), slot(4, '08:00', '09:30')]
     );
     const g5 = materializeClassPlannedSessionSeedsFromTimetable(
       'teacher-1',
@@ -191,7 +188,7 @@ describe('Daily Notebook timetable materialization', () => {
 
     const g4Pedagogical = g4.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
     const g5Pedagogical = g5.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
-    expect(g4Pedagogical).toHaveLength(34);
+    expect(g4Pedagogical).toHaveLength(55);
     expect(g4Pedagogical.every((item) => item.durationMinutes === 90)).toBe(true);
     expect(g5Pedagogical).toHaveLength(34);
     expect(g5Pedagogical.every((item) => item.durationMinutes === 60)).toBe(true);
@@ -203,7 +200,7 @@ describe('Daily Notebook timetable materialization', () => {
       'class-intro',
       '2025-2026',
       canonicalPlanningSessions('lvl_p4', '2025-09-21', '2025-2026'),
-      [slot(3, '09:00', '10:30')]
+      [slot(3, '09:00', '10:30'), slot(4, '09:00', '10:30')]
     );
 
     expect(result.seeds[0].referenceSessionId).toContain(':intro:');
@@ -230,11 +227,11 @@ describe('Daily Notebook timetable materialization', () => {
       'class-holiday',
       '2025-2026',
       canonicalPlanningSessions('lvl_p4', '2025-09-21', '2025-2026'),
-      [slot(1, '08:00', '09:30')]
+      [slot(1, '08:00', '09:30'), slot(3, '08:00', '09:30')]
     );
 
     const pedagogical = result.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
-    expect(pedagogical).toHaveLength(34);
+    expect(pedagogical).toHaveLength(55);
     expect(
       result.seeds.every((item) => item.plannedDate.toISOString().endsWith('T00:00:00.000Z'))
     ).toBe(true);
@@ -256,7 +253,7 @@ describe('Daily Notebook timetable materialization', () => {
       'class-safe',
       '2025-2026',
       canonical,
-      [slot(2, '08:00', '09:30')]
+      [slot(2, '08:00', '09:30'), slot(4, '08:00', '09:30')]
     );
     const legacy = buildClassPlannedSessionSeedsFromCanonicalSessions(
       'teacher-1',
@@ -266,10 +263,14 @@ describe('Daily Notebook timetable materialization', () => {
     );
 
     const pedagogical = result.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
-    expect(pedagogical.map((item) => item.id)).toEqual(legacy.map((item) => item.id));
-    expect(pedagogical.map((item) => item.referenceSessionId)).toEqual(
-      canonical.map((item) => item.referenceSessionId)
-    );
+    expect(
+      pedagogical
+        .filter((item) => !item.referenceSessionId.includes(':meeting:'))
+        .map((item) => item.id)
+    ).toEqual(legacy.map((item) => item.id));
+    expect(
+      new Set(pedagogical.map((item) => item.referenceSessionId.replace(/:meeting:[12]$/, '')))
+    ).toEqual(new Set(canonical.map((item) => item.referenceSessionId)));
     expect(
       earliestPlanningDate(
         result.seeds.map((item) => ({
@@ -283,7 +284,7 @@ describe('Daily Notebook timetable materialization', () => {
 
   it('is idempotent and leaves executed-data safeguards in place', () => {
     const canonical = canonicalPlanningSessions('lvl_p4', '2025-09-21', '2025-2026');
-    const timetable = [slot(1, '08:00', '09:30')];
+    const timetable = [slot(1, '08:00', '09:30'), slot(3, '08:00', '09:30')];
     const first = materializeClassPlannedSessionSeedsFromTimetable(
       'teacher-1',
       'class-idempotent',

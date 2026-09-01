@@ -234,7 +234,7 @@ export function getPairedSessionInfo(
   grade: number
 ): PairedSessionInfo | null {
   const groupId = session.reference?.objectiveGroupId;
-  if (grade < 1 || grade > 3 || session.reference?.sessionType !== 'تعلمية' || !groupId) {
+  if (grade < 1 || grade > 4 || session.reference?.sessionType !== 'تعلمية' || !groupId) {
     return null;
   }
   const pair = sessions

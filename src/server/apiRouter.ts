@@ -38,6 +38,7 @@ import {
   isValidPlanningDate,
   normalizePrimaryLevelId,
   applyPersistedAnnualDistributionDates,
+  basePlanningReferenceId,
   decideClassSessionRebuild,
   introPlanningReference,
   type PlanningWordingOverrides,
@@ -867,6 +868,9 @@ apiRouter.get('/teacher/planning/sessions', requireRole('teacher'), async (req, 
         referenceByLevel
           .get(classesById.get(row.classId)?.levelId || '')
           ?.get(row.referenceSessionId) ||
+        referenceByLevel
+          .get(classesById.get(row.classId)?.levelId || '')
+          ?.get(basePlanningReferenceId(row.referenceSessionId)) ||
         introPlanningReference(
           classesById.get(row.classId)?.levelId || '',
           row.referenceSessionId
@@ -912,6 +916,7 @@ apiRouter.get(
         ...classPlannedSessionView(row, timetableSlotForSession(row, timetableSlots)),
         reference:
           references.get(row.referenceSessionId) ||
+          references.get(basePlanningReferenceId(row.referenceSessionId)) ||
           introPlanningReference(classRecord.levelId, row.referenceSessionId) ||
           null,
       })),
@@ -1105,7 +1110,7 @@ apiRouter.post(
           sessionsProtected += 1;
           const reference =
             canonicalReferenceSessions(link.normalizedLevelId!).find(
-              (item) => item.referenceSessionId === seed.referenceSessionId
+              (item) => item.referenceSessionId === basePlanningReferenceId(seed.referenceSessionId)
             ) || introPlanningReference(link.normalizedLevelId!, seed.referenceSessionId);
           conflicts.push({
             sessionId: existing.id,
@@ -1609,6 +1614,7 @@ apiRouter.post(
         ...classPlannedSessionView(row, timetableSlotForSession(row, timetableSlots)),
         reference:
           references.get(row.referenceSessionId) ||
+          references.get(basePlanningReferenceId(row.referenceSessionId)) ||
           introPlanningReference(classRecord.levelId, row.referenceSessionId) ||
           null,
       })),

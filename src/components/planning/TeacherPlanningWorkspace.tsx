@@ -349,7 +349,9 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
       sessions.map((session) => [session.referenceSessionId, session] as const)
     );
     return levelSessions.map((session) => {
-      const materialized = materializedByReference.get(session.referenceSessionId);
+      const materialized =
+        materializedByReference.get(session.referenceSessionId) ||
+        materializedByReference.get(`${session.referenceSessionId}:meeting:2`);
       return materialized ? { ...session, id: materialized.id } : session;
     });
   }, [annualGeneration, selectedLevelId, sessions]);

@@ -133,7 +133,7 @@ export function effectiveCurriculumObjective(
   return overrides[`${fieldId}__${sessionNumber}`]?.objective?.trim() || referenceObjective;
 }
 
-function gradeFromLevelId(levelId: PrimaryLevelId): number {
+function gradeFromLevelId(levelId: string): number {
   const grade = Number(levelId.replace('lvl_p', ''));
   return Number.isInteger(grade) && grade >= 1 && grade <= 5 ? grade : 0;
 }
@@ -164,6 +164,7 @@ function weekStartFor(value: string): string {
 const INTRO_SESSION_TYPE = 'تعارف وتنظيم' as const;
 const INTRO_SESSION_TYPE_LABEL = 'تعارف، تنظيم واتصال';
 const INTRO_SESSION_OBJECTIVE = 'تعارف، تنظيم واتصال مع التلاميذ';
+const MEETING_REFERENCE_SUFFIX = ':meeting:';
 
 function introReferenceSessionId(levelId: string, plannedDate: string, startTime: string): string {
   return `${levelId}:intro:${plannedDate}:${startTime}`;
@@ -171,6 +172,10 @@ function introReferenceSessionId(levelId: string, plannedDate: string, startTime
 
 export function isIntroReferenceSessionId(value: string): boolean {
   return value.includes(':intro:') || /:intro:sequence:\d+$/.test(value);
+}
+
+export function basePlanningReferenceId(value: string): string {
+  return value.replace(/:meeting:[12]$/, '');
 }
 
 export function introPlanningReference(
@@ -417,11 +422,64 @@ export function buildClassPlannedSessionSeedsFromCanonicalSessions(
   }));
 }
 
+interface PedagogicalOperationalUnit {
+  session: CanonicalPlanningSession;
+  canonicalSessions: CanonicalPlanningSession[];
+  meetingCount: 1 | 2;
+}
+
+interface TimetableOccurrence {
+  plannedDate: string;
+  startTime: string;
+  weekday: number;
+  weekStart: string;
+}
+
+function pedagogicalOperationalUnits(
+  sessions: CanonicalPlanningSession[],
+  grade: number
+): PedagogicalOperationalUnit[] {
+  const units: PedagogicalOperationalUnit[] = [];
+  for (let index = 0; index < sessions.length; index += 1) {
+    const session = sessions[index];
+    const next = sessions[index + 1];
+    const hasCanonicalPair =
+      grade <= 4 &&
+      session.sessionType === 'تعلمية' &&
+      next?.sessionType === 'تعلمية' &&
+      Boolean(session.objectiveGroupId) &&
+      session.objectiveGroupId === next.objectiveGroupId;
+    if (hasCanonicalPair) {
+      units.push({ session, canonicalSessions: [session, next], meetingCount: 2 });
+      index += 1;
+      continue;
+    }
+
+    units.push({
+      session,
+      canonicalSessions: [session],
+      meetingCount: grade >= 1 && grade <= 4 && session.sessionType === 'تعلمية' ? 2 : 1,
+    });
+  }
+  return units;
+}
+
+function operationalReferenceIdsForUnit(unit: PedagogicalOperationalUnit): string[] {
+  if (unit.meetingCount === 1) return [unit.session.referenceSessionId];
+  if (unit.canonicalSessions.length >= 2) {
+    return unit.canonicalSessions.slice(0, 2).map((session) => session.referenceSessionId);
+  }
+  return [
+    unit.session.referenceSessionId,
+    `${unit.session.referenceSessionId}${MEETING_REFERENCE_SUFFIX}2`,
+  ];
+}
+
 /**
- * Materialize the operational introduction layer and then the pedagogical
- * sequence on chronological occurrences of the class's persisted weekly
- * slots. Each valid timetable occurrence is consumed once, and no fallback
- * weekday is allowed.
+ * Materialize the operational introduction layer and then typed pedagogical
+ * occurrences on the class's persisted weekly slots. Learning objectives in
+ * grades 1–4 consume two different timetable weekdays; all other pedagogical
+ * session types consume one occurrence, and grade 5 always consumes one.
  */
 export function materializeClassPlannedSessionSeedsFromTimetable(
   teacherId: string,
@@ -465,12 +523,8 @@ export function materializeClassPlannedSessionSeedsFromTimetable(
 
   const firstPedagogicalDate = sessions[0]?.plannedDate || addPlanningDays(introEndDate, 3);
   const pedagogicalWeekStart = weekStartFor(firstPedagogicalDate);
-  const pedagogicalOccurrences: Array<{ plannedDate: string; startTime: string }> = [];
-  for (
-    let weekIndex = 0;
-    weekIndex < 80 && pedagogicalOccurrences.length < sessions.length;
-    weekIndex += 1
-  ) {
+  const pedagogicalOccurrences: TimetableOccurrence[] = [];
+  for (let weekIndex = 0; weekIndex < 80; weekIndex += 1) {
     for (const slot of slots) {
       const requestedDate = addPlanningDays(pedagogicalWeekStart, weekIndex * 7 + slot.weekday);
       if (
@@ -482,11 +536,56 @@ export function materializeClassPlannedSessionSeedsFromTimetable(
       }
       // A holiday consumes no occurrence; the same weekday resumes next week.
       if (!isValidAcademicSchoolDate(requestedDate, academicYearId)) continue;
-      pedagogicalOccurrences.push({ plannedDate: requestedDate, startTime: slot.startTime });
-      if (pedagogicalOccurrences.length === sessions.length) break;
+      pedagogicalOccurrences.push({
+        plannedDate: requestedDate,
+        startTime: slot.startTime,
+        weekday: slot.weekday,
+        weekStart: weekStartFor(requestedDate),
+      });
     }
   }
-  if (pedagogicalOccurrences.length < sessions.length) {
+
+  const units = pedagogicalOperationalUnits(sessions, gradeFromLevelId(levelId));
+  const assignments: Array<{
+    unit: PedagogicalOperationalUnit;
+    occurrences: TimetableOccurrence[];
+  }> = [];
+  let occurrenceCursor = 0;
+  for (const unit of units) {
+    if (unit.meetingCount === 1) {
+      const occurrence = pedagogicalOccurrences[occurrenceCursor];
+      if (!occurrence) break;
+      assignments.push({ unit, occurrences: [occurrence] });
+      occurrenceCursor += 1;
+      continue;
+    }
+
+    let pair: [TimetableOccurrence, TimetableOccurrence] | null = null;
+    let pairEndIndex = -1;
+    for (
+      let firstIndex = occurrenceCursor;
+      firstIndex < pedagogicalOccurrences.length;
+      firstIndex += 1
+    ) {
+      const first = pedagogicalOccurrences[firstIndex];
+      const secondIndex = pedagogicalOccurrences.findIndex(
+        (candidate, candidateIndex) =>
+          candidateIndex > firstIndex &&
+          candidate.weekStart === first.weekStart &&
+          candidate.weekday !== first.weekday
+      );
+      if (secondIndex >= 0) {
+        pair = [first, pedagogicalOccurrences[secondIndex]];
+        pairEndIndex = secondIndex;
+        break;
+      }
+    }
+    if (!pair) break;
+    assignments.push({ unit, occurrences: pair });
+    occurrenceCursor = pairEndIndex + 1;
+  }
+
+  if (assignments.length < units.length) {
     return {
       seeds: [],
       error: 'لا توجد حصص أسبوعية كافية لمطابقة كامل التوزيع السنوي لهذا القسم.',
@@ -515,21 +614,24 @@ export function materializeClassPlannedSessionSeedsFromTimetable(
           operationalNote: null,
         };
       }),
-      ...sessions.map((session, index) => {
-        const occurrence = pedagogicalOccurrences[index];
-        return {
-          id: `cps_${classId}_${academicYearId}_${session.referenceSessionId}`,
-          teacherId,
-          classId,
-          academicYearId,
-          referenceSessionId: session.referenceSessionId,
-          plannedDate: toDate(occurrence.plannedDate),
-          durationMinutes: session.durationMinutes,
-          status: 'مبرمجة' as const,
-          startTime: occurrence.startTime,
-          venue: null,
-          operationalNote: null,
-        };
+      ...assignments.flatMap(({ unit, occurrences }) => {
+        const referenceSessionIds = operationalReferenceIdsForUnit(unit);
+        return occurrences.map((occurrence, meetingIndex) => {
+          const referenceSessionId = referenceSessionIds[meetingIndex];
+          return {
+            id: `cps_${classId}_${academicYearId}_${referenceSessionId}`,
+            teacherId,
+            classId,
+            academicYearId,
+            referenceSessionId,
+            plannedDate: toDate(occurrence.plannedDate),
+            durationMinutes: unit.session.durationMinutes,
+            status: 'مبرمجة' as const,
+            startTime: occurrence.startTime,
+            venue: null,
+            operationalNote: null,
+          };
+        });
       }),
     ],
   };
