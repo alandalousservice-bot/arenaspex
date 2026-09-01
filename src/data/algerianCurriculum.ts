@@ -1567,6 +1567,10 @@ export interface ScheduledAnnualSession {
   objectiveGroupId?: string;
 }
 
+export interface AnnualTimeDistributionOptions {
+  includeIntro?: boolean;
+}
+
 function getGradeFromLevelId(levelId: string): number {
   const map: Record<string, number> = { lvl_p1: 1, lvl_p2: 2, lvl_p3: 3, lvl_p4: 4, lvl_p5: 5 };
   return map[levelId] || 1;
@@ -1692,12 +1696,14 @@ export function generateAnnualTimeDistribution(
   startDateStr: string = '2025-09-21',
   teachingDayOfWeek: number = 0,
   _className: string = '1 ابتدائي 1',
-  academicYearId?: string
+  academicYearId?: string,
+  options: AnnualTimeDistributionOptions = {}
 ): ScheduledAnnualSession[] {
   const levelData = COMPLETE_ANNUAL_CURRICULUM[levelId];
   const grade = getGradeFromLevelId(levelId);
   if (!levelData || !grade) return [];
   const scheduled: ScheduledAnnualSession[] = [];
+  const includeIntro = options.includeIntro ?? true;
   let globalCounter = 1;
 
   const gradeConfig = (() => {
@@ -1721,7 +1727,8 @@ export function generateAnnualTimeDistribution(
 
   const introTitle = 'تعارف، تنظيم واتصال مع التلاميذ';
 
-  if (gradeConfig.introSessions === 2) {
+  let boundedStartDate = startDateStr;
+  if (includeIntro && gradeConfig.introSessions === 2) {
     const firstIntroDesired = new Date(currentDate);
     const firstIntroActual = getNextValidSchoolDate(firstIntroDesired, true, academicYearId);
     const isPostponed1 = formatISODate(firstIntroActual) !== formatISODate(firstIntroDesired);
@@ -1779,7 +1786,7 @@ export function generateAnnualTimeDistribution(
     });
 
     currentDate = getNextValidSchoolDate(addDays(firstIntroActual, 7), true, academicYearId);
-  } else {
+  } else if (includeIntro) {
     const desired = new Date(currentDate);
     const actual = getNextValidSchoolDate(desired, true, academicYearId);
     const isPostponed = formatISODate(actual) !== formatISODate(desired);
@@ -1802,6 +1809,51 @@ export function generateAnnualTimeDistribution(
       objectiveGroupId: 'intro_group',
     });
     currentDate = getNextValidSchoolDate(addDays(actual, 7), true, academicYearId);
+  } else {
+    const officialEntryDate = academicYearId
+      ? getAcademicCalendar(academicYearId).schoolStart
+      : formatISODate(currentDate);
+    const entryWeekStart = parseISODate(officialEntryDate);
+    entryWeekStart.setDate(entryWeekStart.getDate() - entryWeekStart.getDay());
+    const firstPedagogicalDate = formatISODate(addDays(entryWeekStart, 7));
+    const requestedPedagogicalDate =
+      formatISODate(currentDate) > firstPedagogicalDate
+        ? formatISODate(currentDate)
+        : firstPedagogicalDate;
+    currentDate = getNextValidSchoolDate(
+      parseISODate(requestedPedagogicalDate),
+      true,
+      academicYearId
+    );
+    boundedStartDate = formatISODate(currentDate);
+
+    const diagnosticPreludeCount = gradeConfig.introSessions;
+    for (let index = 0; index < diagnosticPreludeCount; index += 1) {
+      const desiredDate = new Date(currentDate);
+      if (index > 0) desiredDate.setDate(desiredDate.getDate() + 2);
+      const actualDate = getNextValidSchoolDate(desiredDate, true, academicYearId);
+      scheduled.push({
+        globalSessionNumber: globalCounter++,
+        fieldSessionNumber: index + 1,
+        fieldId: 'diagnostic',
+        fieldName: 'التقويم التشخيصي',
+        levelId: levelData.levelId,
+        levelName: levelData.levelName,
+        sessionType: 'تقويم تشخيصي',
+        sessionTypeLabel: 'تقويم تشخيصي',
+        targetObjective: 'تقويم تشخيصي أولي لمكتسبات التلاميذ',
+        scheduledDate: formatISODate(actualDate),
+        isHolidayPostponed: formatISODate(actualDate) !== formatISODate(desiredDate),
+        holidayNote:
+          formatISODate(actualDate) !== formatISODate(desiredDate)
+            ? `تم ترحيل الحصة من ${formatISODate(desiredDate)} بسبب عطلة`
+            : undefined,
+        status: 'مبرمجة',
+        durationMinutes: gradeConfig.duration,
+        isIntro: false,
+        objectiveGroupId: 'diagnostic_prelude',
+      });
+    }
   }
 
   const fieldsSequence = ['f_locomotion', 'f_fundamentals', 'f_structuring'];
@@ -1921,7 +1973,7 @@ export function generateAnnualTimeDistribution(
 
   const boundedSchedule = buildBoundedAnnualSchedule(
     scheduled.length,
-    startDateStr,
+    boundedStartDate,
     teachingDayOfWeek,
     gradeConfig.sessionsPerWeek,
     academicYearId
@@ -1938,4 +1990,25 @@ export function generateAnnualTimeDistribution(
         : undefined,
     };
   });
+}
+
+/**
+ * Returns only the official pedagogical sequence. Operational introduction
+ * sessions are materialized from each class timetable by teacherPlanning.
+ */
+export function generateAnnualPedagogicalTimeDistribution(
+  levelId: string = 'lvl_p1',
+  startDateStr: string = '2025-09-21',
+  teachingDayOfWeek = 0,
+  className = '1 ابتدائي 1',
+  academicYearId?: string
+): ScheduledAnnualSession[] {
+  return generateAnnualTimeDistribution(
+    levelId,
+    startDateStr,
+    teachingDayOfWeek,
+    className,
+    academicYearId,
+    { includeIntro: false }
+  );
 }

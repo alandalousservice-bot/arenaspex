@@ -61,8 +61,14 @@ describe('Daily Notebook timetable materialization', () => {
       [slot(1, '10:00', '11:30')]
     );
 
-    expect(classA.seeds).toHaveLength(34);
-    expect(classB.seeds).toHaveLength(34);
+    const classAPedagogical = classA.seeds.filter(
+      (item) => !item.referenceSessionId.includes(':intro:')
+    );
+    const classBPedagogical = classB.seeds.filter(
+      (item) => !item.referenceSessionId.includes(':intro:')
+    );
+    expect(classAPedagogical).toHaveLength(34);
+    expect(classBPedagogical).toHaveLength(34);
     expect(classA.seeds[0].plannedDate.toISOString().slice(0, 10)).toBe(
       classB.seeds[0].plannedDate.toISOString().slice(0, 10)
     );
@@ -126,13 +132,14 @@ describe('Daily Notebook timetable materialization', () => {
     );
 
     expect(result.error).toBeUndefined();
+    const pedagogical = result.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
     expect(
-      result.seeds.map((item) => [item.plannedDate.toISOString().slice(0, 10), item.startTime])
+      pedagogical.map((item) => [item.plannedDate.toISOString().slice(0, 10), item.startTime])
     ).toEqual([
-      ['2025-09-22', '08:00'],
-      ['2025-09-22', '10:00'],
       ['2025-09-29', '08:00'],
       ['2025-09-29', '10:00'],
+      ['2025-10-06', '08:00'],
+      ['2025-10-06', '10:00'],
     ]);
     expect(
       new Set(result.seeds.map((item) => `${item.plannedDate.toISOString()}|${item.startTime}`))
@@ -151,16 +158,17 @@ describe('Daily Notebook timetable materialization', () => {
     );
 
     expect(result.error).toBeUndefined();
-    expect(result.seeds).toHaveLength(56);
+    const pedagogical = result.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
+    expect(pedagogical).toHaveLength(56);
     expect(
-      result.seeds
+      pedagogical
         .slice(0, 4)
         .map((item) => [item.plannedDate.toISOString().slice(0, 10), item.startTime])
     ).toEqual([
-      ['2025-09-22', '08:00'],
-      ['2025-09-24', '10:00'],
       ['2025-09-29', '08:00'],
       ['2025-10-01', '10:00'],
+      ['2025-10-06', '08:00'],
+      ['2025-10-08', '10:00'],
     ]);
     expect(result.seeds.every((item) => item.durationMinutes === 60)).toBe(true);
   });
@@ -176,15 +184,17 @@ describe('Daily Notebook timetable materialization', () => {
     const g5 = materializeClassPlannedSessionSeedsFromTimetable(
       'teacher-1',
       'class-p5',
-      '2025-2026',
-      canonicalPlanningSessions('lvl_p5', '2025-09-21', '2025-2026'),
+      '2026-2027',
+      canonicalPlanningSessions('lvl_p5', '2026-09-21', '2026-2027'),
       [slot(4, '13:00', '14:00')]
     );
 
-    expect(g4.seeds).toHaveLength(34);
-    expect(g4.seeds.every((item) => item.durationMinutes === 90)).toBe(true);
-    expect(g5.seeds).toHaveLength(34);
-    expect(g5.seeds.every((item) => item.durationMinutes === 60)).toBe(true);
+    const g4Pedagogical = g4.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
+    const g5Pedagogical = g5.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
+    expect(g4Pedagogical).toHaveLength(34);
+    expect(g4Pedagogical.every((item) => item.durationMinutes === 90)).toBe(true);
+    expect(g5Pedagogical).toHaveLength(34);
+    expect(g5Pedagogical.every((item) => item.durationMinutes === 60)).toBe(true);
   });
 
   it('materializes the introductory session on the real class timetable', () => {
@@ -196,7 +206,7 @@ describe('Daily Notebook timetable materialization', () => {
       [slot(3, '09:00', '10:30')]
     );
 
-    expect(result.seeds[0].referenceSessionId).toContain('sequence:1');
+    expect(result.seeds[0].referenceSessionId).toContain(':intro:');
     expect(result.seeds[0].plannedDate.toISOString().slice(0, 10)).toBe('2025-09-24');
     expect(result.seeds[0].startTime).toBe('09:00');
   });
@@ -223,7 +233,8 @@ describe('Daily Notebook timetable materialization', () => {
       [slot(1, '08:00', '09:30')]
     );
 
-    expect(result.seeds).toHaveLength(34);
+    const pedagogical = result.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
+    expect(pedagogical).toHaveLength(34);
     expect(
       result.seeds.every((item) => item.plannedDate.toISOString().endsWith('T00:00:00.000Z'))
     ).toBe(true);
@@ -254,8 +265,9 @@ describe('Daily Notebook timetable materialization', () => {
       canonical
     );
 
-    expect(result.seeds.map((item) => item.id)).toEqual(legacy.map((item) => item.id));
-    expect(result.seeds.map((item) => item.referenceSessionId)).toEqual(
+    const pedagogical = result.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
+    expect(pedagogical.map((item) => item.id)).toEqual(legacy.map((item) => item.id));
+    expect(pedagogical.map((item) => item.referenceSessionId)).toEqual(
       canonical.map((item) => item.referenceSessionId)
     );
     expect(

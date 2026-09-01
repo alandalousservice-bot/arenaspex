@@ -39,6 +39,7 @@ import {
   normalizePrimaryLevelId,
   applyPersistedAnnualDistributionDates,
   decideClassSessionRebuild,
+  introPlanningReference,
   type PlanningWordingOverrides,
 } from '../services/teacherPlanning.service.js';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../data/algerianCurriculum.js';
@@ -369,6 +370,7 @@ function buildPlanningReferenceMap(levelId: string, wordingData: unknown) {
         sessionTypeLabel: reference.sessionTypeLabel,
         sequenceIndex: reference.sequenceIndex,
         fieldSessionNumber: reference.fieldSessionNumber,
+        isIntro: false,
       },
     ])
   );
@@ -526,6 +528,7 @@ async function annualDistributionLevelViews(
               sessionTypeLabel: session.sessionTypeLabel,
               sequenceIndex: session.sequenceIndex,
               fieldSessionNumber: session.fieldSessionNumber,
+              isIntro: false,
             }
           )
         ),
@@ -863,7 +866,12 @@ apiRouter.get('/teacher/planning/sessions', requireRole('teacher'), async (req, 
       reference:
         referenceByLevel
           .get(classesById.get(row.classId)?.levelId || '')
-          ?.get(row.referenceSessionId) || null,
+          ?.get(row.referenceSessionId) ||
+        introPlanningReference(
+          classesById.get(row.classId)?.levelId || '',
+          row.referenceSessionId
+        ) ||
+        null,
     })),
   });
 });
@@ -902,7 +910,10 @@ apiRouter.get(
       },
       sessions: rows.map((row) => ({
         ...classPlannedSessionView(row, timetableSlotForSession(row, timetableSlots)),
-        reference: references.get(row.referenceSessionId) || null,
+        reference:
+          references.get(row.referenceSessionId) ||
+          introPlanningReference(classRecord.levelId, row.referenceSessionId) ||
+          null,
       })),
     });
   }
@@ -1092,9 +1103,10 @@ apiRouter.post(
         );
         if (decision === 'conflict' && existing) {
           sessionsProtected += 1;
-          const reference = canonicalReferenceSessions(link.normalizedLevelId!).find(
-            (item) => item.referenceSessionId === seed.referenceSessionId
-          );
+          const reference =
+            canonicalReferenceSessions(link.normalizedLevelId!).find(
+              (item) => item.referenceSessionId === seed.referenceSessionId
+            ) || introPlanningReference(link.normalizedLevelId!, seed.referenceSessionId);
           conflicts.push({
             sessionId: existing.id,
             classId: link.classId,
@@ -1595,7 +1607,10 @@ apiRouter.post(
       },
       sessions: rows.map((row) => ({
         ...classPlannedSessionView(row, timetableSlotForSession(row, timetableSlots)),
-        reference: references.get(row.referenceSessionId) || null,
+        reference:
+          references.get(row.referenceSessionId) ||
+          introPlanningReference(classRecord.levelId, row.referenceSessionId) ||
+          null,
       })),
     });
   }

@@ -8,7 +8,7 @@ import {
 const read = (file: string) => fs.readFileSync(file, 'utf8');
 
 describe('protected planning session move contract', () => {
-  it('resolves the two protected Grade 1 intro sessions from canonical identity and timetable', () => {
+  it('keeps protected-session canonical identity separate from operational introduction', () => {
     const distribution = generateAllPrimaryLevelDistributions(
       '2026-2027',
       '2026-09-21'
@@ -20,7 +20,10 @@ describe('protected planning session move contract', () => {
       'class-1',
       '2026-2027',
       distribution?.sessions || [],
-      [{ weekday: 0, startTime: '08:00', endTime: '09:00' }]
+      [
+        { weekday: 0, startTime: '08:00', endTime: '09:00' },
+        { weekday: 2, startTime: '10:00', endTime: '11:00' },
+      ]
     );
     const first = materialized.seeds.find((seed) => seed.referenceSessionId.endsWith('sequence:1'));
     const second = materialized.seeds.find((seed) =>
@@ -30,8 +33,11 @@ describe('protected planning session move contract', () => {
     expect(materialized.error).toBeUndefined();
     expect(first?.plannedDate.toISOString().slice(0, 10)).toBe('2026-09-27');
     expect(first?.startTime).toBe('08:00');
-    expect(second?.plannedDate.toISOString().slice(0, 10)).toBe('2026-10-04');
-    expect(second?.startTime).toBe('08:00');
+    expect(second?.plannedDate.toISOString().slice(0, 10)).toBe('2026-09-29');
+    expect(second?.startTime).toBe('10:00');
+    expect(materialized.seeds.some((seed) => seed.referenceSessionId.includes(':intro:'))).toBe(
+      true
+    );
   });
 
   it('keeps the move server-authoritative and preserves the protected-session boundary', () => {

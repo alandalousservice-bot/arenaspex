@@ -1,6 +1,6 @@
 import {
   COMPLETE_ANNUAL_CURRICULUM,
-  generateAnnualTimeDistribution,
+  generateAnnualPedagogicalTimeDistribution,
   isValidSchoolDate,
   ScheduledAnnualSession,
 } from '../data/algerianCurriculum';
@@ -51,6 +51,9 @@ export interface CanonicalPlanningSession {
   objective: string;
   plannedDate: string;
   durationMinutes: number;
+  fieldName?: string;
+  finalCompetency?: string;
+  isIntro?: boolean;
 }
 
 export type PlanningWordingOverrides = Record<string, AnnualPlanObjectiveOverride>;
@@ -158,6 +161,55 @@ function weekStartFor(value: string): string {
   return formatPlanningDate(date);
 }
 
+const INTRO_SESSION_TYPE = 'تعارف وتنظيم' as const;
+const INTRO_SESSION_TYPE_LABEL = 'تعارف، تنظيم واتصال';
+const INTRO_SESSION_OBJECTIVE = 'تعارف، تنظيم واتصال مع التلاميذ';
+
+function introReferenceSessionId(levelId: string, plannedDate: string, startTime: string): string {
+  return `${levelId}:intro:${plannedDate}:${startTime}`;
+}
+
+export function isIntroReferenceSessionId(value: string): boolean {
+  return value.includes(':intro:') || /:intro:sequence:\d+$/.test(value);
+}
+
+export function introPlanningReference(
+  levelId: string,
+  referenceSessionId: string
+): CanonicalPlanningSession | null {
+  const normalizedLevelId = normalizePrimaryLevelId(levelId);
+  if (!normalizedLevelId || !isIntroReferenceSessionId(referenceSessionId)) return null;
+  const grade = gradeFromLevelId(normalizedLevelId);
+  if (!grade) return null;
+  return {
+    referenceSessionId,
+    levelId: normalizedLevelId,
+    grade,
+    domainId: 'intro',
+    fieldName: 'أسبوع التعارف والتنظيم',
+    finalCompetency: '',
+    learningSectionId: 'intro',
+    objectiveId: null,
+    objectiveGroupId: 'intro_group',
+    sequenceIndex: 0,
+    fieldSessionNumber: 0,
+    sessionType: INTRO_SESSION_TYPE,
+    sessionTypeLabel: INTRO_SESSION_TYPE_LABEL,
+    objective: INTRO_SESSION_OBJECTIVE,
+    plannedDate: '',
+    durationMinutes: grade <= 3 ? 60 : grade === 4 ? 90 : 60,
+    isIntro: true,
+  };
+}
+
+function introWeekWindow(academicYearId: string): { startDate: string; endDate: string } {
+  const startDate = getAcademicCalendar(academicYearId).schoolStart;
+  return {
+    startDate,
+    endDate: addPlanningDays(weekStartFor(startDate), 4),
+  };
+}
+
 export function referenceSessionIdFor(session: ScheduledAnnualSession): string {
   return `${session.levelId}:${session.fieldId}:sequence:${session.globalSessionNumber}`;
 }
@@ -177,7 +229,7 @@ export function canonicalPlanningSessions(
 
   let generatedSessions: ScheduledAnnualSession[];
   try {
-    generatedSessions = generateAnnualTimeDistribution(
+    generatedSessions = generateAnnualPedagogicalTimeDistribution(
       canonicalLevelId,
       planningStartDate,
       teachingDayOfWeek,
@@ -189,7 +241,7 @@ export function canonicalPlanningSessions(
     let fallbackError = error;
     for (const fallbackDay of [1, 2, 3, 4]) {
       try {
-        generatedSessions = generateAnnualTimeDistribution(
+        generatedSessions = generateAnnualPedagogicalTimeDistribution(
           canonicalLevelId,
           planningStartDate,
           fallbackDay,
@@ -221,6 +273,7 @@ export function canonicalPlanningSessions(
     objective: session.targetObjective,
     plannedDate: session.scheduledDate,
     durationMinutes: session.durationMinutes,
+    isIntro: false,
   }));
 }
 
@@ -365,9 +418,10 @@ export function buildClassPlannedSessionSeedsFromCanonicalSessions(
 }
 
 /**
- * Materialize the pedagogical sequence on chronological occurrences of the
- * class's persisted weekly slots. Each valid timetable occurrence is consumed
- * once, in order, and no fallback weekday is allowed.
+ * Materialize the operational introduction layer and then the pedagogical
+ * sequence on chronological occurrences of the class's persisted weekly
+ * slots. Each valid timetable occurrence is consumed once, and no fallback
+ * weekday is allowed.
  */
 export function materializeClassPlannedSessionSeedsFromTimetable(
   teacherId: string,
@@ -390,31 +444,49 @@ export function materializeClassPlannedSessionSeedsFromTimetable(
     return { seeds: [], error: 'لا يمكن إنشاء حصص القسم قبل ضبط توقيته الأسبوعي.' };
   }
 
-  const planningStartDate = sessions[0]?.plannedDate || '';
   const calendar = getAcademicCalendar(academicYearId);
-  const weekStart = weekStartFor(planningStartDate);
-  const occurrences: Array<{ plannedDate: string; startTime: string; endTime: string }> = [];
-  for (let weekIndex = 0; weekIndex < 80 && occurrences.length < sessions.length; weekIndex += 1) {
+  const planningEndDate = calendar.schoolEnd || `${academicYearId.slice(5)}-08-31`;
+  const levelId = sessions[0]?.levelId;
+  if (!levelId) return { seeds: [], error: 'لا يمكن تحديد مستوى الحصص التشغيلية.' };
+
+  const { startDate: introStartDate, endDate: introEndDate } = introWeekWindow(academicYearId);
+  const introOccurrences: Array<{ plannedDate: string; startTime: string }> = [];
+  for (
+    let requestedDate = introStartDate;
+    requestedDate <= introEndDate;
+    requestedDate = addPlanningDays(requestedDate, 1)
+  ) {
+    const weekday = toDate(requestedDate).getUTCDay();
+    for (const slot of slots.filter((item) => item.weekday === weekday)) {
+      if (!isValidAcademicSchoolDate(requestedDate, academicYearId)) continue;
+      introOccurrences.push({ plannedDate: requestedDate, startTime: slot.startTime });
+    }
+  }
+
+  const firstPedagogicalDate = sessions[0]?.plannedDate || addPlanningDays(introEndDate, 3);
+  const pedagogicalWeekStart = weekStartFor(firstPedagogicalDate);
+  const pedagogicalOccurrences: Array<{ plannedDate: string; startTime: string }> = [];
+  for (
+    let weekIndex = 0;
+    weekIndex < 80 && pedagogicalOccurrences.length < sessions.length;
+    weekIndex += 1
+  ) {
     for (const slot of slots) {
-      const requestedDate = addPlanningDays(weekStart, weekIndex * 7 + slot.weekday);
+      const requestedDate = addPlanningDays(pedagogicalWeekStart, weekIndex * 7 + slot.weekday);
       if (
-        requestedDate < planningStartDate ||
+        requestedDate < firstPedagogicalDate ||
         requestedDate < calendar.schoolStart ||
-        (calendar.schoolEnd && requestedDate > calendar.schoolEnd)
+        requestedDate > planningEndDate
       ) {
         continue;
       }
       // A holiday consumes no occurrence; the same weekday resumes next week.
       if (!isValidAcademicSchoolDate(requestedDate, academicYearId)) continue;
-      occurrences.push({
-        plannedDate: requestedDate,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-      });
-      if (occurrences.length === sessions.length) break;
+      pedagogicalOccurrences.push({ plannedDate: requestedDate, startTime: slot.startTime });
+      if (pedagogicalOccurrences.length === sessions.length) break;
     }
   }
-  if (occurrences.length < sessions.length) {
+  if (pedagogicalOccurrences.length < sessions.length) {
     return {
       seeds: [],
       error: 'لا توجد حصص أسبوعية كافية لمطابقة كامل التوزيع السنوي لهذا القسم.',
@@ -422,22 +494,44 @@ export function materializeClassPlannedSessionSeedsFromTimetable(
   }
 
   return {
-    seeds: sessions.map((session, index) => {
-      const occurrence = occurrences[index];
-      return {
-        id: `cps_${classId}_${academicYearId}_${session.referenceSessionId}`,
-        teacherId,
-        classId,
-        academicYearId,
-        referenceSessionId: session.referenceSessionId,
-        plannedDate: toDate(occurrence.plannedDate),
-        durationMinutes: session.durationMinutes,
-        status: 'مبرمجة',
-        startTime: occurrence.startTime,
-        venue: null,
-        operationalNote: null,
-      };
-    }),
+    seeds: [
+      ...introOccurrences.map((occurrence) => {
+        const referenceSessionId = introReferenceSessionId(
+          levelId,
+          occurrence.plannedDate,
+          occurrence.startTime
+        );
+        return {
+          id: `cps_${classId}_${academicYearId}_${referenceSessionId}`,
+          teacherId,
+          classId,
+          academicYearId,
+          referenceSessionId,
+          plannedDate: toDate(occurrence.plannedDate),
+          durationMinutes: sessions[0]?.durationMinutes || 60,
+          status: 'مبرمجة' as const,
+          startTime: occurrence.startTime,
+          venue: null,
+          operationalNote: null,
+        };
+      }),
+      ...sessions.map((session, index) => {
+        const occurrence = pedagogicalOccurrences[index];
+        return {
+          id: `cps_${classId}_${academicYearId}_${session.referenceSessionId}`,
+          teacherId,
+          classId,
+          academicYearId,
+          referenceSessionId: session.referenceSessionId,
+          plannedDate: toDate(occurrence.plannedDate),
+          durationMinutes: session.durationMinutes,
+          status: 'مبرمجة' as const,
+          startTime: occurrence.startTime,
+          venue: null,
+          operationalNote: null,
+        };
+      }),
+    ],
   };
 }
 

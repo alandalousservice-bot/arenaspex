@@ -630,6 +630,7 @@ export interface TeacherPlanningReference {
   sessionTypeLabel: string;
   sequenceIndex: number;
   fieldSessionNumber: number;
+  isIntro?: boolean;
 }
 
 export interface TeacherPlanningSession {

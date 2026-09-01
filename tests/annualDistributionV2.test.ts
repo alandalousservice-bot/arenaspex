@@ -64,10 +64,10 @@ describe('academic-year annual distribution generation v2', () => {
     ).toBe(true);
   });
 
-  it('uses the selected school start as the first session anchor', () => {
+  it('starts the pedagogical sequence in the operational week after entry', () => {
     const result = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
     expect(new Date('2026-09-21T00:00:00').getDay()).toBe(1);
-    expect(result.levels.every((level) => level.firstSessionDate === '2026-09-21')).toBe(true);
+    expect(result.levels.every((level) => level.firstSessionDate === '2026-09-27')).toBe(true);
     expect(
       result.levels.every((level) => level.sessions.every((s) => s.plannedDate >= '2026-09-21'))
     ).toBe(true);
@@ -79,13 +79,13 @@ describe('academic-year annual distribution generation v2', () => {
     const gradeFour = result.levels.find((level) => level.levelId === 'lvl_p4')!;
 
     expect(gradeOne.sessions.slice(0, 3).map((session) => session.plannedDate)).toEqual([
-      '2026-09-21',
-      '2026-09-23',
-      '2026-09-28',
+      '2026-09-27',
+      '2026-09-29',
+      '2026-10-04',
     ]);
     expect(gradeFour.sessions.slice(0, 2).map((session) => session.plannedDate)).toEqual([
-      '2026-09-21',
-      '2026-09-28',
+      '2026-09-27',
+      '2026-10-04',
     ]);
   });
 
@@ -94,11 +94,11 @@ describe('academic-year annual distribution generation v2', () => {
     const secondBuild = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-28');
 
     expect(firstBuild.levels.map((level) => level.firstSessionDate)).toEqual([
-      '2026-09-21',
-      '2026-09-21',
-      '2026-09-21',
-      '2026-09-21',
-      '2026-09-21',
+      '2026-09-27',
+      '2026-09-27',
+      '2026-09-27',
+      '2026-09-27',
+      '2026-09-27',
     ]);
     expect(secondBuild.levels.map((level) => level.firstSessionDate)).toEqual([
       '2026-09-28',
@@ -236,7 +236,7 @@ describe('academic-year annual distribution generation v2', () => {
 
   it('recalculates future dates from a changed start date without changing identities', () => {
     const startDateA = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
-    const startDateB = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-28');
+    const startDateB = generateAllPrimaryLevelDistributions('2025-2026', '2025-10-05');
 
     expect(startDateB.levels.map((level) => level.sessionCount)).toEqual([56, 56, 56, 34, 34]);
     for (const levelId of levelIds) {
