@@ -26,7 +26,6 @@ describe('unified Teacher planning workspace', () => {
     expect(workspace).toContain('التوزيع الأسبوعي');
     expect(workspace).toContain('fetchTeacherPlanningSessions');
     expect(workspace).toContain('initializeTeacherAnnualDistribution');
-    expect(workspace).toContain('updateTeacherPlanningSession');
     expect(workspace).toContain('WeeklyTimetableView');
     expect(workspace).toContain('weeklySchedule');
     expect(workspace).not.toContain('visibleSessions');
@@ -53,16 +52,16 @@ describe('unified Teacher planning workspace', () => {
     expect(workspace).toContain('const [selectedLevelId, setSelectedLevelId]');
     expect(workspace).toContain('initialLevelId');
     expect(workspace).toContain('onLevelChange={changeLevel}');
-    expect(distribution).toContain('aria-label="اختيار مستوى التوزيع السنوي"');
-    expect(distribution).toContain('aria-pressed={selectedLevelId === levelId}');
-    expect(distribution).toContain('onClick={() => onLevelChange(levelId)}');
+    expect(distribution).toContain('اختيار المستوى');
+    expect(distribution).toContain('aria-pressed={level.levelId === selectedLevelId}');
+    expect(distribution).toContain('onLevelChange(level.levelId as PrimaryLevelId)');
     expect(workspace).not.toContain('setSelectedLevelId(selectedClass');
-    expect(workspace).toContain('annualGeneration?.levels.find');
-    expect(workspace).toContain('materializedByReference');
+    expect(distribution).toContain('annualGeneration?.levels.find');
     expect(workspace).toContain('fetchTeacherAnnualDistribution');
-    expect(workspace).toContain('updateTeacherAnnualDistributionSession');
-    expect(distribution).toContain('TeacherAnnualDistributionSession');
-    expect(distribution).toContain('{sessions.length > 0 && (');
+    expect(workspace).not.toContain('materializedByReference');
+    expect(workspace).not.toContain('updateTeacherAnnualDistributionSession');
+    expect(distribution).toContain('TeacherAnnualDistributionWeek');
+    expect(distribution).not.toContain('classPlannedSessionId');
   });
 
   it('uses the controlled date input as the generation payload', () => {
@@ -82,10 +81,9 @@ describe('unified Teacher planning workspace', () => {
     const calendar = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
     const api = read('src/services/api.ts');
     expect(calendar).toContain("rebuildStatus === 'partial'");
-    expect(calendar).toContain('sessionsCreated');
-    expect(calendar).toContain('sessionsReconciled');
-    expect(calendar).toContain('sessionsProtected');
-    expect(calendar).toContain('sessionsRemovedOrRetired');
+    expect(calendar).toContain('حصص تشغيلية محمية');
+    expect(calendar).not.toContain('selectedClass');
+    expect(calendar).not.toContain('existingDate');
     expect(api).toContain("status?: 'rebuilt' | 'partial' | 'blocked' | 'unchanged'");
     expect(api).toContain('missingTimetableClasses');
     expect(api).toContain('orphaned-generated-session');
@@ -111,7 +109,7 @@ describe('unified Teacher planning workspace', () => {
     const distribution = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
     expect(workspace).toContain("section === 'calendar'");
     expect(workspace).toContain('AcademicCalendarView');
-    expect(distribution).toContain('عرض رزنامة العطل والأعياد');
+    expect(distribution).toContain('رزنامة العطل');
     expect(workspace).toContain('const levelId = nextLevelId || selectedLevelId');
     expect(workspace).toContain("changeSection('annual-distribution')");
   });
@@ -124,16 +122,17 @@ describe('unified Teacher planning workspace', () => {
     expect(workspace).not.toContain('weekStart(localDate(session.plannedDate))');
   });
 
-  it('uses the classic annual calendar presentation without changing weekly planning', () => {
+  it('uses the weekly pedagogical presentation without changing weekly planning', () => {
     const calendar = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
-    expect(calendar).toContain('الشهر');
-    expect(calendar).toContain('التاريخ');
+    expect(calendar).toContain('الأسبوع');
+    expect(calendar).toContain('التعلمات / الهدف');
+    expect(calendar).toContain('اللقاءات');
     expect(calendar).toContain('نوع الحصة');
     expect(calendar).toContain('الميدان');
-    expect(calendar).toContain('getCalendarEventsForDisplay');
-    expect(calendar).toContain('classPlannedSessionId');
+    expect(calendar).toContain('annual-distribution-weekly-table');
+    expect(calendar).not.toContain('plannedDate');
+    expect(calendar).not.toContain('تاريخ الحصة');
     expect(read('src/services/api.ts')).toContain('referenceSessionId');
-    expect(calendar).not.toContain('الهدف التعلمي');
   });
 
   it('exposes professional print actions and print-only document shells for planning references', () => {

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyPersistedAnnualDistributionDates,
   buildClassPlannedSessionSeedsFromCanonicalSessions,
+  buildAnnualDistributionWeeks,
   decideClassSessionRebuild,
   generateAllPrimaryLevelDistributions,
 } from '../src/services/teacherPlanning.service';
@@ -14,7 +15,7 @@ describe('academic-year annual distribution generation v2', () => {
   it('generates all five canonical level distributions from one start date', () => {
     const result = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
     expect(result.levels.map((level) => level.levelId)).toEqual(levelIds);
-    expect(result.levels.map((level) => level.sessionCount)).toEqual([56, 56, 56, 34, 34]);
+    expect(result.levels.map((level) => level.sessionCount)).toEqual([32, 32, 32, 32, 32]);
     expect(result.levels.map((level) => level.durationMinutes)).toEqual([60, 60, 60, 90, 60]);
     expect(result.levels.every((level) => level.status === 'generated')).toBe(true);
   });
@@ -38,7 +39,7 @@ describe('academic-year annual distribution generation v2', () => {
   it('uses the selected academic-year end boundary when the calendar has a provisional end', () => {
     const result = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
     expect(result.endDate).toBe('2027-08-31');
-    expect(result.levels.map((level) => level.sessionCount)).toEqual([56, 56, 56, 34, 34]);
+    expect(result.levels.map((level) => level.sessionCount)).toEqual([32, 32, 32, 32, 32]);
     expect(
       result.levels.every((level) =>
         level.sessions.every(
@@ -80,13 +81,10 @@ describe('academic-year annual distribution generation v2', () => {
 
     expect(gradeOne.sessions.slice(0, 3).map((session) => session.plannedDate)).toEqual([
       '2026-09-27',
-      '2026-09-29',
-      '2026-10-04',
+      '2026-10-06',
+      '2026-10-11',
     ]);
-    expect(gradeFour.sessions.slice(0, 2).map((session) => session.plannedDate)).toEqual([
-      '2026-09-27',
-      '2026-10-04',
-    ]);
+    expect(gradeFour.sessions[0].plannedDate).toBe('2026-09-27');
   });
 
   it('anchors a rebuilt distribution to a changed selected start date', () => {
@@ -115,7 +113,7 @@ describe('academic-year annual distribution generation v2', () => {
     expect(result.levels.every((level) => level.firstSessionDate === '2026-11-09')).toBe(true);
   });
 
-  it('uses the persisted level distribution as the editable source without a class', () => {
+  it('ignores legacy date overrides when building weekly pedagogical units', () => {
     const result = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
     const level = result.levels.find((item) => item.levelId === 'lvl_p5')!;
     const first = level.sessions[0];
@@ -124,8 +122,9 @@ describe('academic-year annual distribution generation v2', () => {
       { [first.referenceSessionId]: { date: '2026-09-28' } },
       (value) => value >= '2026-09-21'
     );
-    expect(changed.sessions).toHaveLength(34);
+    expect(changed.sessions).toHaveLength(31);
     expect(changed.sessions[0].plannedDate).toBe('2026-09-28');
+    expect(buildAnnualDistributionWeeks(changed)).toEqual(buildAnnualDistributionWeeks(level));
   });
 
   it('rebuilds completed pre-launch setup rows but protects executed rows', () => {
@@ -166,9 +165,9 @@ describe('academic-year annual distribution generation v2', () => {
       gradeFour.sessions
     );
 
-    expect(classA).toHaveLength(56);
-    expect(classB).toHaveLength(56);
-    expect(classC).toHaveLength(34);
+    expect(classA).toHaveLength(52);
+    expect(classB).toHaveLength(52);
+    expect(classC).toHaveLength(31);
     expect(classA.every((session) => session.classId === 'class-2a')).toBe(true);
     expect(classB.every((session) => session.classId === 'class-2b')).toBe(true);
     expect(classA.map((session) => session.referenceSessionId)).toEqual(
@@ -193,7 +192,7 @@ describe('academic-year annual distribution generation v2', () => {
 
   it('keeps missing levels as distributions and never creates fake classes', () => {
     const result = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
-    expect(result.levels.find((level) => level.levelId === 'lvl_p5')?.sessionCount).toBe(34);
+    expect(result.levels.find((level) => level.levelId === 'lvl_p5')?.sessionCount).toBe(32);
     const router = fs.readFileSync('src/server/apiRouter.ts', 'utf8');
     const globalRoute = router.slice(
       router.indexOf("'/teacher/planning/annual-distribution/initialize'"),
@@ -238,7 +237,7 @@ describe('academic-year annual distribution generation v2', () => {
     const startDateA = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
     const startDateB = generateAllPrimaryLevelDistributions('2025-2026', '2025-10-05');
 
-    expect(startDateB.levels.map((level) => level.sessionCount)).toEqual([56, 56, 56, 34, 34]);
+    expect(startDateB.levels.map((level) => level.sessionCount)).toEqual([32, 32, 32, 32, 32]);
     for (const levelId of levelIds) {
       const first = startDateA.levels.find((level) => level.levelId === levelId)!;
       const second = startDateB.levels.find((level) => level.levelId === levelId)!;

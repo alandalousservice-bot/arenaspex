@@ -1086,8 +1086,10 @@
     min-width: 297mm;
   }
 
-  body:has(.annual-distribution-print, .planning-print-document) .app-shell-header,
-  body:has(.annual-distribution-print, .planning-print-document) .app-shell-sidebar {
+  body:has(.annual-distribution-print-root, .annual-distribution-print, .planning-print-document)
+    .app-shell-header,
+  body:has(.annual-distribution-print-root, .annual-distribution-print, .planning-print-document)
+    .app-shell-sidebar {
     display: none !important;
   }
 
@@ -1106,26 +1108,32 @@
     width: 100%;
     margin: 0;
     padding: 0;
+    color: #0f172a;
+    font-family: Tahoma, Arial, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   body:has(.annual-distribution-print-root)
     .annual-distribution-print-root
-    .annual-distribution-compact-table {
+    .annual-distribution-weekly-table {
     display: block !important;
-    font-size: 8.5pt;
+    font-size: 9pt;
   }
 
   body:has(.annual-distribution-print-root) .annual-distribution-document-header {
     padding: 8px;
   }
 
-  body:has(.annual-distribution-print-root) .annual-distribution-compact-table th,
-  body:has(.annual-distribution-print-root) .annual-distribution-compact-table td {
-    padding: 3px 5px;
+  body:has(.annual-distribution-print-root) .annual-distribution-weekly-table th,
+  body:has(.annual-distribution-print-root) .annual-distribution-weekly-table td {
+    padding: 5px 6px;
   }
 
-  body:has(.annual-distribution-print, .planning-print-document) .planning-print-document,
-  body:has(.annual-distribution-print) .annual-distribution-print {
+  body:has(.annual-distribution-print-root, .annual-distribution-print, .planning-print-document)
+    .planning-print-document,
+  body:has(.annual-distribution-print-root, .annual-distribution-print) .annual-distribution-print,
+  body:has(.annual-distribution-print-root) .annual-distribution-print-root {
     display: block;
     color: #0f172a;
     font-family: Tahoma, Arial, sans-serif;
@@ -1693,34 +1701,51 @@
     page-break-inside: avoid;
   }
 
-  body:has(.annual-distribution-print) .annual-distribution-table {
+  body:has(.annual-distribution-print-root, .annual-distribution-print) .annual-distribution-table {
     border-radius: 0;
     box-shadow: none;
   }
 
-  body:has(.annual-distribution-print) .annual-distribution-table table {
+  body:has(.annual-distribution-print-root, .annual-distribution-print)
+    .annual-distribution-table
+    table {
     border-collapse: collapse;
     font-size: 10pt;
   }
 
-  body:has(.annual-distribution-print) .annual-distribution-table th,
-  body:has(.annual-distribution-print) .annual-distribution-table td {
+  body:has(.annual-distribution-print-root, .annual-distribution-print)
+    .annual-distribution-table
+    th,
+  body:has(.annual-distribution-print-root, .annual-distribution-print)
+    .annual-distribution-table
+    td {
     padding: 7px 8px;
   }
 
-  body:has(.annual-distribution-print) .annual-distribution-table tbody tr,
-  body:has(.annual-distribution-print) .annual-distribution-table tbody td {
+  body:has(.annual-distribution-print-root, .annual-distribution-print)
+    .annual-distribution-table
+    tbody
+    tr,
+  body:has(.annual-distribution-print-root, .annual-distribution-print)
+    .annual-distribution-table
+    tbody
+    td {
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
-  body:has(.annual-distribution-print) .annual-distribution-table tbody tr:has(td[colspan]) {
+  body:has(.annual-distribution-print-root, .annual-distribution-print)
+    .annual-distribution-table
+    tbody
+    tr:has(td[colspan]) {
     break-inside: avoid;
     page-break-before: auto;
   }
 
-  body:has(.annual-distribution-print) .annual-distribution-document-header,
-  body:has(.annual-distribution-print) .annual-distribution-document-footer {
+  body:has(.annual-distribution-print-root, .annual-distribution-print)
+    .annual-distribution-document-header,
+  body:has(.annual-distribution-print-root, .annual-distribution-print)
+    .annual-distribution-document-footer {
     break-inside: avoid;
     page-break-inside: avoid;
   }

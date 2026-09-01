@@ -2003,7 +2003,7 @@ export function generateAnnualPedagogicalTimeDistribution(
   className = '1 ابتدائي 1',
   academicYearId?: string
 ): ScheduledAnnualSession[] {
-  return generateAnnualTimeDistribution(
+  const generated = generateAnnualTimeDistribution(
     levelId,
     startDateStr,
     teachingDayOfWeek,
@@ -2011,4 +2011,11 @@ export function generateAnnualPedagogicalTimeDistribution(
     academicYearId,
     { includeIntro: false }
   );
+  let diagnosticKept = false;
+  return generated.flatMap((session) => {
+    if (session.sessionType !== 'تقويم تشخيصي') return [session];
+    if (diagnosticKept) return [];
+    diagnosticKept = true;
+    return [{ ...session, objectiveGroupId: 'diagnostic' }];
+  });
 }

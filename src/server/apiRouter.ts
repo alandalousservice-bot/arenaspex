@@ -35,6 +35,8 @@ import {
   canonicalReferenceSessions,
   effectivePlanningObjective,
   generateAllPrimaryLevelDistributions,
+  buildAnnualDistributionWeeks,
+  annualDistributionUnitSummary,
   isValidPlanningDate,
   normalizePrimaryLevelId,
   applyPersistedAnnualDistributionDates,
@@ -429,6 +431,13 @@ function annualDistributionData(
   return { overrides, note: typeof data.note === 'string' ? data.note : undefined };
 }
 
+function annualDistributionPersistenceData(data: unknown, note: string): Prisma.InputJsonValue {
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    return { ...(data as Record<string, unknown>), note } as Prisma.InputJsonObject;
+  }
+  return { note };
+}
+
 function isAllowedAnnualDistributionDate(
   value: string,
   academicYearId: string,
@@ -481,58 +490,43 @@ function annualDistributionSessionView(
 async function annualDistributionLevelViews(
   generation: ReturnType<typeof generateAllPrimaryLevelDistributions>,
   teacherId: string,
-  plans: Array<{ levelId: string; data: unknown }>
+  _plans: Array<{ levelId: string; data: unknown }>
 ) {
-  const plansByLevel = new Map(plans.map((plan) => [plan.levelId, plan] as const));
   return Promise.all(
     generation.levels.map(async (level) => {
-      const plan = annualDistributionData(plansByLevel.get(level.levelId));
-      const effectiveLevel = applyPersistedAnnualDistributionDates(level, plan.overrides, (value) =>
-        isAllowedAnnualDistributionDate(
-          value,
-          generation.academicYearId,
-          generation.planningStartDate
-        )
-      );
       const references = await resolvePlanningReferences(
         level.levelId,
         teacherId,
         generation.academicYearId
       );
+      const weeks =
+        level.status === 'generated'
+          ? buildAnnualDistributionWeeks(level, (session) => {
+              const reference = references.get(session.referenceSessionId);
+              return reference
+                ? {
+                    fieldName: reference.fieldName,
+                    objective: reference.objective,
+                    sessionTypeLabel: reference.sessionTypeLabel,
+                    objectiveId: reference.objectiveId,
+                    objectiveGroupId: reference.objectiveGroupId,
+                  }
+                : {};
+            })
+          : [];
+      const summary = annualDistributionUnitSummary(weeks);
       return {
-        levelId: effectiveLevel.levelId,
-        grade: effectiveLevel.grade,
-        sessionCount: effectiveLevel.sessionCount,
-        annualHours: effectiveLevel.annualHours,
-        firstSessionDate: effectiveLevel.sessions[0]?.plannedDate || null,
-        lastSessionDate: effectiveLevel.sessions.at(-1)?.plannedDate || null,
-        durationMinutes: effectiveLevel.durationMinutes,
-        status: effectiveLevel.status,
-        error: effectiveLevel.error,
-        sessions: effectiveLevel.sessions.map((session) =>
-          annualDistributionSessionView(
-            teacherId,
-            generation.academicYearId,
-            effectiveLevel.levelId,
-            session,
-            references.get(session.referenceSessionId) || {
-              referenceSessionId: session.referenceSessionId,
-              grade: session.grade,
-              domainId: session.domainId,
-              fieldName: session.domainId,
-              finalCompetency: '',
-              learningSectionId: session.learningSectionId,
-              objectiveId: session.objectiveId,
-              objectiveGroupId: session.objectiveGroupId,
-              objective: session.objective,
-              sessionType: session.sessionType,
-              sessionTypeLabel: session.sessionTypeLabel,
-              sequenceIndex: session.sequenceIndex,
-              fieldSessionNumber: session.fieldSessionNumber,
-              isIntro: false,
-            }
-          )
-        ),
+        levelId: level.levelId,
+        grade: level.grade,
+        weekCount: summary.weekCount,
+        pedagogicalUnitCount: summary.pedagogicalUnitCount,
+        learningUnitCount: summary.learningUnitCount,
+        meetingCount: summary.meetingCount,
+        annualHours: level.annualHours,
+        durationMinutes: level.durationMinutes,
+        status: level.status,
+        error: level.error,
+        weeks,
       };
     })
   );
@@ -1233,8 +1227,23 @@ apiRouter.post(
         createdOrUpdatedSessions: appliedCreated + appliedReconciled,
       });
     }
-    const distributionRecords = generation.levels.map((level) =>
-      prisma.annualPlan.upsert({
+    const existingDistributionPlans = await prisma.annualPlan.findMany({
+      where: {
+        teacherId: req.user!.id,
+        academicYearId,
+        kind: ANNUAL_DISTRIBUTION_KIND,
+      },
+      select: { levelId: true, data: true },
+    });
+    const existingDistributionData = new Map(
+      existingDistributionPlans.map((plan) => [plan.levelId, plan.data] as const)
+    );
+    const distributionRecords = generation.levels.map((level) => {
+      const data = annualDistributionPersistenceData(
+        existingDistributionData.get(level.levelId),
+        planningStartDate
+      );
+      return prisma.annualPlan.upsert({
         where: {
           teacherId_academicYearId_levelId_kind: {
             teacherId: req.user!.id,
@@ -1250,14 +1259,14 @@ apiRouter.post(
           levelId: level.levelId,
           kind: ANNUAL_DISTRIBUTION_KIND,
           status: 'draft',
-          data: { overrides: annualDistributionOverrides(level), note: planningStartDate },
+          data,
         },
         update: {
           status: 'draft',
-          data: { overrides: annualDistributionOverrides(level), note: planningStartDate },
+          data,
         },
-      })
-    );
+      });
+    });
     await prisma.$transaction([...distributionRecords, ...allOperations]);
 
     res.status(201).json({
@@ -1286,6 +1295,9 @@ apiRouter.patch(
   '/teacher/planning/annual-distribution/levels/:levelId/sessions/:referenceSessionId',
   requireRole('teacher'),
   async (req, res) => {
+    return res.status(410).json({
+      error: 'التوزيع السنوي مرجع أسبوعي؛ عدّل التوقيت الفعلي من الحصص التشغيلية للقسم.',
+    });
     const parsed = annualDistributionSessionUpdateSchema.safeParse(req.body);
     const levelId = normalizePrimaryLevelId(req.params.levelId);
     if (!parsed.success || !levelId) {

@@ -67,8 +67,8 @@ describe('Daily Notebook timetable materialization', () => {
     const classBPedagogical = classB.seeds.filter(
       (item) => !item.referenceSessionId.includes(':intro:')
     );
-    expect(classAPedagogical).toHaveLength(55);
-    expect(classBPedagogical).toHaveLength(55);
+    expect(classAPedagogical).toHaveLength(52);
+    expect(classBPedagogical).toHaveLength(52);
     expect(classA.seeds[0].plannedDate.toISOString().slice(0, 10)).toBe(
       classB.seeds[0].plannedDate.toISOString().slice(0, 10)
     );
@@ -132,8 +132,10 @@ describe('Daily Notebook timetable materialization', () => {
     );
 
     expect(result.error).toBeUndefined();
-    const learningPair = result.seeds.filter((item) =>
-      item.referenceSessionId.includes('f_locomotion:sequence:4')
+    const learningPair = result.seeds.filter(
+      (item) =>
+        item.referenceSessionId.includes('f_locomotion:sequence:4') ||
+        item.referenceSessionId.includes('f_locomotion:sequence:5')
     );
     expect(learningPair).toHaveLength(2);
     expect(new Set(learningPair.map((item) => item.plannedDate.getUTCDay())).size).toBe(2);
@@ -156,15 +158,15 @@ describe('Daily Notebook timetable materialization', () => {
 
     expect(result.error).toBeUndefined();
     const pedagogical = result.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
-    expect(pedagogical).toHaveLength(56);
+    expect(pedagogical).toHaveLength(52);
     expect(
       pedagogical
         .slice(0, 4)
         .map((item) => [item.plannedDate.toISOString().slice(0, 10), item.startTime])
     ).toEqual([
       ['2025-09-29', '08:00'],
-      ['2025-10-01', '10:00'],
       ['2025-10-06', '08:00'],
+      ['2025-10-08', '10:00'],
       ['2025-10-13', '08:00'],
     ]);
     expect(result.seeds.every((item) => item.durationMinutes === 60)).toBe(true);
@@ -188,9 +190,9 @@ describe('Daily Notebook timetable materialization', () => {
 
     const g4Pedagogical = g4.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
     const g5Pedagogical = g5.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
-    expect(g4Pedagogical).toHaveLength(55);
+    expect(g4Pedagogical).toHaveLength(52);
     expect(g4Pedagogical.every((item) => item.durationMinutes === 90)).toBe(true);
-    expect(g5Pedagogical).toHaveLength(34);
+    expect(g5Pedagogical).toHaveLength(31);
     expect(g5Pedagogical.every((item) => item.durationMinutes === 60)).toBe(true);
   });
 
@@ -231,7 +233,7 @@ describe('Daily Notebook timetable materialization', () => {
     );
 
     const pedagogical = result.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
-    expect(pedagogical).toHaveLength(55);
+    expect(pedagogical).toHaveLength(52);
     expect(
       result.seeds.every((item) => item.plannedDate.toISOString().endsWith('T00:00:00.000Z'))
     ).toBe(true);

@@ -79,6 +79,139 @@ export interface AnnualLevelDistribution {
   error?: string;
 }
 
+export interface AnnualDistributionPedagogicalMeeting {
+  meetingIndex: 1 | 2;
+  referenceSessionId: string;
+}
+
+export interface AnnualDistributionPedagogicalUnit {
+  referenceSessionId: string;
+  sessionType: CanonicalPlanningSession['sessionType'];
+  sessionTypeLabel: string;
+  fieldId: string;
+  fieldName: string;
+  objective: string;
+  objectiveId: string | null;
+  objectiveGroupId: string | null;
+  meetingCount: 1 | 2;
+  meetings: AnnualDistributionPedagogicalMeeting[];
+  durationMinutes: number;
+}
+
+export interface AnnualDistributionWeek {
+  weekIndex: number;
+  weekLabel: string;
+  isIntro: boolean;
+  pedagogicalUnits: AnnualDistributionPedagogicalUnit[];
+}
+
+type AnnualDistributionReferenceOverride = Partial<
+  Pick<
+    CanonicalPlanningSession,
+    'fieldName' | 'objective' | 'sessionTypeLabel' | 'objectiveId' | 'objectiveGroupId'
+  >
+>;
+
+function annualDistributionUnitSource(
+  session: CanonicalPlanningSession,
+  referenceFor?: (session: CanonicalPlanningSession) => AnnualDistributionReferenceOverride
+): AnnualDistributionReferenceOverride {
+  return referenceFor?.(session) || {};
+}
+
+/**
+ * Builds the level/week pedagogical read model. Dates and operational
+ * timetable fields are deliberately not part of this representation.
+ */
+export function buildAnnualDistributionWeeks(
+  level: AnnualLevelDistribution,
+  referenceFor?: (session: CanonicalPlanningSession) => AnnualDistributionReferenceOverride
+): AnnualDistributionWeek[] {
+  const weeks: AnnualDistributionWeek[] = [
+    {
+      weekIndex: 1,
+      weekLabel: 'الأسبوع الأول',
+      isIntro: true,
+      pedagogicalUnits: [
+        {
+          referenceSessionId: `${level.levelId}:intro:week:1`,
+          sessionType: 'تعارف وتنظيم',
+          sessionTypeLabel: 'تعارف، تنظيم واتصال',
+          fieldId: 'intro',
+          fieldName: 'أسبوع التعارف والتنظيم',
+          objective: 'تعارف، تنظيم واتصال مع التلاميذ',
+          objectiveId: null,
+          objectiveGroupId: 'intro_week',
+          meetingCount: 1,
+          meetings: [],
+          durationMinutes: level.durationMinutes,
+        },
+      ],
+    },
+  ];
+
+  const gradeUsesLearningPairs = level.grade >= 1 && level.grade <= 4;
+  const units: AnnualDistributionPedagogicalUnit[] = [];
+  for (let index = 0; index < level.sessions.length; index += 1) {
+    const session = level.sessions[index];
+    const next = level.sessions[index + 1];
+    const source = annualDistributionUnitSource(session, referenceFor);
+    const isCanonicalPair =
+      gradeUsesLearningPairs &&
+      session.sessionType === 'تعلمية' &&
+      next?.sessionType === 'تعلمية' &&
+      Boolean(session.objectiveGroupId) &&
+      session.objectiveGroupId === next.objectiveGroupId;
+    const meetingCount: 1 | 2 = gradeUsesLearningPairs && session.sessionType === 'تعلمية' ? 2 : 1;
+    const firstReference = session.referenceSessionId;
+    const secondReference = isCanonicalPair
+      ? next!.referenceSessionId
+      : `${firstReference}:meeting:2`;
+    const objective = source.objective || session.objective;
+    const objectiveGroupId = source.objectiveGroupId ?? session.objectiveGroupId ?? null;
+    units.push({
+      referenceSessionId: firstReference,
+      sessionType: session.sessionType,
+      sessionTypeLabel: source.sessionTypeLabel || session.sessionTypeLabel,
+      fieldId: session.domainId,
+      fieldName: source.fieldName || session.fieldName || session.domainId,
+      objective,
+      objectiveId: source.objectiveId ?? session.objectiveId,
+      objectiveGroupId,
+      meetingCount,
+      meetings:
+        meetingCount === 2
+          ? [
+              { meetingIndex: 1, referenceSessionId: firstReference },
+              { meetingIndex: 2, referenceSessionId: secondReference },
+            ]
+          : [],
+      durationMinutes: session.durationMinutes,
+    });
+    if (isCanonicalPair) index += 1;
+  }
+
+  for (const [index, unit] of units.entries()) {
+    weeks.push({
+      weekIndex: index + 2,
+      weekLabel: `الأسبوع ${index + 2}`,
+      isIntro: false,
+      pedagogicalUnits: [unit],
+    });
+  }
+  return weeks;
+}
+
+export function annualDistributionUnitSummary(weeks: AnnualDistributionWeek[]) {
+  const units = weeks.flatMap((week) => week.pedagogicalUnits);
+  return {
+    weekCount: weeks.length,
+    pedagogicalUnitCount: units.length,
+    learningUnitCount: units.filter((unit) => unit.sessionType === 'تعلمية').length,
+    meetingCount: units.reduce((total, unit) => total + unit.meetingCount, 0),
+  };
+}
+
 export interface PersistedAnnualDistributionOverride {
   date?: string;
 }
@@ -278,12 +411,9 @@ export function canonicalPlanningSessions(
     objective: session.targetObjective,
     plannedDate: session.scheduledDate,
     durationMinutes: session.durationMinutes,
+    fieldName: session.fieldName,
     isIntro: false,
   }));
-}
-
-function expectedSessionCount(levelId: PrimaryLevelId): number {
-  return levelId === 'lvl_p1' || levelId === 'lvl_p2' || levelId === 'lvl_p3' ? 56 : 34;
 }
 
 function buildLevelDistribution(
@@ -300,21 +430,26 @@ function buildLevelDistribution(
         academicYearId,
         teachingDayOfWeek
       );
-      if (sessions.length !== expectedSessionCount(levelId)) {
-        lastError = 'لا توجد سعة تقويمية كافية لتوليد جميع الحصص المطلوبة.';
+      if (!sessions.length) {
+        lastError = 'لا توجد حصص بيداغوجية قابلة للتوليد للمستوى المحدد.';
         continue;
       }
       const durationMinutes = sessions[0]?.durationMinutes || 0;
-      return {
+      const baseLevel: AnnualLevelDistribution = {
         levelId,
         grade: Number(levelId.slice(-1)),
-        sessionCount: sessions.length,
+        sessionCount: 0,
         annualHours: sessions.reduce((total, session) => total + session.durationMinutes, 0) / 60,
         firstSessionDate: sessions[0]?.plannedDate || null,
         lastSessionDate: sessions.at(-1)?.plannedDate || null,
         durationMinutes,
         sessions,
         status: 'generated',
+      };
+      return {
+        ...baseLevel,
+        sessionCount: annualDistributionUnitSummary(buildAnnualDistributionWeeks(baseLevel))
+          .pedagogicalUnitCount,
       };
     } catch (error) {
       lastError = error instanceof Error ? error.message : lastError;

@@ -725,14 +725,41 @@ export async function initializeTeacherPlanningSessions(
 export interface TeacherAnnualLevelDistributionSummary {
   levelId: string;
   grade: number;
-  sessionCount: number;
+  weekCount: number;
+  pedagogicalUnitCount: number;
+  learningUnitCount: number;
+  meetingCount: number;
   annualHours: number;
-  firstSessionDate: string | null;
-  lastSessionDate: string | null;
   durationMinutes: number;
   status: 'generated' | 'failed';
   error?: string;
-  sessions: TeacherAnnualDistributionSession[];
+  weeks: TeacherAnnualDistributionWeek[];
+}
+
+export interface TeacherAnnualDistributionMeeting {
+  meetingIndex: 1 | 2;
+  referenceSessionId: string;
+}
+
+export interface TeacherAnnualDistributionPedagogicalUnit {
+  referenceSessionId: string;
+  sessionType: 'تقويم تشخيصي' | 'تعلمية' | 'إدماجية' | 'تقويم تحصيلي' | 'تعارف وتنظيم';
+  sessionTypeLabel: string;
+  fieldId: string;
+  fieldName: string;
+  objective: string;
+  objectiveId: string | null;
+  objectiveGroupId: string | null;
+  meetingCount: 1 | 2;
+  meetings: TeacherAnnualDistributionMeeting[];
+  durationMinutes: number;
+}
+
+export interface TeacherAnnualDistributionWeek {
+  weekIndex: number;
+  weekLabel: string;
+  isIntro: boolean;
+  pedagogicalUnits: TeacherAnnualDistributionPedagogicalUnit[];
 }
 
 export interface TeacherAnnualClassLinkSummary {
@@ -870,41 +897,6 @@ export async function moveTeacherPlanningSessionToCanonicalSlot(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'تعذر نقل الحصة إلى الموعد المعتمد.');
   return data as ProtectedPlanningSessionMoveResponse;
-}
-
-export async function updateTeacherAnnualDistributionSession(
-  academicYearId: string,
-  levelId: string,
-  referenceSessionId: string,
-  plannedDate: string
-): Promise<TeacherAnnualDistributionResponse> {
-  const res = await fetch(
-    `/api/teacher/planning/annual-distribution/levels/${encodeURIComponent(levelId)}/sessions/${encodeURIComponent(referenceSessionId)}`,
-    {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ academicYearId, plannedDate }),
-    }
-  );
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const conflictDetails = Array.isArray(data.conflicts)
-      ? data.conflicts
-          .filter(
-            (item: unknown): item is TeacherAnnualDistributionConflict =>
-              Boolean(item) &&
-              typeof item === 'object' &&
-              typeof (item as TeacherAnnualDistributionConflict).className === 'string' &&
-              typeof (item as TeacherAnnualDistributionConflict).referenceSessionId === 'string'
-          )
-          .map(
-            (item) =>
-              `${item.className} (${item.existingDate} ← ${item.requestedDate || 'الموعد الجديد'})`
-          )
-      : [];
-    throw new Error([data.error || 'تعذر تحديث توزيع المستوى.', ...conflictDetails].join(' '));
-  }
-  return data as TeacherAnnualDistributionResponse;
 }
 
 export async function updateTeacherPlanningSession(

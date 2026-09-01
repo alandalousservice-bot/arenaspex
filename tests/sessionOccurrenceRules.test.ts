@@ -27,7 +27,7 @@ const seedsForCanonicalGroup = (
 describe('authoritative session occurrence rules', () => {
   it('keeps annual distribution level/week based and leaves timetable details operational', () => {
     const annual = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
-    expect(annual.levels.map((level) => level.sessionCount)).toEqual([56, 56, 56, 34, 34]);
+    expect(annual.levels.map((level) => level.sessionCount)).toEqual([32, 32, 32, 32, 32]);
 
     const canonical = canonicalPlanningSessions('lvl_p4', '2026-09-21', '2026-2027');
     expect(canonical.every((session) => !Object.hasOwn(session, 'weekday'))).toBe(true);

@@ -26,15 +26,14 @@ describe('protected planning session move contract', () => {
       ]
     );
     const first = materialized.seeds.find((seed) => seed.referenceSessionId.endsWith('sequence:1'));
-    const second = materialized.seeds.find((seed) =>
-      seed.referenceSessionId.endsWith('sequence:2')
+    const secondDiagnostic = materialized.seeds.find(
+      (seed) => seed.referenceSessionId.includes(':diagnostic:') && seed !== first
     );
 
     expect(materialized.error).toBeUndefined();
     expect(first?.plannedDate.toISOString().slice(0, 10)).toBe('2026-09-27');
     expect(first?.startTime).toBe('08:00');
-    expect(second?.plannedDate.toISOString().slice(0, 10)).toBe('2026-09-29');
-    expect(second?.startTime).toBe('10:00');
+    expect(secondDiagnostic).toBeUndefined();
     expect(materialized.seeds.some((seed) => seed.referenceSessionId.includes(':intro:'))).toBe(
       true
     );
@@ -63,12 +62,10 @@ describe('protected planning session move contract', () => {
     expect(moveRoute).not.toContain('classPlannedSession.create');
     expect(api).toContain('body: JSON.stringify({ academicYearId })');
     expect(api).not.toContain('body: JSON.stringify({ academicYearId, targetDate');
-    expect(calendar).toContain('onMoveProtectedSession');
-    expect(calendar).toContain('نقل الحصة إلى الموعد الجديد');
-    expect(calendar).toContain('تأكيد النقل');
-    expect(calendar).toContain('الاحتفاظ بالموعد الحالي');
-    expect(calendar).toContain('إلغاء');
-    expect(workspace).toContain('moveTeacherPlanningSessionToCanonicalSlot');
+    expect(calendar).not.toContain('onMoveProtectedSession');
+    expect(calendar).not.toContain('نقل الحصة إلى الموعد الجديد');
+    expect(calendar).not.toContain('تأكيد النقل');
+    expect(calendar).not.toContain('الاحتفاظ بالموعد الحالي');
     expect(workspace).toContain('fetchTeacherPlanningSessions');
   });
 
