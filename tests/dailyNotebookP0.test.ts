@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
+  displayPlanningDomain,
   normalizeDailyNotebookEntries,
   normalizePlanningSessions,
 } from '../src/services/dailyNotebook.service';
@@ -78,6 +79,17 @@ describe('Daily Notebook P0 persistence contracts', () => {
     expect(
       normalizeDailyNotebookEntries([null, {}, { ...validEntry, status: 'unknown' }], 'teacher-1')
     ).toEqual([]);
+  });
+
+  it('never exposes internal domains and omits mixed page-level domains', () => {
+    expect(displayPlanningDomain('intro', 'intro')).toBeUndefined();
+    expect(displayPlanningDomain(undefined, 'intro')).toBeUndefined();
+    expect(displayPlanningDomain('f_locomotion', 'f_locomotion')).toBe(
+      'الميدان الأول: الوضعيات والتنقلات'
+    );
+    expect(displayPlanningDomain('f_locomotion', 'الوضعيات والتنقلات')).toBe('الوضعيات والتنقلات');
+    expect(notebook).toContain('if (domainNames.some((value) => !value)) return null;');
+    expect(notebook).not.toContain('<strong className="mt-1 block text-sm text-blue-950">intro');
   });
 
   it('uses local calendar arithmetic for today, previous, and next actions', () => {

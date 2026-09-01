@@ -35,6 +35,7 @@ import {
   resolveOperationalDate,
   sortPlanningSessions,
   toDailyNotebookSessionDto,
+  displayPlanningDomain,
 } from '../../services/dailyNotebook.service';
 import { formatLocalDate, getLocalWeekDates, shiftLocalDate } from '../../services/localDate';
 import { isLessonMemoEligible } from '../../services/lessonPlanWorkflow.service';
@@ -87,7 +88,7 @@ const sessionTimeLabel = (session: Pick<TeacherPlanningSession, 'startTime' | 'e
       : session.startTime
     : 'غير محدد';
 const referenceFieldName = (reference?: { domainId?: string; fieldName?: string } | null) =>
-  reference?.fieldName || PE_FIELDS.find((field) => field.id === reference?.domainId)?.name;
+  displayPlanningDomain(reference?.domainId, reference?.fieldName);
 const lessonContent = (plan?: LessonPlan) =>
   plan?.lessonRows
     ?.map((row) => (typeof row?.learningContent === 'string' ? row.learningContent.trim() : ''))
@@ -272,13 +273,13 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
     [filteredSessions, focusedSessionId, safeTeacherClasses, selectedDate]
   );
   const commonDomain = useMemo(() => {
-    const domainNames = displayed
-      .map((session) => {
-        const reference = references.get(session.referenceSessionId) || session.reference;
-        return referenceFieldName(reference);
-      })
-      .filter((value): value is string => Boolean(value));
-    return new Set(domainNames).size === 1 ? domainNames[0] : null;
+    const domainNames = displayed.map((session) => {
+      const reference = references.get(session.referenceSessionId) || session.reference;
+      return referenceFieldName(reference);
+    });
+    if (domainNames.some((value) => !value)) return null;
+    const validDomainNames = domainNames.filter((value): value is string => Boolean(value));
+    return new Set(validDomainNames).size === 1 ? validDomainNames[0] : null;
   }, [displayed, references]);
   const classForSession = (session: TeacherPlanningSession) => classesById.get(session.classId);
   const updateStatus = async (session: TeacherPlanningSession, status: NotebookStatus) => {

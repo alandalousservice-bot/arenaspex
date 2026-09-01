@@ -1,11 +1,24 @@
 import type { TeacherPlanningReference, TeacherPlanningSession } from './api';
 import type { ClassRoom, DailyNotebookEntry, LessonPlan } from '../types/spex';
+import { PE_FIELDS } from '../data/algerianCurriculum';
 import { parseLocalDate } from './localDate';
 
 const NOTEBOOK_STATUSES = new Set(['منجزة', 'مؤجلة', 'غير منجزة']);
 const PLANNING_STATUSES = new Set(['مبرمجة', 'منجزة', 'مؤجلة', 'غير منجزة']);
 
 export type DailyNotebookStatus = TeacherPlanningSession['status'];
+
+export function displayPlanningDomain(
+  domainId?: string | null,
+  fieldName?: string | null
+): string | undefined {
+  const normalizedFieldName = fieldName?.trim();
+  if (domainId === 'intro' || normalizedFieldName?.toLowerCase() === 'intro') return undefined;
+  if (normalizedFieldName && !normalizedFieldName.toLowerCase().startsWith('f_')) {
+    return normalizedFieldName;
+  }
+  return PE_FIELDS.find((field) => field.id === domainId)?.name;
+}
 
 export const DAILY_NOTEBOOK_STATUS_META: Record<
   DailyNotebookStatus,

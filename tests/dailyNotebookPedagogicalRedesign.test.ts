@@ -44,7 +44,7 @@ describe('Daily Notebook pedagogical screen model', () => {
 
   it('shows a common domain only when displayed sessions agree', () => {
     expect(notebook).toContain('const commonDomain = useMemo');
-    expect(notebook).toContain('new Set(domainNames).size === 1');
+    expect(notebook).toContain('new Set(validDomainNames).size === 1');
     expect(notebook).toContain('الميدان');
     expect(notebook).not.toContain('الميدان غير محدد');
   });
