@@ -1892,8 +1892,9 @@ export function generateAnnualTimeDistribution(
     if (diagnostic) ordered.push(diagnostic as any);
     ordered.push(...(learningBefore as any));
     if (integration1) ordered.push(integration1 as any);
-    ordered.push(...(learningAfter as any));
+    ordered.push(...(learningAfter.slice(0, 3) as any));
     ordered.push(integration2 as any);
+    ordered.push(...(learningAfter.slice(3) as any));
     if (summative) ordered.push(summative as any);
 
     let objectiveCounter = 1;

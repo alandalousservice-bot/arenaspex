@@ -8,6 +8,7 @@ import {
 import type {
   TeacherAnnualDistributionPedagogicalUnit,
   TeacherAnnualDistributionResponse,
+  TeacherAnnualDistributionWeeklySlot,
   TeacherAnnualDistributionWeek,
 } from '../../services/api';
 import type { PrimaryLevelId } from '../../services/primaryLevel.service';
@@ -76,11 +77,11 @@ function seasonalHolidays(academicYearId: string): AcademicCalendarEvent[] {
   );
 }
 
-const typeTone = (unit: TeacherAnnualDistributionPedagogicalUnit) => {
-  if (unit.sessionType === 'تقويم تشخيصي') return 'bg-amber-100 text-amber-800';
-  if (unit.sessionType === 'إدماجية') return 'bg-purple-100 text-purple-800';
-  if (unit.sessionType === 'تقويم تحصيلي') return 'bg-emerald-100 text-emerald-800';
-  if (unit.sessionType === 'تعارف وتنظيم') return 'bg-slate-100 text-slate-700';
+const typeTone = (slot: TeacherAnnualDistributionWeeklySlot) => {
+  if (slot.sessionType === 'تقويم تشخيصي') return 'bg-amber-100 text-amber-800';
+  if (slot.sessionType === 'إدماجية') return 'bg-purple-100 text-purple-800';
+  if (slot.sessionType === 'تقويم تحصيلي') return 'bg-emerald-100 text-emerald-800';
+  if (slot.sessionType === 'تعارف وتنظيم') return 'bg-slate-100 text-slate-700';
   return 'bg-blue-100 text-blue-800';
 };
 
@@ -90,9 +91,9 @@ export function annualDistributionMeetingLabel(
 ): string {
   if (unit.fieldId === 'intro') return 'حصة تعارف وتنظيم';
   if (unit.meetingCount === 2 && learningUnitNumber) {
-    return `حصة تعلمية ${learningUnitNumber} (أ) / حصة تعلمية ${learningUnitNumber} (ب)`;
+    return `حصة تعلمية ${learningUnitNumber} (أ - ب)`;
   }
-  return 'حصة واحدة';
+  return unit.sessionTypeLabel;
 }
 
 function addUtcDays(value: string | Date, days: number): Date {
@@ -145,6 +146,50 @@ export function annualDistributionWeekDateRange(
   return `${formatNumericDate(sunday)} – ${formatNumericDate(addUtcDays(sunday, 4))}`;
 }
 
+export function annualDistributionMonthLabel(
+  planningStartDate: string,
+  weekIndex: number,
+  academicYearId?: string
+): string {
+  const sunday = new Date(
+    `${annualDistributionWeekStart(planningStartDate, weekIndex, academicYearId)}T00:00:00Z`
+  );
+  const thursday = addUtcDays(sunday, 4);
+  const formatter = new Intl.DateTimeFormat('ar-DZ', { month: 'long' });
+  const startMonth = formatter.format(sunday);
+  const endMonth = formatter.format(thursday);
+  return startMonth === endMonth ? startMonth : `${startMonth} / ${endMonth}`;
+}
+
+export function annualDistributionWeekTypeLabel(week: TeacherAnnualDistributionWeek): string {
+  const labels: string[] = [];
+  for (let index = 0; index < week.slots.length; index += 1) {
+    const slot = week.slots[index];
+    const next = week.slots[index + 1];
+    if (
+      slot.meetingIndex === 1 &&
+      next?.meetingIndex === 2 &&
+      slot.sourceUnitReferenceSessionId === next.sourceUnitReferenceSessionId
+    ) {
+      labels.push(`${slot.sessionTypeLabel} (أ - ب)`);
+      index += 1;
+      continue;
+    }
+    labels.push(slot.displayLabel);
+  }
+  return labels.join(' - ');
+}
+
+export function annualDistributionWeekFieldLabel(week: TeacherAnnualDistributionWeek): string {
+  return [
+    ...new Set(
+      week.slots.map((slot) =>
+        slot.fieldName.replace(/^الميدان (الأول|الثاني|الثالث):\s*/u, '').trim()
+      )
+    ),
+  ].join(' - ');
+}
+
 function AnnualDistributionTable({
   rows,
   planningStartDate,
@@ -154,15 +199,14 @@ function AnnualDistributionTable({
   planningStartDate: string;
   academicYearId: string;
 }) {
-  let learningUnitNumber = 0;
   return (
     <table className="w-full border-collapse text-right text-xs">
       <thead className="bg-emerald-800 text-white">
         <tr>
-          <th className="w-[22%] p-3">التاريخ</th>
+          <th className="w-[15%] p-3">الشهر</th>
+          <th className="w-[22%] p-3">الفترة / التاريخ</th>
+          <th className="w-[35%] p-3">نوع الحصة</th>
           <th className="w-[28%] p-3">الميدان</th>
-          <th className="w-[22%] p-3">نوع الحصة</th>
-          <th className="w-[28%] p-3">اللقاءات</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-100">
@@ -183,41 +227,38 @@ function AnnualDistributionTable({
               </tr>
             );
           }
-          return row.week.pedagogicalUnits.map((unit, unitIndex) => (
-            <tr key={`${row.week.weekIndex}-${unit.referenceSessionId}`} className="align-top">
-              {unitIndex === 0 && (
-                <td
-                  rowSpan={row.week.pedagogicalUnits.length}
-                  className="p-3 font-extrabold text-slate-800"
-                >
-                  <span className="block font-mono" dir="ltr">
-                    {annualDistributionWeekDateRange(
-                      planningStartDate,
-                      row.week.weekIndex,
-                      academicYearId
-                    )}
-                  </span>
-                  {row.week.isIntro && (
-                    <span className="mt-1 block text-[10px] font-bold text-slate-500">
-                      الأسبوع الأول
-                    </span>
+          const firstSlot = row.week.slots[0];
+          return (
+            <tr
+              key={`${row.week.weekIndex}-${firstSlot?.referenceSessionId}`}
+              className="align-top"
+            >
+              <td className="p-3 font-bold text-slate-700">
+                {annualDistributionMonthLabel(
+                  planningStartDate,
+                  row.week.weekIndex,
+                  academicYearId
+                )}
+              </td>
+              <td className="p-3 font-extrabold text-slate-800">
+                <span className="font-mono" dir="ltr">
+                  {annualDistributionWeekDateRange(
+                    planningStartDate,
+                    row.week.weekIndex,
+                    academicYearId
                   )}
-                </td>
-              )}
-              <td className="p-3 font-bold text-slate-700">{unit.fieldName}</td>
+                </span>
+              </td>
               <td className="p-3">
-                <span className={`rounded-lg px-2 py-1 font-bold ${typeTone(unit)}`}>
-                  {unit.sessionTypeLabel}
+                <span className={`rounded-lg px-2 py-1 font-bold ${typeTone(firstSlot)}`}>
+                  {annualDistributionWeekTypeLabel(row.week)}
                 </span>
               </td>
               <td className="p-3 font-bold text-slate-700">
-                {annualDistributionMeetingLabel(
-                  unit,
-                  unit.sessionType === 'تعلمية' ? ++learningUnitNumber : undefined
-                )}
+                {annualDistributionWeekFieldLabel(row.week)}
               </td>
             </tr>
-          ));
+          );
         })}
       </tbody>
     </table>
@@ -256,8 +297,8 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
               التوزيع البيداغوجي الأسبوعي
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              مرجع بيداغوجي موحّد لكل مستوى. يعرض فترات العمل الأسبوعية من الأحد إلى الخميس، بينما
-              يحدد توقيت القسم الفعلي جدوله الأسبوعي.
+              مرجع بيداغوجي موحّد لكل مستوى. يعرض فترات العمل الرقمية، بينما يحدد توقيت القسم الفعلي
+              جدوله الأسبوعي.
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-2">

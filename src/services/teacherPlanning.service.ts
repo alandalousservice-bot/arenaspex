@@ -98,11 +98,26 @@ export interface AnnualDistributionPedagogicalUnit {
   durationMinutes: number;
 }
 
+export interface AnnualDistributionWeeklySlot {
+  referenceSessionId: string;
+  sourceUnitReferenceSessionId: string;
+  sessionType: CanonicalPlanningSession['sessionType'];
+  sessionTypeLabel: string;
+  displayLabel: string;
+  fieldId: string;
+  fieldName: string;
+  objectiveId: string | null;
+  objectiveGroupId: string | null;
+  meetingIndex: 1 | 2 | null;
+  durationMinutes: number;
+}
+
 export interface AnnualDistributionWeek {
   weekIndex: number;
   weekLabel: string;
   isIntro: boolean;
   pedagogicalUnits: AnnualDistributionPedagogicalUnit[];
+  slots: AnnualDistributionWeeklySlot[];
 }
 
 type AnnualDistributionReferenceOverride = Partial<
@@ -127,24 +142,38 @@ export function buildAnnualDistributionWeeks(
   level: AnnualLevelDistribution,
   referenceFor?: (session: CanonicalPlanningSession) => AnnualDistributionReferenceOverride
 ): AnnualDistributionWeek[] {
+  const introUnit: AnnualDistributionPedagogicalUnit = {
+    referenceSessionId: `${level.levelId}:intro:week:1`,
+    sessionType: 'تعارف وتنظيم',
+    sessionTypeLabel: 'تعارف، تنظيم واتصال',
+    fieldId: 'intro',
+    fieldName: 'أسبوع التعارف والتنظيم',
+    objective: 'تعارف، تنظيم واتصال مع التلاميذ',
+    objectiveId: null,
+    objectiveGroupId: 'intro_week',
+    meetingCount: 1,
+    meetings: [],
+    durationMinutes: level.durationMinutes,
+  };
   const weeks: AnnualDistributionWeek[] = [
     {
       weekIndex: 1,
       weekLabel: 'الأسبوع الأول',
       isIntro: true,
-      pedagogicalUnits: [
+      pedagogicalUnits: [introUnit],
+      slots: [
         {
-          referenceSessionId: `${level.levelId}:intro:week:1`,
-          sessionType: 'تعارف وتنظيم',
-          sessionTypeLabel: 'تعارف، تنظيم واتصال',
-          fieldId: 'intro',
-          fieldName: 'أسبوع التعارف والتنظيم',
-          objective: 'تعارف، تنظيم واتصال مع التلاميذ',
-          objectiveId: null,
-          objectiveGroupId: 'intro_week',
-          meetingCount: 1,
-          meetings: [],
-          durationMinutes: level.durationMinutes,
+          referenceSessionId: introUnit.referenceSessionId,
+          sourceUnitReferenceSessionId: introUnit.referenceSessionId,
+          sessionType: introUnit.sessionType,
+          sessionTypeLabel: introUnit.sessionTypeLabel,
+          displayLabel: 'حصة تعارف وتنظيم',
+          fieldId: introUnit.fieldId,
+          fieldName: introUnit.fieldName,
+          objectiveId: introUnit.objectiveId,
+          objectiveGroupId: introUnit.objectiveGroupId,
+          meetingIndex: null,
+          durationMinutes: introUnit.durationMinutes,
         },
       ],
     },
@@ -191,32 +220,81 @@ export function buildAnnualDistributionWeeks(
     if (isCanonicalPair) index += 1;
   }
 
+  const slots = units.flatMap<AnnualDistributionWeeklySlot>((unit) => {
+    if (unit.meetingCount === 1) {
+      return [
+        {
+          referenceSessionId: unit.referenceSessionId,
+          sourceUnitReferenceSessionId: unit.referenceSessionId,
+          sessionType: unit.sessionType,
+          sessionTypeLabel: unit.sessionTypeLabel,
+          displayLabel: unit.sessionTypeLabel,
+          fieldId: unit.fieldId,
+          fieldName: unit.fieldName,
+          objectiveId: unit.objectiveId,
+          objectiveGroupId: unit.objectiveGroupId,
+          meetingIndex: null,
+          durationMinutes: unit.durationMinutes,
+        },
+      ];
+    }
+    return unit.meetings.map((meeting) => ({
+      referenceSessionId: meeting.referenceSessionId,
+      sourceUnitReferenceSessionId: unit.referenceSessionId,
+      sessionType: unit.sessionType,
+      sessionTypeLabel: unit.sessionTypeLabel,
+      displayLabel: `${unit.sessionTypeLabel} (${meeting.meetingIndex === 1 ? 'أ' : 'ب'})`,
+      fieldId: unit.fieldId,
+      fieldName: unit.fieldName,
+      objectiveId: unit.objectiveId,
+      objectiveGroupId: unit.objectiveGroupId,
+      meetingIndex: meeting.meetingIndex,
+      durationMinutes: unit.durationMinutes,
+    }));
+  });
+
   let weekIndex = 2;
-  for (let index = 0; index < units.length; index += 1) {
-    const unit = units[index];
-    const next = units[index + 1];
-    const canUseRemainingWeeklyMeeting =
-      level.grade >= 1 && level.grade <= 4 && unit.meetingCount === 1 && Boolean(next);
-    const pedagogicalUnits = canUseRemainingWeeklyMeeting ? [unit, next!] : [unit];
+  let slotIndex = 0;
+  const seenUnitReferences = new Set<string>();
+  while (slotIndex < slots.length) {
+    const weekSlots = slots.slice(slotIndex, slotIndex + (level.grade <= 4 ? 2 : 1));
+    const pedagogicalUnits = units.filter((unit) => {
+      if (seenUnitReferences.has(unit.referenceSessionId)) return false;
+      if (
+        !weekSlots.some((slot) => slot.sourceUnitReferenceSessionId === unit.referenceSessionId)
+      ) {
+        return false;
+      }
+      seenUnitReferences.add(unit.referenceSessionId);
+      return true;
+    });
     weeks.push({
       weekIndex,
       weekLabel: `الأسبوع ${weekIndex}`,
       isIntro: false,
       pedagogicalUnits,
+      slots: weekSlots,
     });
     weekIndex += 1;
-    if (canUseRemainingWeeklyMeeting) index += 1;
+    slotIndex += weekSlots.length;
   }
   return weeks;
 }
 
 export function annualDistributionUnitSummary(weeks: AnnualDistributionWeek[]) {
-  const units = weeks.flatMap((week) => week.pedagogicalUnits);
+  const units = [
+    ...new Map(
+      weeks
+        .flatMap((week) => week.pedagogicalUnits)
+        .map((unit) => [unit.referenceSessionId, unit] as const)
+    ).values(),
+  ];
+  const slots = weeks.flatMap((week) => week.slots);
   return {
     weekCount: weeks.length,
     pedagogicalUnitCount: units.length,
     learningUnitCount: units.filter((unit) => unit.sessionType === 'تعلمية').length,
-    meetingCount: units.reduce((total, unit) => total + unit.meetingCount, 0),
+    meetingCount: slots.length,
   };
 }
 

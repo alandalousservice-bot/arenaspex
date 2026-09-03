@@ -755,11 +755,26 @@ export interface TeacherAnnualDistributionPedagogicalUnit {
   durationMinutes: number;
 }
 
+export interface TeacherAnnualDistributionWeeklySlot {
+  referenceSessionId: string;
+  sourceUnitReferenceSessionId: string;
+  sessionType: TeacherAnnualDistributionPedagogicalUnit['sessionType'];
+  sessionTypeLabel: string;
+  displayLabel: string;
+  fieldId: string;
+  fieldName: string;
+  objectiveId: string | null;
+  objectiveGroupId: string | null;
+  meetingIndex: 1 | 2 | null;
+  durationMinutes: number;
+}
+
 export interface TeacherAnnualDistributionWeek {
   weekIndex: number;
   weekLabel: string;
   isIntro: boolean;
   pedagogicalUnits: TeacherAnnualDistributionPedagogicalUnit[];
+  slots: TeacherAnnualDistributionWeeklySlot[];
 }
 
 export interface TeacherAnnualClassLinkSummary {

@@ -204,7 +204,7 @@ describe('session-first Lesson Memo workflow', () => {
     expect(lessonView).toContain('classPlannedSessionId');
     expect(lessonView).toContain('academicYearId');
     expect(planner).not.toContain('classPlannedSessionId');
-    expect(planner).toContain('pedagogicalUnits');
+    expect(planner).toContain('slots');
     expect(lessonView).not.toContain('initializeTeacherPlanningSessions');
     expect(lessonView).not.toContain('/sessions/initialize');
   });

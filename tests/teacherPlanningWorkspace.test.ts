@@ -127,7 +127,8 @@ describe('unified Teacher planning workspace', () => {
     expect(calendar).toContain('التاريخ');
     expect(calendar).not.toContain('التعلمات / الهدف');
     expect(calendar).not.toContain('لقاءان: 1/2 و 2/2');
-    expect(calendar).toContain('اللقاءات');
+    expect(calendar).toContain('الفترة / التاريخ');
+    expect(calendar).toContain('الشهر');
     expect(calendar).toContain('نوع الحصة');
     expect(calendar).toContain('الميدان');
     expect(calendar).toContain('annual-distribution-weekly-table');
