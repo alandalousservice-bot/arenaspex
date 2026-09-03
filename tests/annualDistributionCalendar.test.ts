@@ -1,6 +1,10 @@
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { buildAnnualDistributionRows } from '../src/components/curriculum/AnnualDistributionCalendar';
+import {
+  annualDistributionMeetingLabel,
+  annualDistributionWeekDateRange,
+  buildAnnualDistributionRows,
+} from '../src/components/curriculum/AnnualDistributionCalendar';
 import {
   annualDistributionUnitSummary,
   buildAnnualDistributionWeeks,
@@ -14,9 +18,10 @@ describe('weekly level-based annual distribution', () => {
   it('renders weekly pedagogical rows without operational date or class controls', () => {
     const source = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
     expect(source).toContain('buildAnnualDistributionRows');
-    expect(source).toContain('الأسبوع');
-    expect(source).toContain('التعلمات / الهدف');
-    expect(source).toContain('لقاءان: 1/2 و 2/2');
+    expect(source).toContain('التاريخ');
+    expect(source).not.toContain('التعلمات / الهدف');
+    expect(source).not.toContain('لقاءان: 1/2 و 2/2');
+    expect(source).toContain('(أ) / حصة تعلمية');
     expect(source).not.toContain('تاريخ الحصة');
     expect(source).not.toContain('classPlannedSessionId');
     expect(source).not.toContain('selectedClass');
@@ -90,6 +95,20 @@ describe('weekly level-based annual distribution', () => {
     expect(summary.weekCount).toBe(summary.pedagogicalUnitCount);
     expect(summary.pedagogicalUnitCount).toBeGreaterThan(0);
     expect(summary.learningUnitCount).toBeGreaterThan(0);
+  });
+
+  it('formats each annual row as a Sunday-to-Thursday numeric date range', () => {
+    expect(annualDistributionWeekDateRange('2026-09-21', 1)).toBe('20/09/2026 – 24/09/2026');
+    expect(annualDistributionWeekDateRange('2026-09-21', 2)).toBe('27/09/2026 – 01/10/2026');
+  });
+
+  it('uses pedagogical A/B labels without numerical meeting fractions', () => {
+    const level = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21').levels[0];
+    const weeks = buildAnnualDistributionWeeks(level);
+    expect(annualDistributionMeetingLabel(weeks[2].pedagogicalUnits[0], 1)).toBe(
+      'حصة تعلمية 1 (أ) / حصة تعلمية 1 (ب)'
+    );
+    expect(annualDistributionMeetingLabel(weeks[1].pedagogicalUnits[0])).toBe('حصة واحدة');
   });
 
   it('does not expose operational fields in the weekly read model', () => {

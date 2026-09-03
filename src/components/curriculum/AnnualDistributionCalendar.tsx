@@ -42,22 +42,57 @@ const typeTone = (unit: TeacherAnnualDistributionPedagogicalUnit) => {
   return 'bg-blue-100 text-blue-800';
 };
 
-function meetingLabel(unit: TeacherAnnualDistributionPedagogicalUnit): string {
-  if (unit.fieldId === 'intro') return 'أسبوع تمهيدي';
-  if (unit.meetingCount === 2) return 'لقاءان: 1/2 و 2/2';
-  return 'لقاء واحد';
+export function annualDistributionMeetingLabel(
+  unit: TeacherAnnualDistributionPedagogicalUnit,
+  learningUnitNumber?: number
+): string {
+  if (unit.fieldId === 'intro') return 'حصة تعارف وتنظيم';
+  if (unit.meetingCount === 2 && learningUnitNumber) {
+    return `حصة تعلمية ${learningUnitNumber} (أ) / حصة تعلمية ${learningUnitNumber} (ب)`;
+  }
+  return 'حصة واحدة';
 }
 
-function AnnualDistributionTable({ weeks }: { weeks: TeacherAnnualDistributionWeek[] }) {
+function addUtcDays(value: string, days: number): Date {
+  const date = new Date(`${value.slice(0, 10)}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date;
+}
+
+function formatNumericDate(date: Date): string {
+  return [date.getUTCDate(), date.getUTCMonth() + 1, date.getUTCFullYear()]
+    .map((value, index) => (index === 2 ? String(value) : String(value).padStart(2, '0')))
+    .join('/');
+}
+
+export function annualDistributionWeekDateRange(
+  planningStartDate: string,
+  weekIndex: number
+): string {
+  const anchor = new Date(`${planningStartDate.slice(0, 10)}T00:00:00Z`);
+  const sunday = addUtcDays(
+    planningStartDate,
+    -anchor.getUTCDay() + (Math.max(1, weekIndex) - 1) * 7
+  );
+  return `${formatNumericDate(sunday)} – ${formatNumericDate(addUtcDays(sunday.toISOString(), 4))}`;
+}
+
+function AnnualDistributionTable({
+  weeks,
+  planningStartDate,
+}: {
+  weeks: TeacherAnnualDistributionWeek[];
+  planningStartDate: string;
+}) {
+  let learningUnitNumber = 0;
   return (
     <table className="w-full border-collapse text-right text-xs">
       <thead className="bg-emerald-800 text-white">
         <tr>
-          <th className="w-[15%] p-3">الأسبوع</th>
-          <th className="w-[20%] p-3">الميدان</th>
-          <th className="w-[18%] p-3">نوع الحصة</th>
-          <th className="w-[37%] p-3">التعلمات / الهدف</th>
-          <th className="w-[10%] p-3">اللقاءات</th>
+          <th className="w-[22%] p-3">التاريخ</th>
+          <th className="w-[28%] p-3">الميدان</th>
+          <th className="w-[22%] p-3">نوع الحصة</th>
+          <th className="w-[28%] p-3">اللقاءات</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-100">
@@ -69,10 +104,12 @@ function AnnualDistributionTable({ weeks }: { weeks: TeacherAnnualDistributionWe
                   rowSpan={week.pedagogicalUnits.length}
                   className="p-3 font-extrabold text-slate-800"
                 >
-                  <span className="block">{week.weekLabel}</span>
+                  <span className="block font-mono" dir="ltr">
+                    {annualDistributionWeekDateRange(planningStartDate, week.weekIndex)}
+                  </span>
                   {week.isIntro && (
                     <span className="mt-1 block text-[10px] font-bold text-slate-500">
-                      أسبوع التعارف والتنظيم
+                      الأسبوع الأول
                     </span>
                   )}
                 </td>
@@ -83,10 +120,12 @@ function AnnualDistributionTable({ weeks }: { weeks: TeacherAnnualDistributionWe
                   {unit.sessionTypeLabel}
                 </span>
               </td>
-              <td className="p-3">
-                <p className="font-bold text-slate-800">{unit.objective}</p>
+              <td className="p-3 font-bold text-slate-700">
+                {annualDistributionMeetingLabel(
+                  unit,
+                  unit.sessionType === 'تعلمية' ? ++learningUnitNumber : undefined
+                )}
               </td>
-              <td className="p-3 font-bold text-slate-700">{meetingLabel(unit)}</td>
             </tr>
           ))
         )}
@@ -124,8 +163,8 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
               التوزيع البيداغوجي الأسبوعي
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-500">
-              مرجع بيداغوجي موحّد لكل مستوى. التواريخ والأوقات الفعلية تُحدّد لاحقاً لكل قسم وفق
-              توقيته الأسبوعي.
+              مرجع بيداغوجي موحّد لكل مستوى. يعرض فترات العمل الأسبوعية من الأحد إلى الخميس، بينما
+              يحدد توقيت القسم الفعلي جدوله الأسبوعي.
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -250,7 +289,10 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
             </p>
           </header>
           <div className="annual-distribution-weekly-table overflow-x-auto p-3 print:p-0">
-            <AnnualDistributionTable weeks={rows.map((row) => row.week)} />
+            <AnnualDistributionTable
+              weeks={rows.map((row) => row.week)}
+              planningStartDate={planningStartDate}
+            />
           </div>
           <footer className="annual-distribution-document-footer hidden border-t border-slate-300 px-4 py-3 text-xs font-bold text-slate-700 print:flex print:justify-between">
             <span>الأستاذ: {`${currentUser.firstName} ${currentUser.lastName}`.trim() || ' '}</span>
