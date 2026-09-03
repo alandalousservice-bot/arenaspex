@@ -191,13 +191,21 @@ export function buildAnnualDistributionWeeks(
     if (isCanonicalPair) index += 1;
   }
 
-  for (const [index, unit] of units.entries()) {
+  let weekIndex = 2;
+  for (let index = 0; index < units.length; index += 1) {
+    const unit = units[index];
+    const next = units[index + 1];
+    const canUseRemainingWeeklyMeeting =
+      level.grade >= 1 && level.grade <= 4 && unit.meetingCount === 1 && Boolean(next);
+    const pedagogicalUnits = canUseRemainingWeeklyMeeting ? [unit, next!] : [unit];
     weeks.push({
-      weekIndex: index + 2,
-      weekLabel: `الأسبوع ${index + 2}`,
+      weekIndex,
+      weekLabel: `الأسبوع ${weekIndex}`,
       isIntro: false,
-      pedagogicalUnits: [unit],
+      pedagogicalUnits,
     });
+    weekIndex += 1;
+    if (canUseRemainingWeeklyMeeting) index += 1;
   }
   return weeks;
 }

@@ -1569,6 +1569,7 @@ export interface ScheduledAnnualSession {
 
 export interface AnnualTimeDistributionOptions {
   includeIntro?: boolean;
+  includeDiagnosticPrelude?: boolean;
 }
 
 function getGradeFromLevelId(levelId: string): number {
@@ -1704,6 +1705,7 @@ export function generateAnnualTimeDistribution(
   if (!levelData || !grade) return [];
   const scheduled: ScheduledAnnualSession[] = [];
   const includeIntro = options.includeIntro ?? true;
+  const includeDiagnosticPrelude = options.includeDiagnosticPrelude ?? true;
   let globalCounter = 1;
 
   const gradeConfig = (() => {
@@ -1827,32 +1829,34 @@ export function generateAnnualTimeDistribution(
     );
     boundedStartDate = formatISODate(currentDate);
 
-    const diagnosticPreludeCount = gradeConfig.introSessions;
-    for (let index = 0; index < diagnosticPreludeCount; index += 1) {
-      const desiredDate = new Date(currentDate);
-      if (index > 0) desiredDate.setDate(desiredDate.getDate() + 2);
-      const actualDate = getNextValidSchoolDate(desiredDate, true, academicYearId);
-      scheduled.push({
-        globalSessionNumber: globalCounter++,
-        fieldSessionNumber: index + 1,
-        fieldId: 'diagnostic',
-        fieldName: 'التقويم التشخيصي',
-        levelId: levelData.levelId,
-        levelName: levelData.levelName,
-        sessionType: 'تقويم تشخيصي',
-        sessionTypeLabel: 'تقويم تشخيصي',
-        targetObjective: 'تقويم تشخيصي أولي لمكتسبات التلاميذ',
-        scheduledDate: formatISODate(actualDate),
-        isHolidayPostponed: formatISODate(actualDate) !== formatISODate(desiredDate),
-        holidayNote:
-          formatISODate(actualDate) !== formatISODate(desiredDate)
-            ? `تم ترحيل الحصة من ${formatISODate(desiredDate)} بسبب عطلة`
-            : undefined,
-        status: 'مبرمجة',
-        durationMinutes: gradeConfig.duration,
-        isIntro: false,
-        objectiveGroupId: 'diagnostic_prelude',
-      });
+    if (includeDiagnosticPrelude) {
+      const diagnosticPreludeCount = gradeConfig.introSessions;
+      for (let index = 0; index < diagnosticPreludeCount; index += 1) {
+        const desiredDate = new Date(currentDate);
+        if (index > 0) desiredDate.setDate(desiredDate.getDate() + 2);
+        const actualDate = getNextValidSchoolDate(desiredDate, true, academicYearId);
+        scheduled.push({
+          globalSessionNumber: globalCounter++,
+          fieldSessionNumber: index + 1,
+          fieldId: 'diagnostic',
+          fieldName: 'التقويم التشخيصي',
+          levelId: levelData.levelId,
+          levelName: levelData.levelName,
+          sessionType: 'تقويم تشخيصي',
+          sessionTypeLabel: 'تقويم تشخيصي',
+          targetObjective: 'تقويم تشخيصي أولي لمكتسبات التلاميذ',
+          scheduledDate: formatISODate(actualDate),
+          isHolidayPostponed: formatISODate(actualDate) !== formatISODate(desiredDate),
+          holidayNote:
+            formatISODate(actualDate) !== formatISODate(desiredDate)
+              ? `تم ترحيل الحصة من ${formatISODate(desiredDate)} بسبب عطلة`
+              : undefined,
+          status: 'مبرمجة',
+          durationMinutes: gradeConfig.duration,
+          isIntro: false,
+          objectiveGroupId: 'diagnostic_prelude',
+        });
+      }
     }
   }
 
@@ -2009,13 +2013,7 @@ export function generateAnnualPedagogicalTimeDistribution(
     teachingDayOfWeek,
     className,
     academicYearId,
-    { includeIntro: false }
+    { includeIntro: false, includeDiagnosticPrelude: false }
   );
-  let diagnosticKept = false;
-  return generated.flatMap((session) => {
-    if (session.sessionType !== 'تقويم تشخيصي') return [session];
-    if (diagnosticKept) return [];
-    diagnosticKept = true;
-    return [{ ...session, objectiveGroupId: 'diagnostic' }];
-  });
+  return generated.filter((session) => session.objectiveGroupId !== 'diagnostic_prelude');
 }

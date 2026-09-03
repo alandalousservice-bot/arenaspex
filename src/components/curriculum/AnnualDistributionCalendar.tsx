@@ -1,6 +1,10 @@
 import React, { useMemo } from 'react';
 import { CalendarDays, Printer, RefreshCw } from 'lucide-react';
 import type { User } from '../../types/spex';
+import {
+  getCalendarEventsForDisplay,
+  type AcademicCalendarEvent,
+} from '../../data/academicCalendars';
 import type {
   TeacherAnnualDistributionPedagogicalUnit,
   TeacherAnnualDistributionResponse,
@@ -23,15 +27,53 @@ interface AnnualDistributionCalendarProps {
   onNavigateToCalendar: () => void;
 }
 
-export type AnnualDistributionRow = {
-  kind: 'week';
-  week: TeacherAnnualDistributionWeek;
-};
+export type AnnualDistributionRow =
+  | {
+      kind: 'week';
+      week: TeacherAnnualDistributionWeek;
+    }
+  | {
+      kind: 'holiday';
+      holiday: AcademicCalendarEvent;
+    };
 
 export function buildAnnualDistributionRows(
-  weeks: TeacherAnnualDistributionWeek[]
+  weeks: TeacherAnnualDistributionWeek[],
+  planningStartDate?: string,
+  academicYearId?: string
 ): AnnualDistributionRow[] {
-  return weeks.map((week) => ({ kind: 'week', week }));
+  const weekRows = weeks.map((week) => ({ kind: 'week' as const, week }));
+  if (!planningStartDate || !academicYearId) return weekRows;
+  const holidays = seasonalHolidays(academicYearId);
+  if (!holidays.length) return weekRows;
+  const firstDate = annualDistributionWeekStart(planningStartDate, 1, academicYearId);
+  const lastDate = annualDistributionWeekStart(
+    planningStartDate,
+    weeks.at(-1)?.weekIndex || 1,
+    academicYearId
+  );
+  const rangeStart = firstDate;
+  const rangeEnd = formatISODate(addUtcDays(lastDate, 4));
+  const holidayRows = holidays
+    .filter((holiday) => holiday.endDate >= rangeStart && holiday.startDate <= rangeEnd)
+    .map((holiday) => ({ kind: 'holiday' as const, holiday }));
+  return [...weekRows, ...holidayRows].sort((left, right) => {
+    const leftDate =
+      left.kind === 'holiday'
+        ? left.holiday.startDate
+        : annualDistributionWeekStart(planningStartDate, left.week.weekIndex, academicYearId);
+    const rightDate =
+      right.kind === 'holiday'
+        ? right.holiday.startDate
+        : annualDistributionWeekStart(planningStartDate, right.week.weekIndex, academicYearId);
+    return leftDate.localeCompare(rightDate) || (left.kind === 'holiday' ? -1 : 1);
+  });
+}
+
+function seasonalHolidays(academicYearId: string): AcademicCalendarEvent[] {
+  return getCalendarEventsForDisplay(academicYearId).filter((event) =>
+    ['عطلة الخريف', 'عطلة الشتاء', 'عطلة الربيع'].includes(event.name)
+  );
 }
 
 const typeTone = (unit: TeacherAnnualDistributionPedagogicalUnit) => {
@@ -53,8 +95,9 @@ export function annualDistributionMeetingLabel(
   return 'حصة واحدة';
 }
 
-function addUtcDays(value: string, days: number): Date {
-  const date = new Date(`${value.slice(0, 10)}T00:00:00Z`);
+function addUtcDays(value: string | Date, days: number): Date {
+  const source = value instanceof Date ? value : new Date(`${value.slice(0, 10)}T00:00:00Z`);
+  const date = new Date(source);
   date.setUTCDate(date.getUTCDate() + days);
   return date;
 }
@@ -65,24 +108,51 @@ function formatNumericDate(date: Date): string {
     .join('/');
 }
 
-export function annualDistributionWeekDateRange(
+function isFullySeasonalHolidayWeek(sunday: Date, holidays: AcademicCalendarEvent[]): boolean {
+  return Array.from({ length: 5 }, (_, index) => formatISODate(addUtcDays(sunday, index))).every(
+    (date) => holidays.some((holiday) => holiday.startDate <= date && date <= holiday.endDate)
+  );
+}
+
+function annualDistributionWeekStart(
   planningStartDate: string,
-  weekIndex: number
+  weekIndex: number,
+  academicYearId?: string
 ): string {
   const anchor = new Date(`${planningStartDate.slice(0, 10)}T00:00:00Z`);
-  const sunday = addUtcDays(
-    planningStartDate,
-    -anchor.getUTCDay() + (Math.max(1, weekIndex) - 1) * 7
+  let sunday = addUtcDays(planningStartDate, -anchor.getUTCDay());
+  const holidays = academicYearId ? seasonalHolidays(academicYearId) : [];
+  let visibleWeek = 1;
+  while (visibleWeek < Math.max(1, weekIndex)) {
+    sunday = addUtcDays(sunday, 7);
+    if (!isFullySeasonalHolidayWeek(sunday, holidays)) visibleWeek += 1;
+  }
+  return formatISODate(sunday);
+}
+
+function formatISODate(date: Date): string {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+}
+
+export function annualDistributionWeekDateRange(
+  planningStartDate: string,
+  weekIndex: number,
+  academicYearId?: string
+): string {
+  const sunday = new Date(
+    `${annualDistributionWeekStart(planningStartDate, weekIndex, academicYearId)}T00:00:00Z`
   );
-  return `${formatNumericDate(sunday)} – ${formatNumericDate(addUtcDays(sunday.toISOString(), 4))}`;
+  return `${formatNumericDate(sunday)} – ${formatNumericDate(addUtcDays(sunday, 4))}`;
 }
 
 function AnnualDistributionTable({
-  weeks,
+  rows,
   planningStartDate,
+  academicYearId,
 }: {
-  weeks: TeacherAnnualDistributionWeek[];
+  rows: AnnualDistributionRow[];
   planningStartDate: string;
+  academicYearId: string;
 }) {
   let learningUnitNumber = 0;
   return (
@@ -96,18 +166,38 @@ function AnnualDistributionTable({
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-100">
-        {weeks.map((week) =>
-          week.pedagogicalUnits.map((unit, unitIndex) => (
-            <tr key={`${week.weekIndex}-${unit.referenceSessionId}`} className="align-top">
+        {rows.map((row) => {
+          if (row.kind === 'holiday') {
+            return (
+              <tr key={`holiday-${row.holiday.name}-${row.holiday.startDate}`}>
+                <td
+                  colSpan={4}
+                  className="bg-amber-50 p-3 text-center font-extrabold text-amber-900"
+                >
+                  {row.holiday.name}:{' '}
+                  <span dir="ltr" className="font-mono">
+                    {row.holiday.startDate.split('-').reverse().join('/')} –{' '}
+                    {row.holiday.endDate.split('-').reverse().join('/')}
+                  </span>
+                </td>
+              </tr>
+            );
+          }
+          return row.week.pedagogicalUnits.map((unit, unitIndex) => (
+            <tr key={`${row.week.weekIndex}-${unit.referenceSessionId}`} className="align-top">
               {unitIndex === 0 && (
                 <td
-                  rowSpan={week.pedagogicalUnits.length}
+                  rowSpan={row.week.pedagogicalUnits.length}
                   className="p-3 font-extrabold text-slate-800"
                 >
                   <span className="block font-mono" dir="ltr">
-                    {annualDistributionWeekDateRange(planningStartDate, week.weekIndex)}
+                    {annualDistributionWeekDateRange(
+                      planningStartDate,
+                      row.week.weekIndex,
+                      academicYearId
+                    )}
                   </span>
-                  {week.isIntro && (
+                  {row.week.isIntro && (
                     <span className="mt-1 block text-[10px] font-bold text-slate-500">
                       الأسبوع الأول
                     </span>
@@ -127,8 +217,8 @@ function AnnualDistributionTable({
                 )}
               </td>
             </tr>
-          ))
-        )}
+          ));
+        })}
       </tbody>
     </table>
   );
@@ -149,7 +239,10 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
 }) => {
   const selectedLevel = annualGeneration?.levels.find((level) => level.levelId === selectedLevelId);
   const weeks = selectedLevel?.weeks || [];
-  const rows = useMemo(() => buildAnnualDistributionRows(weeks), [weeks]);
+  const rows = useMemo(
+    () => buildAnnualDistributionRows(weeks, planningStartDate, academicYearId),
+    [academicYearId, planningStartDate, weeks]
+  );
   const rebuildStatus = annualGeneration?.status;
   const levelName = selectedLevel ? `السنة ${selectedLevel.grade} ابتدائي` : 'المستوى المحدد';
 
@@ -290,8 +383,9 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
           </header>
           <div className="annual-distribution-weekly-table overflow-x-auto p-3 print:p-0">
             <AnnualDistributionTable
-              weeks={rows.map((row) => row.week)}
+              rows={rows}
               planningStartDate={planningStartDate}
+              academicYearId={academicYearId}
             />
           </div>
           <footer className="annual-distribution-document-footer hidden border-t border-slate-300 px-4 py-3 text-xs font-bold text-slate-700 print:flex print:justify-between">

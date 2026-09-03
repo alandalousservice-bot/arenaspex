@@ -48,7 +48,7 @@ describe('primary planning level normalization', () => {
   });
 
   it('uses the normalized level for canonical sessions and seeds', () => {
-    const expectedCounts = [52, 52, 52, 31, 31];
+    const expectedCounts = [54, 54, 54, 33, 33];
     canonicalIds.forEach((canonicalId, index) => {
       const alias = `grade${index + 1}`;
       const sessions = canonicalPlanningSessions(alias, '2025-09-22', '2025-2026');

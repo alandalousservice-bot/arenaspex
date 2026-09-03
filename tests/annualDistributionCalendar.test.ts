@@ -49,10 +49,14 @@ describe('weekly level-based annual distribution', () => {
   });
 
   it.each(['lvl_p1', 'lvl_p2', 'lvl_p3', 'lvl_p4', 'lvl_p5'])(
-    'normalizes %s to one diagnostic and no diagnostic prelude',
+    'keeps one diagnostic at the beginning of every field for %s',
     (levelId) => {
       const sessions = canonicalPlanningSessions(levelId, '2026-09-21', '2026-2027');
-      expect(sessions.filter((session) => session.sessionType === 'تقويم تشخيصي')).toHaveLength(1);
+      const diagnostics = sessions.filter((session) => session.sessionType === 'تقويم تشخيصي');
+      expect(diagnostics).toHaveLength(3);
+      expect(new Set(diagnostics.map((session) => session.domainId))).toEqual(
+        new Set(['f_locomotion', 'f_fundamentals', 'f_structuring'])
+      );
       expect(sessions.some((session) => session.objectiveGroupId === 'diagnostic_prelude')).toBe(
         false
       );
@@ -92,9 +96,39 @@ describe('weekly level-based annual distribution', () => {
   it('calculates user-facing summaries from weekly pedagogical units', () => {
     const level = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21').levels[0];
     const summary = annualDistributionUnitSummary(buildAnnualDistributionWeeks(level));
-    expect(summary.weekCount).toBe(summary.pedagogicalUnitCount);
+    expect(summary.weekCount).toBe(25);
+    expect(summary.pedagogicalUnitCount).toBe(34);
+    expect(summary.meetingCount).toBe(55);
     expect(summary.pedagogicalUnitCount).toBeGreaterThan(0);
     expect(summary.learningUnitCount).toBeGreaterThan(0);
+  });
+
+  it('inserts only the platform seasonal holidays into the annual rows', () => {
+    const level = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21').levels[0];
+    const rows = buildAnnualDistributionRows(
+      buildAnnualDistributionWeeks(level),
+      '2026-09-21',
+      '2026-2027'
+    );
+    expect(
+      rows
+        .filter((row) => row.kind === 'holiday')
+        .map((row) => (row.kind === 'holiday' ? row.holiday.name : ''))
+    ).toEqual(['عطلة الخريف', 'عطلة الشتاء', 'عطلة الربيع']);
+  });
+
+  it('places the next pedagogical unit in the remaining Grade 1–4 weekly meeting', () => {
+    const level = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21').levels[0];
+    const weeks = buildAnnualDistributionWeeks(level);
+    const firstFieldWeek = weeks.find((week) =>
+      week.pedagogicalUnits.some((unit) => unit.sessionType === 'تقويم تشخيصي')
+    );
+    expect(firstFieldWeek?.pedagogicalUnits.map((unit) => unit.sessionType)).toEqual([
+      'تقويم تشخيصي',
+      'تعلمية',
+    ]);
+    expect(firstFieldWeek?.pedagogicalUnits[0].meetingCount).toBe(1);
+    expect(firstFieldWeek?.pedagogicalUnits[1].meetingCount).toBe(2);
   });
 
   it('formats each annual row as a Sunday-to-Thursday numeric date range', () => {
