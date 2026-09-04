@@ -70,6 +70,8 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
 
   const currentLevelCurriculum =
     COMPLETE_ANNUAL_CURRICULUM[selectedLevelId] || COMPLETE_ANNUAL_CURRICULUM['lvl_p1'];
+  const totalTeacherObjectives =
+    plan?.domains.reduce((total, domain) => total + domain.objectives.length, 0) || 0;
 
   const filteredFields = Object.values(currentLevelCurriculum.fields).filter((field) => {
     const matchesField = selectedFieldId === 'all' || field.fieldId === selectedFieldId;
@@ -257,7 +259,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
               : 'bg-white text-slate-700 border border-slate-200'
           }`}
         >
-          جميع الميادين (30 حصة)
+          جميع الميادين ({totalTeacherObjectives} هدفاً)
         </button>
         {PE_FIELDS.map((f) => (
           <button

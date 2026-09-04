@@ -80,7 +80,7 @@ describe('teacher-owned learning plan foundation', () => {
     ]);
   });
 
-  it('validates known domains, unique ids, non-empty text, and integration references', () => {
+  it('validates known domains and normalizes stale integration references safely', () => {
     const plan = seedTeacherLearningPlan('lvl_p1');
     const duplicate = {
       ...plan,
@@ -113,6 +113,26 @@ describe('teacher-owned learning plan foundation', () => {
         ),
       })
     ).toThrow();
+    const staleIntegration = normalizeTeacherLearningPlan({
+      ...plan,
+      domains: plan.domains.map((domain, index) =>
+        index === 0
+          ? {
+              ...domain,
+              integrationPoints: [
+                { ...domain.integrationPoints[0], afterObjectiveId: 'deleted-objective' },
+                { ...domain.integrationPoints[0], id: 'duplicate-integration' },
+                ...domain.integrationPoints.slice(1),
+              ],
+            }
+          : domain
+      ),
+    });
+    expect(staleIntegration.domains[0].integrationPoints).toHaveLength(2);
+    expect(staleIntegration.domains[0].integrationPoints[0].afterObjectiveId).toBeNull();
+    expect(
+      new Set(staleIntegration.domains[0].integrationPoints.map((point) => point.label)).size
+    ).toBe(2);
     expect(() =>
       normalizeTeacherLearningPlan({
         ...plan,

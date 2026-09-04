@@ -19,10 +19,7 @@ import {
   TeacherPlanningReference,
   updateTeacherPlanningSession,
 } from '../../services/api';
-import {
-  basePlanningReferenceId,
-  canonicalReferenceSessions,
-} from '../../services/teacherPlanning.service';
+import { basePlanningReferenceId } from '../../services/teacherPlanning.service';
 import {
   calculateExecutionProgress,
   buildLessonMemoPreview,
@@ -139,12 +136,12 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   const references = useMemo(
     () =>
       new Map(
-        [
-          ...safeTeacherClasses.flatMap((item) => canonicalReferenceSessions(item.levelId)),
-          ...sessions.flatMap((item) => (item.reference ? [item.reference] : [])),
-        ].map((item) => [item.referenceSessionId, item])
+        [...sessions.flatMap((item) => (item.reference ? [item.reference] : []))].map((item) => [
+          item.referenceSessionId,
+          item,
+        ])
       ),
-    [safeTeacherClasses, sessions]
+    [sessions]
   );
   const referenceForSession = useCallback(
     (session: TeacherPlanningSession) =>

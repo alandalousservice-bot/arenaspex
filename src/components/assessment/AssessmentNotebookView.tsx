@@ -9,10 +9,6 @@ import {
   Target,
   Users,
 } from 'lucide-react';
-import {
-  basePlanningReferenceId,
-  canonicalReferenceSessions,
-} from '../../services/teacherPlanning.service';
 import { calculateAssessmentMastery } from '../../services/assessmentMastery';
 import {
   createOrReuseTeacherAssessmentSession,
@@ -192,17 +188,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
     setSelectedClassId(classId);
     onSelectedClassIdChange?.(classId);
   };
-  const plannedReference = useMemo(
-    () =>
-      activeClass && plannedSession
-        ? canonicalReferenceSessions(activeClass.levelId).find(
-            (reference) =>
-              reference.referenceSessionId ===
-              basePlanningReferenceId(plannedSession.referenceSessionId)
-          )
-        : null,
-    [activeClass, plannedSession]
-  );
+  const plannedReference = useMemo(() => plannedSession?.reference || null, [plannedSession]);
 
   useEffect(() => {
     if (selectedStudentId && !classStudents.some((student) => student.id === selectedStudentId))
@@ -252,12 +238,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
         if (requestedPlannedSessionId) {
           const planning = await fetchTeacherPlanningSessions(selectedClassId, academicYearId);
           const scheduled = planning.sessions.find((item) => item.id === requestedPlannedSessionId);
-          const reference = scheduled
-            ? canonicalReferenceSessions(activeClass?.levelId || '').find(
-                (item) =>
-                  item.referenceSessionId === basePlanningReferenceId(scheduled.referenceSessionId)
-              )
-            : null;
+          const reference = scheduled?.reference || null;
           if (!scheduled || !reference)
             throw new Error('الحصة التشغيلية غير موجودة أو مرجعها غير متاح.');
           if (!isAssessmentReference(reference.sessionType))

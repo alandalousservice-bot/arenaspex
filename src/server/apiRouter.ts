@@ -1192,8 +1192,9 @@ apiRouter.post(
         );
         if (decision === 'conflict' && existing) {
           sessionsProtected += 1;
+          const distribution = distributionsByLevel.get(link.normalizedLevelId!);
           const reference =
-            canonicalReferenceSessions(link.normalizedLevelId!).find(
+            distribution?.sessions.find(
               (item) => item.referenceSessionId === basePlanningReferenceId(seed.referenceSessionId)
             ) || introPlanningReference(link.normalizedLevelId!, seed.referenceSessionId);
           conflicts.push({
@@ -4452,11 +4453,9 @@ apiRouter.get('/teacher/learning-plan', requireRole('teacher'), async (req, res)
     select: { data: true },
   });
   if (record) {
-    const plan = teacherLearningPlanSchema.safeParse(record.data);
-    if (!plan.success) return res.status(422).json({ error: 'خطة الأستاذ المحفوظة غير صالحة.' });
     return res.json({
       success: true,
-      plan: normalizeTeacherLearningPlan(plan.data),
+      plan: resolveTeacherLearningPlan(normalizedLevelId, record.data),
       initialized: true,
     });
   }

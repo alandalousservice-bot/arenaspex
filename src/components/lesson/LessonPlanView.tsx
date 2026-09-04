@@ -20,10 +20,6 @@ import {
 } from '../../services/api';
 import { mergeSchedule, MergedScheduledLesson } from '../../services/schedule/scheduleMerge';
 import {
-  basePlanningReferenceId,
-  canonicalReferenceSessions,
-} from '../../services/teacherPlanning.service';
-import {
   formatAcademicYearLabel,
   formatAcademicYearSelectLabel,
   getCurrentAcademicYear,
@@ -184,11 +180,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const operationalSession = operationalSessions.find((item) => item.id === operationalSessionId);
   const scheduledContext = useMemo(() => {
     if (!operationalClass || !operationalSession) return null;
-    const canonicalReference = canonicalReferenceSessions(operationalClass.levelId).find(
-      (item) =>
-        item.referenceSessionId === basePlanningReferenceId(operationalSession.referenceSessionId)
-    );
-    const reference = operationalSession.reference || canonicalReference;
+    const reference = operationalSession.reference;
     if (!reference) return null;
     return {
       session: operationalSession,
@@ -344,14 +336,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           ([, id]) => id === operationalClass?.levelId
         )?.[0];
         if (matchingLevel) setLevelName(matchingLevel);
-        if (
-          located &&
-          !located.reference &&
-          !canonicalReferenceSessions(operationalClass?.levelId || '').some(
-            (item) =>
-              item.referenceSessionId === basePlanningReferenceId(located.referenceSessionId)
-          )
-        ) {
+        if (located && !located.reference) {
           setScheduledError('تعذر تحميل المرجع البيداغوجي لهذه الحصة.');
         }
       })

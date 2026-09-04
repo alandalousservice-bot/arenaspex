@@ -25,13 +25,14 @@ const teacherLearningPlanDomainSchema = z.object({
   integrationPoints: z.array(integrationPointSchema),
 });
 
-export const teacherLearningPlanSchema = z
-  .object({
-    version: z.literal(1),
-    levelId: z.string().trim().min(1),
-    domains: z.array(teacherLearningPlanDomainSchema).min(1),
-  })
-  .superRefine((plan, context) => {
+const teacherLearningPlanShapeSchema = z.object({
+  version: z.literal(1),
+  levelId: z.string().trim().min(1),
+  domains: z.array(teacherLearningPlanDomainSchema).min(1),
+});
+
+export const teacherLearningPlanSchema = teacherLearningPlanShapeSchema.superRefine(
+  (plan, context) => {
     const curriculum = COMPLETE_ANNUAL_CURRICULUM[plan.levelId];
     if (!curriculum) {
       context.addIssue({
@@ -102,7 +103,8 @@ export const teacherLearningPlanSchema = z
         message: 'يجب أن تشمل الخطة الميادين الرسمية للمستوى.',
       });
     }
-  });
+  }
+);
 
 export type TeacherLearningPlan = z.infer<typeof teacherLearningPlanSchema>;
 export type TeacherLearningPlanDomain = TeacherLearningPlan['domains'][number];
@@ -116,7 +118,38 @@ export function parseTeacherLearningPlan(value: unknown): TeacherLearningPlan {
  * normalized server-side so it never becomes an identity or stale sort key.
  */
 export function normalizeTeacherLearningPlan(plan: TeacherLearningPlan): TeacherLearningPlan {
-  const parsed = parseTeacherLearningPlan(plan);
+  const shaped = teacherLearningPlanShapeSchema.parse(plan);
+  const seenObjectiveIds = new Set<string>();
+  const seenIntegrationIds = new Set<string>();
+  const sanitized = {
+    ...shaped,
+    domains: shaped.domains.map((domain) => {
+      const domainObjectiveIds = new Set<string>();
+      const objectives = domain.objectives.filter((objective) => {
+        if (seenObjectiveIds.has(objective.id) || domainObjectiveIds.has(objective.id)) {
+          return false;
+        }
+        seenObjectiveIds.add(objective.id);
+        domainObjectiveIds.add(objective.id);
+        return true;
+      });
+      const labels = new Set<string>();
+      const integrationPoints = domain.integrationPoints
+        .filter((point) => {
+          if (seenIntegrationIds.has(point.id) || labels.has(point.label)) return false;
+          seenIntegrationIds.add(point.id);
+          labels.add(point.label);
+          return true;
+        })
+        .map((point) =>
+          point.afterObjectiveId && !domainObjectiveIds.has(point.afterObjectiveId)
+            ? { ...point, afterObjectiveId: null }
+            : point
+        );
+      return { ...domain, objectives, integrationPoints };
+    }),
+  };
+  const parsed = teacherLearningPlanSchema.parse(sanitized);
   return {
     ...parsed,
     domains: parsed.domains.map((domain) => ({
@@ -217,9 +250,13 @@ export function resolveTeacherLearningPlan(
   persistedPlan: unknown,
   wordingOverrides: Record<string, { objective?: string } | undefined> = {}
 ): TeacherLearningPlan {
-  const parsed = teacherLearningPlanSchema.safeParse(persistedPlan);
-  if (parsed.success && parsed.data.levelId === levelId) {
-    return normalizeTeacherLearningPlan(parsed.data);
+  const shaped = teacherLearningPlanShapeSchema.safeParse(persistedPlan);
+  if (shaped.success && shaped.data.levelId === levelId) {
+    try {
+      return normalizeTeacherLearningPlan(shaped.data);
+    } catch {
+      // Invalid persisted structure falls back to the immutable official seed.
+    }
   }
   return seedTeacherLearningPlan(levelId, wordingOverrides);
 }

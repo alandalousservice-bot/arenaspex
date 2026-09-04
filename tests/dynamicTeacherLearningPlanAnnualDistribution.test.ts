@@ -260,9 +260,14 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
     const planning = read('src/services/teacherPlanning.service.ts');
     const calendar = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
     const lesson = read('src/components/lesson/LessonPlanView.tsx');
+    const notebook = read('src/components/notebook/DailyNotebookView.tsx');
+    const assessment = read('src/components/assessment/AssessmentNotebookView.tsx');
+    const learningSegments = read('src/components/curriculum/LearningSegmentsView.tsx');
     expect(router).toContain('resolveTeacherLearningPlansForLevels');
+    expect(router).toContain('plan: resolveTeacherLearningPlan(normalizedLevelId, record.data)');
     expect(router).toContain("kind: { in: [TEACHER_LEARNING_PLAN_KIND, 'section_wording'] }");
     expect(router).toContain('generateAllPrimaryLevelDistributions(');
+    expect(router).toContain('distribution?.sessions.find');
     expect(planning).not.toContain('slice(0, 3)');
     expect(planning).not.toContain('slice(3)');
     expect(router).toContain('executionDependencyIds');
@@ -271,6 +276,11 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
     expect(router).not.toContain('prisma.lessonPlan.delete');
     expect(calendar).toContain('AnnualDistributionTable');
     expect(calendar).toContain('print:block');
-    expect(lesson).toContain('operationalSession.reference || canonicalReference');
+    expect(lesson).toContain('const reference = operationalSession.reference;');
+    expect(lesson).not.toContain('canonicalReferenceSessions');
+    expect(notebook).not.toContain('canonicalReferenceSessions');
+    expect(assessment).not.toContain('canonicalReferenceSessions');
+    expect(learningSegments).toContain('totalTeacherObjectives');
+    expect(learningSegments).not.toContain('جميع الميادين (30 حصة)');
   });
 });

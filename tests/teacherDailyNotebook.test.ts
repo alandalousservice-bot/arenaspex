@@ -18,7 +18,8 @@ describe('teacher daily notebook session binding', () => {
   });
 
   it('keeps reference content separate from operational execution data', () => {
-    expect(notebook).toContain('canonicalReferenceSessions');
+    expect(notebook).toContain('session.reference');
+    expect(notebook).not.toContain('canonicalReferenceSessions');
     expect(apiRouter).toContain('operationalNote');
     expect(notebook).toContain('حفظ الملاحظات');
     expect(types).toContain('classPlannedSessionId?: string;');
