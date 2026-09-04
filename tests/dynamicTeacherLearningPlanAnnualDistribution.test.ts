@@ -47,6 +47,16 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
           .map((session) => session.objectiveId)
       ).size
     ).toBe(count);
+    const secondIntegrationIndex = sessions.findIndex(
+      (session) => session.sessionTypeLabel === 'إدماجية 2'
+    );
+    const finalLearningIndex = sessions.reduce(
+      (lastIndex, session, index) => (session.sessionType === 'تعلمية' ? index : lastIndex),
+      -1
+    );
+    const summativeIndex = sessions.findIndex((session) => session.sessionType === 'تقويم تحصيلي');
+    expect(secondIntegrationIndex).toBeGreaterThan(finalLearningIndex);
+    expect(secondIntegrationIndex).toBe(summativeIndex - 1);
   });
 
   it('supports the explicit 8-8-7 scenario without hard-coding it', () => {
@@ -131,7 +141,38 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
       (session) => session.sessionTypeLabel === 'إدماجية 2'
     );
     expect(sessions[firstIntegrationIndex - 1].objectiveId).toBe(domain.objectives[2].id);
-    expect(sessions[secondIntegrationIndex - 1].objectiveId).toBe(domain.objectives[5].id);
+    expect(sessions[secondIntegrationIndex - 1].objectiveId).toBe(domain.objectives.at(-1)!.id);
+    expect(sessions[secondIntegrationIndex + 1].sessionType).toBe('تقويم تحصيلي');
+  });
+
+  it('normalizes malformed Integration 2 placement for Grade 5 as well', () => {
+    const source = seedTeacherLearningPlan('lvl_p5');
+    const domain = source.domains[0];
+    const malformed = normalizeTeacherLearningPlan({
+      ...source,
+      domains: source.domains.map((item, index) =>
+        index === 0
+          ? {
+              ...item,
+              integrationPoints: item.integrationPoints.map((point) =>
+                point.label === 'إدماجية 2'
+                  ? { ...point, afterObjectiveId: domain.objectives[0].id }
+                  : point
+              ),
+            }
+          : item
+      ),
+    });
+    const sessions = domainSessions('lvl_p5', 'f_locomotion', malformed);
+    const secondIntegrationIndex = sessions.findIndex(
+      (session) => session.sessionTypeLabel === 'إدماجية 2'
+    );
+    const finalLearningIndex = sessions.reduce(
+      (lastIndex, session, index) => (session.sessionType === 'تعلمية' ? index : lastIndex),
+      -1
+    );
+    expect(secondIntegrationIndex).toBe(finalLearningIndex + 1);
+    expect(sessions[secondIntegrationIndex + 1].sessionType).toBe('تقويم تحصيلي');
   });
 
   it('keeps stable identity through reorder and text edits', () => {
