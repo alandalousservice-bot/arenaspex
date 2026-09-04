@@ -54,7 +54,8 @@ export function findSuitableSituations(
       item.grade === params.grade &&
       item.fieldId === params.fieldId &&
       (params.objectiveId
-        ? item.objectiveIds.includes(params.objectiveId)
+        ? item.objectiveIds.includes(params.objectiveId) ||
+          item.objectiveTexts.includes(params.objectiveText)
         : item.objectiveTexts.includes(params.objectiveText))
   );
   const previous = new Set(params.previousSituationIds || []);

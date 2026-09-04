@@ -192,19 +192,32 @@ export function normalizeTeacherLearningPlan(plan: TeacherLearningPlan): Teacher
         teacherNotes: objective.teacherNotes?.trim() || '',
         situations: objective.situations || [],
       })),
-      integrationPoints: domain.integrationPoints.map((point, index) => ({
-        ...point,
-        orderIndex: index + 1,
-        label: `إدماجية ${index + 1}`,
-        objective: point.objective?.trim() || '',
-        learningContent: point.learningContent?.trim() || '',
-        executionContent: point.executionContent?.trim() || '',
-        resources: point.resources || [],
-        pedagogicalKnowledge: point.pedagogicalKnowledge?.trim() || '',
-        guidance: point.guidance?.trim() || '',
-        teacherNotes: point.teacherNotes?.trim() || '',
-        situations: point.situations || [],
-      })),
+      integrationPoints: [...domain.integrationPoints]
+        .sort((left, right) => {
+          const objectivePosition = new Map(
+            domain.objectives.map((objective, objectiveIndex) => [objective.id, objectiveIndex])
+          );
+          const leftPosition = left.afterObjectiveId
+            ? (objectivePosition.get(left.afterObjectiveId) ?? -1)
+            : -1;
+          const rightPosition = right.afterObjectiveId
+            ? (objectivePosition.get(right.afterObjectiveId) ?? -1)
+            : -1;
+          return leftPosition - rightPosition || left.orderIndex - right.orderIndex;
+        })
+        .map((point, index) => ({
+          ...point,
+          orderIndex: index + 1,
+          label: `إدماجية ${index + 1}`,
+          objective: point.objective?.trim() || '',
+          learningContent: point.learningContent?.trim() || '',
+          executionContent: point.executionContent?.trim() || '',
+          resources: point.resources || [],
+          pedagogicalKnowledge: point.pedagogicalKnowledge?.trim() || '',
+          guidance: point.guidance?.trim() || '',
+          teacherNotes: point.teacherNotes?.trim() || '',
+          situations: point.situations || [],
+        })),
     })),
   };
 }

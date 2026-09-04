@@ -159,11 +159,15 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
       ),
     });
     const sessions = domainSessions('lvl_p5', 'f_locomotion', malformed);
-    const secondIntegrationIndex = sessions.findIndex(
-      (session) => session.sessionTypeLabel === 'إدماجية 2'
+    const movedIntegration = malformed.domains[0].integrationPoints.find(
+      (point) => point.afterObjectiveId === domain.objectives[0].id
+    )!;
+    const movedIntegrationIndex = sessions.findIndex(
+      (session) => session.objectiveGroupId === movedIntegration.id
     );
-    expect(secondIntegrationIndex).toBe(2);
-    expect(sessions[secondIntegrationIndex + 1].objectiveId).toBe(domain.objectives[1].id);
+    expect(movedIntegration.label).toBe('إدماجية 1');
+    expect(movedIntegrationIndex).toBe(2);
+    expect(sessions[movedIntegrationIndex + 1].objectiveId).toBe(domain.objectives[1].id);
   });
 
   it('keeps stable identity through reorder and text edits', () => {

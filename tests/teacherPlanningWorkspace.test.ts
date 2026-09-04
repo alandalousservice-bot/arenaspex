@@ -157,6 +157,11 @@ describe('unified Teacher planning workspace', () => {
     expect(segments).toContain('findSuitableSituations');
     expect(segments).toContain('محتوى التعلم');
     expect(segments).toContain('محتوى الإنجاز');
+    expect(segments).toContain('محتوى التعلم:');
+    expect(segments).toContain('المواقف التربوية:');
+    expect(segments).toContain('title="تعديل"');
+    expect(segments).toContain('title="تحريك لأعلى"');
+    expect(segments).toContain('title="تحريك لأسفل"');
     expect(segments).toContain('تقويم تشخيصي');
     expect(segments).toContain('تقويم تحصيلي');
     expect(segments).toContain('حصة تعلمية ${index + 1}');

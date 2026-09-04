@@ -282,6 +282,24 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
               { objective: newSessionDraft.text }
             );
       savePlan(nextPlan);
+      const nextDomain = nextPlan.domains.find(
+        (domain) => domain.fieldId === newSessionDraft.fieldId
+      );
+      const createdItem =
+        newSessionDraft.type === 'تعلمية'
+          ? nextDomain?.objectives.at(-1)
+          : nextDomain?.integrationPoints.at(-1);
+      if (createdItem) {
+        setEditingItem({
+          kind: newSessionDraft.type === 'تعلمية' ? 'objective' : 'integration',
+          fieldId: newSessionDraft.fieldId,
+          id: createdItem.id,
+          draft:
+            newSessionDraft.type === 'تعلمية'
+              ? draftFromObjective(createdItem as TeacherLearningObjective)
+              : draftFromIntegration(createdItem as TeacherLearningIntegrationPoint),
+        });
+      }
       setNewSessionDraft(null);
     } catch (reason: unknown) {
       window.alert(reason instanceof Error ? reason.message : 'تعذر إضافة الحصة.');
@@ -315,7 +333,10 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
             : undefined,
         objectiveText: editingItem.draft.text,
         previousSituationIds: editingItem.draft.situations.map((item) => item.situationId),
-      })
+      }).filter(
+        (situation) =>
+          !editingItem.draft.situations.some((item) => item.situationId === situation.id)
+      )
     : [];
 
   return (
@@ -631,16 +652,27 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                             />
                           ) : (
                             <>
-                              <p className="min-w-0 flex-1 text-xs font-semibold leading-6 text-slate-800">
-                                {isObjective
-                                  ? item.item.text
-                                  : item.item.objective ||
-                                    'حصة إدماجية قابلة للتخصيص من طرف الأستاذ.'}
-                              </p>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-semibold leading-6 text-slate-800">
+                                  {isObjective
+                                    ? item.item.text
+                                    : item.item.objective ||
+                                      'حصة إدماجية قابلة للتخصيص من طرف الأستاذ.'}
+                                </p>
+                                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
+                                  {item.item.learningContent && (
+                                    <span className="max-w-full truncate">
+                                      محتوى التعلم: {item.item.learningContent}
+                                    </span>
+                                  )}
+                                  <span>المواقف التربوية: {item.item.situations?.length || 0}</span>
+                                </div>
+                              </div>
                               <div className="flex shrink-0 items-center gap-1 print:hidden">
                                 <button
                                   type="button"
-                                  aria-label="تحرير الحصة"
+                                  aria-label="تعديل"
+                                  title="تعديل"
                                   onClick={() => startEditing(item.kind, field.fieldId, item.item)}
                                   className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:text-blue-700"
                                 >
@@ -648,7 +680,8 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                                 </button>
                                 <button
                                   type="button"
-                                  aria-label="رفع الحصة"
+                                  aria-label="تحريك لأعلى"
+                                  title="تحريك لأعلى"
                                   disabled={
                                     isSaving ||
                                     (isObjective
@@ -682,7 +715,8 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                                 </button>
                                 <button
                                   type="button"
-                                  aria-label="خفض الحصة"
+                                  aria-label="تحريك لأسفل"
+                                  title="تحريك لأسفل"
                                   disabled={
                                     isSaving ||
                                     (isObjective
@@ -719,6 +753,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                                 <button
                                   type="button"
                                   aria-label={isObjective ? 'حذف الهدف' : 'حذف الحصة'}
+                                  title={isObjective ? 'حذف الهدف' : 'حذف الحصة'}
                                   disabled={isSaving || (isObjective && objectives.length <= 1)}
                                   onClick={() =>
                                     isObjective
@@ -741,9 +776,6 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                                 ? `بعد الهدف ${objectives.findIndex((objective) => objective.id === item.item.afterObjectiveId) + 1}`
                                 : 'قبل أول هدف'}
                             </span>
-                            {item.item.situations && item.item.situations.length > 0 && (
-                              <span>مواقف محفوظة: {item.item.situations.length}</span>
-                            )}
                           </div>
                         )}
                       </div>
@@ -865,52 +897,71 @@ const EditFields: React.FC<EditFieldsProps> = ({
   saving,
 }) => (
   <div className="min-w-0 flex-1 space-y-2">
-    <textarea
-      value={draft.text}
-      onChange={(event) => onChange({ text: event.target.value })}
-      rows={2}
-      className={inputClass}
-      placeholder={isIntegration ? 'موضوع الحصة الإدماجية...' : 'الهدف التعليمي...'}
-    />
+    <label className="block text-xs font-bold text-slate-700">
+      {isIntegration ? 'عنوان / هدف الإدماج' : 'هدف الحصة / التعلم'}
+      <textarea
+        value={draft.text}
+        onChange={(event) => onChange({ text: event.target.value })}
+        rows={2}
+        className={`${inputClass} mt-1`}
+        placeholder={isIntegration ? 'موضوع الحصة الإدماجية...' : 'الهدف التعليمي...'}
+      />
+    </label>
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      <textarea
-        value={draft.learningContent}
-        onChange={(event) => onChange({ learningContent: event.target.value })}
-        rows={2}
-        className={inputClass}
-        placeholder="محتوى التعلم"
-      />
-      <textarea
-        value={draft.executionContent}
-        onChange={(event) => onChange({ executionContent: event.target.value })}
-        rows={2}
-        className={inputClass}
-        placeholder="محتوى الإنجاز"
-      />
-      <input
-        value={draft.resources}
-        onChange={(event) => onChange({ resources: event.target.value })}
-        className={inputClass}
-        placeholder="الوسائل / المواقف، مفصولة بفاصلة"
-      />
-      <input
-        value={draft.pedagogicalKnowledge}
-        onChange={(event) => onChange({ pedagogicalKnowledge: event.target.value })}
-        className={inputClass}
-        placeholder="المعارف البيداغوجية"
-      />
-      <input
-        value={draft.guidance}
-        onChange={(event) => onChange({ guidance: event.target.value })}
-        className={inputClass}
-        placeholder="التوجيهات"
-      />
-      <input
-        value={draft.teacherNotes}
-        onChange={(event) => onChange({ teacherNotes: event.target.value })}
-        className={inputClass}
-        placeholder="ملاحظات الأستاذ"
-      />
+      <label className="block text-xs font-bold text-slate-700">
+        محتوى التعلم
+        <textarea
+          value={draft.learningContent}
+          onChange={(event) => onChange({ learningContent: event.target.value })}
+          rows={2}
+          className={`${inputClass} mt-1`}
+        />
+      </label>
+      <label className="block text-xs font-bold text-slate-700">
+        محتوى الإنجاز
+        <textarea
+          value={draft.executionContent}
+          onChange={(event) => onChange({ executionContent: event.target.value })}
+          rows={2}
+          className={`${inputClass} mt-1`}
+        />
+      </label>
+      <label className="block text-xs font-bold text-slate-700">
+        المواقف التربوية / الموارد
+        <input
+          value={draft.resources}
+          onChange={(event) => onChange({ resources: event.target.value })}
+          className={`${inputClass} mt-1`}
+          placeholder="افصل الموارد بفاصلة"
+        />
+      </label>
+      <label className="block text-xs font-bold text-slate-700">
+        المعارف المجندة
+        <textarea
+          value={draft.pedagogicalKnowledge}
+          onChange={(event) => onChange({ pedagogicalKnowledge: event.target.value })}
+          rows={2}
+          className={`${inputClass} mt-1`}
+        />
+      </label>
+      <label className="block text-xs font-bold text-slate-700">
+        التوجيهات
+        <textarea
+          value={draft.guidance}
+          onChange={(event) => onChange({ guidance: event.target.value })}
+          rows={2}
+          className={`${inputClass} mt-1`}
+        />
+      </label>
+      <label className="block text-xs font-bold text-slate-700">
+        ملاحظات الأستاذ
+        <textarea
+          value={draft.teacherNotes}
+          onChange={(event) => onChange({ teacherNotes: event.target.value })}
+          rows={2}
+          className={`${inputClass} mt-1`}
+        />
+      </label>
     </div>
     {isIntegration && (
       <label className="block text-xs font-bold text-slate-700">

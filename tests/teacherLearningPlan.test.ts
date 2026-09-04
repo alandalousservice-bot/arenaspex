@@ -98,12 +98,16 @@ describe('teacher-owned learning plan foundation', () => {
     let changed = addTeacherLearningIntegration(plan, 'f_locomotion', firstObjective.id, {
       objective: 'إدماجية مخصصة',
     });
-    expect(changed.domains[0].integrationPoints.at(-1)).toMatchObject({
-      label: 'إدماجية 3',
+    expect(
+      changed.domains[0].integrationPoints.find((point) => point.objective === 'إدماجية مخصصة')
+    ).toMatchObject({
+      label: 'إدماجية 1',
       afterObjectiveId: firstObjective.id,
       objective: 'إدماجية مخصصة',
     });
-    const added = changed.domains[0].integrationPoints.at(-1)!;
+    const added = changed.domains[0].integrationPoints.find(
+      (point) => point.objective === 'إدماجية مخصصة'
+    )!;
     changed = updateTeacherLearningIntegration(changed, 'f_locomotion', added.id, {
       afterObjectiveId: null,
       objective: 'إدماجية محدثة',
@@ -111,15 +115,15 @@ describe('teacher-owned learning plan foundation', () => {
     expect(
       changed.domains[0].integrationPoints.find((point) => point.id === added.id)
     ).toMatchObject({
-      label: 'إدماجية 3',
+      label: 'إدماجية 1',
       afterObjectiveId: null,
       objective: 'إدماجية محدثة',
     });
     const reordered = reorderTeacherLearningIntegrations(changed, 'f_locomotion', added.id, 'up');
     expect(reordered.domains[0].integrationPoints.map((point) => point.id)).toEqual([
-      changed.domains[0].integrationPoints[0].id,
       added.id,
       changed.domains[0].integrationPoints[1].id,
+      changed.domains[0].integrationPoints[2].id,
     ]);
     expect(reordered.domains[0].integrationPoints.map((point) => point.label)).toEqual([
       'إدماجية 1',

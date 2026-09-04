@@ -33,4 +33,14 @@ describe('Educational Situations seed and selector', () => {
     expect(source.equipment).not.toContain('اختبار');
     expect(source.organization).not.toBe('نسخة المذكرة');
   });
+  it('falls back to the pedagogical objective text when a legacy source id differs', () => {
+    const source = referenceSituations[0];
+    const matched = findSuitableSituations(referenceSituations, {
+      grade: source.grade,
+      fieldId: source.fieldId,
+      objectiveId: 'legacy-source-reference-id',
+      objectiveText: source.objectiveTexts[0],
+    });
+    expect(matched.map((item) => item.id)).toContain(source.id);
+  });
 });
