@@ -1750,3 +1750,295 @@
     page-break-inside: avoid;
   }
 }
+
+.learning-section-print-preview-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  overflow: auto;
+  background: #e2e8f0;
+  padding: 24px;
+}
+
+.learning-section-print-preview-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 auto 16px;
+}
+
+.learning-section-print-root {
+  width: 297mm;
+  max-width: 100%;
+  margin: 0 auto;
+  color: #0f172a;
+  font-family: Cairo, Tahoma, Arial, sans-serif;
+}
+
+.learning-section-print-page {
+  box-sizing: border-box;
+  width: 297mm;
+  min-height: 210mm;
+  margin: 0 auto;
+  padding: 8mm;
+  background: #fff;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 14%);
+}
+
+.learning-section-print-header {
+  border: 0.35mm solid #334155;
+  padding: 2.5mm 4mm;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.learning-section-print-authority {
+  font-size: 8.5pt;
+  font-weight: 700;
+}
+
+.learning-section-print-header h1 {
+  margin: 1.5mm 0 0.5mm;
+  border-block: 0.2mm solid #94a3b8;
+  padding: 1.5mm 0;
+  color: #065f46;
+  font-size: 17pt;
+  font-weight: 800;
+}
+
+.learning-section-print-header > p {
+  margin: 0 0 1.5mm;
+  color: #334155;
+  font-size: 10pt;
+  font-weight: 700;
+}
+
+.learning-section-print-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.5mm;
+  text-align: right;
+  font-size: 8pt;
+}
+
+.learning-section-print-meta > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1.5mm;
+  min-width: 0;
+  border: 0.2mm solid #94a3b8;
+  padding: 1mm 1.5mm;
+}
+
+.learning-section-print-meta > div > span {
+  color: #334155;
+  font-weight: 700;
+}
+
+.learning-section-print-meta > div > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.learning-section-print-meta-domain {
+  grid-column: 1 / -1;
+}
+
+.learning-section-print-competencies,
+.learning-section-print-support {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2mm;
+  margin-top: 2mm;
+}
+
+.learning-section-print-competencies > div,
+.learning-section-print-support > div {
+  border: 0.2mm solid #64748b;
+  padding: 1.5mm 2mm;
+}
+
+.learning-section-print-competencies > div {
+  border-right: 1.2mm solid #047857;
+}
+
+.learning-section-print-competencies strong,
+.learning-section-print-support strong {
+  display: block;
+  color: #065f46;
+  font-size: 8.5pt;
+  font-weight: 800;
+}
+
+.learning-section-print-competencies p {
+  margin: 0.8mm 0 0;
+  font-size: 8.5pt;
+  line-height: 1.45;
+}
+
+.learning-section-print-support {
+  font-size: 8pt;
+}
+
+.learning-section-print-list {
+  margin: 0.8mm 0 0;
+  padding: 0 4mm 0 0;
+}
+
+.learning-section-print-list li {
+  margin: 0.3mm 0;
+  line-height: 1.35;
+}
+
+.learning-section-print-table {
+  width: 100%;
+  margin-top: 3mm;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 8pt;
+  line-height: 1.35;
+}
+
+.learning-section-print-table caption {
+  margin-bottom: 1.5mm;
+  color: #065f46;
+  font-size: 10pt;
+  font-weight: 800;
+  text-align: right;
+}
+
+.learning-section-print-table th,
+.learning-section-print-table td {
+  border: 0.25mm solid #475569;
+  padding: 1.4mm 1.6mm;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.learning-section-print-table thead th {
+  background: #ecfdf5;
+  color: #064e3b;
+  font-size: 8.2pt;
+  font-weight: 800;
+  text-align: center;
+}
+
+.learning-section-print-table tbody th {
+  color: #064e3b;
+  font-weight: 800;
+}
+
+.learning-section-print-row-diagnostic,
+.learning-section-print-row-summative {
+  background: #f8fafc;
+}
+
+.learning-section-print-row-diagnostic th {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.learning-section-print-row-integration th {
+  background: #f0fdf4;
+}
+
+.learning-section-print-row-summative th {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.learning-section-print-col-type {
+  width: 10%;
+}
+.learning-section-print-col-objective {
+  width: 19%;
+}
+.learning-section-print-col-content {
+  width: 17%;
+}
+.learning-section-print-col-execution {
+  width: 17%;
+}
+.learning-section-print-col-situations {
+  width: 15%;
+}
+.learning-section-print-col-knowledge {
+  width: 11%;
+}
+.learning-section-print-col-guidance {
+  width: 11%;
+}
+
+.learning-section-print-signatures {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6mm;
+  margin-top: 5mm;
+  border-top: 0.25mm solid #64748b;
+  padding-top: 3mm;
+  color: #1e293b;
+  font-size: 9pt;
+  font-weight: 700;
+  text-align: center;
+}
+
+@media print {
+  @page learning-section {
+    size: A4 landscape;
+    margin: 0;
+  }
+
+  body:has(.learning-section-print-root) {
+    page: learning-section;
+  }
+
+  body:has(.learning-section-print-root) * {
+    visibility: hidden !important;
+  }
+
+  body:has(.learning-section-print-root) .learning-section-print-preview-shell,
+  body:has(.learning-section-print-root) .learning-section-print-root,
+  body:has(.learning-section-print-root) .learning-section-print-root * {
+    visibility: visible !important;
+  }
+
+  body:has(.learning-section-print-root) .learning-section-print-preview-shell {
+    position: absolute;
+    inset: 0;
+    display: block;
+    overflow: visible;
+    padding: 0;
+    background: #fff;
+  }
+
+  body:has(.learning-section-print-root) .learning-section-print-preview-actions {
+    display: none !important;
+  }
+
+  body:has(.learning-section-print-root) .learning-section-print-root {
+    width: 297mm;
+    max-width: none;
+    margin: 0;
+    color: #000;
+    font-family: Cairo, Tahoma, Arial, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body:has(.learning-section-print-root) .learning-section-print-page {
+    width: 297mm;
+    min-height: 210mm;
+    margin: 0;
+    box-shadow: none;
+  }
+
+  body:has(.learning-section-print-root) .learning-section-print-table thead {
+    display: table-header-group;
+  }
+
+  body:has(.learning-section-print-root) .learning-section-print-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

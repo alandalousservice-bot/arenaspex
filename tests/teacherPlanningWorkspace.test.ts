@@ -145,7 +145,8 @@ describe('unified Teacher planning workspace', () => {
     expect(annualPlan).toContain('طباعة المخطط');
     expect(annualPlan).toContain('planning-print-header');
     expect(annualPlan).toContain('print:hidden');
-    expect(segments).toContain('طباعة المقاطع التعلمية');
+    expect(segments).toContain('طباعة المقطع المحدد');
+    expect(segments).toContain('طباعة المقطع');
     expect(segments).toContain('planning-print-header');
     expect(segments).toContain('OVERALL_COMPETENCY_BY_LEVEL');
     expect(segments).toContain('useTeacherLearningPlan');

@@ -49,6 +49,8 @@ import type {
   User,
 } from '../../types/spex';
 import { AcademicYearLabel } from '../common/AcademicYearLabel';
+import { LearningSectionPrintDocument } from './LearningSectionPrintDocument';
+import { mapLearningSectionForPrint } from '../../services/learningSectionPrint.service';
 
 interface LearningSegmentsViewProps {
   currentUser: User;
@@ -186,6 +188,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
   const [editingItem, setEditingItem] = useState<EditingItem | null>(null);
   const [newSessionDraft, setNewSessionDraft] = useState<NewSessionDraft | null>(null);
   const [situationPickerKey, setSituationPickerKey] = useState<string | null>(null);
+  const [printingFieldId, setPrintingFieldId] = useState<string | null>(null);
   const {
     plan,
     isLoading: isPlanLoading,
@@ -339,6 +342,23 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
       )
     : [];
 
+  const printField = printingFieldId ? currentLevelCurriculum.fields[printingFieldId] : undefined;
+  const printDomain = printField
+    ? (plan?.domains.find((domain) => domain.fieldId === printField.fieldId) as
+        TeacherLearningPlanData['domains'][number] | undefined)
+    : undefined;
+  const printModel =
+    printField && printDomain && plan
+      ? mapLearningSectionForPrint({
+          field: printField,
+          domain: printDomain,
+          level: currentLevelCurriculum.levelName,
+          overallCompetency: OVERALL_COMPETENCY_BY_LEVEL[selectedLevelId],
+          currentUser,
+          academicYearId,
+        })
+      : null;
+
   return (
     <div
       className="workspace-page workspace-page--learning-segments planning-print-document learning-segments-print space-y-6 animate-in fade-in duration-200"
@@ -398,10 +418,14 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
           )}
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() =>
+              setPrintingFieldId(
+                selectedFieldId === 'all' ? filteredFields[0]?.fieldId || null : selectedFieldId
+              )
+            }
             className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white"
           >
-            <Printer className="h-4 w-4" /> طباعة المقاطع التعلمية
+            <Printer className="h-4 w-4" /> طباعة المقطع المحدد
           </button>
           <div className="relative w-full sm:w-64">
             <Search className="pointer-events-none absolute right-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -567,20 +591,29 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                       التقويمات الرسمية ثابتة، وتُدار الأهداف والإدماجيات من طرف الأستاذ.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setNewSessionDraft({
-                        fieldId: field.fieldId,
-                        type: 'تعلمية',
-                        text: '',
-                        afterObjectiveId: objectives.at(-1)?.id || null,
-                      })
-                    }
-                    className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[11px] font-bold text-white print:hidden"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> إضافة حصة / إضافة هدف
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2 print:hidden">
+                    <button
+                      type="button"
+                      onClick={() => setPrintingFieldId(field.fieldId)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700"
+                    >
+                      <Printer className="h-3.5 w-3.5" /> طباعة المقطع
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setNewSessionDraft({
+                          fieldId: field.fieldId,
+                          type: 'تعلمية',
+                          text: '',
+                          afterObjectiveId: objectives.at(-1)?.id || null,
+                        })
+                      }
+                      className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[11px] font-bold text-white"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> إضافة حصة / إضافة هدف
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   {sequence.map((item) => {
@@ -863,6 +896,28 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
         <div>الأستاذ: {`${currentUser.firstName} ${currentUser.lastName}`.trim() || ' '}</div>
         <div className="text-left">المفتش: </div>
       </footer>
+
+      {printModel && (
+        <div className="learning-section-print-preview-shell" role="dialog" aria-modal="true">
+          <div className="learning-section-print-preview-actions print:hidden">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white"
+            >
+              <Printer className="h-4 w-4" /> طباعة
+            </button>
+            <button
+              type="button"
+              onClick={() => setPrintingFieldId(null)}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700"
+            >
+              رجوع / إغلاق
+            </button>
+          </div>
+          <LearningSectionPrintDocument model={printModel} />
+        </div>
+      )}
     </div>
   );
 };
