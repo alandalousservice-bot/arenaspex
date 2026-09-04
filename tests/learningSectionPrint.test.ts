@@ -1,9 +1,6 @@
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import {
-  COMPLETE_ANNUAL_CURRICULUM,
-  OVERALL_COMPETENCY_BY_LEVEL,
-} from '../src/data/algerianCurriculum';
+import { COMPLETE_ANNUAL_CURRICULUM } from '../src/data/algerianCurriculum';
 import {
   addTeacherLearningIntegration,
   addTeacherLearningObjective,
@@ -41,7 +38,6 @@ function printModel(objectiveCount = 7) {
     field,
     domain: plan.domains[0] as Parameters<typeof mapLearningSectionForPrint>[0]['domain'],
     level: COMPLETE_ANNUAL_CURRICULUM.lvl_p1.levelName,
-    overallCompetency: OVERALL_COMPETENCY_BY_LEVEL.lvl_p1,
     currentUser: {
       firstName: 'أستاذ',
       lastName: 'المادة',
@@ -52,7 +48,7 @@ function printModel(objectiveCount = 7) {
 }
 
 describe('official Learning Section print mapper', () => {
-  it('maps the official header, competencies, criteria, and indicators', () => {
+  it('maps the official header and competencies without Annual Plan criteria or indicators', () => {
     const model = printModel();
     expect(model.header).toMatchObject({
       institution: 'مدرسة الاختبار',
@@ -61,13 +57,17 @@ describe('official Learning Section print mapper', () => {
       level: 'السنة الأولى ابتدائي',
       domain: 'الميدان الأول: الوضعيات والتنقلات',
     });
-    expect(model.overallCompetency).toBe(OVERALL_COMPETENCY_BY_LEVEL.lvl_p1);
+    expect(model).not.toHaveProperty('overallCompetency');
     expect(model.finalCompetency).toBe(
       COMPLETE_ANNUAL_CURRICULUM.lvl_p1.fields.f_locomotion.finalCompetency
     );
-    expect(model.criteria).toEqual(COMPLETE_ANNUAL_CURRICULUM.lvl_p1.fields.f_locomotion.criteria);
-    expect(model.indicators).toEqual(
-      COMPLETE_ANNUAL_CURRICULUM.lvl_p1.fields.f_locomotion.indicators
+    expect(model).not.toHaveProperty('criteria');
+    expect(model).not.toHaveProperty('indicators');
+    expect(COMPLETE_ANNUAL_CURRICULUM.lvl_p1.fields.f_locomotion.criteria.length).toBeGreaterThan(
+      0
+    );
+    expect(COMPLETE_ANNUAL_CURRICULUM.lvl_p1.fields.f_locomotion.indicators.length).toBeGreaterThan(
+      0
     );
   });
 
@@ -108,6 +108,9 @@ describe('official Learning Section print mapper', () => {
     expect(document).toContain('learning-section-print-root');
     expect(document).toContain('المواقف التربوية / الموارد');
     expect(document).toContain('المعارف المجندة');
+    expect(document).not.toContain('معايير تحقيق الكفاءة');
+    expect(document).not.toContain('مؤشرات تحقيق الكفاءة');
+    expect(css).not.toContain('learning-section-print-support');
     expect(document).not.toContain('onClick');
     expect(document).not.toContain('technical');
     expect(css).toContain('@page learning-section');

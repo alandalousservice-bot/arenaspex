@@ -27,10 +27,7 @@ export interface LearningSectionPrintModel {
     level: string;
     domain: string;
   };
-  overallCompetency: string;
   finalCompetency: string;
-  criteria: string[];
-  indicators: string[];
   rows: LearningSectionPrintRow[];
   signatures: {
     teacher: string;
@@ -43,7 +40,6 @@ type PrintContext = {
   field: CurriculumFieldDetail;
   domain: TeacherLearningPlanDomain;
   level: string;
-  overallCompetency: string;
   currentUser: Pick<User, 'firstName' | 'lastName' | 'schoolName'>;
   academicYearId: string;
 };
@@ -101,7 +97,6 @@ export function mapLearningSectionForPrint({
   field,
   domain,
   level,
-  overallCompetency,
   currentUser,
   academicYearId,
 }: PrintContext): LearningSectionPrintModel {
@@ -166,10 +161,7 @@ export function mapLearningSectionForPrint({
       level: text(level),
       domain: text(field.fieldName),
     },
-    overallCompetency: text(overallCompetency),
     finalCompetency: text(field.finalCompetency),
-    criteria: field.criteria.map(text),
-    indicators: field.indicators.map(text),
     rows,
     signatures: {
       teacher: text(`${currentUser.firstName} ${currentUser.lastName}`),

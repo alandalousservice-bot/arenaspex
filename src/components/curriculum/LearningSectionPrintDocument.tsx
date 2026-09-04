@@ -6,14 +6,6 @@ interface LearningSectionPrintDocumentProps {
   model: LearningSectionPrintModel;
 }
 
-const PrintList: React.FC<{ items: string[] }> = ({ items }) => (
-  <ul className="learning-section-print-list">
-    {items.map((item, index) => (
-      <li key={`${item}-${index}`}>{item}</li>
-    ))}
-  </ul>
-);
-
 export const LearningSectionPrintDocument: React.FC<LearningSectionPrintDocumentProps> = ({
   model,
 }) => (
@@ -54,23 +46,8 @@ export const LearningSectionPrintDocument: React.FC<LearningSectionPrintDocument
 
       <section className="learning-section-print-competencies">
         <div>
-          <strong>الكفاءة الشاملة</strong>
-          <p>{model.overallCompetency}</p>
-        </div>
-        <div>
           <strong>الكفاءة الختامية</strong>
           <p>{model.finalCompetency}</p>
-        </div>
-      </section>
-
-      <section className="learning-section-print-support">
-        <div>
-          <strong>معايير تحقيق الكفاءة</strong>
-          <PrintList items={model.criteria} />
-        </div>
-        <div>
-          <strong>مؤشرات تحقيق الكفاءة</strong>
-          <PrintList items={model.indicators} />
         </div>
       </section>
 

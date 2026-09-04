@@ -353,7 +353,6 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
           field: printField,
           domain: printDomain,
           level: currentLevelCurriculum.levelName,
-          overallCompetency: OVERALL_COMPETENCY_BY_LEVEL[selectedLevelId],
           currentUser,
           academicYearId,
         })

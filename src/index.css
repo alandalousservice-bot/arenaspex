@@ -1845,16 +1845,14 @@
   grid-column: 1 / -1;
 }
 
-.learning-section-print-competencies,
-.learning-section-print-support {
+.learning-section-print-competencies {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 2mm;
   margin-top: 2mm;
 }
 
-.learning-section-print-competencies > div,
-.learning-section-print-support > div {
+.learning-section-print-competencies > div {
   border: 0.2mm solid #64748b;
   padding: 1.5mm 2mm;
 }
@@ -1863,8 +1861,7 @@
   border-right: 1.2mm solid #047857;
 }
 
-.learning-section-print-competencies strong,
-.learning-section-print-support strong {
+.learning-section-print-competencies strong {
   display: block;
   color: #065f46;
   font-size: 8.5pt;
@@ -1875,20 +1872,6 @@
   margin: 0.8mm 0 0;
   font-size: 8.5pt;
   line-height: 1.45;
-}
-
-.learning-section-print-support {
-  font-size: 8pt;
-}
-
-.learning-section-print-list {
-  margin: 0.8mm 0 0;
-  padding: 0 4mm 0 0;
-}
-
-.learning-section-print-list li {
-  margin: 0.3mm 0;
-  line-height: 1.35;
 }
 
 .learning-section-print-table {
