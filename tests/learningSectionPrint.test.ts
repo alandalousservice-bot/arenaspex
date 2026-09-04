@@ -102,6 +102,26 @@ describe('official Learning Section print mapper', () => {
     expect(JSON.stringify(model)).not.toContain('[]');
   });
 
+  it('leaves optional pedagogical cells blank instead of rendering dash sentinels', () => {
+    const model = printModel();
+    const objective = model.rows.find((row) => row.kind === 'objective');
+    const diagnostic = model.rows.find((row) => row.kind === 'diagnostic');
+    expect(objective).toMatchObject({
+      learningContent: '',
+      executionContent: '',
+      knowledge: '',
+      guidance: '',
+    });
+    expect(objective?.situationsAndResources).toBe('');
+    expect(diagnostic).toMatchObject({
+      learningContent: '',
+      executionContent: '',
+      situationsAndResources: '',
+      knowledge: '',
+      guidance: '',
+    });
+  });
+
   it('uses a dedicated document with no interactive controls or technical columns', () => {
     const document = read('src/components/curriculum/LearningSectionPrintDocument.tsx');
     const css = read('src/index.css');
@@ -115,6 +135,12 @@ describe('official Learning Section print mapper', () => {
     expect(document).not.toContain('technical');
     expect(css).toContain('@page learning-section');
     expect(css).toContain('size: A4 landscape');
+    expect(css).toContain('display: none !important');
+    expect(css).toContain('height: auto');
+    expect(css).toContain('min-height: 0');
+    expect(css).toContain('max-height: none');
+    expect(css).toContain('overflow: visible');
+    expect(css).toContain('transform: none');
     expect(css).toContain('table-header-group');
     expect(css).toContain('print-color-adjust: exact');
   });

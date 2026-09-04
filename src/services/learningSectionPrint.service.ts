@@ -45,15 +45,15 @@ type PrintContext = {
 };
 
 const EMPTY = '—';
+const EMPTY_CELL = '';
 
 function text(value: string | null | undefined): string {
   const normalized = value?.trim();
   return normalized || EMPTY;
 }
 
-function list(values: string[] | undefined): string {
-  const normalized = (values || []).map((value) => value.trim()).filter(Boolean);
-  return normalized.length ? normalized.join('؛ ') : EMPTY;
+function optionalText(value: string | null | undefined): string {
+  return value?.trim() || EMPTY_CELL;
 }
 
 function situationsAndResources(
@@ -64,7 +64,7 @@ function situationsAndResources(
     .filter(Boolean)
     .map((name) => `موقف: ${name}`);
   const resources = (item.resources || []).map((resource) => resource.trim()).filter(Boolean);
-  return list([...situations, ...resources]);
+  return [...situations, ...resources].join('؛ ');
 }
 
 function teacherRow(
@@ -80,11 +80,11 @@ function teacherRow(
         ? (item as TeacherLearningObjective).text
         : (item as TeacherLearningIntegrationPoint).objective
     ),
-    learningContent: text(item.learningContent),
-    executionContent: text(item.executionContent),
+    learningContent: optionalText(item.learningContent),
+    executionContent: optionalText(item.executionContent),
     situationsAndResources: situationsAndResources(item),
-    knowledge: text(item.pedagogicalKnowledge),
-    guidance: text(item.guidance),
+    knowledge: optionalText(item.pedagogicalKnowledge),
+    guidance: optionalText(item.guidance),
   };
 }
 
@@ -119,11 +119,11 @@ export function mapLearningSectionForPrint({
       objective: text(
         field.sessionsList.find((session) => session.type === 'تقويم تشخيصي')?.objective
       ),
-      learningContent: EMPTY,
-      executionContent: EMPTY,
-      situationsAndResources: EMPTY,
-      knowledge: EMPTY,
-      guidance: EMPTY,
+      learningContent: EMPTY_CELL,
+      executionContent: EMPTY_CELL,
+      situationsAndResources: EMPTY_CELL,
+      knowledge: EMPTY_CELL,
+      guidance: EMPTY_CELL,
     },
   ];
   let integrationNumber = 0;
@@ -146,11 +146,11 @@ export function mapLearningSectionForPrint({
     objective: text(
       field.sessionsList.find((session) => session.type === 'تقويم تحصيلي')?.objective
     ),
-    learningContent: EMPTY,
-    executionContent: EMPTY,
-    situationsAndResources: EMPTY,
-    knowledge: EMPTY,
-    guidance: EMPTY,
+    learningContent: EMPTY_CELL,
+    executionContent: EMPTY_CELL,
+    situationsAndResources: EMPTY_CELL,
+    knowledge: EMPTY_CELL,
+    guidance: EMPTY_CELL,
   });
 
   return {

@@ -1976,33 +1976,49 @@
     page: learning-section;
   }
 
-  body:has(.learning-section-print-root) * {
-    visibility: hidden !important;
+  body:has(.learning-section-print-root) .app-shell-header,
+  body:has(.learning-section-print-root) .app-shell-sidebar,
+  body:has(.learning-section-print-root) .learning-section-print-preview-actions,
+  body:has(.learning-section-print-root)
+    .workspace-page--learning-segments
+    > :not(.learning-section-print-preview-shell) {
+    display: none !important;
   }
 
-  body:has(.learning-section-print-root) .learning-section-print-preview-shell,
-  body:has(.learning-section-print-root) .learning-section-print-root,
-  body:has(.learning-section-print-root) .learning-section-print-root * {
-    visibility: visible !important;
+  body:has(.learning-section-print-root) .app-shell,
+  body:has(.learning-section-print-root) .app-shell > .flex-1,
+  body:has(.learning-section-print-root) .app-shell main,
+  body:has(.learning-section-print-root) .workspace-page--learning-segments {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   body:has(.learning-section-print-root) .learning-section-print-preview-shell {
     position: absolute;
     inset: 0;
     display: block;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: none;
     overflow: visible;
+    margin: 0 !important;
     padding: 0;
     background: #fff;
   }
 
-  body:has(.learning-section-print-root) .learning-section-print-preview-actions {
-    display: none !important;
-  }
-
   body:has(.learning-section-print-root) .learning-section-print-root {
-    width: 297mm;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: none;
     max-width: none;
     margin: 0;
+    overflow: visible;
+    transform: none;
     color: #000;
     font-family: Cairo, Tahoma, Arial, sans-serif;
     -webkit-print-color-adjust: exact;
@@ -2010,10 +2026,14 @@
   }
 
   body:has(.learning-section-print-root) .learning-section-print-page {
-    width: 297mm;
-    min-height: 210mm;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: none;
     margin: 0;
     box-shadow: none;
+    overflow: visible;
+    transform: none;
   }
 
   body:has(.learning-section-print-root) .learning-section-print-table thead {
@@ -2021,6 +2041,13 @@
   }
 
   body:has(.learning-section-print-root) .learning-section-print-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body:has(.learning-section-print-root) .learning-section-print-signatures {
+    margin-top: 2mm;
+    padding-top: 2mm;
     break-inside: avoid;
     page-break-inside: avoid;
   }
