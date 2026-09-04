@@ -188,12 +188,11 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       (item) =>
         item.referenceSessionId === basePlanningReferenceId(operationalSession.referenceSessionId)
     );
-    if (!canonicalReference) return null;
+    const reference = operationalSession.reference || canonicalReference;
+    if (!reference) return null;
     return {
       session: operationalSession,
-      reference: operationalSession.reference
-        ? { ...canonicalReference, objective: operationalSession.reference.objective }
-        : canonicalReference,
+      reference,
       classRoom: operationalClass,
     };
   }, [operationalClass, operationalSession]);
@@ -226,7 +225,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                 PE_FIELDS.find((field) => field.id === scheduledContext.reference.domainId)?.name
               ),
               finalCompetency:
-                COMPLETE_ANNUAL_CURRICULUM[scheduledContext.reference.levelId]?.fields[
+                COMPLETE_ANNUAL_CURRICULUM[operationalClass.levelId]?.fields[
                   scheduledContext.reference.domainId
                 ]?.finalCompetency || '',
               segmentGoal: scheduledContext.reference.objective,
@@ -237,7 +236,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               typeLabel: scheduledContext.reference.sessionTypeLabel,
               objective: scheduledContext.reference.objective,
               tools:
-                COMPLETE_ANNUAL_CURRICULUM[scheduledContext.reference.levelId]?.fields[
+                COMPLETE_ANNUAL_CURRICULUM[operationalClass.levelId]?.fields[
                   scheduledContext.reference.domainId
                 ]?.suggestedTools || [],
             },
@@ -347,6 +346,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         if (matchingLevel) setLevelName(matchingLevel);
         if (
           located &&
+          !located.reference &&
           !canonicalReferenceSessions(operationalClass?.levelId || '').some(
             (item) =>
               item.referenceSessionId === basePlanningReferenceId(located.referenceSessionId)

@@ -210,6 +210,20 @@ export function seedTeacherLearningPlan(
   });
 }
 
+/** Resolve a persisted plan when valid, otherwise bootstrap one from the
+ * official curriculum and compatible legacy wording overrides. */
+export function resolveTeacherLearningPlan(
+  levelId: string,
+  persistedPlan: unknown,
+  wordingOverrides: Record<string, { objective?: string } | undefined> = {}
+): TeacherLearningPlan {
+  const parsed = teacherLearningPlanSchema.safeParse(persistedPlan);
+  if (parsed.success && parsed.data.levelId === levelId) {
+    return normalizeTeacherLearningPlan(parsed.data);
+  }
+  return seedTeacherLearningPlan(levelId, wordingOverrides);
+}
+
 export function addTeacherLearningObjective(
   plan: TeacherLearningPlan,
   fieldId: string,

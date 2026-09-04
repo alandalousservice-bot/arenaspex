@@ -166,10 +166,11 @@ describe('teacher-owned learning plan foundation', () => {
     expect(router).toContain("kind: 'section_wording'");
   });
 
-  it('does not connect the foundation to annual distribution or operational sessions', () => {
+  it('exposes the plan as the source consumed by annual distribution', () => {
     const planning = read('src/services/teacherPlanning.service.ts');
     const distribution = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
-    expect(planning).not.toContain('teacherLearningPlan');
+    expect(planning).toContain('resolveTeacherLearningPlan');
+    expect(planning).toContain('teacherLearningPlan?:');
     expect(distribution).not.toContain('teacherLearningPlan');
     expect(read('src/services/teacherLearningPlan.service.ts')).not.toContain(
       'ClassPlannedSession'

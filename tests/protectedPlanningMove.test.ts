@@ -25,7 +25,7 @@ describe('protected planning session move contract', () => {
         { weekday: 2, startTime: '10:00', endTime: '11:00' },
       ]
     );
-    const first = materialized.seeds.find((seed) => seed.referenceSessionId.endsWith('sequence:1'));
+    const first = materialized.seeds.find((seed) => !seed.referenceSessionId.includes(':intro:'));
     const secondDiagnostic = materialized.seeds.find(
       (seed) => seed.referenceSessionId.includes(':diagnostic:') && seed !== first
     );

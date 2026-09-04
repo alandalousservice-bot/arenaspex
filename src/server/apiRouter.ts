@@ -33,7 +33,6 @@ import {
   canonicalPlanningSessions,
   materializeClassPlannedSessionSeedsFromTimetable,
   canonicalReferenceSessions,
-  effectivePlanningObjective,
   generateAllPrimaryLevelDistributions,
   buildAnnualDistributionWeeks,
   annualDistributionUnitSummary,
@@ -43,7 +42,7 @@ import {
   basePlanningReferenceId,
   decideClassSessionRebuild,
   introPlanningReference,
-  type PlanningWordingOverrides,
+  PRIMARY_PLANNING_LEVEL_IDS,
 } from '../services/teacherPlanning.service.js';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../data/algerianCurriculum.js';
 import { getAcademicCalendar, isValidAcademicSchoolDate } from '../data/academicCalendars.js';
@@ -72,10 +71,12 @@ import { persistStudentRosterRows } from '../services/studentRosterPersistence.s
 import {
   normalizeTeacherLearningPlan,
   parseTeacherLearningPlan,
+  resolveTeacherLearningPlan,
   seedTeacherLearningPlan,
   teacherLearningPlanSchema,
   TEACHER_LEARNING_PLAN_KIND,
 } from '../services/teacherLearningPlan.service.js';
+import type { TeacherLearningPlan } from '../services/teacherLearningPlan.service.js';
 import {
   deleteOwnedStudentClass,
   StudentClassDeletionError,
@@ -345,26 +346,35 @@ async function resolvePlanningReferences(
 ) {
   const normalizedLevelId = normalizePrimaryLevelId(levelId);
   if (!normalizedLevelId) return new Map();
-  const wordingPlan = await prisma.annualPlan.findUnique({
+  const plans = await prisma.annualPlan.findMany({
     where: {
-      teacherId_academicYearId_levelId_kind: {
-        teacherId,
-        academicYearId,
-        levelId: normalizedLevelId,
-        kind: 'section_wording',
-      },
+      teacherId,
+      academicYearId,
+      levelId: normalizedLevelId,
+      kind: { in: [TEACHER_LEARNING_PLAN_KIND, 'section_wording'] },
     },
-    select: { data: true },
+    select: { kind: true, data: true },
   });
-  return buildPlanningReferenceMap(normalizedLevelId, wordingPlan?.data);
+  return buildPlanningReferenceMap(
+    normalizedLevelId,
+    plans.find((plan) => plan.kind === 'section_wording')?.data,
+    plans.find((plan) => plan.kind === TEACHER_LEARNING_PLAN_KIND)?.data
+  );
 }
 
-function buildPlanningReferenceMap(levelId: string, wordingData: unknown) {
-  const overrides = ((wordingData as { overrides?: PlanningWordingOverrides } | null)?.overrides ||
-    {}) as PlanningWordingOverrides;
+function buildPlanningReferenceMap(
+  levelId: string,
+  wordingData: unknown,
+  teacherLearningPlan?: unknown
+) {
   const fields = COMPLETE_ANNUAL_CURRICULUM[levelId]?.fields || {};
+  const plan = resolveTeacherLearningPlan(
+    levelId,
+    teacherLearningPlan,
+    legacyWordingObjectives(wordingData)
+  );
   return new Map(
-    canonicalReferenceSessions(levelId).map((reference) => [
+    canonicalReferenceSessions(levelId, plan).map((reference) => [
       reference.referenceSessionId,
       {
         referenceSessionId: reference.referenceSessionId,
@@ -375,7 +385,7 @@ function buildPlanningReferenceMap(levelId: string, wordingData: unknown) {
         learningSectionId: reference.learningSectionId,
         objectiveId: reference.objectiveId,
         objectiveGroupId: reference.objectiveGroupId,
-        objective: effectivePlanningObjective(reference, overrides),
+        objective: reference.objective,
         sessionType: reference.sessionType,
         sessionTypeLabel: reference.sessionTypeLabel,
         sequenceIndex: reference.sequenceIndex,
@@ -395,20 +405,69 @@ async function resolvePlanningReferencesForLevels(
     ...new Set(levelIds.map(normalizePrimaryLevelId).filter(Boolean)),
   ] as string[];
   if (!normalizedLevelIds.length) return new Map();
-  const wordingPlans = await prisma.annualPlan.findMany({
+  const plans = await prisma.annualPlan.findMany({
     where: {
       teacherId,
       academicYearId,
       levelId: { in: normalizedLevelIds },
-      kind: 'section_wording',
+      kind: { in: [TEACHER_LEARNING_PLAN_KIND, 'section_wording'] },
     },
-    select: { levelId: true, data: true },
+    select: { levelId: true, kind: true, data: true },
   });
-  const wordingByLevel = new Map(wordingPlans.map((plan) => [plan.levelId, plan.data] as const));
+  const teacherPlans = new Map(
+    plans
+      .filter((plan) => plan.kind === TEACHER_LEARNING_PLAN_KIND)
+      .map((plan) => [plan.levelId, plan.data] as const)
+  );
+  const wordingPlans = new Map(
+    plans
+      .filter((plan) => plan.kind === 'section_wording')
+      .map((plan) => [plan.levelId, plan.data] as const)
+  );
   return new Map(
     normalizedLevelIds.map((levelId) => [
       levelId,
-      buildPlanningReferenceMap(levelId, wordingByLevel.get(levelId)),
+      buildPlanningReferenceMap(levelId, wordingPlans.get(levelId), teacherPlans.get(levelId)),
+    ])
+  );
+}
+
+async function resolveTeacherLearningPlansForLevels(
+  levelIds: string[],
+  teacherId: string,
+  academicYearId: string
+) {
+  const normalizedLevelIds = [
+    ...new Set(levelIds.map(normalizePrimaryLevelId).filter(Boolean)),
+  ] as string[];
+  if (!normalizedLevelIds.length) return new Map<string, TeacherLearningPlan>();
+  const plans = await prisma.annualPlan.findMany({
+    where: {
+      teacherId,
+      academicYearId,
+      levelId: { in: normalizedLevelIds },
+      kind: { in: [TEACHER_LEARNING_PLAN_KIND, 'section_wording'] },
+    },
+    select: { levelId: true, kind: true, data: true },
+  });
+  const teacherPlans = new Map(
+    plans
+      .filter((plan) => plan.kind === TEACHER_LEARNING_PLAN_KIND)
+      .map((plan) => [plan.levelId, plan.data] as const)
+  );
+  const wordingPlans = new Map(
+    plans
+      .filter((plan) => plan.kind === 'section_wording')
+      .map((plan) => [plan.levelId, plan.data] as const)
+  );
+  return new Map(
+    normalizedLevelIds.map((levelId) => [
+      levelId,
+      resolveTeacherLearningPlan(
+        levelId,
+        teacherPlans.get(levelId),
+        legacyWordingObjectives(wordingPlans.get(levelId))
+      ),
     ])
   );
 }
@@ -684,7 +743,16 @@ apiRouter.post(
         isValidPlanningDate(storedData.note)
           ? storedData.note
           : getAcademicCalendar(academicYearId).schoolStart;
-      const generation = generateAllPrimaryLevelDistributions(academicYearId, planningStartDate);
+      const teacherLearningPlans = await resolveTeacherLearningPlansForLevels(
+        [normalizedLevelId],
+        req.user!.id,
+        academicYearId
+      );
+      const generation = generateAllPrimaryLevelDistributions(
+        academicYearId,
+        planningStartDate,
+        teacherLearningPlans
+      );
       const distribution = generation.levels.find((level) => level.levelId === normalizedLevelId);
       if (!distribution || distribution.status !== 'generated') {
         throw new ProtectedPlanningMoveError(
@@ -937,6 +1005,11 @@ apiRouter.get('/teacher/planning/annual-distribution', requireRole('teacher'), a
     select: { levelId: true, data: true },
   });
   if (!plans.length) return res.json({ success: true, annualGeneration: null });
+  const teacherLearningPlans = await resolveTeacherLearningPlansForLevels(
+    PRIMARY_PLANNING_LEVEL_IDS,
+    req.user!.id,
+    parsed.data.academicYearId
+  );
   const storedStartDate = plans
     .map((plan) => annualDistributionData(plan).note)
     .find(
@@ -949,7 +1022,8 @@ apiRouter.get('/teacher/planning/annual-distribution', requireRole('teacher'), a
     storedStartDate || getAcademicCalendar(parsed.data.academicYearId).schoolStart;
   const generation = generateAllPrimaryLevelDistributions(
     parsed.data.academicYearId,
-    planningStartDate
+    planningStartDate,
+    teacherLearningPlans
   );
   const levels = await annualDistributionLevelViews(generation, req.user!.id, plans);
   const classes = await prisma.studentClass.findMany({
@@ -985,7 +1059,16 @@ apiRouter.post(
     if (preLaunchRebuild && !isPreLaunchAcademicYear(academicYearId)) {
       return res.status(400).json({ error: 'إعادة البناء قبل الإطلاق متاحة لسنة الإطلاق فقط.' });
     }
-    const generation = generateAllPrimaryLevelDistributions(academicYearId, planningStartDate);
+    const teacherLearningPlans = await resolveTeacherLearningPlansForLevels(
+      PRIMARY_PLANNING_LEVEL_IDS,
+      req.user!.id,
+      academicYearId
+    );
+    const generation = generateAllPrimaryLevelDistributions(
+      academicYearId,
+      planningStartDate,
+      teacherLearningPlans
+    );
     const levels = await annualDistributionLevelViews(generation, req.user!.id, []);
     if (generation.levels.some((level) => level.status === 'failed')) {
       return res.status(400).json({
@@ -1544,10 +1627,17 @@ apiRouter.post(
     const timetableSlots = await weeklySlotsForTeacher(req.user!.id, parsed.data.academicYearId);
     let seeds;
     try {
+      const teacherLearningPlans = await resolveTeacherLearningPlansForLevels(
+        [classRecord.levelId],
+        req.user!.id,
+        parsed.data.academicYearId
+      );
       const canonicalSessions = canonicalPlanningSessions(
         classRecord.levelId,
         parsed.data.planningStartDate,
-        parsed.data.academicYearId
+        parsed.data.academicYearId,
+        0,
+        teacherLearningPlans.get(normalizePrimaryLevelId(classRecord.levelId) || '')
       );
       const materialized = materializeClassPlannedSessionSeedsFromTimetable(
         req.user!.id,

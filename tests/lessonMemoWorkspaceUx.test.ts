@@ -195,7 +195,7 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(commandCenter).toContain('هذه الحصة التنظيمية لا تتطلب مذكرة');
     expect(curriculum).toContain("fieldId: 'intro'");
     expect(curriculum).toContain('isIntro: true');
-    expect(planning).toContain("session.fieldId === 'intro' ? 'intro'");
+    expect(planning).toContain("domainId: 'intro'");
   });
 
   it('keeps data generation and persistence boundaries unchanged', () => {

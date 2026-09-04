@@ -127,15 +127,15 @@ describe('Daily Notebook timetable materialization', () => {
       'teacher-1',
       'class-two-slots-p1',
       '2025-2026',
-      canonicalPlanningSessions('lvl_p1', '2025-09-21', '2025-2026').slice(0, 4),
+      canonicalPlanningSessions('lvl_p1', '2025-09-21', '2025-2026'),
       [slot(1, '08:00', '09:00'), slot(3, '10:00', '11:00')]
     );
 
     expect(result.error).toBeUndefined();
-    const learningPair = result.seeds.filter(
-      (item) =>
-        item.referenceSessionId.includes('f_locomotion:sequence:2') ||
-        item.referenceSessionId.includes('f_locomotion:sequence:3')
+    const learningPair = result.seeds.filter((item) =>
+      item.referenceSessionId.includes(
+        'f_locomotion:objective:teacher-objective:lvl_p1:f_locomotion:2:meeting:'
+      )
     );
     expect(learningPair).toHaveLength(2);
     expect(new Set(learningPair.map((item) => item.plannedDate.getUTCDay())).size).toBe(2);
@@ -265,14 +265,12 @@ describe('Daily Notebook timetable materialization', () => {
     );
 
     const pedagogical = result.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
-    expect(
-      pedagogical
-        .filter((item) => !item.referenceSessionId.includes(':meeting:'))
-        .map((item) => item.id)
-    ).toEqual(legacy.map((item) => item.id));
+    expect(pedagogical.map((item) => item.id)).toEqual(legacy.map((item) => item.id));
     expect(
       new Set(pedagogical.map((item) => item.referenceSessionId.replace(/:meeting:[12]$/, '')))
-    ).toEqual(new Set(canonical.map((item) => item.referenceSessionId)));
+    ).toEqual(
+      new Set(canonical.map((item) => item.referenceSessionId.replace(/:meeting:[12]$/, '')))
+    );
     expect(
       earliestPlanningDate(
         result.seeds.map((item) => ({

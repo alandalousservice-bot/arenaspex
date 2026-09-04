@@ -167,7 +167,7 @@ describe('academic-year annual distribution generation v2', () => {
 
     expect(classA).toHaveLength(54);
     expect(classB).toHaveLength(54);
-    expect(classC).toHaveLength(33);
+    expect(classC).toHaveLength(54);
     expect(classA.every((session) => session.classId === 'class-2a')).toBe(true);
     expect(classB.every((session) => session.classId === 'class-2b')).toBe(true);
     expect(classA.map((session) => session.referenceSessionId)).toEqual(

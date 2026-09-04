@@ -74,7 +74,7 @@ describe('official entry week operational materialization', () => {
       const canonical = canonicalPlanningSessions(levelId, '2026-09-21', '2026-2027');
       expect(canonical[0].sessionType).toBe('تقويم تشخيصي');
       expect(canonical.some((session) => session.isIntro)).toBe(false);
-      expect(canonical[0].referenceSessionId).toContain('sequence:1');
+      expect(canonical[0].referenceSessionId).toContain(':diagnostic');
     }
   });
 
@@ -82,7 +82,7 @@ describe('official entry week operational materialization', () => {
     const counts = ['lvl_p1', 'lvl_p2', 'lvl_p3', 'lvl_p4', 'lvl_p5'].map(
       (levelId) => canonicalPlanningSessions(levelId, '2026-09-21', '2026-2027').length
     );
-    expect(counts).toEqual([54, 54, 54, 33, 33]);
+    expect(counts).toEqual([54, 54, 54, 54, 33]);
 
     const result = materialize('lvl_p4', [slot(1, '08:00', '09:30'), slot(3, '08:00', '09:30')]);
     expect(result.seeds.filter((seed) => seed.referenceSessionId.includes(':intro:'))).toHaveLength(

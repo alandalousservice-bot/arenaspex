@@ -1,6 +1,5 @@
 import {
   COMPLETE_ANNUAL_CURRICULUM,
-  generateAnnualPedagogicalTimeDistribution,
   isValidSchoolDate,
   ScheduledAnnualSession,
 } from '../data/algerianCurriculum';
@@ -8,6 +7,11 @@ import { getCurrentAcademicYear } from './academicYear';
 import type { AnnualPlanObjectiveOverride } from '../types/spex';
 import { normalizePrimaryLevelId, type PrimaryLevelId } from './primaryLevel.service';
 import { getAcademicCalendar, isValidAcademicSchoolDate } from '../data/academicCalendars';
+import type { TeacherLearningPlanData } from '../types/spex';
+import {
+  resolveTeacherLearningPlan,
+  type TeacherLearningPlan,
+} from './teacherLearningPlan.service';
 
 export { normalizePrimaryLevelId } from './primaryLevel.service';
 
@@ -438,11 +442,230 @@ export function referenceSessionIdFor(session: ScheduledAnnualSession): string {
   return `${session.levelId}:${session.fieldId}:sequence:${session.globalSessionNumber}`;
 }
 
+type TeacherPlanSequenceItem = {
+  levelId: string;
+  levelName: string;
+  grade: number;
+  domainId: string;
+  fieldName: string;
+  finalCompetency: string;
+  sessionType: CanonicalPlanningSession['sessionType'];
+  sessionTypeLabel: string;
+  objective: string;
+  objectiveId: string | null;
+  objectiveGroupId: string | null;
+  fieldSessionNumber: number;
+  referenceKey: string;
+};
+
+function officialSessionText(
+  field: (typeof COMPLETE_ANNUAL_CURRICULUM)[string]['fields'][string],
+  type: 'تقويم تشخيصي' | 'إدماجية' | 'تقويم تحصيلي',
+  label?: string
+): string {
+  return (
+    field.sessionsList.find(
+      (session) => session.type === type && (!label || session.typeLabel === label)
+    )?.objective ||
+    (type === 'تقويم تشخيصي'
+      ? 'تقويم تشخيصي أولي لمكتسبات التلاميذ'
+      : type === 'تقويم تحصيلي'
+        ? 'تقويم تحصيلي لمكتسبات المتعلمين'
+        : 'توظيف المكتسبات في وضعية إدماجية.')
+  );
+}
+
+function teacherPlanSequence(
+  levelId: string,
+  plan: TeacherLearningPlan
+): TeacherPlanSequenceItem[] {
+  const curriculum = COMPLETE_ANNUAL_CURRICULUM[levelId];
+  const grade = gradeFromLevelId(levelId);
+  if (!curriculum || !grade) return [];
+  const sequence: TeacherPlanSequenceItem[] = [];
+  const fieldOrder = ['f_locomotion', 'f_fundamentals', 'f_structuring'];
+
+  for (const fieldId of fieldOrder) {
+    const field = curriculum.fields[fieldId];
+    const domain = plan.domains.find((item) => item.fieldId === fieldId);
+    if (!field || !domain) continue;
+    let fieldSessionNumber = 1;
+    const add = (
+      sessionType: TeacherPlanSequenceItem['sessionType'],
+      sessionTypeLabel: string,
+      objective: string,
+      objectiveId: string | null,
+      objectiveGroupId: string | null,
+      referenceKey: string
+    ) => {
+      sequence.push({
+        levelId,
+        levelName: curriculum.levelName,
+        grade,
+        domainId: fieldId,
+        fieldName: field.fieldName,
+        finalCompetency: field.finalCompetency,
+        sessionType,
+        sessionTypeLabel,
+        objective,
+        objectiveId,
+        objectiveGroupId,
+        fieldSessionNumber: fieldSessionNumber++,
+        referenceKey,
+      });
+    };
+
+    add(
+      'تقويم تشخيصي',
+      'تقويم تشخيصي',
+      officialSessionText(field, 'تقويم تشخيصي'),
+      null,
+      `teacher-diagnostic:${levelId}:${fieldId}`,
+      'diagnostic'
+    );
+
+    const integrationsByObjective = new Map<string | null, typeof domain.integrationPoints>();
+    for (const point of [...domain.integrationPoints].sort(
+      (left, right) => left.orderIndex - right.orderIndex
+    )) {
+      const points = integrationsByObjective.get(point.afterObjectiveId) || [];
+      points.push(point);
+      integrationsByObjective.set(point.afterObjectiveId, points);
+    }
+    const addIntegrations = (afterObjectiveId: string | null) => {
+      for (const point of integrationsByObjective.get(afterObjectiveId) || []) {
+        add(
+          'إدماجية',
+          point.label,
+          officialSessionText(field, 'إدماجية', point.label),
+          null,
+          point.id,
+          `integration:${point.id}`
+        );
+      }
+    };
+
+    addIntegrations(null);
+    domain.objectives.forEach((objective, objectiveIndex) => {
+      const objectiveLabel = `تعلمية ${objectiveIndex + 1}`;
+      const meetingCount = grade <= 4 ? 2 : 1;
+      for (let meetingIndex = 1; meetingIndex <= meetingCount; meetingIndex += 1) {
+        add(
+          'تعلمية',
+          objectiveLabel,
+          objective.text,
+          objective.id,
+          objective.id,
+          meetingCount === 1
+            ? `objective:${objective.id}`
+            : `objective:${objective.id}:meeting:${meetingIndex}`
+        );
+      }
+      addIntegrations(objective.id);
+    });
+    add(
+      'تقويم تحصيلي',
+      'تقويم تحصيلي',
+      officialSessionText(field, 'تقويم تحصيلي'),
+      null,
+      `teacher-summative:${levelId}:${fieldId}`,
+      'summative'
+    );
+  }
+  return sequence;
+}
+
+interface AnnualScheduleSlot {
+  desiredDate: Date;
+  actualDate: Date;
+}
+
+function nextValidPlanningDate(from: string, academicYearId?: string): string {
+  let value = from;
+  for (let guard = 0; guard < 365; guard += 1) {
+    const valid = academicYearId
+      ? (() => {
+          const calendar = getAcademicCalendar(academicYearId);
+          const endDate = calendar.schoolEnd || `${academicYearId.slice(5)}-08-31`;
+          return (
+            value >= calendar.schoolStart &&
+            value <= endDate &&
+            isValidAcademicSchoolDate(value, academicYearId)
+          );
+        })()
+      : isValidSchoolDate(toDate(value));
+    if (valid) return value;
+    value = addPlanningDays(value, 1);
+  }
+  throw new Error('لا توجد سعة تقويمية كافية لتوليد التوزيع السنوي ضمن السنة المحددة.');
+}
+
+function buildBoundedAnnualSchedule(
+  count: number,
+  startDateStr: string,
+  sessionsPerWeek: number,
+  academicYearId: string
+): AnnualScheduleSlot[] {
+  const slots: AnnualScheduleSlot[] = [];
+  let weekAnchor = nextValidPlanningDate(startDateStr, academicYearId);
+  let slotInWeek = 0;
+  let lastActualDate: Date | null = null;
+  for (let index = 0; index < count; index += 1) {
+    const desiredDate = toDate(
+      sessionsPerWeek > 1 && slotInWeek === 1 ? addPlanningDays(weekAnchor, 2) : weekAnchor
+    );
+    let actualDate = toDate(nextValidPlanningDate(formatPlanningDate(desiredDate), academicYearId));
+    if (lastActualDate && actualDate <= lastActualDate) {
+      actualDate = toDate(
+        nextValidPlanningDate(formatPlanningDate(lastActualDate), academicYearId)
+      );
+      actualDate = toDate(
+        nextValidPlanningDate(addPlanningDays(formatPlanningDate(actualDate), 1), academicYearId)
+      );
+    }
+    slots.push({ desiredDate, actualDate });
+    lastActualDate = actualDate;
+    if (sessionsPerWeek > 1 && slotInWeek === 0) {
+      slotInWeek = 1;
+    } else {
+      slotInWeek = 0;
+      if (index < count - 1)
+        weekAnchor = nextValidPlanningDate(addPlanningDays(weekAnchor, 7), academicYearId);
+    }
+  }
+  return slots;
+}
+
+function buildUnboundedAnnualSchedule(
+  count: number,
+  startDateStr: string,
+  sessionsPerWeek: number
+): AnnualScheduleSlot[] {
+  const slots: AnnualScheduleSlot[] = [];
+  let weekAnchor = nextValidPlanningDate(startDateStr);
+  let slotInWeek = 0;
+  for (let index = 0; index < count; index += 1) {
+    const desiredDate = toDate(
+      sessionsPerWeek > 1 && slotInWeek === 1 ? addPlanningDays(weekAnchor, 2) : weekAnchor
+    );
+    const actualDate = toDate(nextValidPlanningDate(formatPlanningDate(desiredDate)));
+    slots.push({ desiredDate, actualDate });
+    if (sessionsPerWeek > 1 && slotInWeek === 0) {
+      slotInWeek = 1;
+    } else {
+      slotInWeek = 0;
+      if (index < count - 1) weekAnchor = nextValidPlanningDate(addPlanningDays(weekAnchor, 7));
+    }
+  }
+  return slots;
+}
+
 export function canonicalPlanningSessions(
   levelId: unknown,
   planningStartDate: string,
   academicYearId?: string,
-  teachingDayOfWeek = 0
+  _teachingDayOfWeek = 0,
+  teacherLearningPlan?: TeacherLearningPlanData | TeacherLearningPlan
 ): CanonicalPlanningSession[] {
   const canonicalLevelId = normalizePrimaryLevelId(levelId);
   if (!canonicalLevelId) return [];
@@ -450,62 +673,53 @@ export function canonicalPlanningSessions(
   const curriculum = COMPLETE_ANNUAL_CURRICULUM[canonicalLevelId];
   const grade = gradeFromLevelId(canonicalLevelId);
   if (!curriculum || !grade || !/^\d{4}-\d{2}-\d{2}$/.test(planningStartDate)) return [];
+  const plan = resolveTeacherLearningPlan(canonicalLevelId, teacherLearningPlan);
+  const sequence = teacherPlanSequence(canonicalLevelId, plan);
+  const sessionsPerWeek = grade <= 4 ? 2 : 1;
+  const minimumPedagogicalDate = academicYearId
+    ? addPlanningDays(weekStartFor(getAcademicCalendar(academicYearId).schoolStart), 7)
+    : planningStartDate;
+  const scheduleStartDate =
+    planningStartDate > minimumPedagogicalDate ? planningStartDate : minimumPedagogicalDate;
+  const schedule = academicYearId
+    ? buildBoundedAnnualSchedule(
+        sequence.length,
+        scheduleStartDate,
+        sessionsPerWeek,
+        academicYearId
+      )
+    : buildUnboundedAnnualSchedule(sequence.length, scheduleStartDate, sessionsPerWeek);
 
-  let generatedSessions: ScheduledAnnualSession[];
-  try {
-    generatedSessions = generateAnnualPedagogicalTimeDistribution(
-      canonicalLevelId,
-      planningStartDate,
-      teachingDayOfWeek,
-      '',
-      academicYearId
-    );
-  } catch (error) {
-    if (!academicYearId || teachingDayOfWeek !== 0) throw error;
-    let fallbackError = error;
-    for (const fallbackDay of [1, 2, 3, 4]) {
-      try {
-        generatedSessions = generateAnnualPedagogicalTimeDistribution(
-          canonicalLevelId,
-          planningStartDate,
-          fallbackDay,
-          '',
-          academicYearId
-        );
-        fallbackError = null;
-        break;
-      } catch (nextError) {
-        fallbackError = nextError;
-      }
-    }
-    if (fallbackError || !generatedSessions!) throw fallbackError;
-  }
-
-  return generatedSessions.map((session) => ({
-    referenceSessionId: referenceSessionIdFor(session),
-    levelId: session.levelId,
-    grade,
-    domainId: session.fieldId,
-    learningSectionId:
-      session.fieldId === 'intro' ? 'intro' : `${session.levelId}:${session.fieldId}`,
-    objectiveId: session.objectiveGroupId || null,
-    objectiveGroupId: session.objectiveGroupId || null,
-    sequenceIndex: session.globalSessionNumber,
-    fieldSessionNumber: session.fieldSessionNumber,
-    sessionType: session.sessionType,
-    sessionTypeLabel: session.sessionTypeLabel,
-    objective: session.targetObjective,
-    plannedDate: session.scheduledDate,
-    durationMinutes: session.durationMinutes,
-    fieldName: session.fieldName,
-    isIntro: false,
-  }));
+  return sequence.map((item, index) => {
+    const slot = schedule[index];
+    const referenceSessionId = `${canonicalLevelId}:${item.domainId}:${item.referenceKey}`;
+    return {
+      referenceSessionId,
+      levelId: canonicalLevelId,
+      grade,
+      domainId: item.domainId,
+      learningSectionId: `${canonicalLevelId}:${item.domainId}`,
+      objectiveId: item.objectiveId,
+      objectiveGroupId: item.objectiveGroupId,
+      sequenceIndex: index + 1,
+      fieldSessionNumber: item.fieldSessionNumber,
+      sessionType: item.sessionType,
+      sessionTypeLabel: item.sessionTypeLabel,
+      objective: item.objective,
+      plannedDate: formatPlanningDate(slot.actualDate),
+      durationMinutes: grade === 4 ? 90 : 60,
+      fieldName: item.fieldName,
+      finalCompetency: item.finalCompetency,
+      isIntro: false,
+    };
+  });
 }
 
 function buildLevelDistribution(
   levelId: PrimaryLevelId,
   planningStartDate: string,
-  academicYearId: string
+  academicYearId: string,
+  teacherLearningPlan?: TeacherLearningPlanData | TeacherLearningPlan
 ): AnnualLevelDistribution {
   let lastError = 'لا توجد سعة تقويمية كافية ضمن السنة الدراسية المحددة.';
   for (const teachingDayOfWeek of [0, 1, 2, 3, 4]) {
@@ -514,7 +728,8 @@ function buildLevelDistribution(
         levelId,
         planningStartDate,
         academicYearId,
-        teachingDayOfWeek
+        teachingDayOfWeek,
+        teacherLearningPlan
       );
       if (!sessions.length) {
         lastError = 'لا توجد حصص بيداغوجية قابلة للتوليد للمستوى المحدد.';
@@ -557,7 +772,8 @@ function buildLevelDistribution(
 
 export function generateAllPrimaryLevelDistributions(
   academicYearId: string,
-  planningStartDate: string
+  planningStartDate: string,
+  teacherLearningPlans?: Map<string, TeacherLearningPlanData | TeacherLearningPlan>
 ): {
   academicYearId: string;
   planningStartDate: string;
@@ -571,7 +787,12 @@ export function generateAllPrimaryLevelDistributions(
     planningStartDate,
     endDate,
     levels: PRIMARY_PLANNING_LEVEL_IDS.map((levelId) =>
-      buildLevelDistribution(levelId, planningStartDate, academicYearId)
+      buildLevelDistribution(
+        levelId,
+        planningStartDate,
+        academicYearId,
+        teacherLearningPlans?.get(levelId)
+      )
     ),
   };
 }
@@ -590,9 +811,18 @@ function formatDateForPlanning(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-export function canonicalReferenceSessions(levelId: string): CanonicalPlanningSession[] {
+export function canonicalReferenceSessions(
+  levelId: string,
+  teacherLearningPlan?: TeacherLearningPlanData | TeacherLearningPlan
+): CanonicalPlanningSession[] {
   const startYear = getCurrentAcademicYear().slice(0, 4);
-  return canonicalPlanningSessions(levelId, startYear + '-09-01');
+  return canonicalPlanningSessions(
+    levelId,
+    startYear + '-09-01',
+    undefined,
+    0,
+    teacherLearningPlan
+  );
 }
 
 export function buildClassPlannedSessionSeeds(
@@ -601,13 +831,14 @@ export function buildClassPlannedSessionSeeds(
   academicYearId: string,
   levelId: unknown,
   planningStartDate: string,
-  weeklySlots?: WeeklyTimetablePlanningSlot[]
+  weeklySlots?: WeeklyTimetablePlanningSlot[],
+  teacherLearningPlan?: TeacherLearningPlanData | TeacherLearningPlan
 ): ClassPlannedSessionSeed[] {
   return buildClassPlannedSessionSeedsFromCanonicalSessions(
     teacherId,
     classId,
     academicYearId,
-    canonicalPlanningSessions(levelId, planningStartDate, academicYearId),
+    canonicalPlanningSessions(levelId, planningStartDate, academicYearId, 0, teacherLearningPlan),
     weeklySlots
   );
 }
@@ -861,10 +1092,11 @@ export function materializeClassPlannedSessionSeedsFromTimetable(
 export function findCanonicalPlanningSession(
   levelId: string,
   referenceSessionId: string,
-  planningStartDate: string
+  planningStartDate: string,
+  teacherLearningPlan?: TeacherLearningPlanData | TeacherLearningPlan
 ): CanonicalPlanningSession | null {
   return (
-    canonicalPlanningSessions(levelId, planningStartDate).find(
+    canonicalPlanningSessions(levelId, planningStartDate, undefined, 0, teacherLearningPlan).find(
       (session) => session.referenceSessionId === referenceSessionId
     ) || null
   );

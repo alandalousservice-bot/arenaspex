@@ -1717,7 +1717,7 @@ export function generateAnnualTimeDistribution(
         introDuration: PRIMARY_GRADES_1_3.introDurationMinutes,
       };
     } else if (grade === 4) {
-      return { sessionsPerWeek: 1, duration: 90, introSessions: 1, introDuration: 90 };
+      return { sessionsPerWeek: 2, duration: 90, introSessions: 1, introDuration: 90 };
     } else {
       return { sessionsPerWeek: 1, duration: 60, introSessions: 1, introDuration: 60 };
     }
@@ -1870,39 +1870,40 @@ export function generateAnnualTimeDistribution(
     const integration1 = originalList.find(
       (s) => s.typeLabel.includes('إدماجية 1') || (s.type === 'إدماجية' && s.sessionNumber === 5)
     );
-    const summative = originalList.find((s) => s.type === 'تقويم تحصيلي');
-    const learningSessions = originalList.filter((s) => s.type === 'تعلمية');
-
-    const learningBefore = learningSessions.slice(0, 3);
-    const learningAfter = learningSessions.slice(3);
-
-    const integration2 = {
-      sessionNumber: 99,
-      type: 'إدماجية' as const,
-      typeLabel: 'إدماجية 2',
-      objective: 'توظيف المكتسبات في وضعية إدماجية ثانية قبل التقويم التحصيلي',
-    };
-
     const ordered: Array<{
       sessionNumber: number;
       type: string;
       typeLabel: string;
       objective: string;
-    }> = [];
-    if (diagnostic) ordered.push(diagnostic as any);
-    ordered.push(...(learningBefore as any));
-    if (integration1) ordered.push(integration1 as any);
-    ordered.push(...(learningAfter.slice(0, 3) as any));
-    ordered.push(integration2 as any);
-    ordered.push(...(learningAfter.slice(3) as any));
-    if (summative) ordered.push(summative as any);
+    }> = originalList.map((session) => ({
+      sessionNumber: session.sessionNumber,
+      type: session.type,
+      typeLabel: session.typeLabel,
+      objective: session.objective,
+    }));
+    if (diagnostic && !ordered.some((session) => session.type === 'تقويم تشخيصي')) {
+      ordered.unshift(diagnostic);
+    }
+    if (integration1 && !ordered.some((session) => session.typeLabel === integration1.typeLabel)) {
+      const summativeIndex = ordered.findIndex((session) => session.type === 'تقويم تحصيلي');
+      ordered.splice(summativeIndex >= 0 ? summativeIndex : ordered.length, 0, integration1);
+    }
+    if (!ordered.some((session) => session.typeLabel === 'إدماجية 2')) {
+      const summativeIndex = ordered.findIndex((session) => session.type === 'تقويم تحصيلي');
+      ordered.splice(summativeIndex >= 0 ? summativeIndex : ordered.length, 0, {
+        sessionNumber: Number.MAX_SAFE_INTEGER,
+        type: 'إدماجية',
+        typeLabel: 'إدماجية 2',
+        objective: 'توظيف المكتسبات في وضعية إدماجية ثانية قبل التقويم التحصيلي',
+      });
+    }
 
     let objectiveCounter = 1;
     let fieldSessionCounter = 1;
     for (const obj of ordered) {
       const isSpecial = obj.type !== 'تعلمية';
       let sessionsForThisObjective = 1;
-      if (!isSpecial && (grade === 1 || grade === 2 || grade === 3)) {
+      if (!isSpecial && grade >= 1 && grade <= 4) {
         sessionsForThisObjective = 2;
       }
 
@@ -1959,7 +1960,7 @@ export function generateAnnualTimeDistribution(
         });
       }
 
-      if (grade === 1 || grade === 2 || grade === 3) {
+      if (grade >= 1 && grade <= 4) {
         if (firstSessionActualDate) {
           const nextWeekDesired = addDays(firstSessionActualDate, 7);
           currentDate = getNextValidSchoolDate(nextWeekDesired, true, academicYearId);

@@ -20,7 +20,7 @@ const seedsForCanonicalGroup = (
   seeds: ReturnType<typeof materializeClassPlannedSessionSeedsFromTimetable>['seeds'],
   references: string[]
 ) => {
-  const referenceSet = new Set(references);
+  const referenceSet = new Set(references.map((reference) => basePlanningReferenceId(reference)));
   return seeds.filter((seed) => referenceSet.has(basePlanningReferenceId(seed.referenceSessionId)));
 };
 
@@ -170,7 +170,10 @@ describe('authoritative session occurrence rules', () => {
         pedagogicalSeeds(seeds).map((seed) => basePlanningReferenceId(seed.referenceSessionId))
       );
 
-    expect(baseReferences(classA.seeds)).toEqual(canonicalReferences);
-    expect(baseReferences(classB.seeds)).toEqual(canonicalReferences);
+    const canonicalBaseReferences = new Set(
+      canonical.map((session) => basePlanningReferenceId(session.referenceSessionId))
+    );
+    expect(baseReferences(classA.seeds)).toEqual(canonicalBaseReferences);
+    expect(baseReferences(classB.seeds)).toEqual(canonicalBaseReferences);
   });
 });
