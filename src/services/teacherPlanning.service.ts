@@ -524,11 +524,10 @@ function teacherPlanSequence(
       'diagnostic'
     );
 
-    const secondIntegration = domain.integrationPoints.find((point) => point.label === 'إدماجية 2');
     const integrationsByObjective = new Map<string | null, typeof domain.integrationPoints>();
-    for (const point of [...domain.integrationPoints]
-      .filter((item) => item.label !== 'إدماجية 2')
-      .sort((left, right) => left.orderIndex - right.orderIndex)) {
+    for (const point of [...domain.integrationPoints].sort(
+      (left, right) => left.orderIndex - right.orderIndex
+    )) {
       const points = integrationsByObjective.get(point.afterObjectiveId) || [];
       points.push(point);
       integrationsByObjective.set(point.afterObjectiveId, points);
@@ -538,7 +537,7 @@ function teacherPlanSequence(
         add(
           'إدماجية',
           point.label,
-          officialSessionText(field, 'إدماجية', point.label),
+          point.objective?.trim() || officialSessionText(field, 'إدماجية', point.label),
           null,
           point.id,
           `integration:${point.id}`
@@ -564,16 +563,6 @@ function teacherPlanSequence(
       }
       addIntegrations(objective.id);
     });
-    if (secondIntegration) {
-      add(
-        'إدماجية',
-        secondIntegration.label,
-        officialSessionText(field, 'إدماجية', secondIntegration.label),
-        null,
-        secondIntegration.id,
-        `integration:${secondIntegration.id}`
-      );
-    }
     add(
       'تقويم تحصيلي',
       'تقويم تحصيلي',

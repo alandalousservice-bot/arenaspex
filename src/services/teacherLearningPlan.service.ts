@@ -9,13 +9,39 @@ const objectiveSchema = z.object({
   text: z.string().trim().min(1).max(2000),
   orderIndex: z.number().int().positive(),
   sourceReferenceId: z.string().trim().max(240).nullable().optional(),
+  learningContent: z.string().trim().max(4000).optional(),
+  executionContent: z.string().trim().max(4000).optional(),
+  resources: z.array(z.string().trim().max(500)).max(30).optional(),
+  pedagogicalKnowledge: z.string().trim().max(2000).optional(),
+  guidance: z.string().trim().max(2000).optional(),
+  teacherNotes: z.string().trim().max(2000).optional(),
+  situations: z
+    .array(
+      z.object({
+        situationId: z.string().trim().min(1),
+        name: z.string().trim().min(1).max(500),
+        organization: z.string().trim().max(1000),
+        equipment: z.array(z.string().trim().max(500)).max(30),
+        variations: z.string().trim().max(2000).optional(),
+      })
+    )
+    .max(20)
+    .optional(),
 });
 
 const integrationPointSchema = z.object({
   id: z.string().trim().min(1).max(160),
   afterObjectiveId: z.string().trim().max(160).nullable(),
   orderIndex: z.number().int().positive(),
-  label: z.enum(['إدماجية 1', 'إدماجية 2']),
+  label: z.string().trim().min(1).max(100),
+  objective: z.string().trim().max(2000).optional(),
+  learningContent: z.string().trim().max(4000).optional(),
+  executionContent: z.string().trim().max(4000).optional(),
+  resources: z.array(z.string().trim().max(500)).max(30).optional(),
+  pedagogicalKnowledge: z.string().trim().max(2000).optional(),
+  guidance: z.string().trim().max(2000).optional(),
+  teacherNotes: z.string().trim().max(2000).optional(),
+  situations: objectiveSchema.shape.situations,
 });
 
 const teacherLearningPlanDomainSchema = z.object({
@@ -158,10 +184,26 @@ export function normalizeTeacherLearningPlan(plan: TeacherLearningPlan): Teacher
         ...objective,
         text: objective.text.trim(),
         orderIndex: index + 1,
+        learningContent: objective.learningContent?.trim() || '',
+        executionContent: objective.executionContent?.trim() || '',
+        resources: objective.resources || [],
+        pedagogicalKnowledge: objective.pedagogicalKnowledge?.trim() || '',
+        guidance: objective.guidance?.trim() || '',
+        teacherNotes: objective.teacherNotes?.trim() || '',
+        situations: objective.situations || [],
       })),
       integrationPoints: domain.integrationPoints.map((point, index) => ({
         ...point,
         orderIndex: index + 1,
+        label: `إدماجية ${index + 1}`,
+        objective: point.objective?.trim() || '',
+        learningContent: point.learningContent?.trim() || '',
+        executionContent: point.executionContent?.trim() || '',
+        resources: point.resources || [],
+        pedagogicalKnowledge: point.pedagogicalKnowledge?.trim() || '',
+        guidance: point.guidance?.trim() || '',
+        teacherNotes: point.teacherNotes?.trim() || '',
+        situations: point.situations || [],
       })),
     })),
   };
@@ -181,6 +223,14 @@ function newObjectiveId(levelId: string, fieldId: string): string {
 
 function integrationId(levelId: string, fieldId: string, label: string): string {
   return `teacher-integration:${levelId}:${fieldId}:${label}`;
+}
+
+function newIntegrationId(levelId: string, fieldId: string): string {
+  const randomId =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `teacher-integration:${levelId}:${fieldId}:${randomId}`;
 }
 
 export function seedTeacherLearningPlan(
@@ -220,7 +270,7 @@ export function seedTeacherLearningPlan(
             id: integrationId(levelId, field.fieldId, `إدماجية ${index + 1}`),
             afterObjectiveId: objectiveBefore?.id || null,
             orderIndex: index + 1,
-            label: `إدماجية ${index + 1}` as 'إدماجية 1' | 'إدماجية 2',
+            label: `إدماجية ${index + 1}`,
           };
         });
 
@@ -310,6 +360,155 @@ export function updateTeacherLearningObjective(
           }
         : domain
     ),
+  });
+}
+
+type TeacherLearningItemFields = {
+  text?: string;
+  objective?: string;
+  learningContent?: string;
+  executionContent?: string;
+  resources?: string[];
+  pedagogicalKnowledge?: string;
+  guidance?: string;
+  teacherNotes?: string;
+  situations?: TeacherLearningPlan['domains'][number]['objectives'][number]['situations'];
+};
+
+export function updateTeacherLearningObjectiveDetails(
+  plan: TeacherLearningPlan,
+  fieldId: string,
+  objectiveId: string,
+  fields: TeacherLearningItemFields
+): TeacherLearningPlan {
+  const text = fields.text?.trim();
+  if (fields.text !== undefined && !text) throw new Error('اكتب هدفاً تعليمياً صالحاً.');
+  return normalizeTeacherLearningPlan({
+    ...plan,
+    domains: plan.domains.map((domain) =>
+      domain.fieldId === fieldId
+        ? {
+            ...domain,
+            objectives: domain.objectives.map((objective) =>
+              objective.id === objectiveId
+                ? {
+                    ...objective,
+                    ...(text === undefined ? {} : { text }),
+                    ...fields,
+                    ...(text === undefined ? {} : { text }),
+                  }
+                : objective
+            ),
+          }
+        : domain
+    ),
+  });
+}
+
+export function addTeacherLearningIntegration(
+  plan: TeacherLearningPlan,
+  fieldId: string,
+  afterObjectiveId: string | null,
+  fields: TeacherLearningItemFields = {}
+): TeacherLearningPlan {
+  return normalizeTeacherLearningPlan({
+    ...plan,
+    domains: plan.domains.map((domain) =>
+      domain.fieldId === fieldId
+        ? {
+            ...domain,
+            integrationPoints: [
+              ...domain.integrationPoints,
+              {
+                id: newIntegrationId(plan.levelId, fieldId),
+                afterObjectiveId,
+                orderIndex: domain.integrationPoints.length + 1,
+                label: `إدماجية ${domain.integrationPoints.length + 1}`,
+                objective: fields.objective?.trim() || '',
+                learningContent: fields.learningContent?.trim() || '',
+                executionContent: fields.executionContent?.trim() || '',
+                resources: fields.resources || [],
+                pedagogicalKnowledge: fields.pedagogicalKnowledge?.trim() || '',
+                guidance: fields.guidance?.trim() || '',
+                teacherNotes: fields.teacherNotes?.trim() || '',
+                situations: fields.situations || [],
+              },
+            ],
+          }
+        : domain
+    ),
+  });
+}
+
+export function updateTeacherLearningIntegration(
+  plan: TeacherLearningPlan,
+  fieldId: string,
+  integrationIdValue: string,
+  fields: TeacherLearningItemFields & { afterObjectiveId?: string | null }
+): TeacherLearningPlan {
+  return normalizeTeacherLearningPlan({
+    ...plan,
+    domains: plan.domains.map((domain) =>
+      domain.fieldId === fieldId
+        ? {
+            ...domain,
+            integrationPoints: domain.integrationPoints.map((point) =>
+              point.id === integrationIdValue
+                ? {
+                    ...point,
+                    ...fields,
+                    ...(fields.objective === undefined
+                      ? {}
+                      : { objective: fields.objective.trim() }),
+                  }
+                : point
+            ),
+          }
+        : domain
+    ),
+  });
+}
+
+export function deleteTeacherLearningIntegration(
+  plan: TeacherLearningPlan,
+  fieldId: string,
+  integrationIdValue: string
+): TeacherLearningPlan {
+  return normalizeTeacherLearningPlan({
+    ...plan,
+    domains: plan.domains.map((domain) =>
+      domain.fieldId === fieldId
+        ? {
+            ...domain,
+            integrationPoints: domain.integrationPoints.filter(
+              (point) => point.id !== integrationIdValue
+            ),
+          }
+        : domain
+    ),
+  });
+}
+
+export function reorderTeacherLearningIntegrations(
+  plan: TeacherLearningPlan,
+  fieldId: string,
+  integrationIdValue: string,
+  direction: 'up' | 'down'
+): TeacherLearningPlan {
+  return normalizeTeacherLearningPlan({
+    ...plan,
+    domains: plan.domains.map((domain) => {
+      if (domain.fieldId !== fieldId) return domain;
+      const index = domain.integrationPoints.findIndex((point) => point.id === integrationIdValue);
+      const nextIndex = direction === 'up' ? index - 1 : index + 1;
+      if (index < 0 || nextIndex < 0 || nextIndex >= domain.integrationPoints.length) return domain;
+      const integrationPoints = [...domain.integrationPoints];
+      [integrationPoints[index], integrationPoints[nextIndex]] = [
+        integrationPoints[nextIndex],
+        integrationPoints[index],
+      ];
+      return { ...domain, integrationPoints };
+    }),
   });
 }
 

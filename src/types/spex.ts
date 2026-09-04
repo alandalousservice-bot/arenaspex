@@ -498,13 +498,28 @@ export interface TeacherLearningObjective {
   text: string;
   orderIndex: number;
   sourceReferenceId?: string | null;
+  learningContent?: string;
+  executionContent?: string;
+  resources?: string[];
+  pedagogicalKnowledge?: string;
+  guidance?: string;
+  teacherNotes?: string;
+  situations?: EducationalSituationSnapshot[];
 }
 
 export interface TeacherLearningIntegrationPoint {
   id: string;
   afterObjectiveId: string | null;
   orderIndex: number;
-  label: 'إدماجية 1' | 'إدماجية 2';
+  label: string;
+  objective?: string;
+  learningContent?: string;
+  executionContent?: string;
+  resources?: string[];
+  pedagogicalKnowledge?: string;
+  guidance?: string;
+  teacherNotes?: string;
+  situations?: EducationalSituationSnapshot[];
 }
 
 export interface TeacherLearningPlanDomain {

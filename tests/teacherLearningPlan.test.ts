@@ -2,13 +2,18 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../src/data/algerianCurriculum';
 import {
+  addTeacherLearningIntegration,
   addTeacherLearningObjective,
+  deleteTeacherLearningIntegration,
   deleteTeacherLearningObjective,
   normalizeTeacherLearningPlan,
+  reorderTeacherLearningIntegrations,
   reorderTeacherLearningObjectives,
   seedTeacherLearningPlan,
   teacherLearningPlanSchema,
+  updateTeacherLearningIntegration,
   updateTeacherLearningObjective,
+  updateTeacherLearningObjectiveDetails,
 } from '../src/services/teacherLearningPlan.service';
 
 const read = (path: string) => fs.readFileSync(path, 'utf8');
@@ -56,6 +61,76 @@ describe('teacher-owned learning plan foundation', () => {
     const original = plan.domains[0].objectives[0];
     const edited = updateTeacherLearningObjective(plan, 'f_locomotion', original.id, 'هدف معدل');
     expect(edited.domains[0].objectives[0]).toMatchObject({ id: original.id, text: 'هدف معدل' });
+  });
+
+  it('supports teacher-owned pedagogical fields and reference situation snapshots', () => {
+    const plan = seedTeacherLearningPlan('lvl_p1');
+    const objective = plan.domains[0].objectives[0];
+    const situation = {
+      situationId: 'PDF-G1-01',
+      name: 'موقف مرجعي',
+      organization: 'تنظيم آمن',
+      equipment: ['مخاريط'],
+    };
+    const edited = updateTeacherLearningObjectiveDetails(plan, 'f_locomotion', objective.id, {
+      text: 'هدف مخصص',
+      learningContent: 'محتوى التعلم',
+      executionContent: 'محتوى الإنجاز',
+      resources: ['كرات'],
+      pedagogicalKnowledge: 'معرفة بيداغوجية',
+      guidance: 'توجيه',
+      teacherNotes: 'ملاحظة',
+      situations: [situation],
+    });
+    expect(edited.domains[0].objectives[0]).toMatchObject({
+      id: objective.id,
+      text: 'هدف مخصص',
+      learningContent: 'محتوى التعلم',
+      executionContent: 'محتوى الإنجاز',
+      resources: ['كرات'],
+      situations: [situation],
+    });
+  });
+
+  it('adds, places, renumbers, reorders, and deletes flexible integrations', () => {
+    const plan = seedTeacherLearningPlan('lvl_p1');
+    const firstObjective = plan.domains[0].objectives[0];
+    let changed = addTeacherLearningIntegration(plan, 'f_locomotion', firstObjective.id, {
+      objective: 'إدماجية مخصصة',
+    });
+    expect(changed.domains[0].integrationPoints.at(-1)).toMatchObject({
+      label: 'إدماجية 3',
+      afterObjectiveId: firstObjective.id,
+      objective: 'إدماجية مخصصة',
+    });
+    const added = changed.domains[0].integrationPoints.at(-1)!;
+    changed = updateTeacherLearningIntegration(changed, 'f_locomotion', added.id, {
+      afterObjectiveId: null,
+      objective: 'إدماجية محدثة',
+    });
+    expect(
+      changed.domains[0].integrationPoints.find((point) => point.id === added.id)
+    ).toMatchObject({
+      label: 'إدماجية 3',
+      afterObjectiveId: null,
+      objective: 'إدماجية محدثة',
+    });
+    const reordered = reorderTeacherLearningIntegrations(changed, 'f_locomotion', added.id, 'up');
+    expect(reordered.domains[0].integrationPoints.map((point) => point.id)).toEqual([
+      changed.domains[0].integrationPoints[0].id,
+      added.id,
+      changed.domains[0].integrationPoints[1].id,
+    ]);
+    expect(reordered.domains[0].integrationPoints.map((point) => point.label)).toEqual([
+      'إدماجية 1',
+      'إدماجية 2',
+      'إدماجية 3',
+    ]);
+    const deleted = deleteTeacherLearningIntegration(reordered, 'f_locomotion', added.id);
+    expect(deleted.domains[0].integrationPoints.map((point) => point.label)).toEqual([
+      'إدماجية 1',
+      'إدماجية 2',
+    ]);
   });
 
   it('deletes an objective without touching the official source', () => {

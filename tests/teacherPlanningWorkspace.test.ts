@@ -151,6 +151,15 @@ describe('unified Teacher planning workspace', () => {
     expect(segments).toContain('useTeacherLearningPlan');
     expect(segments).toContain('إضافة هدف');
     expect(segments).toContain('حذف الهدف');
+    expect(segments).toContain('إضافة حصة');
+    expect(segments).toContain('addTeacherLearningIntegration');
+    expect(segments).toContain('updateTeacherLearningIntegration');
+    expect(segments).toContain('findSuitableSituations');
+    expect(segments).toContain('محتوى التعلم');
+    expect(segments).toContain('محتوى الإنجاز');
+    expect(segments).toContain('تقويم تشخيصي');
+    expect(segments).toContain('تقويم تحصيلي');
+    expect(segments).toContain('حصة تعلمية ${index + 1}');
     expect(printCss).toContain('size: A4 portrait');
     expect(printCss).toContain('-webkit-print-color-adjust: exact');
     expect(printCss).toContain('page-break-inside: avoid');

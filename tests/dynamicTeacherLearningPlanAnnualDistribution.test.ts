@@ -50,13 +50,8 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
     const secondIntegrationIndex = sessions.findIndex(
       (session) => session.sessionTypeLabel === 'إدماجية 2'
     );
-    const finalLearningIndex = sessions.reduce(
-      (lastIndex, session, index) => (session.sessionType === 'تعلمية' ? index : lastIndex),
-      -1
-    );
-    const summativeIndex = sessions.findIndex((session) => session.sessionType === 'تقويم تحصيلي');
-    expect(secondIntegrationIndex).toBeGreaterThan(finalLearningIndex);
-    expect(secondIntegrationIndex).toBe(summativeIndex - 1);
+    expect(secondIntegrationIndex).toBe(14);
+    expect(sessions[secondIntegrationIndex - 1].objectiveId).toBe(plan.domains[0].objectives[5].id);
   });
 
   it('supports the explicit 8-8-7 scenario without hard-coding it', () => {
@@ -141,8 +136,8 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
       (session) => session.sessionTypeLabel === 'إدماجية 2'
     );
     expect(sessions[firstIntegrationIndex - 1].objectiveId).toBe(domain.objectives[2].id);
-    expect(sessions[secondIntegrationIndex - 1].objectiveId).toBe(domain.objectives.at(-1)!.id);
-    expect(sessions[secondIntegrationIndex + 1].sessionType).toBe('تقويم تحصيلي');
+    expect(sessions[secondIntegrationIndex - 1].objectiveId).toBe(domain.objectives[5].id);
+    expect(sessions[secondIntegrationIndex + 1].objectiveId).toBe(domain.objectives[6].id);
   });
 
   it('normalizes malformed Integration 2 placement for Grade 5 as well', () => {
@@ -167,12 +162,8 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
     const secondIntegrationIndex = sessions.findIndex(
       (session) => session.sessionTypeLabel === 'إدماجية 2'
     );
-    const finalLearningIndex = sessions.reduce(
-      (lastIndex, session, index) => (session.sessionType === 'تعلمية' ? index : lastIndex),
-      -1
-    );
-    expect(secondIntegrationIndex).toBe(finalLearningIndex + 1);
-    expect(sessions[secondIntegrationIndex + 1].sessionType).toBe('تقويم تحصيلي');
+    expect(secondIntegrationIndex).toBe(2);
+    expect(sessions[secondIntegrationIndex + 1].objectiveId).toBe(domain.objectives[1].id);
   });
 
   it('keeps stable identity through reorder and text edits', () => {

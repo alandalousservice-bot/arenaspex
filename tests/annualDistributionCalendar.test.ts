@@ -199,9 +199,9 @@ describe('weekly level-based annual distribution', () => {
     expect(annualDistributionWeekTypeLabel(weeks[3])).toBe('تعلمية 2 (ب) - تعلمية 3 (أ)');
     expect(annualDistributionWeekTypeLabel(weeks[4])).toBe('تعلمية 3 (ب) - إدماجية 1');
     expect(annualDistributionWeekTypeLabel(weeks[5])).toBe('تعلمية 4 (أ - ب)');
-    expect(annualDistributionWeekTypeLabel(weeks[8])).toBe('تعلمية 7 (أ - ب)');
-    expect(annualDistributionWeekTypeLabel(weeks[9])).toBe('إدماجية 2 - تقويم تحصيلي');
-    expect(annualDistributionWeekTypeLabel(weeks[8])).not.toContain('إدماجية 2 - تعلمية');
+    expect(annualDistributionWeekTypeLabel(weeks[8])).toBe('إدماجية 2 - تعلمية 7 (أ)');
+    expect(annualDistributionWeekTypeLabel(weeks[9])).toBe('تعلمية 7 (ب) - تقويم تحصيلي');
+    expect(annualDistributionWeekTypeLabel(weeks[8])).toContain('إدماجية 2 - تعلمية');
     expect(annualDistributionWeekTypeLabel(weeks[10])).toBe('تقويم تشخيصي - تعلمية 1 (أ)');
   });
 
