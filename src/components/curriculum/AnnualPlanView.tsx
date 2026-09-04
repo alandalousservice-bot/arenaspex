@@ -40,12 +40,12 @@ function buildEditValues(
   display: (key: string, value: string) => string
 ): AnnualPlanEditValues {
   return {
-    comprehensive: display('comprehensive', level.comprehensive),
+    comprehensive: level.comprehensive,
     domains: Object.fromEntries(
       level.domains.map((domain) => [
         domain.fieldId,
         {
-          competency: display(`${domain.fieldId}__final`, domain.finalCompetency),
+          competency: domain.finalCompetency,
           components: display(`${domain.fieldId}__components`, domain.components),
           knowledgeResources: display(`${domain.fieldId}__knowledge`, domain.knowledgeResources),
           transversalResources: display(
@@ -64,11 +64,8 @@ function buildEditValues(
 }
 
 function buildOverrides(values: AnnualPlanEditValues) {
-  const overrides: Record<string, Record<string, string>> = {
-    comprehensive: { comprehensive: values.comprehensive },
-  };
+  const overrides: Record<string, Record<string, string>> = {};
   Object.entries(values.domains).forEach(([fieldId, value]) => {
-    overrides[`${fieldId}__final`] = { finalCompetency: value.competency || '' };
     overrides[`${fieldId}__components`] = { components: value.components || '' };
     overrides[`${fieldId}__knowledge`] = { knowledgeResources: value.knowledgeResources || '' };
     overrides[`${fieldId}__transversal`] = {
@@ -138,7 +135,7 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
       buildDomainPresentation(
         {
           ...domain,
-          finalCompetency: displayValue(`${domain.fieldId}__final`, domain.finalCompetency),
+          finalCompetency: domain.finalCompetency,
           components: displayValue(`${domain.fieldId}__components`, domain.components),
           knowledgeResources: displayValue(
             `${domain.fieldId}__knowledge`,
@@ -159,7 +156,7 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
     );
     return {
       ...model,
-      overallCompetency: displayValue('comprehensive', referenceLevel.comprehensive),
+      overallCompetency: referenceLevel.comprehensive,
     };
   }, [referenceLevel, displayValue]);
   useEffect(() => {
@@ -353,9 +350,6 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
           presentation={presentation}
           editValues={edit}
           isEditing={isEditing}
-          onComprehensiveChange={(value) =>
-            setEditValues((current) => (current ? { ...current, comprehensive: value } : current))
-          }
           onDomainChange={updateDomain}
         />
         {isCleared && !isEditing && (

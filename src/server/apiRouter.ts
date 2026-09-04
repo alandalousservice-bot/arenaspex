@@ -70,6 +70,13 @@ import { deleteOwnedStudent, StudentDeletionError } from '../services/studentDel
 import { buildStudentRosterReadModel } from '../services/studentRosterReadModel.service.js';
 import { persistStudentRosterRows } from '../services/studentRosterPersistence.service.js';
 import {
+  normalizeTeacherLearningPlan,
+  parseTeacherLearningPlan,
+  seedTeacherLearningPlan,
+  teacherLearningPlanSchema,
+  TEACHER_LEARNING_PLAN_KIND,
+} from '../services/teacherLearningPlan.service.js';
+import {
   deleteOwnedStudentClass,
   StudentClassDeletionError,
 } from '../services/studentClassDeletion.service.js';
@@ -4293,11 +4300,133 @@ const annualPlanUpsertSchema = z.object({
     'section_wording',
     'schedule_dates',
     'annual_distribution',
+    'teacher_learning_plan',
   ]),
-  data: z.object({
-    overrides: z.record(annualPlanOverrideValueSchema),
-    note: z.string().trim().max(1000).optional(),
-  }),
+  data: z.union([
+    z.object({
+      overrides: z.record(annualPlanOverrideValueSchema),
+      note: z.string().trim().max(1000).optional(),
+    }),
+    teacherLearningPlanSchema,
+  ]),
+});
+
+const teacherLearningPlanQuerySchema = z.object({
+  levelId: z.string().min(1),
+  academicYearId: academicYearIdSchema,
+});
+
+const teacherLearningPlanRequestSchema = z.object({
+  levelId: z.string().min(1),
+  academicYearId: academicYearIdSchema,
+  plan: teacherLearningPlanSchema,
+});
+
+function legacyWordingObjectives(data: unknown): Record<string, { objective?: string }> {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return {};
+  const overrides = (data as { overrides?: unknown }).overrides;
+  if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) return {};
+  return Object.fromEntries(
+    Object.entries(overrides).map(([key, value]) => [
+      key,
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? {
+            objective:
+              typeof (value as { objective?: unknown }).objective === 'string'
+                ? (value as { objective: string }).objective
+                : undefined,
+          }
+        : {},
+    ])
+  );
+}
+
+apiRouter.get('/teacher/learning-plan', requireRole('teacher'), async (req, res) => {
+  const parsed = teacherLearningPlanQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: 'المستوى والسنة الدراسية مطلوبان.' });
+  const { levelId, academicYearId } = parsed.data;
+  const normalizedLevelId = normalizePrimaryLevelId(levelId);
+  if (!normalizedLevelId || !COMPLETE_ANNUAL_CURRICULUM[normalizedLevelId]) {
+    return res.status(400).json({ error: 'المستوى الدراسي غير معروف.' });
+  }
+
+  const record = await prisma.annualPlan.findUnique({
+    where: {
+      teacherId_academicYearId_levelId_kind: {
+        teacherId: req.user!.id,
+        academicYearId,
+        levelId: normalizedLevelId,
+        kind: TEACHER_LEARNING_PLAN_KIND,
+      },
+    },
+    select: { data: true },
+  });
+  if (record) {
+    const plan = teacherLearningPlanSchema.safeParse(record.data);
+    if (!plan.success) return res.status(422).json({ error: 'خطة الأستاذ المحفوظة غير صالحة.' });
+    return res.json({
+      success: true,
+      plan: normalizeTeacherLearningPlan(plan.data),
+      initialized: true,
+    });
+  }
+
+  const legacy = await prisma.annualPlan.findUnique({
+    where: {
+      teacherId_academicYearId_levelId_kind: {
+        teacherId: req.user!.id,
+        academicYearId,
+        levelId: normalizedLevelId,
+        kind: 'section_wording',
+      },
+    },
+    select: { data: true },
+  });
+  return res.json({
+    success: true,
+    plan: seedTeacherLearningPlan(normalizedLevelId, legacyWordingObjectives(legacy?.data)),
+    initialized: false,
+  });
+});
+
+apiRouter.post('/teacher/learning-plan', requireRole('teacher'), async (req, res) => {
+  const parsed = teacherLearningPlanRequestSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res
+      .status(400)
+      .json({ error: parsed.error.errors[0]?.message || 'بيانات خطة الأستاذ غير صحيحة.' });
+  }
+  const { academicYearId, levelId } = parsed.data;
+  const normalizedLevelId = normalizePrimaryLevelId(levelId);
+  if (!normalizedLevelId || normalizedLevelId !== parsed.data.plan.levelId) {
+    return res.status(400).json({ error: 'المستوى لا يطابق خطة الأستاذ.' });
+  }
+  const plan = normalizeTeacherLearningPlan(parsed.data.plan);
+  const saved = await prisma.annualPlan.upsert({
+    where: {
+      teacherId_academicYearId_levelId_kind: {
+        teacherId: req.user!.id,
+        academicYearId,
+        levelId: normalizedLevelId,
+        kind: TEACHER_LEARNING_PLAN_KIND,
+      },
+    },
+    create: {
+      id: `tlp_${req.user!.id}_${academicYearId}_${normalizedLevelId}`,
+      teacherId: req.user!.id,
+      academicYearId,
+      levelId: normalizedLevelId,
+      kind: TEACHER_LEARNING_PLAN_KIND,
+      status: 'draft',
+      data: plan as unknown as Prisma.InputJsonValue,
+    },
+    update: {
+      status: 'draft',
+      data: plan as unknown as Prisma.InputJsonValue,
+    },
+    select: { data: true },
+  });
+  return res.json({ success: true, plan: parseTeacherLearningPlan(saved.data) });
 });
 
 // حفظ/تعديل مخطط أو توزيع سنوي: الأستاذ لمسودته الخاصة، أو المفتش كاقتراح لأستاذ
@@ -4329,6 +4458,16 @@ apiRouter.post('/db/annual-plans', async (req, res) => {
     return res.status(403).json({ error: 'لا تملك الصلاحية لهذا الإجراء.' });
   }
 
+  let persistedData = data as unknown as Prisma.InputJsonValue;
+  if (kind === TEACHER_LEARNING_PLAN_KIND) {
+    const plan = teacherLearningPlanSchema.safeParse(data);
+    const normalizedLevelId = normalizePrimaryLevelId(levelId);
+    if (!plan.success || !normalizedLevelId || plan.data.levelId !== normalizedLevelId) {
+      return res.status(400).json({ error: 'بيانات خطة الأستاذ لا تطابق المستوى المحدد.' });
+    }
+    persistedData = normalizeTeacherLearningPlan(plan.data) as unknown as Prisma.InputJsonValue;
+  }
+
   const existing = await prisma.annualPlan.findUnique({
     where: { teacherId_academicYearId_levelId_kind: { teacherId, academicYearId, levelId, kind } },
   });
@@ -4351,12 +4490,12 @@ apiRouter.post('/db/annual-plans', async (req, res) => {
       kind,
       status,
       proposedByInspectorId,
-      data,
+      data: persistedData,
     },
     update: {
       status,
       proposedByInspectorId,
-      data,
+      data: persistedData,
       ...(status === 'draft' ? { approvedAt: null } : {}),
     },
   });

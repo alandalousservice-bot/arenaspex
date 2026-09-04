@@ -148,8 +148,9 @@ describe('unified Teacher planning workspace', () => {
     expect(segments).toContain('طباعة المقاطع التعلمية');
     expect(segments).toContain('planning-print-header');
     expect(segments).toContain('OVERALL_COMPETENCY_BY_LEVEL');
-    expect(segments).toContain('effectiveCurriculumObjective');
-    expect(segments).toContain('sessionsList.map');
+    expect(segments).toContain('useTeacherLearningPlan');
+    expect(segments).toContain('إضافة هدف');
+    expect(segments).toContain('حذف الهدف');
     expect(printCss).toContain('size: A4 portrait');
     expect(printCss).toContain('-webkit-print-color-adjust: exact');
     expect(printCss).toContain('page-break-inside: avoid');

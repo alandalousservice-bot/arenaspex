@@ -4,15 +4,34 @@
  */
 
 import React, { useState } from 'react';
-import { Layers, Search, BookOpen, Clock, CheckCircle2, Printer } from 'lucide-react';
+import {
+  Layers,
+  Search,
+  BookOpen,
+  Clock,
+  CheckCircle2,
+  Printer,
+  ArrowDown,
+  ArrowUp,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from 'lucide-react';
 import {
   PE_LEVELS,
   PE_FIELDS,
   COMPLETE_ANNUAL_CURRICULUM,
   OVERALL_COMPETENCY_BY_LEVEL,
 } from '../../data/algerianCurriculum';
-import { useCurriculumOverrides } from '../../hooks/useCurriculumOverrides';
-import { effectiveCurriculumObjective } from '../../services/teacherPlanning.service';
+import { useTeacherLearningPlan } from '../../hooks/useTeacherLearningPlan';
+import {
+  addTeacherLearningObjective,
+  deleteTeacherLearningObjective,
+  reorderTeacherLearningObjectives,
+  updateTeacherLearningObjective,
+} from '../../services/teacherLearningPlan.service';
 import type { User } from '../../types/spex';
 import { AcademicYearLabel } from '../common/AcademicYearLabel';
 
@@ -30,24 +49,83 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
   const [selectedLevelId, setSelectedLevelId] = useState<string>('lvl_p1');
   const [selectedFieldId, setSelectedFieldId] = useState<string>('all');
   const [searchVal, setSearchVal] = useState('');
-  const { values: wordingOverrides } = useCurriculumOverrides({
+  const {
+    plan,
+    isLoading: isPlanLoading,
+    isSaving,
+    error: planError,
+    persist,
+  } = useTeacherLearningPlan({
     currentUser,
     levelId: selectedLevelId,
-    kind: 'section_wording',
     academicYearId,
   });
+  const [newObjectiveFieldId, setNewObjectiveFieldId] = useState<string | null>(null);
+  const [newObjectiveText, setNewObjectiveText] = useState('');
+  const [editingObjective, setEditingObjective] = useState<{
+    fieldId: string;
+    objectiveId: string;
+    text: string;
+  } | null>(null);
 
   const currentLevelCurriculum =
     COMPLETE_ANNUAL_CURRICULUM[selectedLevelId] || COMPLETE_ANNUAL_CURRICULUM['lvl_p1'];
 
   const filteredFields = Object.values(currentLevelCurriculum.fields).filter((field) => {
     const matchesField = selectedFieldId === 'all' || field.fieldId === selectedFieldId;
+    const planDomain = plan?.domains.find((domain) => domain.fieldId === field.fieldId);
     const matchesSearch =
       field.fieldName.includes(searchVal) ||
       field.finalCompetency.includes(searchVal) ||
-      field.sessionsList.some((s) => s.objective.includes(searchVal));
+      planDomain?.objectives.some((objective) => objective.text.includes(searchVal));
     return matchesField && matchesSearch;
   });
+
+  const savePlan = (nextPlan: Parameters<typeof persist>[0]) => {
+    void persist(nextPlan);
+  };
+
+  const addObjective = (fieldId: string) => {
+    if (!plan || !newObjectiveText.trim()) return;
+    try {
+      savePlan(addTeacherLearningObjective(plan, fieldId, newObjectiveText));
+      setNewObjectiveText('');
+      setNewObjectiveFieldId(null);
+    } catch (reason: unknown) {
+      window.alert(reason instanceof Error ? reason.message : 'تعذر إضافة الهدف.');
+    }
+  };
+
+  const updateObjective = () => {
+    if (!plan || !editingObjective || !editingObjective.text.trim()) return;
+    try {
+      savePlan(
+        updateTeacherLearningObjective(
+          plan,
+          editingObjective.fieldId,
+          editingObjective.objectiveId,
+          editingObjective.text
+        )
+      );
+      setEditingObjective(null);
+    } catch (reason: unknown) {
+      window.alert(reason instanceof Error ? reason.message : 'تعذر تعديل الهدف.');
+    }
+  };
+
+  const removeObjective = (fieldId: string, objectiveId: string) => {
+    if (!plan || !window.confirm('هل تريد حذف هذا الهدف من خطة الأستاذ؟')) return;
+    try {
+      savePlan(deleteTeacherLearningObjective(plan, fieldId, objectiveId));
+    } catch (reason: unknown) {
+      window.alert(reason instanceof Error ? reason.message : 'تعذر حذف الهدف.');
+    }
+  };
+
+  const moveObjective = (fieldId: string, objectiveId: string, direction: 'up' | 'down') => {
+    if (!plan) return;
+    savePlan(reorderTeacherLearningObjectives(plan, fieldId, objectiveId, direction));
+  };
 
   return (
     <div
@@ -94,7 +172,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
             <span>المقاطع التعليمية والوحدات التعلمية (س1 إلى س5)</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            10 حصص بيداغوجية مبرمجة لكل ميدان تعلمي وفق التسلسل الوزاري الرسمي
+            المرجع الرسمي ثابت، بينما يضبط الأستاذ أهدافه التعليمية وترتيبها داخل كل ميدان.
           </p>
         </div>
 
@@ -155,6 +233,20 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
         {OVERALL_COMPETENCY_BY_LEVEL[selectedLevelId] || 'غير محددة'}
       </div>
 
+      {isPlanLoading && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3 text-xs font-bold text-blue-900">
+          جارٍ تحميل خطة الأهداف الخاصة بالأستاذ...
+        </div>
+      )}
+      {planError && (
+        <div
+          role="alert"
+          className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-900"
+        >
+          {planError}
+        </div>
+      )}
+
       {/* Field Filter Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 print:hidden">
         <button
@@ -200,7 +292,10 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
               </div>
 
               <span className="text-xs font-bold text-slate-500 flex items-center gap-1 shrink-0">
-                <Clock className="w-3.5 h-3.5 text-blue-600" /> {field.sessionsCount} حصص مبرمجة
+                <Clock className="w-3.5 h-3.5 text-blue-600" />{' '}
+                {plan?.domains.find((domain) => domain.fieldId === field.fieldId)?.objectives
+                  .length || 0}{' '}
+                أهداف تعليمية
               </span>
             </div>
 
@@ -249,43 +344,150 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
               </div>
             )}
 
-            {/* 10 Sessions List */}
+            {/* Teacher-owned learning objectives */}
             <div className="pt-2 border-t border-slate-100 space-y-2">
-              <span className="text-xs font-bold text-slate-800 block">
-                سيرورة الحصص التعلمية للمقطع (10 حصص):
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2">
-                {field.sessionsList.map((sess) => (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-slate-800 block">الأهداف التعليمية</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewObjectiveFieldId(field.fieldId);
+                    setNewObjectiveText('');
+                    setEditingObjective(null);
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[11px] font-bold text-white"
+                >
+                  <Plus className="h-3.5 w-3.5" /> إضافة هدف
+                </button>
+              </div>
+              <div className="space-y-2">
+                {(
+                  plan?.domains.find((domain) => domain.fieldId === field.fieldId)?.objectives || []
+                ).map((objective, objectiveIndex, objectives) => (
                   <div
-                    key={sess.sessionNumber}
-                    className={`p-2.5 rounded-xl border text-xs space-y-1 ${
-                      sess.type === 'تقويم تشخيصي'
-                        ? 'bg-amber-50 border-amber-200'
-                        : sess.type === 'إدماجية'
-                          ? 'bg-purple-50 border-purple-200'
-                          : sess.type === 'تقويم تحصيلي'
-                            ? 'bg-emerald-50 border-emerald-200'
-                            : 'bg-slate-50 border-slate-200'
-                    }`}
+                    key={objective.id}
+                    className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-start"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-extrabold text-[10px] text-slate-900">
-                        حصة{' '}
-                        {sess.sessionNumber < 10 ? '0' + sess.sessionNumber : sess.sessionNumber}
-                      </span>
-                      <span className="text-[10px] font-bold text-slate-600">{sess.typeLabel}</span>
-                    </div>
-                    <p className="text-[11px] font-semibold text-slate-800 leading-tight pt-0.5">
-                      {effectiveCurriculumObjective(
-                        field.fieldId,
-                        sess.sessionNumber,
-                        sess.objective,
-                        wordingOverrides
-                      )}
-                    </p>
+                    <span className="min-w-8 rounded-lg bg-blue-100 px-2 py-1 text-center text-[11px] font-black text-blue-800">
+                      {objectiveIndex + 1}
+                    </span>
+                    {editingObjective?.objectiveId === objective.id ? (
+                      <div className="flex min-w-0 flex-1 flex-col gap-2">
+                        <textarea
+                          value={editingObjective.text}
+                          onChange={(event) =>
+                            setEditingObjective({ ...editingObjective, text: event.target.value })
+                          }
+                          rows={2}
+                          className="w-full rounded-lg border border-blue-300 bg-white p-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={updateObjective}
+                            disabled={isSaving || !editingObjective.text.trim()}
+                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-[11px] font-bold text-white disabled:opacity-50"
+                          >
+                            <Save className="h-3.5 w-3.5" /> حفظ
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingObjective(null)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700"
+                          >
+                            <X className="h-3.5 w-3.5" /> إلغاء
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="min-w-0 flex-1 text-xs font-semibold leading-6 text-slate-800">
+                          {objective.text}
+                        </p>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            aria-label="تحرير الهدف"
+                            onClick={() =>
+                              setEditingObjective({
+                                fieldId: field.fieldId,
+                                objectiveId: objective.id,
+                                text: objective.text,
+                              })
+                            }
+                            className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:text-blue-700"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="رفع الهدف"
+                            disabled={objectiveIndex === 0 || isSaving}
+                            onClick={() => moveObjective(field.fieldId, objective.id, 'up')}
+                            className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 disabled:opacity-30"
+                          >
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="خفض الهدف"
+                            disabled={objectiveIndex === objectives.length - 1 || isSaving}
+                            onClick={() => moveObjective(field.fieldId, objective.id, 'down')}
+                            className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 disabled:opacity-30"
+                          >
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="حذف الهدف"
+                            disabled={objectives.length <= 1 || isSaving}
+                            onClick={() => removeObjective(field.fieldId, objective.id)}
+                            className="rounded-lg border border-rose-200 bg-white p-1.5 text-rose-600 disabled:opacity-30"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
+              {newObjectiveFieldId === field.fieldId && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+                  <label
+                    className="block text-xs font-bold text-blue-950"
+                    htmlFor={`new-objective-${field.fieldId}`}
+                  >
+                    الهدف التعليمي الجديد
+                  </label>
+                  <textarea
+                    id={`new-objective-${field.fieldId}`}
+                    value={newObjectiveText}
+                    onChange={(event) => setNewObjectiveText(event.target.value)}
+                    rows={2}
+                    placeholder="اكتب الهدف التعليمي..."
+                    className="mt-2 w-full rounded-lg border border-blue-300 bg-white p-2 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => addObjective(field.fieldId)}
+                      disabled={isSaving || !newObjectiveText.trim()}
+                      className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[11px] font-bold text-white disabled:opacity-50"
+                    >
+                      <Save className="h-3.5 w-3.5" /> حفظ الهدف
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewObjectiveFieldId(null)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700"
+                    >
+                      <X className="h-3.5 w-3.5" /> إلغاء
+                    </button>
+                  </div>
+                </div>
+              )}
+              {isSaving && <p className="text-[11px] font-bold text-blue-700">جارٍ حفظ الخطة...</p>}
             </div>
           </div>
         ))}

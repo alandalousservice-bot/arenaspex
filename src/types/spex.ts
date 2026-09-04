@@ -464,7 +464,8 @@ export type AnnualPlanKind =
   | 'section_wording'
   | 'schedule_dates'
   | 'annual_distribution'
-  | 'annual_plan_new';
+  | 'annual_plan_new'
+  | 'teacher_learning_plan';
 export type AnnualPlanStatus = 'draft' | 'proposed' | 'approved';
 export type LessonExecutionStatus = 'مبرمجة' | 'منجزة' | 'مؤجلة' | 'غير منجزة';
 
@@ -492,6 +493,33 @@ export interface AnnualPlanObjectiveOverride {
   isCleared?: boolean; // true means teacher intentionally cleared the plan
 }
 
+export interface TeacherLearningObjective {
+  id: string;
+  text: string;
+  orderIndex: number;
+  sourceReferenceId?: string | null;
+}
+
+export interface TeacherLearningIntegrationPoint {
+  id: string;
+  afterObjectiveId: string | null;
+  orderIndex: number;
+  label: 'إدماجية 1' | 'إدماجية 2';
+}
+
+export interface TeacherLearningPlanDomain {
+  fieldId: string;
+  finalCompetencyId?: string;
+  objectives: TeacherLearningObjective[];
+  integrationPoints: TeacherLearningIntegrationPoint[];
+}
+
+export interface TeacherLearningPlanData {
+  version: 1;
+  levelId: string;
+  domains: TeacherLearningPlanDomain[];
+}
+
 export interface AnnualPlan {
   id: string;
   teacherId: string;
@@ -502,8 +530,11 @@ export interface AnnualPlan {
   proposedByInspectorId?: string | null;
   approvedAt?: string | null;
   data: {
-    overrides: Record<string, AnnualPlanObjectiveOverride>;
+    overrides?: Record<string, AnnualPlanObjectiveOverride>;
     note?: string;
+    version?: 1;
+    levelId?: string;
+    domains?: TeacherLearningPlanDomain[];
   };
   createdAt: string;
   updatedAt: string;

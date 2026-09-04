@@ -11,7 +11,6 @@ interface AnnualPlanOfficialTableProps {
   presentation: AnnualPlanGradePresentation;
   editValues: AnnualPlanEditValues;
   isEditing: boolean;
-  onComprehensiveChange: (value: string) => void;
   onDomainChange: (domainId: string, field: string, value: string) => void;
 }
 
@@ -20,15 +19,17 @@ function DomainCell({
   children,
   isEditing,
   onChange,
+  editable = true,
 }: {
   value: string;
   children: React.ReactNode;
   isEditing: boolean;
   onChange: (value: string) => void;
+  editable?: boolean;
 }) {
   return (
     <td className="align-top border border-slate-300 bg-white p-3 text-right text-xs leading-6 text-slate-800">
-      {isEditing ? (
+      {isEditing && editable ? (
         <textarea
           value={value}
           onChange={(event) => onChange(event.target.value)}
@@ -54,24 +55,14 @@ export const AnnualPlanOfficialTable: React.FC<AnnualPlanOfficialTableProps> = (
   presentation,
   editValues,
   isEditing,
-  onComprehensiveChange,
   onDomainChange,
 }) => (
   <section className="annual-plan-table-section space-y-4 break-inside-avoid print:break-inside-avoid">
     <div className="annual-plan-overall rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
       <div className="mb-2 text-xs font-black text-emerald-900">الكفاءة الشاملة</div>
-      {isEditing ? (
-        <textarea
-          value={editValues.comprehensive}
-          onChange={(event) => onComprehensiveChange(event.target.value)}
-          rows={3}
-          className="w-full rounded-lg border border-emerald-300 bg-white p-2 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500"
-        />
-      ) : (
-        <p className="text-sm font-extrabold leading-7 text-slate-900">
-          {presentation.overallCompetency || '— فارغ —'}
-        </p>
-      )}
+      <p className="text-sm font-extrabold leading-7 text-slate-900">
+        {presentation.overallCompetency || '— فارغ —'}
+      </p>
     </div>
 
     <div className="annual-plan-table-wrapper overflow-x-auto rounded-2xl border border-slate-300 bg-white shadow-sm print:overflow-visible">
@@ -117,6 +108,7 @@ export const AnnualPlanOfficialTable: React.FC<AnnualPlanOfficialTableProps> = (
                   value={edit.competency ?? domain.competency}
                   isEditing={isEditing}
                   onChange={(value) => onDomainChange(domain.domainId, 'competency', value)}
+                  editable={false}
                 >
                   <p className="font-bold">{domain.competency || '— فارغ —'}</p>
                 </DomainCell>

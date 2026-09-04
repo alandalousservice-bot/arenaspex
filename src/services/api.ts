@@ -23,7 +23,12 @@ import {
   MedicalExemptionDto,
   TeacherAttendanceDto,
 } from '../types/spex';
-import type { AnnualPlan, AnnualPlanKind, AnnualPlanObjectiveOverride } from '../types/spex';
+import type {
+  AnnualPlan,
+  AnnualPlanKind,
+  AnnualPlanObjectiveOverride,
+  TeacherLearningPlanData,
+} from '../types/spex';
 import { offlinePost, offlineDelete } from '../lib/offline';
 
 export interface AuthResult {
@@ -2075,6 +2080,33 @@ export const approveAnnualPlan = (id: string) =>
 
 export const deleteAnnualPlan = (id: string) =>
   postJSON(`/api/db/annual-plans/${id}`, undefined, 'DELETE');
+
+export async function fetchTeacherLearningPlan(levelId: string, academicYearId: string) {
+  return getJSON(
+    `/api/teacher/learning-plan?levelId=${encodeURIComponent(levelId)}&academicYearId=${encodeURIComponent(academicYearId)}`
+  ) as Promise<{
+    success: boolean;
+    plan?: TeacherLearningPlanData;
+    initialized?: boolean;
+    error?: string;
+  }>;
+}
+
+export async function saveTeacherLearningPlan(
+  levelId: string,
+  academicYearId: string,
+  plan: TeacherLearningPlanData
+) {
+  return postJSON('/api/teacher/learning-plan', {
+    levelId,
+    academicYearId,
+    plan,
+  }) as Promise<{
+    success: boolean;
+    plan?: TeacherLearningPlanData;
+    error?: string;
+  }>;
+}
 
 function fallbackLessonClientGenerator(payload: LessonGeneratorPayload) {
   const customObj =
