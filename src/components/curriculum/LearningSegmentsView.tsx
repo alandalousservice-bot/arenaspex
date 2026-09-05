@@ -418,7 +418,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
             <button
               type="button"
               onClick={() => onNavigateToDistribution(selectedLevelId)}
-              className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
+              className="action-primary rounded-xl px-3 py-2 text-xs font-bold text-white"
             >
               فتح التوزيع السنوي
             </button>
@@ -461,7 +461,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
               setEditingItem(null);
               setNewSessionDraft(null);
             }}
-            className={`cursor-pointer whitespace-nowrap rounded-2xl px-4 py-2 text-xs font-bold transition-all ${level.id === selectedLevelId ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-100'}`}
+            className={`workspace-level-selector cursor-pointer whitespace-nowrap rounded-2xl px-4 py-2 text-xs font-bold transition-all ${level.id === selectedLevelId ? 'is-selected text-white shadow-md shadow-emerald-600/20' : 'border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-100'}`}
           >
             {level.name}
           </button>
@@ -617,7 +617,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                           afterObjectiveId: objectives.at(-1)?.id || null,
                         })
                       }
-                      className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[11px] font-bold text-white"
+                      className="action-primary inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white"
                     >
                       <Plus className="h-3.5 w-3.5" /> إضافة حصة / إضافة هدف
                     </button>
@@ -881,7 +881,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                         type="button"
                         onClick={addSession}
                         disabled={isSaving || !newSessionDraft.text.trim()}
-                        className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-[11px] font-bold text-white disabled:opacity-50"
+                        className="action-primary inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white disabled:opacity-50"
                       >
                         <Save className="h-3.5 w-3.5" /> حفظ الحصة
                       </button>

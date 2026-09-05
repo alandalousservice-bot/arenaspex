@@ -4,15 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import {
-  Clock,
-  Plus,
-  Trash2,
-  Printer,
-  MapPin,
-  Users,
-  Settings
-} from 'lucide-react';
+import { Clock, Plus, Trash2, Printer, MapPin, Users, Settings } from 'lucide-react';
 import { WeeklyScheduleSlot, ClassRoom, User } from '../../types/spex';
 import { PE_FIELDS } from '../../data/algerianCurriculum';
 
@@ -38,7 +30,7 @@ const DEFAULT_TIME_SLOTS = [
   '13:00 - 14:00',
   '14:00 - 15:00',
   '15:00 - 16:00',
-  '16:00 - 17:00'
+  '16:00 - 17:00',
 ];
 
 export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
@@ -48,7 +40,7 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
   onDeleteSlot,
   teacherName = 'أستاذ المادة',
   schoolName = 'المؤسسة التعليمية',
-  currentUser
+  currentUser,
 }) => {
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -98,7 +90,7 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
   };
 
   // New slot form state
-  const [day, setDay] = useState<typeof DAYS[number]>('الأحد');
+  const [day, setDay] = useState<(typeof DAYS)[number]>('الأحد');
   const [timeSlot, setTimeSlot] = useState<string>(timeSlots[0] || '08:00 - 09:00');
   const [classId, setClassId] = useState<string>(teacherClasses[0]?.id || 'cls_1');
   const [fieldId, setFieldId] = useState<string>(PE_FIELDS[0]?.id || 'field_physical');
@@ -128,7 +120,7 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
       fieldId: fieldObj?.id || 'field_physical',
       fieldName: fieldObj?.name || 'الميدان البدني',
       sessionTitle: sessionTitle.trim() || `حصة ${fieldObj?.name.split(':')[0]}`,
-      venue: venue || 'ساحة المدرسة'
+      venue: venue || 'ساحة المدرسة',
     });
 
     setIsAddModalOpen(false);
@@ -153,7 +145,8 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
             <span>التوزيع الأسبوعي للحصص واشغال استعمال الزمن</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            جدول توزِيع حصص التربية البدنية والرياضية حسب الأيام، الفترات الزمنية، والأقسام المسندة للأستاذ
+            جدول توزِيع حصص التربية البدنية والرياضية حسب الأيام، الفترات الزمنية، والأقسام المسندة
+            للأستاذ
           </p>
         </div>
 
@@ -169,7 +162,9 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
             >
               <option value="all">جميع الأقسام المسندة</option>
               {teacherClasses.map((cls) => (
-                <option key={cls.id} value={cls.id}>{cls.name}</option>
+                <option key={cls.id} value={cls.id}>
+                  {cls.name}
+                </option>
               ))}
             </select>
           </div>
@@ -185,7 +180,7 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
 
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl text-xs shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
+            className="action-primary flex items-center gap-1.5 px-4 py-2 text-white font-bold rounded-2xl text-xs shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>إضافة حصة للجدول</span>
@@ -205,13 +200,29 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
       <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
         {/* Header Document Metadata */}
         <div className="border-b border-slate-200 pb-4 text-center space-y-1">
-          <h3 className="text-sm font-extrabold text-slate-900">الجمهورية الجزائرية الديمقراطية الشعبية</h3>
-          <h4 className="text-xs font-bold text-slate-700">وزارة التربية الوطنية - مديرية التربية لولاية سطيف (المقاطعة 07)</h4>
+          <h3 className="text-sm font-extrabold text-slate-900">
+            الجمهورية الجزائرية الديمقراطية الشعبية
+          </h3>
+          <h4 className="text-xs font-bold text-slate-700">
+            وزارة التربية الوطنية - مديرية التربية لولاية سطيف (المقاطعة 07)
+          </h4>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-bold bg-slate-50 p-3 rounded-2xl border border-slate-200 mt-2 text-right">
-            <div><span className="text-slate-500">المؤسسة:</span> <strong className="text-slate-900">{schoolName}</strong></div>
-            <div><span className="text-slate-500">الأستاذ:</span> <strong className="text-slate-900">{teacherName}</strong></div>
-            <div><span className="text-slate-500">السنة الدراسية:</span> <strong className="text-slate-900">2025 / 2026</strong></div>
-            <div><span className="text-slate-500">نطاق التوقيت:</span> <strong className="text-blue-900">من 08:00 صباحاً إلى 17:00 مساءً</strong></div>
+            <div>
+              <span className="text-slate-500">المؤسسة:</span>{' '}
+              <strong className="text-slate-900">{schoolName}</strong>
+            </div>
+            <div>
+              <span className="text-slate-500">الأستاذ:</span>{' '}
+              <strong className="text-slate-900">{teacherName}</strong>
+            </div>
+            <div>
+              <span className="text-slate-500">السنة الدراسية:</span>{' '}
+              <strong className="text-slate-900">2025 / 2026</strong>
+            </div>
+            <div>
+              <span className="text-slate-500">نطاق التوقيت:</span>{' '}
+              <strong className="text-blue-900">من 08:00 صباحاً إلى 17:00 مساءً</strong>
+            </div>
           </div>
         </div>
 
@@ -222,7 +233,10 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
               <tr className="bg-slate-900 text-white text-xs font-extrabold">
                 <th className="p-3 border border-slate-800 text-center w-28">اليوم / التوقيت</th>
                 {timeSlots.map((slot) => (
-                  <th key={slot} className="p-3 border border-slate-800 text-center text-[11px] font-extrabold dir-ltr whitespace-nowrap">
+                  <th
+                    key={slot}
+                    className="p-3 border border-slate-800 text-center text-[11px] font-extrabold dir-ltr whitespace-nowrap"
+                  >
                     {slot}
                   </th>
                 ))}
@@ -243,7 +257,10 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
                     );
 
                     return (
-                      <td key={ts} className="p-2 border border-slate-200 text-xs align-top h-24 min-w-[110px]">
+                      <td
+                        key={ts}
+                        className="p-2 border border-slate-200 text-xs align-top h-24 min-w-[110px]"
+                      >
                         {matchedSlots.length > 0 ? (
                           matchedSlots.map((item) => (
                             <div
@@ -251,7 +268,9 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
                               className="bg-blue-50/90 border border-blue-200 p-2 rounded-xl text-xs space-y-1 relative group hover:bg-blue-100 transition-all shadow-2xs"
                             >
                               <div className="flex items-center justify-between">
-                                <span className="font-black text-blue-950 text-xs">{item.className}</span>
+                                <span className="font-black text-blue-950 text-xs">
+                                  {item.className}
+                                </span>
                                 <button
                                   onClick={() => onDeleteSlot(item.id)}
                                   className="opacity-0 group-hover:opacity-100 p-1 text-rose-600 hover:bg-rose-100 rounded transition-all cursor-pointer print:hidden"
@@ -325,11 +344,13 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
                 <label className="block text-slate-700 mb-1">اليوم:</label>
                 <select
                   value={day}
-                  onChange={(e) => setDay(e.target.value as typeof DAYS[number])}
+                  onChange={(e) => setDay(e.target.value as (typeof DAYS)[number])}
                   className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white outline-none"
                 >
                   {DAYS.map((d) => (
-                    <option key={d} value={d}>{d}</option>
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -343,7 +364,9 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
                   className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white outline-none"
                 >
                   {timeSlots.map((ts) => (
-                    <option key={ts} value={ts}>{ts}</option>
+                    <option key={ts} value={ts}>
+                      {ts}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -357,7 +380,9 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
                   className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white outline-none"
                 >
                   {teacherClasses.map((cls) => (
-                    <option key={cls.id} value={cls.id}>{cls.name}</option>
+                    <option key={cls.id} value={cls.id}>
+                      {cls.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -371,7 +396,9 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
                   className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white outline-none"
                 >
                   {PE_FIELDS.map((f) => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -410,7 +437,7 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-extrabold shadow-md shadow-blue-500/20 cursor-pointer"
+                  className="action-primary px-5 py-2 text-white rounded-xl font-extrabold shadow-md shadow-emerald-500/20 cursor-pointer"
                 >
                   حفظ الحصة
                 </button>
@@ -444,7 +471,9 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
 
             {/* Current Time Slots List */}
             <div className="space-y-3">
-              <label className="block text-xs font-bold text-slate-700">الفترات الزمنية المعتمدة حالياً في التوزيع:</label>
+              <label className="block text-xs font-bold text-slate-700">
+                الفترات الزمنية المعتمدة حالياً في التوزيع:
+              </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto p-1">
                 {timeSlots.map((slot) => (
                   <div
@@ -466,7 +495,9 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
 
             {/* Add New Custom Time Slot */}
             <div className="bg-blue-50/70 p-3.5 rounded-2xl border border-blue-100 space-y-2 text-xs font-bold">
-              <label className="block text-blue-950">إضافة فترة زمنية مخصصة (مثال: 08:30 - 09:30):</label>
+              <label className="block text-blue-950">
+                إضافة فترة زمنية مخصصة (مثال: 08:30 - 09:30):
+              </label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -478,7 +509,7 @@ export const WeeklyScheduleView: React.FC<WeeklyScheduleViewProps> = ({
                 <button
                   type="button"
                   onClick={handleAddTimeSlot}
-                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl shadow-xs cursor-pointer whitespace-nowrap"
+                  className="action-primary px-4 py-2.5 text-white font-extrabold rounded-xl shadow-xs cursor-pointer whitespace-nowrap"
                 >
                   + إضافة
                 </button>

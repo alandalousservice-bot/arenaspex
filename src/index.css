@@ -27,6 +27,16 @@
   --color-warning: #b45309;
   --color-danger: #be123c;
   --color-info: #0369a1;
+  --surface-default: var(--color-surface);
+  --surface-muted: var(--color-surface-elevated);
+  --surface-brand: var(--color-primary);
+  --text-default: var(--color-text);
+  --text-muted: var(--color-text-muted);
+  --text-on-brand: #ffffff;
+  --border-default: var(--color-border);
+  --action-primary: var(--color-primary);
+  --action-primary-hover: var(--color-primary-hover);
+  --focus-ring: rgb(16 185 129 / 0.35);
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
   --radius-lg: 1rem;
@@ -75,7 +85,7 @@
   }
 
   :focus-visible {
-    outline: 3px solid rgb(16 185 129 / 0.35);
+    outline: 3px solid var(--focus-ring);
     outline-offset: 2px;
   }
 
@@ -131,16 +141,6 @@
     color: #fff !important;
   }
 
-  .app-shell-sidebar nav button[class*='bg-blue-600'],
-  .app-shell-sidebar nav button[class*='bg-emerald-600'],
-  .app-shell-sidebar nav button[class*='bg-teal-700'],
-  .app-shell-sidebar nav button[class*='bg-purple-700'],
-  .app-shell-sidebar nav button[class*='bg-slate-900'] {
-    background: rgb(16 185 129 / 0.9) !important;
-    color: #fff !important;
-    box-shadow: 0 8px 18px rgb(2 44 34 / 0.2) !important;
-  }
-
   .app-shell-sidebar .bg-gradient-to-br {
     border-color: rgb(110 231 183 / 0.2) !important;
     background: rgb(2 44 34 / 0.72) !important;
@@ -174,26 +174,6 @@
   .app-shell .text-slate-500,
   .app-shell .text-slate-600 {
     color: var(--color-text-muted) !important;
-  }
-
-  .app-shell .bg-blue-600,
-  .app-shell .bg-blue-700 {
-    background-color: var(--color-primary) !important;
-  }
-
-  .app-shell .text-blue-500,
-  .app-shell .text-blue-600,
-  .app-shell .text-blue-700,
-  .app-shell .text-blue-800,
-  .app-shell .text-blue-900 {
-    color: var(--color-primary) !important;
-  }
-
-  .app-shell .border-blue-100,
-  .app-shell .border-blue-200,
-  .app-shell .border-blue-300,
-  .app-shell .border-blue-500 {
-    border-color: #a7f3d0 !important;
   }
 
   .app-shell .rounded-xl,
@@ -240,24 +220,6 @@
   .app-shell .bg-amber-600,
   .app-shell .bg-yellow-600 {
     background-color: var(--color-warning) !important;
-  }
-
-  .app-shell .bg-emerald-600,
-  .app-shell .bg-emerald-700 {
-    background-color: var(--color-primary) !important;
-  }
-
-  .app-shell .text-emerald-600,
-  .app-shell .text-emerald-700,
-  .app-shell .text-emerald-800,
-  .app-shell .text-emerald-900 {
-    color: var(--color-primary) !important;
-  }
-
-  .app-shell [class*='hover\\:bg-blue']:hover,
-  .app-shell [class*='hover\\:bg-emerald']:hover {
-    background-color: var(--color-primary-hover) !important;
-    color: #fff !important;
   }
 
   .app-shell .app-empty-state,
@@ -465,10 +427,6 @@
     color: #fff !important;
   }
 
-  .workspace-hero button.bg-white[class*='text-blue-'] {
-    color: #065f46 !important;
-  }
-
   :is(.workspace-page, .app-shell main) [class*='rounded-full'] {
     align-items: center;
     display: inline-flex;
@@ -494,30 +452,6 @@
     background-color: var(--color-primary) !important;
   }
 
-  .public-shell .bg-blue-600,
-  .public-shell .bg-blue-700,
-  .public-shell .bg-purple-600,
-  .public-shell .bg-purple-700,
-  .public-shell .bg-indigo-600,
-  .public-shell .bg-indigo-700 {
-    background-color: var(--color-primary) !important;
-  }
-
-  .public-shell .text-blue-300,
-  .public-shell .text-blue-400,
-  .public-shell .text-purple-200,
-  .public-shell .text-purple-300,
-  .public-shell .text-purple-400,
-  .public-shell .text-indigo-400 {
-    color: #a7f3d0 !important;
-  }
-
-  .public-shell .border-blue-500\/30,
-  .public-shell .border-purple-500\/30,
-  .public-shell .border-indigo-500\/30 {
-    border-color: rgb(52 211 153 / 0.3) !important;
-  }
-
   /* Shared internal workspace language: calm surfaces, clear hierarchy, and
      emerald as the product accent. These selectors stay screen-scoped so
      official print documents keep their own geometry and colors. */
@@ -527,6 +461,37 @@
     --workspace-accent: var(--color-primary);
     --workspace-accent-soft: var(--color-primary-soft);
     color: var(--color-text);
+  }
+
+  /* Explicit brand contract for actions that are intentionally ArenaSpex
+     green. Source utility colors remain free to express their own meaning. */
+  .action-primary {
+    background-color: var(--action-primary);
+    color: var(--text-on-brand);
+  }
+
+  .action-primary:hover:not(:disabled) {
+    background-color: var(--action-primary-hover);
+  }
+
+  .action-primary:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .action-primary:disabled {
+    background-color: #a7bdb5;
+    color: #f0fdf4;
+  }
+
+  .workspace-page .workspace-tab-active {
+    background-color: var(--action-primary);
+    color: var(--text-on-brand);
+    box-shadow: 0 5px 14px rgb(4 120 87 / 0.16);
+  }
+
+  .workspace-page .workspace-tab-active:hover:not(:disabled) {
+    background-color: var(--action-primary-hover);
   }
 
   .workspace-page > .workspace-header,
@@ -569,12 +534,6 @@
     box-shadow: 0 14px 30px rgb(6 78 59 / 0.14) !important;
   }
 
-  .workspace-hero [class*='text-blue-'],
-  .workspace-hero [class*='text-indigo-'],
-  .workspace-hero [class*='text-purple-'] {
-    color: #d1fae5 !important;
-  }
-
   .workspace-page--dashboard .workspace-hero {
     color: #fff !important;
   }
@@ -602,57 +561,8 @@
     color: #fff !important;
   }
 
-  .workspace-hero [class*='bg-blue-'],
-  .workspace-hero [class*='bg-indigo-'],
-  .workspace-hero [class*='bg-purple-'] {
-    background-color: rgb(16 185 129 / 0.2) !important;
-  }
-
   .workspace-page [class*='bg-gradient-to-'] {
     background-image: none !important;
-  }
-
-  .workspace-page [class*='from-blue-'],
-  .workspace-page [class*='from-indigo-'],
-  .workspace-page [class*='from-purple-'],
-  .workspace-page [class*='to-blue-'],
-  .workspace-page [class*='to-indigo-'],
-  .workspace-page [class*='to-purple-'] {
-    background-color: var(--workspace-accent-soft) !important;
-  }
-
-  .workspace-page [class*='bg-blue-600'],
-  .workspace-page [class*='bg-blue-700'],
-  .workspace-page [class*='bg-indigo-600'],
-  .workspace-page [class*='bg-indigo-700'],
-  .workspace-page [class*='bg-purple-600'],
-  .workspace-page [class*='bg-purple-700'] {
-    background-color: var(--workspace-accent) !important;
-    color: #fff !important;
-  }
-
-  .workspace-page [class*='text-blue-'],
-  .workspace-page [class*='text-indigo-'],
-  .workspace-page [class*='text-purple-'] {
-    color: var(--workspace-accent) !important;
-  }
-
-  .workspace-page [class*='border-blue-'],
-  .workspace-page [class*='border-indigo-'],
-  .workspace-page [class*='border-purple-'] {
-    border-color: #a7f3d0 !important;
-  }
-
-  .workspace-page [class*='bg-blue-50'],
-  .workspace-page [class*='bg-indigo-50'],
-  .workspace-page [class*='bg-purple-50'] {
-    background-color: var(--workspace-accent-soft) !important;
-  }
-
-  .workspace-page [class*='bg-blue-100'],
-  .workspace-page [class*='bg-indigo-100'],
-  .workspace-page [class*='bg-purple-100'] {
-    background-color: #d1fae5 !important;
   }
 
   /* Semantic dark-surface contract for the Smart Gradebook philosophy panel.
@@ -807,7 +717,7 @@
   }
 
   .workspace-page .workspace-progress-fill {
-    background-color: var(--workspace-accent) !important;
+    background-color: var(--action-primary) !important;
   }
 
   .workspace-page--annual-plan > * + *,
@@ -844,22 +754,10 @@
     border-radius: var(--radius-md);
   }
 
-  .workspace-tabs > button[class*='bg-indigo-600'],
-  .workspace-tabs > button[class*='bg-blue-600'],
-  .workspace-tabs > button[class*='bg-purple-600'] {
-    background: var(--workspace-accent) !important;
-    color: #fff !important;
-    box-shadow: 0 5px 14px rgb(4 120 87 / 0.16);
-  }
-
   .workspace-progress {
     border: 1px solid #bbf7d0;
     background-color: var(--workspace-accent-soft) !important;
     color: #065f46 !important;
-  }
-
-  .workspace-progress > div[class*='bg-blue-'] {
-    background-color: var(--workspace-accent) !important;
   }
 
   .workspace-page [class*='border-dashed'] {
@@ -878,18 +776,12 @@
     border-radius: var(--radius-md);
   }
 
-  .workspace-page table thead tr[class*='bg-slate-900'],
-  .workspace-page table thead tr[class*='bg-blue-'] {
+  .workspace-page table thead tr[class*='bg-slate-900'] {
     background-color: #065f46 !important;
   }
 
   .workspace-page table thead th {
     letter-spacing: 0.01em;
-  }
-
-  .workspace-page [class*='hover\\:border-blue']:hover,
-  .workspace-page [class*='focus\\:border-blue']:focus {
-    border-color: var(--workspace-accent) !important;
   }
 
   .workspace-page--dashboard .workspace-kpi-grid > *,

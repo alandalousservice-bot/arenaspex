@@ -652,7 +652,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                       `/planning?section=annual-distribution&classId=${encodeURIComponent(operationalClassId)}&academicYearId=${encodeURIComponent(operationalAcademicYearId)}`
                     )
                   }
-                  className="mt-3 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"
+                  className="action-primary mt-3 rounded-xl px-4 py-2 text-xs font-bold text-white"
                 >
                   إنشاء / فتح التوزيع السنوي
                 </button>
@@ -706,7 +706,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           type="button"
           disabled={memoMode === 'operational' && (!scheduledContext || scheduledLoading)}
           onClick={createPlan}
-          className="mt-5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="action-primary mt-5 rounded-xl px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           {memoMode === 'operational' && existingOperationalMemo ? 'فتح المذكرة' : 'توليد المذكرة'}
         </button>
@@ -1110,7 +1110,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             onClick={() => {
               openGenerator('operational', 'saved');
             }}
-            className="flex items-center gap-1 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
+            className="action-primary flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-bold text-white"
           >
             <Plus className="h-4 w-4" />
             مذكرة حصة مبرمجة
@@ -1522,7 +1522,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                   <p className="mt-1 text-xs text-slate-500">{situation.equipment.join('، ')}</p>
                   <button
                     onClick={() => addSituation(situation)}
-                    className="mt-2 rounded-lg bg-blue-600 px-3 py-1 text-xs font-bold text-white"
+                    className="action-primary mt-2 rounded-lg px-3 py-1 text-xs font-bold text-white"
                   >
                     اختيار
                   </button>

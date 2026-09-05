@@ -456,7 +456,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                   type="button"
                   onClick={handleTestKeyConnection}
                   disabled={keyTestLoading}
-                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl disabled:opacity-50 cursor-pointer text-xs shrink-0"
+                  className="action-primary px-4 py-2.5 text-white font-bold rounded-xl disabled:opacity-50 cursor-pointer text-xs shrink-0"
                 >
                   {keyTestLoading ? 'جاري الفحص...' : 'فحص واختبار المفتاح'}
                 </button>
@@ -720,7 +720,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
             )}
             <button
               type="submit"
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-500/20 active:scale-95 transition-all mr-auto cursor-pointer flex items-center gap-2 text-xs"
+              className="action-primary px-6 py-2.5 text-white font-bold rounded-xl shadow-md shadow-emerald-500/20 active:scale-95 transition-all mr-auto cursor-pointer flex items-center gap-2 text-xs"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>حفظ التغييرات في قاعدة البيانات</span>

@@ -316,7 +316,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
             <button
               key={item}
               onClick={() => changeSection(item)}
-              className={`whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold ${section === item ? 'bg-blue-600 text-white' : 'border border-slate-200 bg-white text-slate-600'}`}
+              className={`whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold ${section === item ? 'workspace-tab-active' : 'border border-slate-200 bg-white text-slate-600'}`}
             >
               {sectionLabels[item]}
             </button>
@@ -350,7 +350,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
             </p>
             <button
               onClick={() => window.location.assign('/gradebook')}
-              className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"
+              className="action-primary mt-4 rounded-xl px-4 py-2 text-xs font-bold text-white"
             >
               فضاء القسم والتلاميذ
             </button>

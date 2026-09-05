@@ -585,7 +585,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                   onClick={() => selectDate(date)}
                   className={`min-w-[4.5rem] rounded-xl px-2 py-2 text-center text-xs transition ${
                     isSelected
-                      ? 'bg-blue-700 text-white shadow-sm'
+                      ? 'action-primary text-white shadow-sm'
                       : isToday
                         ? 'border border-blue-300 bg-blue-50 text-blue-800'
                         : 'bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700'
@@ -646,7 +646,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
           <p className="mt-2 text-sm text-slate-500">أسنِد قسمًا للأستاذ لبدء تسجيل تنفيذ الحصص.</p>
           <button
             onClick={() => window.location.assign('/gradebook')}
-            className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"
+            className="action-primary mt-4 rounded-xl px-4 py-2 text-xs font-bold text-white"
           >
             فضاء القسم والتلاميذ
           </button>
@@ -673,7 +673,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
           </p>
           <button
             onClick={() => window.location.assign('/planning?section=annual-distribution')}
-            className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"
+            className="action-primary mt-4 rounded-xl px-4 py-2 text-xs font-bold text-white"
           >
             إنشاء التوزيع السنوي
           </button>
@@ -846,7 +846,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                                   sessionRef(session, reference, sessionClass)
                                 )
                               }
-                              className="rounded-xl bg-blue-700 px-3 py-2 text-xs font-bold text-white"
+                              className="action-primary rounded-xl px-3 py-2 text-xs font-bold text-white"
                             >
                               إنشاء المذكرة
                             </button>
@@ -928,7 +928,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                     type="button"
                     disabled={savingId === session.id}
                     onClick={() => updateStatus(session, 'مبرمجة')}
-                    className="rounded-xl bg-blue-700 px-3 py-2 font-bold text-white disabled:opacity-50"
+                    className="action-primary rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50"
                   >
                     مبرمجة
                   </button>

@@ -211,7 +211,7 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
                 onClick={() => setSelectedLevelId(lvl.id)}
                 className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                   isSelected
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 font-extrabold'
+                    ? 'workspace-level-selector is-selected font-extrabold'
                     : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
                 }`}
               >
@@ -295,7 +295,7 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
             onClick={() => setFilterField('all')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               filterField === 'all'
-                ? 'bg-blue-600 text-white shadow-xs'
+                ? 'workspace-tab-active'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
@@ -310,7 +310,7 @@ export const AnnualScheduleView: React.FC<AnnualScheduleViewProps> = ({
                 onClick={() => setFilterField(f.id)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                   filterField === f.id
-                    ? 'bg-blue-600 text-white shadow-xs'
+                    ? 'workspace-tab-active'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >

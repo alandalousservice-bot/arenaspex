@@ -35,7 +35,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ user, lessonPlans, ins
 
         <button
           onClick={() => window.print()}
-          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-2xl shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+          className="action-primary flex items-center gap-2 px-5 py-2.5 text-white font-bold text-xs rounded-2xl shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
         >
           <Printer className="w-4 h-4" />
           <span>طباعة التقرير الشامل</span>
@@ -47,9 +47,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ user, lessonPlans, ins
         <button
           onClick={() => setReportType('session')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            reportType === 'session'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-slate-100'
+            reportType === 'session' ? 'workspace-tab-active' : 'text-slate-700 hover:bg-slate-100'
           }`}
         >
           تقرير نشاط الحصص
@@ -57,9 +55,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ user, lessonPlans, ins
         <button
           onClick={() => setReportType('annual')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            reportType === 'annual'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-slate-100'
+            reportType === 'annual' ? 'workspace-tab-active' : 'text-slate-700 hover:bg-slate-100'
           }`}
         >
           حصيلة المخطط السنوي
@@ -68,7 +64,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({ user, lessonPlans, ins
           onClick={() => setReportType('inspection')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             reportType === 'inspection'
-              ? 'bg-blue-600 text-white shadow-xs'
+              ? 'workspace-tab-active'
               : 'text-slate-700 hover:bg-slate-100'
           }`}
         >

@@ -217,7 +217,7 @@ export const GradebookWeightsDialog: React.FC<GradebookWeightsDialogProps> = ({
         <button
           type="button"
           onClick={onSave}
-          className="w-full rounded-2xl bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-blue-700 sm:w-auto"
+          className="action-primary w-full rounded-2xl px-5 py-2 text-xs font-bold text-white shadow-md sm:w-auto"
         >
           حفظ وإعادة حساب العلامات المقترحة
         </button>

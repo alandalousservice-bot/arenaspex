@@ -230,7 +230,7 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
             onClick={() =>
               props.onNavigateWithTeacher?.('inspector_communication', props.teacherId!)
             }
-            className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"
+            className="action-primary rounded-xl px-4 py-2 text-xs font-bold text-white"
           >
             مراسلة الأستاذ
           </button>

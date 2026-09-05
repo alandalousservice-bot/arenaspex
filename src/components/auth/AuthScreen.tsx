@@ -382,7 +382,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               setErrorMsg('');
               setSuccessMsg('');
             }}
-            className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeForm === 'login' ? 'bg-blue-600 text-white shadow-md' : 'hover:text-slate-200'}`}
+            className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeForm === 'login' ? 'action-primary text-white shadow-md' : 'hover:text-slate-200'}`}
           >
             <LogIn className="w-3.5 h-3.5" /> تسجيل الدخول
           </button>
@@ -393,7 +393,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 setErrorMsg('');
                 setSuccessMsg('');
               }}
-              className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeForm === 'register' ? 'bg-blue-600 text-white shadow-md' : 'hover:text-slate-200'}`}
+              className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeForm === 'register' ? 'action-primary text-white shadow-md' : 'hover:text-slate-200'}`}
             >
               <UserPlus className="w-3.5 h-3.5" /> إنشاء حساب
             </button>
@@ -404,7 +404,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               setErrorMsg('');
               setSuccessMsg('');
             }}
-            className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeForm === 'forgot' ? 'bg-blue-600 text-white shadow-md' : 'hover:text-slate-200'}`}
+            className={`py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeForm === 'forgot' ? 'action-primary text-white shadow-md' : 'hover:text-slate-200'}`}
           >
             <HelpCircle className="w-3.5 h-3.5" /> نسيت كلمة السر
           </button>
@@ -739,7 +739,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs transition-all"
+              className="action-primary w-full py-3 rounded-xl disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs transition-all"
             >
               {isSubmitting ? 'جارٍ الإرسال...' : 'إرسال رابط إعادة الضبط'}
             </button>
