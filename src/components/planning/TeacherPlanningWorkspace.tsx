@@ -339,24 +339,6 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
         />
       )}
 
-      {operationalView &&
-        !selectedClass &&
-        section !== 'weekly' &&
-        section !== 'annual-distribution' && (
-          <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center">
-            <h2 className="text-lg font-bold text-slate-900">لا توجد أقسام مسندة إليك بعد.</h2>
-            <p className="mt-2 text-sm text-slate-500">
-              أنشئ أو راجع إسناد القسم من فضاء القسم والتلاميذ.
-            </p>
-            <button
-              onClick={() => window.location.assign('/gradebook')}
-              className="action-primary mt-4 rounded-xl px-4 py-2 text-xs font-bold text-white"
-            >
-              فضاء القسم والتلاميذ
-            </button>
-          </div>
-        )}
-
       {section === 'annual-distribution' && (
         <AnnualDistributionCalendar
           currentUser={currentUser}

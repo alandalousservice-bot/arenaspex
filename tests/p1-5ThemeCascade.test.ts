@@ -44,7 +44,6 @@ describe('P1-5 semantic theme cascade hardening', () => {
   it('keeps brand actions explicit in active workspace components', () => {
     for (const file of [
       'src/components/notebook/DailyNotebookView.tsx',
-      'src/components/planning/TeacherPlanningWorkspace.tsx',
       'src/components/curriculum/LearningSegmentsView.tsx',
       'src/components/lesson/LessonPlanView.tsx',
       'src/components/settings/SettingsView.tsx',

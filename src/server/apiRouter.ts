@@ -537,39 +537,6 @@ function isAllowedAnnualDistributionDate(
   );
 }
 
-function annualDistributionOverrides(
-  level: ReturnType<typeof generateAllPrimaryLevelDistributions>['levels'][number]
-) {
-  return Object.fromEntries(
-    level.sessions.map((session) => [session.referenceSessionId, { date: session.plannedDate }])
-  );
-}
-
-function annualDistributionSessionView(
-  teacherId: string,
-  academicYearId: string,
-  levelId: string,
-  session: ReturnType<
-    typeof generateAllPrimaryLevelDistributions
-  >['levels'][number]['sessions'][number],
-  reference: ReturnType<typeof resolvePlanningReferences> extends Promise<infer T>
-    ? T extends Map<string, infer V>
-      ? V
-      : never
-    : never
-) {
-  return {
-    id: `ads_${teacherId}_${academicYearId}_${levelId}_${session.referenceSessionId}`,
-    levelId,
-    academicYearId,
-    referenceSessionId: session.referenceSessionId,
-    plannedDate: session.plannedDate,
-    durationMinutes: session.durationMinutes,
-    status: 'مبرمجة' as const,
-    reference,
-  };
-}
-
 async function annualDistributionLevelViews(
   generation: ReturnType<typeof generateAllPrimaryLevelDistributions>,
   teacherId: string,

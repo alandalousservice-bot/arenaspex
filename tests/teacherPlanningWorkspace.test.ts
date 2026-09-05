@@ -30,7 +30,7 @@ describe('unified Teacher planning workspace', () => {
     expect(workspace).toContain('weeklySchedule');
     expect(workspace).not.toContain('visibleSessions');
     expect(workspace).not.toContain('spex_weekly_schedule');
-    expect(workspace).toContain('لا توجد أقسام مسندة إليك بعد.');
+    expect(workspace).toContain("section === 'weekly'");
     expect(workspace).toContain('academicYearOptions');
     expect(workspace).toContain('getAcademicCalendar(academicYearId).schoolStart');
     expect(workspace).toContain('getOperationalAcademicYearOptions');
