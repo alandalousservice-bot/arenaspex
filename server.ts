@@ -14,6 +14,7 @@ import rateLimit from 'express-rate-limit';
 import { createServer as createViteServer } from 'vite';
 
 import { apiRouter } from './src/server/apiRouter.js';
+import { mountApiRoutes } from './src/server/apiAssembly.js';
 import { authRouter } from './src/server/authRouter.js';
 import { assignmentRouter } from './src/server/assignmentRouter.js';
 import { geoRouter } from './src/server/geoRouter.js';
@@ -92,11 +93,16 @@ async function startServer() {
   });
   app.use('/api', apiLimiter);
 
-  // API Routes - geoRouter عام قبل حارس الجلسة (PART A)
-  app.use('/api/geo', geoRouter);
-  app.use('/api/auth', authRouter);
-  app.use('/api', apiRouter);
-  app.use('/api', requireAuth, requireOperationalAccount, assignmentRouter);
+  // API routes are assembled identically for production and Vite development.
+  mountApiRoutes({
+    app,
+    apiRouter,
+    authRouter,
+    assignmentRouter,
+    geoRouter,
+    requireAuth,
+    requireOperationalAccount,
+  });
 
   // Frontend Serving (Vite dev middleware vs Production static)
   if (process.env.NODE_ENV !== 'production') {

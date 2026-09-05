@@ -13,8 +13,20 @@ async function loadServerRouters() {
   const { authRouter } = await import('./src/server/authRouter.ts');
   const { assignmentRouter } = await import('./src/server/assignmentRouter.ts');
   const { geoRouter } = await import('./src/server/geoRouter.ts');
-  const { requireAuth } = await import('./src/server/middleware/requireAuth.ts');
-  return { express, cookieParser, apiRouter, authRouter, assignmentRouter, geoRouter, requireAuth };
+  const { requireAuth, requireOperationalAccount } =
+    await import('./src/server/middleware/requireAuth.ts');
+  const { mountApiRoutes } = await import('./src/server/apiAssembly.ts');
+  return {
+    express,
+    cookieParser,
+    apiRouter,
+    authRouter,
+    assignmentRouter,
+    geoRouter,
+    requireAuth,
+    requireOperationalAccount,
+    mountApiRoutes,
+  };
 }
 
 // نفس مسارات الإنتاج بالضبط (مصادقة حقيقية + Postgres عبر Prisma) تعمل أيضاً في وضع التطوير،
@@ -31,14 +43,21 @@ function expressApiPlugin() {
         assignmentRouter,
         geoRouter,
         requireAuth,
+        requireOperationalAccount,
+        mountApiRoutes,
       } = await loadServerRouters();
       const app = express();
       app.use(cookieParser());
       app.use(express.json());
-      app.use('/api/geo', geoRouter);
-      app.use('/api/auth', authRouter);
-      app.use('/api', apiRouter);
-      app.use('/api', requireAuth, assignmentRouter);
+      mountApiRoutes({
+        app,
+        apiRouter,
+        authRouter,
+        assignmentRouter,
+        geoRouter,
+        requireAuth,
+        requireOperationalAccount,
+      });
       server.middlewares.use(app);
     },
   };

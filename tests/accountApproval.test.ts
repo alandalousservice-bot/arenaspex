@@ -132,15 +132,17 @@ describe('P0-2 account approval enforcement', () => {
 
   it('covers every mounted operational router tree with the centralized guard', () => {
     const apiRouter = readFileSync('src/server/apiRouter.ts', 'utf8');
+    const apiAssembly = readFileSync('src/server/apiAssembly.ts', 'utf8');
     const attendanceRouter = readFileSync('src/server/attendanceRouter.ts', 'utf8');
     const server = readFileSync('server.ts', 'utf8');
     const authRouter = readFileSync('src/server/authRouter.ts', 'utf8');
 
     expect(apiRouter).toContain('apiRouter.use(requireAuth);');
     expect(apiRouter).toContain('apiRouter.use(requireOperationalAccount);');
-    expect(server).toContain(
-      "app.use('/api', requireAuth, requireOperationalAccount, assignmentRouter);"
+    expect(apiAssembly).toContain(
+      'app.use(API_PREFIX, requireAuth, requireOperationalAccount, assignmentRouter);'
     );
+    expect(server).toContain('mountApiRoutes({');
     expect(authRouter).toContain("authRouter.get('/me'");
     expect(authRouter).toContain("authRouter.post('/logout'");
 
