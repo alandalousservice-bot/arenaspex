@@ -3,7 +3,7 @@
  * المقاطع التعلمية: مرجع رسمي ثابت وتسلسل يضبطه الأستاذ.
  */
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -49,7 +49,7 @@ import type {
   User,
 } from '../../types/spex';
 import { AcademicYearLabel } from '../common/AcademicYearLabel';
-import { LearningSectionPrintDocument } from './LearningSectionPrintDocument';
+import { LearningSectionPrintPreviewDialog } from './LearningSectionPrintPreviewDialog';
 import { mapLearningSectionForPrint } from '../../services/learningSectionPrint.service';
 
 interface LearningSegmentsViewProps {
@@ -189,6 +189,14 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
   const [newSessionDraft, setNewSessionDraft] = useState<NewSessionDraft | null>(null);
   const [situationPickerKey, setSituationPickerKey] = useState<string | null>(null);
   const [printingFieldId, setPrintingFieldId] = useState<string | null>(null);
+  const printPreviewDialogRef = useRef<HTMLDivElement>(null);
+  const printPreviewOpenerRef = useRef<HTMLButtonElement>(null);
+  const closePrintPreview = () => setPrintingFieldId(null);
+  const openPrintPreview = (event: React.MouseEvent<HTMLButtonElement>, fieldId: string | null) => {
+    printPreviewOpenerRef.current = event.currentTarget;
+    setPrintingFieldId(fieldId);
+  };
+
   const {
     plan,
     isLoading: isPlanLoading,
@@ -417,8 +425,9 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
           )}
           <button
             type="button"
-            onClick={() =>
-              setPrintingFieldId(
+            onClick={(event) =>
+              openPrintPreview(
+                event,
                 selectedFieldId === 'all' ? filteredFields[0]?.fieldId || null : selectedFieldId
               )
             }
@@ -593,7 +602,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                   <div className="flex flex-wrap items-center gap-2 print:hidden">
                     <button
                       type="button"
-                      onClick={() => setPrintingFieldId(field.fieldId)}
+                      onClick={(event) => openPrintPreview(event, field.fieldId)}
                       className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700"
                     >
                       <Printer className="h-3.5 w-3.5" /> طباعة المقطع
@@ -897,25 +906,12 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
       </footer>
 
       {printModel && (
-        <div className="learning-section-print-preview-shell" role="dialog" aria-modal="true">
-          <div className="learning-section-print-preview-actions print:hidden">
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white"
-            >
-              <Printer className="h-4 w-4" /> طباعة
-            </button>
-            <button
-              type="button"
-              onClick={() => setPrintingFieldId(null)}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700"
-            >
-              رجوع / إغلاق
-            </button>
-          </div>
-          <LearningSectionPrintDocument model={printModel} />
-        </div>
+        <LearningSectionPrintPreviewDialog
+          model={printModel}
+          dialogRef={printPreviewDialogRef}
+          openerRef={printPreviewOpenerRef}
+          onClose={closePrintPreview}
+        />
       )}
     </div>
   );

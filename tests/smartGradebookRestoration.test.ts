@@ -9,11 +9,13 @@ import {
 
 const read = (file: string) => readFileSync(file, 'utf8');
 const view = read('src/components/gradebook/SmartGradebookView.tsx');
+const weightsDialog = read('src/components/gradebook/GradebookWeightsDialog.tsx');
 const wrapper = read('src/components/gradebook/GradebookView.tsx');
 const adapter = read('src/services/smartGradebook.adapter.ts');
 
 describe('literal Smart Gradebook restoration', () => {
   it('keeps the old visual and interaction vocabulary', () => {
+    const gradebookSurface = `${view}\n${weightsDialog}`;
     for (const label of [
       'دفتر التنقيط الذكي',
       'الفصل الأول',
@@ -30,7 +32,7 @@ describe('literal Smart Gradebook restoration', () => {
       'إعادة الحساب الذكي',
       'طباعة الدفتر الحالى',
     ]) {
-      expect(view).toContain(label);
+      expect(gradebookSurface).toContain(label);
     }
     expect(view).not.toContain('AssessmentNotebookView');
     expect(view).not.toContain('دفتر الغياب والمواظبة');
@@ -57,7 +59,7 @@ describe('literal Smart Gradebook restoration', () => {
       'تمكن متوسط': 0.65,
       'تمكن جزئي': 0.45,
     });
-    expect(view).toContain('المجموع = 10');
+    expect(weightsDialog).toContain('المجموع = 10');
   });
 
   it('reproduces the old suggested-mark formula and rounding', () => {

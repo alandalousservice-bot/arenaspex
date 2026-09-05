@@ -6,8 +6,10 @@
  * Current StudentClass/Student data and PostgreSQL assessment APIs are
  * adapted through smartGradebook.adapter.ts.
  */
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
+import { useAccessibleDialog } from '../../hooks/useAccessibleDialog';
+import { GradebookWeightsDialog } from './GradebookWeightsDialog';
 import {
   GraduationCap,
   Users,
@@ -71,6 +73,20 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
   const [showWeightsModal, setShowWeightsModal] = useState<boolean>(false);
   const [showAuditModal, setShowAuditModal] = useState<boolean>(false);
   const [selectedAuditStudentId, setSelectedAuditStudentId] = useState<string | null>(null);
+  const weightsDialogRef = useRef<HTMLDivElement>(null);
+  const weightsOpenerRef = useRef<HTMLButtonElement>(null);
+  const closeWeightsModal = useCallback(() => setShowWeightsModal(false), []);
+  const openWeightsModal = (event: React.MouseEvent<HTMLButtonElement>) => {
+    weightsOpenerRef.current = event.currentTarget;
+    setShowWeightsModal(true);
+  };
+
+  useAccessibleDialog({
+    open: showWeightsModal,
+    dialogRef: weightsDialogRef,
+    openerRef: weightsOpenerRef,
+    onClose: closeWeightsModal,
+  });
 
   // Grade Records
   const [gradeRecords, setGradeRecords] = useState<Record<string, GradeRecord>>({});
@@ -481,7 +497,8 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
 
               <div className="smart-gradebook-philosophy-actions flex flex-wrap items-center gap-2 self-start md:self-center">
                 <button
-                  onClick={() => setShowWeightsModal(true)}
+                  type="button"
+                  onClick={openWeightsModal}
                   className="smart-gradebook-philosophy-action px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-2xl border border-white/20 transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-xs"
                 >
                   <Sliders className="w-4 h-4 text-amber-300" />
@@ -956,188 +973,16 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
       {/* MODAL: CONFIG EVALUATION WEIGHTS (إعدادات أوزان التقييم) */}
       {/* ========================================================================= */}
       {showWeightsModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200 space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <Sliders className="w-5 h-5 text-amber-500" />
-                <span>إعدادات وتخصيص أوزان التقييم (المجموع = 10)</span>
-              </h3>
-              <button
-                onClick={() => setShowWeightsModal(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-500">
-              يمكن للأستاذ أو المؤسسة تعديل التوزيع الافتراضي لأوزان التقييم الأربعة لتلائم خصوصيات
-              التدريس أو المنشور الخاص بالولاية.
-            </p>
-
-            <div className="space-y-4">
-              {/* Competency Weight */}
-              <div>
-                <div className="flex justify-between items-center text-xs font-bold mb-1">
-                  <label className="text-slate-800">1. تملك الكفاءة الختامية:</label>
-                  <span className="text-blue-700 font-mono font-black">
-                    {weights.competencyWeight} نقاط
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="1"
-                  max="7"
-                  step="0.5"
-                  value={weights.competencyWeight}
-                  onChange={(e) =>
-                    setWeights((prev) => ({
-                      ...prev,
-                      competencyWeight: parseFloat(e.target.value),
-                    }))
-                  }
-                  className="w-full accent-blue-600 cursor-pointer"
-                />
-              </div>
-
-              {/* Participation Weight */}
-              <div>
-                <div className="flex justify-between items-center text-xs font-bold mb-1">
-                  <label className="text-slate-800">2. المشاركة الفعالة والأداء الحركي:</label>
-                  <span className="text-blue-700 font-mono font-black">
-                    {weights.participationWeight} نقاط
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="4"
-                  step="0.5"
-                  value={weights.participationWeight}
-                  onChange={(e) =>
-                    setWeights((prev) => ({
-                      ...prev,
-                      participationWeight: parseFloat(e.target.value),
-                    }))
-                  }
-                  className="w-full accent-blue-600 cursor-pointer"
-                />
-              </div>
-
-              {/* Behavior Weight */}
-              <div>
-                <div className="flex justify-between items-center text-xs font-bold mb-1">
-                  <label className="text-slate-800">3. السلوك والانضباط والروح الرياضية:</label>
-                  <span className="text-blue-700 font-mono font-black">
-                    {weights.behaviorWeight} نقاط
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="4"
-                  step="0.5"
-                  value={weights.behaviorWeight}
-                  onChange={(e) =>
-                    setWeights((prev) => ({ ...prev, behaviorWeight: parseFloat(e.target.value) }))
-                  }
-                  className="w-full accent-blue-600 cursor-pointer"
-                />
-              </div>
-
-              {/* Attendance Weight */}
-              <div>
-                <div className="flex justify-between items-center text-xs font-bold mb-1">
-                  <label className="text-slate-800">4. المواظبة والحضور:</label>
-                  <span className="text-blue-700 font-mono font-black">
-                    {weights.attendanceWeight} نقاط
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="3"
-                  step="0.5"
-                  value={weights.attendanceWeight}
-                  onChange={(e) =>
-                    setWeights((prev) => ({
-                      ...prev,
-                      attendanceWeight: parseFloat(e.target.value),
-                    }))
-                  }
-                  className="w-full accent-blue-600 cursor-pointer"
-                />
-              </div>
-
-              {/* Unexcused Absence Deduction */}
-              <div className="pt-2 border-t border-slate-100">
-                <div className="flex justify-between items-center text-xs font-bold mb-1">
-                  <label className="text-slate-800">خصم الغياب غير المبرر (عن كل حصة):</label>
-                  <span className="text-rose-600 font-mono font-black">
-                    -{weights.unexcusedDeduction} نقطة
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0.1"
-                  max="0.5"
-                  step="0.05"
-                  value={weights.unexcusedDeduction}
-                  onChange={(e) =>
-                    setWeights((prev) => ({
-                      ...prev,
-                      unexcusedDeduction: parseFloat(e.target.value),
-                    }))
-                  }
-                  className="w-full accent-rose-600 cursor-pointer"
-                />
-              </div>
-
-              {/* Total Check Indicator */}
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex justify-between items-center text-xs">
-                <span className="font-bold text-slate-700">المجموع النهائي للأوزان:</span>
-                <span className="font-mono font-black text-sm text-blue-900">
-                  {(
-                    weights.competencyWeight +
-                    weights.participationWeight +
-                    weights.behaviorWeight +
-                    weights.attendanceWeight
-                  ).toFixed(1)}{' '}
-                  / 10 نقاط
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() =>
-                  setWeights({
-                    competencyWeight: 5.0,
-                    participationWeight: 2.0,
-                    behaviorWeight: 2.0,
-                    attendanceWeight: 1.0,
-                    unexcusedDeduction: 0.25,
-                  })
-                }
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-2xl cursor-pointer"
-              >
-                استرجاع الأوزان الافتراضية
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowWeightsModal(false);
-                  handleRecalculateAllGrades();
-                }}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-2xl shadow-md cursor-pointer"
-              >
-                حفظ وإعادة حساب العلامات المقترحة
-              </button>
-            </div>
-          </div>
-        </div>
+        <GradebookWeightsDialog
+          dialogRef={weightsDialogRef}
+          weights={weights}
+          onChange={setWeights}
+          onClose={closeWeightsModal}
+          onSave={() => {
+            closeWeightsModal();
+            handleRecalculateAllGrades();
+          }}
+        />
       )}
 
       {/* ========================================================================= */}

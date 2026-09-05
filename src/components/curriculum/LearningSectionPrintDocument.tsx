@@ -16,7 +16,7 @@ export const LearningSectionPrintDocument: React.FC<LearningSectionPrintDocument
           <div>الجمهورية الجزائرية الديمقراطية الشعبية</div>
           <div>وزارة التربية الوطنية</div>
         </div>
-        <h1>المقطع التعلمي</h1>
+        <h1 id="learning-section-print-title">المقطع التعلمي</h1>
         <p>التربية البدنية والرياضية</p>
         <div className="learning-section-print-meta">
           <div>
