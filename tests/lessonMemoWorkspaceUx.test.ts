@@ -110,7 +110,7 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(view).toContain('مذكرة مستقلة');
     expect(view).toContain('هذه المذكرة غير مرتبطة بحصة مبرمجة في الكراس اليومي.');
     expect(view).toContain('exportLessonPlanToPdf(plan)');
-    expect(view).toContain('exportLessonPlanToWord(plan)');
+    expect(view).toContain('handleWordExport(plan)');
     expect(print).toContain('exportLessonPlanToPdf');
   });
 

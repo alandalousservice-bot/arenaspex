@@ -4,10 +4,8 @@ import {
   autoGenerateLessonPlan,
   generateLessonMemoDocument,
 } from '../src/services/lessonPlan.generator.service';
-import {
-  buildLessonPlanDocx,
-  renderLessonMemoHtml,
-} from '../src/services/lessonPlanExport.service';
+import { renderLessonMemoHtml } from '../src/services/lessonPlanExport.service';
+import { buildLessonPlanDocx } from '../src/services/lessonPlanWordExport.service';
 
 const view = readFileSync('src/components/lesson/LessonPlanView.tsx', 'utf8');
 const exportService = readFileSync('src/services/lessonPlanExport.service.ts', 'utf8');

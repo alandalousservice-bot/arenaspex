@@ -23,7 +23,15 @@ function expressApiPlugin() {
   return {
     name: 'express-api-plugin',
     async configureServer(server: ViteDevServer) {
-      const { express, cookieParser, apiRouter, authRouter, assignmentRouter, geoRouter, requireAuth } = await loadServerRouters();
+      const {
+        express,
+        cookieParser,
+        apiRouter,
+        authRouter,
+        assignmentRouter,
+        geoRouter,
+        requireAuth,
+      } = await loadServerRouters();
       const app = express();
       app.use(cookieParser());
       app.use(express.json());
@@ -32,7 +40,7 @@ function expressApiPlugin() {
       app.use('/api', apiRouter);
       app.use('/api', requireAuth, assignmentRouter);
       server.middlewares.use(app);
-    }
+    },
   };
 }
 
@@ -52,6 +60,9 @@ export default defineConfig(() => {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {
+              if (id.includes('docx')) {
+                return 'vendor-docx';
+              }
               if (id.includes('recharts') || id.includes('d3')) {
                 return 'vendor-charts';
               }

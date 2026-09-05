@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FileText, PenSquare, Plus, Printer, Save, Trash2, X } from 'lucide-react';
 import { ClassRoom, EducationalSituation, LessonPlan, LessonPlanRow, User } from '../../types/spex';
 import {
@@ -175,6 +175,9 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [operationalSessions, setOperationalSessions] = useState<TeacherPlanningSession[]>([]);
   const [scheduledError, setScheduledError] = useState('');
   const [scheduledLoading, setScheduledLoading] = useState(false);
+  const [wordExporting, setWordExporting] = useState(false);
+  const [wordExportError, setWordExportError] = useState('');
+  const wordExportInFlight = useRef(false);
   const scheduledMode = memoMode === 'operational' && Boolean(operationalClassId);
   const operationalClass = teacherClasses.find((item) => item.id === operationalClassId);
   const operationalSession = operationalSessions.find((item) => item.id === operationalSessionId);
@@ -504,6 +507,21 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     setActiveLessonPlanId('');
     setDeepLinkDismissed(true);
     setScreenMode('list');
+  };
+
+  const handleWordExport = async (plan: LessonPlan) => {
+    if (wordExportInFlight.current) return;
+    wordExportInFlight.current = true;
+    setWordExporting(true);
+    setWordExportError('');
+    try {
+      await exportLessonPlanToWord(plan);
+    } catch {
+      setWordExportError('تعذر تصدير المذكرة بصيغة Word. حاول مرة أخرى.');
+    } finally {
+      wordExportInFlight.current = false;
+      setWordExporting(false);
+    }
   };
 
   const generatorModal = showGenerator ? (
@@ -1171,10 +1189,13 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                 طباعة
               </button>
               <button
-                onClick={() => exportLessonPlanToWord(plan)}
+                type="button"
+                onClick={() => void handleWordExport(plan)}
+                disabled={wordExporting}
+                aria-busy={wordExporting}
                 className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold"
               >
-                Word
+                {wordExporting ? 'جارٍ تجهيز Word...' : 'Word'}
               </button>
             </>
           )}
@@ -1215,6 +1236,11 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           )}
         </div>
       </div>
+      {wordExportError && (
+        <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">
+          {wordExportError}
+        </p>
+      )}
 
       {!editing && !scheduledMode && lessonPlans.length > 1 && (
         <select
