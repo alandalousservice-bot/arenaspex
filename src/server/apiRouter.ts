@@ -90,6 +90,11 @@ import {
   deleteOwnedStudentClass,
   StudentClassDeletionError,
 } from '../services/studentClassDeletion.service.js';
+import {
+  batchMutationResponse,
+  createBatchMutationOutcome,
+  isPrismaRecordNotFoundError,
+} from './mutationOutcome.js';
 
 // نظام الإسناد التلقائي للأساتذة إلى المفتشين: يُعاد احتساب جهة الإشراف تلقائياً
 // عند تسجيل/تعديل أستاذ (يعاد ربطه بمفتشه) أو تسجيل/تعديل مفتش (يعاد ربط كل الأساتذة
@@ -3821,15 +3826,21 @@ apiRouter.post('/db/users/batch', requireRole('admin'), async (req, res) => {
   if (!Array.isArray(users)) {
     return res.status(400).json({ error: 'قائمة المستخدمين غير صحيحة' });
   }
-  try {
-    for (const u of users) {
-      if (!u.id) continue;
+  const outcome = createBatchMutationOutcome(users.length);
+  for (const u of users) {
+    if (!u || typeof u !== 'object' || typeof u.id !== 'string' || !u.id.trim()) {
+      outcome.skipped += 1;
+      continue;
+    }
+    try {
       const existing = await prisma.user.findUnique({ where: { id: u.id } });
       if ((u.role === 'admin' || existing?.role === 'admin') && !req.user!.isPlatformOwner) {
-        throw new Error('غير مسموح بإنشاء حساب مشرف.');
+        outcome.skipped += 1;
+        continue;
       }
       if (existing?.isPlatformOwner && !req.user!.isPlatformOwner) {
-        throw new Error('حساب مالك المنصة محمي ولا يمكن تعديله.');
+        outcome.skipped += 1;
+        continue;
       }
       const data = await buildUserWriteData(u, true, true);
       await enforceRoleAssignment(data, existing);
@@ -3840,19 +3851,25 @@ apiRouter.post('/db/users/batch', requireRole('admin'), async (req, res) => {
         saved = await prisma.user.create({ data: { id: u.id, ...data } as any });
       }
       // مستخدم جديد بدون كلمة مرور ضمن دفعة جماعية يُتجاهل بدل رفض الدفعة كاملة
-      if (saved) await triggerAutoAssignment(saved);
+      if (!saved) {
+        outcome.skipped += 1;
+        continue;
+      }
+      await triggerAutoAssignment(saved);
+      outcome.succeeded += 1;
+    } catch (err) {
+      outcome.failed += 1;
+      console.error('Error batch-saving user:', err);
     }
-    res.json({ success: true, count: users.length });
-  } catch (err) {
-    console.error('Error batch-saving users:', err);
-    res.status(500).json({ error: 'تعذر حفظ قائمة المستخدمين.' });
   }
+  return res.json(batchMutationResponse(outcome));
 });
 
 apiRouter.delete('/db/users/:id', requireRole('admin'), async (req, res) => {
   const { id } = req.params;
   try {
     const existing = await prisma.user.findUnique({ where: { id } });
+    if (!existing) return res.json({ success: true, count: 0, outcome: 'not_found' });
     if (existing?.isPlatformOwner && !req.user!.isPlatformOwner) {
       return res.status(403).json({ error: 'حساب مالك المنصة محمي ولا يمكن حذفه.' });
     }
@@ -3873,10 +3890,14 @@ apiRouter.delete('/db/users/:id', requireRole('admin'), async (req, res) => {
     for (const teacherId of affectedTeacherIds) {
       await reassignTeacher(teacherId);
     }
-  } catch {
-    // غير موجود مسبقاً
+    return res.json({ success: true, count: 1, outcome: 'deleted' });
+  } catch (err) {
+    if (isPrismaRecordNotFoundError(err)) {
+      return res.json({ success: true, count: 0, outcome: 'not_found' });
+    }
+    console.error('Error deleting user:', err);
+    return res.status(500).json({ error: 'تعذر حذف حساب المستخدم.', code: 'MUTATION_FAILED' });
   }
-  res.json({ success: true });
 });
 
 // -----------------------------------------------------------------------
@@ -4057,71 +4078,103 @@ function jsonCollectionRoutes(opts: {
       if (!Array.isArray(items)) {
         return res.status(400).json({ error: 'قائمة غير صحيحة' });
       }
+      const outcome = createBatchMutationOutcome(items.length);
       for (const item of items) {
-        if (!item.id) continue;
-        if (!(await validatePlannedLesson(item as Record<string, unknown>, req.user!))) continue;
-        if (!(await validateNotebookSession(item as Record<string, unknown>, req.user!))) continue;
-        if (path === 'lesson-plans' && item.classPlannedSessionId) {
+        if (!item || typeof item !== 'object' || typeof item.id !== 'string' || !item.id.trim()) {
+          outcome.skipped += 1;
+          continue;
+        }
+        try {
+          if (!(await validatePlannedLesson(item as Record<string, unknown>, req.user!))) {
+            outcome.skipped += 1;
+            continue;
+          }
+          if (!(await validateNotebookSession(item as Record<string, unknown>, req.user!))) {
+            outcome.skipped += 1;
+            continue;
+          }
+          if (path === 'lesson-plans' && item.classPlannedSessionId) {
+            const existing = await model.findUnique({ where: { id: item.id } });
+            const existingData = (existing?.data as Record<string, unknown>) || {};
+            if (
+              existingData.classPlannedSessionId &&
+              existingData.classPlannedSessionId !== item.classPlannedSessionId
+            ) {
+              outcome.skipped += 1;
+              continue;
+            }
+          }
+          if (path === 'inspector-notes' && req.user!.role === 'inspector') {
+            const targetTeacherId = typeof item.teacherId === 'string' ? item.teacherId : '';
+            const assignment = targetTeacherId
+              ? await prisma.inspectorAssignment.findUnique({
+                  where: { teacherId: targetTeacherId },
+                })
+              : null;
+            if (
+              !assignment ||
+              assignment.inspectorId !== req.user!.id ||
+              !['Active', 'Changed'].includes(assignment.status)
+            ) {
+              outcome.skipped += 1;
+              continue;
+            }
+          }
           const existing = await model.findUnique({ where: { id: item.id } });
-          const existingData = (existing?.data as Record<string, unknown>) || {};
-          if (
-            existingData.classPlannedSessionId &&
-            existingData.classPlannedSessionId !== item.classPlannedSessionId
-          )
+          if (!canWrite(existing, req.user!)) {
+            outcome.skipped += 1;
             continue;
-        }
-        if (path === 'inspector-notes' && req.user!.role === 'inspector') {
-          const targetTeacherId = typeof item.teacherId === 'string' ? item.teacherId : '';
-          const assignment = targetTeacherId
-            ? await prisma.inspectorAssignment.findUnique({ where: { teacherId: targetTeacherId } })
-            : null;
-          if (
-            !assignment ||
-            assignment.inspectorId !== req.user!.id ||
-            !['Active', 'Changed'].includes(assignment.status)
-          )
-            continue;
-        }
-        const existing = await model.findUnique({ where: { id: item.id } });
-        if (!canWrite(existing, req.user!)) continue; // تجاهل العناصر التي لا يملك المستخدم صلاحية تعديلها
+          }
 
-        const safeItem = transformCreate
-          ? transformCreate({ ...(item as Record<string, unknown>) }, req.user!)
-          : item;
-        const data: Record<string, unknown> = { data: safeItem };
-        if (ownerField) {
-          data[ownerField] = resolveOwnerFieldValue(
-            existing,
-            item,
-            req.user!.id,
-            ownerAssignedByServer,
-            ownerField
-          );
+          const safeItem = transformCreate
+            ? transformCreate({ ...(item as Record<string, unknown>) }, req.user!)
+            : item;
+          const data: Record<string, unknown> = { data: safeItem };
+          if (ownerField) {
+            data[ownerField] = resolveOwnerFieldValue(
+              existing,
+              item,
+              req.user!.id,
+              ownerAssignedByServer,
+              ownerField
+            );
+          }
+          if (path === 'direct-messages' && typeof safeItem.receiverId === 'string') {
+            data.recipientId = safeItem.receiverId;
+          }
+          await model.upsert({
+            where: { id: item.id },
+            create: { id: item.id, ...data } as unknown,
+            update: data as unknown,
+          });
+          outcome.succeeded += 1;
+        } catch (error) {
+          outcome.failed += 1;
+          console.error(`Error batch-saving ${path} item:`, error);
         }
-        if (path === 'direct-messages' && typeof safeItem.receiverId === 'string') {
-          data.recipientId = safeItem.receiverId;
-        }
-        await model.upsert({
-          where: { id: item.id },
-          create: { id: item.id, ...data } as unknown,
-          update: data as unknown,
-        });
       }
-      res.json({ success: true, count: items.length });
+      return res.json(batchMutationResponse(outcome));
     });
   }
 
   apiRouter.delete(`/db/${path}/:id`, async (req, res) => {
     try {
       const existing = await model.findUnique({ where: { id: req.params.id } });
-      if (existing && !canWrite(existing, req.user!)) {
+      if (!existing) {
+        return res.json({ success: true, count: 0, outcome: 'not_found' });
+      }
+      if (!canWrite(existing, req.user!)) {
         return res.status(403).json({ error: 'لا تملك الصلاحية لحذف هذا العنصر.' });
       }
       await model.delete({ where: { id: req.params.id } });
-    } catch {
-      // غير موجود مسبقاً
+      return res.json({ success: true, count: 1, outcome: 'deleted' });
+    } catch (error) {
+      if (isPrismaRecordNotFoundError(error)) {
+        return res.json({ success: true, count: 0, outcome: 'not_found' });
+      }
+      console.error(`Error deleting ${path} record:`, error);
+      return res.status(500).json({ error: 'تعذر حذف السجل.', code: 'MUTATION_FAILED' });
     }
-    res.json({ success: true });
   });
 }
 
@@ -4615,21 +4668,24 @@ apiRouter.post('/db/annual-plans/:id/approve', requireRole('inspector'), async (
 apiRouter.delete('/db/annual-plans/:id', async (req, res) => {
   try {
     const existing = await prisma.annualPlan.findUnique({ where: { id: req.params.id } });
-    if (existing) {
-      const user = req.user!;
-      const canDelete =
-        user.role === 'admin' ||
-        existing.teacherId === user.id ||
-        (user.role === 'inspector' &&
-          existing.proposedByInspectorId === user.id &&
-          (await canInspectorAccessTeacher(user.id, existing.teacherId)));
-      if (!canDelete) return res.status(403).json({ error: 'لا تملك الصلاحية لحذف هذا السجل.' });
-      await prisma.annualPlan.delete({ where: { id: existing.id } });
+    if (!existing) return res.json({ success: true, count: 0, outcome: 'not_found' });
+    const user = req.user!;
+    const canDelete =
+      user.role === 'admin' ||
+      existing.teacherId === user.id ||
+      (user.role === 'inspector' &&
+        existing.proposedByInspectorId === user.id &&
+        (await canInspectorAccessTeacher(user.id, existing.teacherId)));
+    if (!canDelete) return res.status(403).json({ error: 'لا تملك الصلاحية لحذف هذا السجل.' });
+    await prisma.annualPlan.delete({ where: { id: existing.id } });
+    return res.json({ success: true, count: 1, outcome: 'deleted' });
+  } catch (error) {
+    if (isPrismaRecordNotFoundError(error)) {
+      return res.json({ success: true, count: 0, outcome: 'not_found' });
     }
-  } catch {
-    // غير موجود مسبقاً
+    console.error('Error deleting annual plan:', error);
+    return res.status(500).json({ error: 'تعذر حذف التوزيع السنوي.', code: 'MUTATION_FAILED' });
   }
-  res.json({ success: true });
 });
 
 // -----------------------------------------------------------------------
