@@ -11,6 +11,69 @@
 export type MinimalRecord = Record<string, unknown> & { id: string };
 export type MinimalUser = { id: string; role: string };
 
+export type CollectionReadKind =
+  | 'teacher-owned-document'
+  | 'inspector-note'
+  | 'district-message'
+  | 'direct-message'
+  | 'community-notification';
+
+export type CollectionReadUser = MinimalUser & { districtId?: string };
+
+/**
+ * Builds the database predicate for a JSON collection's read policy.
+ *
+ * The returned object is intentionally a Prisma-compatible `where` shape, but
+ * stays structurally typed here so the auth policy remains testable without
+ * importing the generated Prisma client. Callers must pass it to `findMany`
+ * before `skip`/`take` are applied.
+ */
+export function buildCollectionReadWhere(
+  kind: CollectionReadKind,
+  user: CollectionReadUser,
+  acceptedTeacherIds: ReadonlySet<string> = new Set()
+): Record<string, unknown> | undefined {
+  if (user.role === 'admin') return undefined;
+
+  switch (kind) {
+    case 'teacher-owned-document':
+      return user.role === 'inspector'
+        ? {
+            OR: [{ ownerId: user.id }, { ownerId: { in: [...acceptedTeacherIds] } }],
+          }
+        : { ownerId: user.id };
+    case 'inspector-note':
+      return {
+        OR: [{ authorId: user.id }, { data: { path: ['teacherId'], equals: user.id } }],
+      };
+    case 'district-message':
+      return { data: { path: ['districtId'], equals: user.districtId || '' } };
+    case 'direct-message':
+      return {
+        OR: [{ senderId: user.id }, { recipientId: user.id }],
+      };
+    case 'community-notification':
+      return {
+        OR: [{ userId: user.id }, { data: { path: ['senderId'], equals: user.id } }],
+      };
+  }
+}
+
+export function buildCollectionReadQuery(
+  kind: CollectionReadKind,
+  user: CollectionReadUser,
+  acceptedTeacherIds: ReadonlySet<string>,
+  limit?: number,
+  offset?: number
+): Record<string, unknown> {
+  return {
+    where: buildCollectionReadWhere(kind, user, acceptedTeacherIds),
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: limit,
+    skip: offset,
+  };
+}
+
 /**
  * هل يملك المستخدم صلاحية الكتابة/الحذف على سجل موجود مسبقاً؟
  * - سجل غير موجود بعد (إنشاء): يُسمح دائماً (تُطبَّق قيود الإنشاء الأخرى، مثل allowedCreateRoles، بمكان آخر).

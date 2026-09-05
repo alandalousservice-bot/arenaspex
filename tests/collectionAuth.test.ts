@@ -1,5 +1,97 @@
 import { describe, it, expect } from 'vitest';
-import { canWriteRecord, resolveOwnerFieldValue } from '../src/server/collectionAuth';
+import {
+  buildCollectionReadQuery,
+  buildCollectionReadWhere,
+  canWriteRecord,
+  resolveOwnerFieldValue,
+} from '../src/server/collectionAuth';
+
+describe('database-level collection read predicates', () => {
+  it('scopes Teacher-owned collections before pagination', () => {
+    expect(
+      buildCollectionReadWhere('teacher-owned-document', { id: 'teacher-a', role: 'teacher' })
+    ).toEqual({
+      ownerId: 'teacher-a',
+    });
+  });
+
+  it('scopes Inspector reads to accepted teachers and keeps an empty scope empty', () => {
+    expect(
+      buildCollectionReadWhere(
+        'teacher-owned-document',
+        { id: 'inspector-a', role: 'inspector' },
+        new Set(['teacher-x'])
+      )
+    ).toEqual({
+      OR: [{ ownerId: 'inspector-a' }, { ownerId: { in: ['teacher-x'] } }],
+    });
+    expect(
+      buildCollectionReadWhere(
+        'teacher-owned-document',
+        { id: 'inspector-a', role: 'inspector' },
+        new Set()
+      )
+    ).toEqual({
+      OR: [{ ownerId: 'inspector-a' }, { ownerId: { in: [] } }],
+    });
+  });
+
+  it('represents JSON-backed visibility in Prisma where clauses', () => {
+    expect(
+      buildCollectionReadWhere('inspector-note', { id: 'inspector-a', role: 'inspector' })
+    ).toEqual({
+      OR: [{ authorId: 'inspector-a' }, { data: { path: ['teacherId'], equals: 'inspector-a' } }],
+    });
+    expect(
+      buildCollectionReadWhere('district-message', {
+        id: 'teacher-a',
+        role: 'teacher',
+        districtId: 'd1',
+      })
+    ).toEqual({
+      data: { path: ['districtId'], equals: 'd1' },
+    });
+    expect(
+      buildCollectionReadWhere('direct-message', { id: 'teacher-a', role: 'teacher' })
+    ).toEqual({
+      OR: [{ senderId: 'teacher-a' }, { recipientId: 'teacher-a' }],
+    });
+  });
+
+  it('leaves Admin visibility unfiltered', () => {
+    expect(
+      buildCollectionReadWhere('teacher-owned-document', { id: 'admin-a', role: 'admin' })
+    ).toBeUndefined();
+  });
+
+  it('puts authorization, stable ordering, and pagination in one database query', () => {
+    const query = buildCollectionReadQuery(
+      'teacher-owned-document',
+      { id: 'teacher-a', role: 'teacher' },
+      new Set(),
+      10,
+      10
+    );
+    expect(query).toEqual({
+      where: { ownerId: 'teacher-a' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 10,
+      skip: 10,
+    });
+
+    const interleavedRows = Array.from({ length: 40 }, (_, index) => ({
+      id: `row-${index}`,
+      ownerId: index % 2 === 0 ? 'other-teacher' : 'teacher-a',
+    }));
+    const authorizedRows = interleavedRows.filter((row) => row.ownerId === 'teacher-a');
+    expect(authorizedRows.slice(0, 10).map((row) => row.id)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `row-${index * 2 + 1}`)
+    );
+    expect(authorizedRows.slice(10, 20).map((row) => row.id)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `row-${index * 2 + 21}`)
+    );
+  });
+});
 
 describe('canWriteRecord', () => {
   it('يسمح دائماً بإنشاء سجل جديد (لا يوجد existing بعد)', () => {
@@ -30,20 +122,38 @@ describe('canWriteRecord', () => {
 describe('resolveOwnerFieldValue', () => {
   it('لا يغيّر قيمة الحقل عند تعديل سجل موجود (منع انتحال ملكية سجل قائم)', () => {
     const existing = { id: 'r1', senderId: 'original-owner' };
-    const result = resolveOwnerFieldValue(existing, { senderId: 'attacker-id' }, 'attacker-id', true, 'senderId');
+    const result = resolveOwnerFieldValue(
+      existing,
+      { senderId: 'attacker-id' },
+      'attacker-id',
+      true,
+      'senderId'
+    );
     expect(result).toBe('original-owner');
   });
 
   it('ownerAssignedByServer=true يفرض هوية المستخدم الحالي عند الإنشاء (مثال: senderId في الرسائل)', () => {
     // هذا بالضبط ما يمنع انتحال هوية المُرسِل في direct-messages
-    const result = resolveOwnerFieldValue(null, { senderId: 'spoofed-id' }, 'real-user-id', true, 'senderId');
+    const result = resolveOwnerFieldValue(
+      null,
+      { senderId: 'spoofed-id' },
+      'real-user-id',
+      true,
+      'senderId'
+    );
     expect(result).toBe('real-user-id');
   });
 
   it('ownerAssignedByServer=false يأخذ القيمة من العميل عند الإنشاء (مثال: userId/المستلم في الإشعارات)', () => {
     // هذا هو الإصلاح لخلل إشعارات المجتمع: يجب أن يصل الإشعار للمستلم الحقيقي
     // الذي حدّده العميل (userId)، وليس لمن أنشأ الإشعار.
-    const result = resolveOwnerFieldValue(null, { userId: 'recipient-id' }, 'sender-id', false, 'userId');
+    const result = resolveOwnerFieldValue(
+      null,
+      { userId: 'recipient-id' },
+      'sender-id',
+      false,
+      'userId'
+    );
     expect(result).toBe('recipient-id');
   });
 

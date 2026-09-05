@@ -103,7 +103,7 @@ describe('P0-3 Inspector document access', () => {
     const authMiddleware = readFileSync('src/server/middleware/requireAuth.ts', 'utf8');
 
     expect(apiRouter).toContain('acceptedTeacherIdsForInspector');
-    expect(apiRouter).toContain('canReadTeacherOwnedDocument');
+    expect(apiRouter).toContain('buildCollectionReadQuery');
     expect(apiRouter).not.toContain('const isStaff');
     expect(apiRouter).toContain('canInspectorAccessTeacher');
     expect(apiRouter).toContain("apiRouter.get('/db/annual-plans'");

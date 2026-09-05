@@ -29,7 +29,7 @@ import {
   reassignAllForInspector,
 } from './assignmentService.js';
 import {
-  canReadTeacherOwnedDocument,
+  buildCollectionReadQuery,
   canWriteRecord,
   resolveOwnerFieldValue,
 } from './collectionAuth.js';
@@ -3892,10 +3892,6 @@ interface JsonCollectionDelegate {
   delete: (args: { where: { id: string } }) => Promise<DbRecord>;
 }
 
-type JsonCollectionVisibilityContext = {
-  acceptedTeacherIds: ReadonlySet<string>;
-};
-
 function jsonCollectionRoutes(opts: {
   path: string;
   model: JsonCollectionDelegate;
@@ -3903,11 +3899,13 @@ function jsonCollectionRoutes(opts: {
   listKey: string;
   batchBodyKey?: string;
   ownerField?: 'ownerId' | 'authorId' | 'userId' | 'senderId';
-  visibleTo?: (
-    row: DbRecord,
-    user: { id: string; role: string; districtId: string },
-    context: JsonCollectionVisibilityContext
-  ) => boolean;
+  readKind?:
+    | 'teacher-owned-document'
+    | 'inspector-note'
+    | 'district-message'
+    | 'direct-message'
+    | 'community-notification';
+  requiresAcceptedTeacherScope?: boolean;
   ownerAssignedByServer?: boolean;
   transformCreate?: (
     item: Record<string, unknown>,
@@ -3922,7 +3920,8 @@ function jsonCollectionRoutes(opts: {
     listKey,
     batchBodyKey,
     ownerField,
-    visibleTo,
+    readKind,
+    requiresAcceptedTeacherScope = false,
     ownerAssignedByServer = true,
     transformCreate,
     allowedCreateRoles,
@@ -3964,25 +3963,18 @@ function jsonCollectionRoutes(opts: {
     const limit = req.query.limit ? Math.min(Math.max(Number(req.query.limit), 1), 500) : undefined;
     const offset = req.query.offset ? Math.max(Number(req.query.offset), 0) : undefined;
 
-    const rows = await model.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      skip: offset,
-    });
     const acceptedTeacherIds =
-      req.user!.role === 'inspector'
+      req.user!.role === 'inspector' && requiresAcceptedTeacherScope
         ? await acceptedTeacherIdsForInspector(req.user!.id)
         : new Set<string>();
-    const visible = visibleTo
-      ? rows.filter((r) =>
-          visibleTo(r, req.user!, {
-            acceptedTeacherIds,
-          })
-        )
-      : rows;
+    const rows = await model.findMany(
+      readKind
+        ? buildCollectionReadQuery(readKind, req.user!, acceptedTeacherIds, limit, offset)
+        : { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: limit, skip: offset }
+    );
     res.json({
       success: true,
-      [listKey]: visible.map((r) => ({ ...((r.data as Record<string, unknown>) || {}), id: r.id })),
+      [listKey]: rows.map((r) => ({ ...((r.data as Record<string, unknown>) || {}), id: r.id })),
     });
   });
 
@@ -4142,8 +4134,8 @@ jsonCollectionRoutes({
   batchBodyKey: 'lessonPlans',
   ownerField: 'ownerId',
   transformCreate: (item, user) => ({ ...item, teacherId: user.id }),
-  visibleTo: (row, user, { acceptedTeacherIds }) =>
-    canReadTeacherOwnedDocument(row, user, acceptedTeacherIds),
+  readKind: 'teacher-owned-document',
+  requiresAcceptedTeacherScope: true,
 });
 
 // 3. Daily Notebook — كراس يومي خاص بالأستاذ، ولا يُعرض للمفتش إلا ضمن إسناده المقبول
@@ -4154,8 +4146,8 @@ jsonCollectionRoutes({
   listKey: 'dailyNotebook',
   batchBodyKey: 'dailyNotebook',
   ownerField: 'ownerId',
-  visibleTo: (row, user, { acceptedTeacherIds }) =>
-    canReadTeacherOwnedDocument(row, user, acceptedTeacherIds),
+  readKind: 'teacher-owned-document',
+  requiresAcceptedTeacherScope: true,
 });
 
 // 4. Inspector Notes — يراها كاتبها (المفتش) والأستاذ المعنيّ بها فقط، بالإضافة إلى admin
@@ -4167,10 +4159,7 @@ jsonCollectionRoutes({
   batchBodyKey: 'inspectorNotes',
   ownerField: 'authorId',
   allowedCreateRoles: ['admin', 'inspector'],
-  visibleTo: (row, user) =>
-    user.role === 'admin' ||
-    row.authorId === user.id ||
-    (row.data as Record<string, unknown>)?.teacherId === user.id,
+  readKind: 'inspector-note',
 });
 
 // Inspection visits are persisted separately from the UI state and are scoped
@@ -4242,8 +4231,7 @@ jsonCollectionRoutes({
   batchBodyKey: 'districtMessages',
   ownerField: 'authorId',
   transformCreate: (item, user) => ({ ...item, districtId: user.districtId }),
-  visibleTo: (row, user) =>
-    user.role === 'admin' || (row.data as Record<string, unknown>)?.districtId === user.districtId,
+  readKind: 'district-message',
 });
 
 // 6. Direct Messages — خاصة بطرفي المحادثة (المُرسل والمُستقبِل) والمفتش والمسؤول
@@ -4266,8 +4254,7 @@ jsonCollectionRoutes({
     delete safe.recipientId;
     return receiverId ? { ...safe, receiverId } : safe;
   },
-  visibleTo: (row, user) =>
-    user.role === 'admin' || row.senderId === user.id || row.recipientId === user.id,
+  readKind: 'direct-message',
 });
 
 // 7. Community Resources — محتوى عام مشترك، يبقى مرئياً للجميع كما هو مصمَّم
@@ -4297,10 +4284,7 @@ jsonCollectionRoutes({
   ownerField: 'userId',
   ownerAssignedByServer: false,
   transformCreate: (item, user) => ({ ...item, senderId: user.id }),
-  visibleTo: (row, user) =>
-    user.role === 'admin' ||
-    row.userId === user.id ||
-    (row.data as Record<string, unknown>)?.senderId === user.id,
+  readKind: 'community-notification',
 });
 
 // -----------------------------------------------------------------------
