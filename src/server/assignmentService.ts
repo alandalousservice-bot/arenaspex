@@ -10,17 +10,63 @@
 import { prisma } from './prismaClient.js';
 
 export type AssignmentStatus = 'Pending' | 'Active' | 'Changed' | 'Removed';
+export const ACCEPTED_ASSIGNMENT_STATUSES: AssignmentStatus[] = ['Active', 'Changed'];
 
-function getTeacherDirectorateAndDistrict(teacher: any): { directorateId: string | null; districtId: string | null } {
+/**
+ * Canonical server-side authorization check for Inspector → Teacher access.
+ * Only currently accepted assignments authorize access to Teacher documents.
+ */
+export async function canInspectorAccessTeacher(
+  inspectorId: string,
+  teacherId: string
+): Promise<boolean> {
+  const assignment = await prisma.inspectorAssignment.findFirst({
+    where: {
+      inspectorId,
+      teacherId,
+      status: { in: ACCEPTED_ASSIGNMENT_STATUSES },
+    },
+    select: { id: true },
+  });
+  return Boolean(assignment);
+}
+
+export async function acceptedTeacherIdsForInspector(inspectorId: string): Promise<Set<string>> {
+  const assignments = await prisma.inspectorAssignment.findMany({
+    where: { inspectorId, status: { in: ACCEPTED_ASSIGNMENT_STATUSES } },
+    select: { teacherId: true },
+  });
+  return new Set(assignments.map((assignment) => assignment.teacherId));
+}
+
+function getTeacherDirectorateAndDistrict(teacher: any): {
+  directorateId: string | null;
+  districtId: string | null;
+} {
   // دعم الحقول القديمة والجديدة (edu) للتوافق
-  const directorateId = (teacher.directorateId && String(teacher.directorateId).trim()) || (teacher.eduDirectorateId && String(teacher.eduDirectorateId).trim()) || null;
-  const districtId = (teacher.districtId && String(teacher.districtId).trim()) || (teacher.eduDistrictId && String(teacher.eduDistrictId).trim()) || null;
+  const directorateId =
+    (teacher.directorateId && String(teacher.directorateId).trim()) ||
+    (teacher.eduDirectorateId && String(teacher.eduDirectorateId).trim()) ||
+    null;
+  const districtId =
+    (teacher.districtId && String(teacher.districtId).trim()) ||
+    (teacher.eduDistrictId && String(teacher.eduDistrictId).trim()) ||
+    null;
   return { directorateId: directorateId || null, districtId: districtId || null };
 }
 
-function getInspectorDirectorateAndDistrict(inspector: any): { directorateId: string | null; districtId: string | null } {
-  const directorateId = (inspector.directorateId && String(inspector.directorateId).trim()) || (inspector.eduDirectorateId && String(inspector.eduDirectorateId).trim()) || null;
-  const districtId = (inspector.districtId && String(inspector.districtId).trim()) || (inspector.eduDistrictId && String(inspector.eduDistrictId).trim()) || null;
+function getInspectorDirectorateAndDistrict(inspector: any): {
+  directorateId: string | null;
+  districtId: string | null;
+} {
+  const directorateId =
+    (inspector.directorateId && String(inspector.directorateId).trim()) ||
+    (inspector.eduDirectorateId && String(inspector.eduDirectorateId).trim()) ||
+    null;
+  const districtId =
+    (inspector.districtId && String(inspector.districtId).trim()) ||
+    (inspector.eduDistrictId && String(inspector.eduDistrictId).trim()) ||
+    null;
   return { directorateId: directorateId || null, districtId: districtId || null };
 }
 
@@ -38,10 +84,10 @@ async function findMatchingInspector(directorateId: string, districtId: string) 
         { directorateId, districtId },
         { eduDirectorateId: directorateId, eduDistrictId: districtId },
         { directorateId, eduDistrictId: districtId },
-        { eduDirectorateId: directorateId, districtId }
-      ]
+        { eduDirectorateId: directorateId, districtId },
+      ],
     },
-    orderBy: { createdAt: 'asc' }
+    orderBy: { createdAt: 'asc' },
   });
 }
 
@@ -72,7 +118,12 @@ export async function reassignTeacher(teacherId: string) {
   const inspector = await findMatchingInspector(directorateId, districtId);
 
   // الحالة الخاصة: نفس المفتش وActive بالفعل — لا نعيد إخضاعه
-  if (inspector && existing && existing.inspectorId === inspector.id && existing.status === 'Active') {
+  if (
+    inspector &&
+    existing &&
+    existing.inspectorId === inspector.id &&
+    existing.status === 'Active'
+  ) {
     return existing;
   }
 
@@ -93,7 +144,7 @@ export async function reassignTeacher(teacherId: string) {
   return prisma.inspectorAssignment.upsert({
     where: { teacherId },
     create: { teacherId, inspectorId, status, assignedAt },
-    update: { inspectorId, status, assignedAt }
+    update: { inspectorId, status, assignedAt },
   });
 }
 
@@ -107,7 +158,7 @@ export async function reassignAllForInspector(inspectorId: string) {
 
   const currentlyAssigned = await prisma.inspectorAssignment.findMany({
     where: { inspectorId },
-    select: { teacherId: true }
+    select: { teacherId: true },
   });
   currentlyAssigned.forEach((a) => affectedTeacherIds.add(a.teacherId));
 
@@ -121,10 +172,10 @@ export async function reassignAllForInspector(inspectorId: string) {
             { directorateId, districtId },
             { eduDirectorateId: directorateId, eduDistrictId: districtId },
             { directorateId, eduDistrictId: districtId },
-            { eduDirectorateId: directorateId, districtId }
-          ]
+            { eduDirectorateId: directorateId, districtId },
+          ],
         },
-        select: { id: true }
+        select: { id: true },
       });
       matchingTeachers.forEach((t) => affectedTeacherIds.add(t.id));
     }
@@ -143,7 +194,7 @@ export async function reassignAllForInspector(inspectorId: string) {
 export async function bulkReassignAll() {
   const teachers = await prisma.user.findMany({
     where: { role: 'teacher' },
-    select: { id: true }
+    select: { id: true },
   });
 
   let active = 0;
@@ -169,7 +220,7 @@ export async function removeAssignment(teacherId: string) {
   if (!existing) return null;
   return prisma.inspectorAssignment.update({
     where: { teacherId },
-    data: { status: 'Removed', inspectorId: null, assignedAt: null }
+    data: { status: 'Removed', inspectorId: null, assignedAt: null },
   });
 }
 
@@ -191,7 +242,7 @@ export async function acceptAssignment(teacherId: string, inspectorId: string) {
 
   return prisma.inspectorAssignment.update({
     where: { teacherId },
-    data: { status: 'Active', assignedAt: new Date() }
+    data: { status: 'Active', assignedAt: new Date() },
   });
 }
 
@@ -218,6 +269,6 @@ export async function rejectAssignment(teacherId: string, inspectorId: string, r
 
   return prisma.inspectorAssignment.update({
     where: { teacherId },
-    data: { status: 'Removed', inspectorId: null, assignedAt: null }
+    data: { status: 'Removed', inspectorId: null, assignedAt: null },
   });
 }

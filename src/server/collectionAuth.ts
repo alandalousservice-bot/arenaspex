@@ -30,6 +30,24 @@ export function canWriteRecord(
 }
 
 /**
+ * Read policy for private Teacher-owned documents exposed to the Inspector
+ * follow-up workspace. The assignment set is loaded from the server-side
+ * InspectorAssignment query for the current request.
+ */
+export function canReadTeacherOwnedDocument(
+  row: MinimalRecord,
+  user: MinimalUser,
+  acceptedTeacherIds: ReadonlySet<string>
+): boolean {
+  if (user.role === 'admin' || row.ownerId === user.id) return true;
+  return (
+    user.role === 'inspector' &&
+    typeof row.ownerId === 'string' &&
+    acceptedTeacherIds.has(row.ownerId)
+  );
+}
+
+/**
  * القيمة الصحيحة لحقل الملكية (ownerField) عند إنشاء/تعديل سجل.
  *
  * القاعدة الحاسمة: `ownerAssignedByServer=true` تعني أن هذا الحقل يمثّل *هوية فاعل الإجراء

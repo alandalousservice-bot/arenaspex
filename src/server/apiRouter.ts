@@ -22,8 +22,17 @@ import {
 import { prisma } from './prismaClient.js';
 import { hashPassword, sanitizeUser, sanitizeOwnUser, encryptApiKey } from './auth.js';
 import { requireAuth, requireOperationalAccount, requireRole } from './middleware/requireAuth.js';
-import { reassignTeacher, reassignAllForInspector } from './assignmentService.js';
-import { canWriteRecord, resolveOwnerFieldValue } from './collectionAuth.js';
+import {
+  acceptedTeacherIdsForInspector,
+  canInspectorAccessTeacher,
+  reassignTeacher,
+  reassignAllForInspector,
+} from './assignmentService.js';
+import {
+  canReadTeacherOwnedDocument,
+  canWriteRecord,
+  resolveOwnerFieldValue,
+} from './collectionAuth.js';
 import { canReadDistrictMessage, normalizeMessageText } from '../services/communicationRules.js';
 import { providerIsUsable } from './generationAccess.policy.js';
 import { teacherAttendanceRouter } from './attendanceRouter.js';
@@ -3883,6 +3892,10 @@ interface JsonCollectionDelegate {
   delete: (args: { where: { id: string } }) => Promise<DbRecord>;
 }
 
+type JsonCollectionVisibilityContext = {
+  acceptedTeacherIds: ReadonlySet<string>;
+};
+
 function jsonCollectionRoutes(opts: {
   path: string;
   model: JsonCollectionDelegate;
@@ -3890,7 +3903,11 @@ function jsonCollectionRoutes(opts: {
   listKey: string;
   batchBodyKey?: string;
   ownerField?: 'ownerId' | 'authorId' | 'userId' | 'senderId';
-  visibleTo?: (row: DbRecord, user: { id: string; role: string; districtId: string }) => boolean;
+  visibleTo?: (
+    row: DbRecord,
+    user: { id: string; role: string; districtId: string },
+    context: JsonCollectionVisibilityContext
+  ) => boolean;
   ownerAssignedByServer?: boolean;
   transformCreate?: (
     item: Record<string, unknown>,
@@ -3952,7 +3969,17 @@ function jsonCollectionRoutes(opts: {
       take: limit,
       skip: offset,
     });
-    const visible = visibleTo ? rows.filter((r) => visibleTo(r, req.user!)) : rows;
+    const acceptedTeacherIds =
+      req.user!.role === 'inspector'
+        ? await acceptedTeacherIdsForInspector(req.user!.id)
+        : new Set<string>();
+    const visible = visibleTo
+      ? rows.filter((r) =>
+          visibleTo(r, req.user!, {
+            acceptedTeacherIds,
+          })
+        )
+      : rows;
     res.json({
       success: true,
       [listKey]: visible.map((r) => ({ ...((r.data as Record<string, unknown>) || {}), id: r.id })),
@@ -4106,9 +4133,7 @@ function jsonCollectionRoutes(opts: {
   });
 }
 
-const isStaff = (user: { role: string }) => user.role === 'admin' || user.role === 'inspector';
-
-// 2. Lesson Plans — خاصة بالأستاذ صاحبها، ومرئية أيضاً لطاقم الإشراف (admin/inspector)
+// 2. Lesson Plans — خاصة بالأستاذ صاحبها، ومرئية للمفتش المرتبط به بإسناد مقبول، بالإضافة إلى admin
 jsonCollectionRoutes({
   path: 'lesson-plans',
   model: prisma.lessonPlan,
@@ -4117,10 +4142,11 @@ jsonCollectionRoutes({
   batchBodyKey: 'lessonPlans',
   ownerField: 'ownerId',
   transformCreate: (item, user) => ({ ...item, teacherId: user.id }),
-  visibleTo: (row, user) => isStaff(user) || row.ownerId === user.id,
+  visibleTo: (row, user, { acceptedTeacherIds }) =>
+    canReadTeacherOwnedDocument(row, user, acceptedTeacherIds),
 });
 
-// 3. Daily Notebook — كراس يومي خاص بالأستاذ، لا يُعرض لبقية الأساتذة
+// 3. Daily Notebook — كراس يومي خاص بالأستاذ، ولا يُعرض للمفتش إلا ضمن إسناده المقبول
 jsonCollectionRoutes({
   path: 'notebook',
   model: prisma.notebookEntry,
@@ -4128,7 +4154,8 @@ jsonCollectionRoutes({
   listKey: 'dailyNotebook',
   batchBodyKey: 'dailyNotebook',
   ownerField: 'ownerId',
-  visibleTo: (row, user) => isStaff(user) || row.ownerId === user.id,
+  visibleTo: (row, user, { acceptedTeacherIds }) =>
+    canReadTeacherOwnedDocument(row, user, acceptedTeacherIds),
 });
 
 // 4. Inspector Notes — يراها كاتبها (المفتش) والأستاذ المعنيّ بها فقط، بالإضافة إلى admin
@@ -4282,15 +4309,6 @@ jsonCollectionRoutes({
 //    ثم يعتمد اقتراحه بنفسه ليصبح نافذاً عند الأستاذ.
 // -----------------------------------------------------------------------
 
-async function isInspectorOfTeacher(inspectorId: string, teacherId: string): Promise<boolean> {
-  const assignment = await prisma.inspectorAssignment.findUnique({ where: { teacherId } });
-  return (
-    !!assignment &&
-    assignment.inspectorId === inspectorId &&
-    (assignment.status === 'Active' || assignment.status === 'Changed')
-  );
-}
-
 apiRouter.get('/admin/curriculum/overrides', requireRole('admin'), async (_req, res) => {
   try {
     const rows = await prisma.annualPlan.findMany({
@@ -4341,15 +4359,13 @@ apiRouter.get('/db/annual-plans', async (req, res) => {
     where.teacherId = user.id;
   } else if (user.role === 'inspector') {
     if (teacherId) {
-      if (!(await isInspectorOfTeacher(user.id, String(teacherId)))) {
+      if (!(await canInspectorAccessTeacher(user.id, String(teacherId)))) {
         return res.status(403).json({ error: 'هذا الأستاذ ليس ضمن مقاطعتك.' });
       }
       where.teacherId = String(teacherId);
     } else {
-      const assignments = await prisma.inspectorAssignment.findMany({
-        where: { inspectorId: user.id, status: { in: ['Active', 'Changed'] } },
-      });
-      where.teacherId = { in: assignments.map((a) => a.teacherId) };
+      const teacherIds = await acceptedTeacherIdsForInspector(user.id);
+      where.teacherId = { in: [...teacherIds] };
     }
   } else if (user.role === 'admin' && teacherId) {
     where.teacherId = String(teacherId);
@@ -4539,7 +4555,7 @@ apiRouter.post('/db/annual-plans', async (req, res) => {
       return res.status(403).json({ error: 'لا يمكنك تعديل مخطط أستاذ آخر.' });
     }
   } else if (user.role === 'inspector') {
-    if (!(await isInspectorOfTeacher(user.id, teacherId))) {
+    if (!(await canInspectorAccessTeacher(user.id, teacherId))) {
       return res
         .status(403)
         .json({ error: 'هذا الأستاذ ليس ضمن مقاطعتك، لا يمكنك اقتراح مخطط له.' });
@@ -4599,7 +4615,10 @@ apiRouter.post('/db/annual-plans', async (req, res) => {
 apiRouter.post('/db/annual-plans/:id/approve', requireRole('inspector'), async (req, res) => {
   const existing = await prisma.annualPlan.findUnique({ where: { id: req.params.id } });
   if (!existing) return res.status(404).json({ error: 'السجل غير موجود.' });
-  if (existing.proposedByInspectorId !== req.user!.id) {
+  if (
+    existing.proposedByInspectorId !== req.user!.id ||
+    !(await canInspectorAccessTeacher(req.user!.id, existing.teacherId))
+  ) {
     return res.status(403).json({ error: 'لا يمكنك اعتماد اقتراح لم تقدّمه أنت.' });
   }
   const saved = await prisma.annualPlan.update({
@@ -4617,7 +4636,9 @@ apiRouter.delete('/db/annual-plans/:id', async (req, res) => {
       const canDelete =
         user.role === 'admin' ||
         existing.teacherId === user.id ||
-        existing.proposedByInspectorId === user.id;
+        (user.role === 'inspector' &&
+          existing.proposedByInspectorId === user.id &&
+          (await canInspectorAccessTeacher(user.id, existing.teacherId)));
       if (!canDelete) return res.status(403).json({ error: 'لا تملك الصلاحية لحذف هذا السجل.' });
       await prisma.annualPlan.delete({ where: { id: existing.id } });
     }
