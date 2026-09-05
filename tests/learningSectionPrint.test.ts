@@ -1,6 +1,9 @@
 import fs from 'node:fs';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../src/data/algerianCurriculum';
+import { LearningSectionPrintDocument } from '../src/components/curriculum/LearningSectionPrintDocument';
 import {
   addTeacherLearningIntegration,
   addTeacherLearningObjective,
@@ -125,6 +128,9 @@ describe('official Learning Section print mapper', () => {
   it('uses a dedicated document with no interactive controls or technical columns', () => {
     const document = read('src/components/curriculum/LearningSectionPrintDocument.tsx');
     const css = read('src/index.css');
+    const model = printModel();
+    const markup = renderToStaticMarkup(createElement(LearningSectionPrintDocument, { model }));
+    const learningPrintCss = css.slice(css.lastIndexOf('@media print'));
     expect(document).toContain('learning-section-print-root');
     expect(document).toContain('المواقف التربوية / الموارد');
     expect(document).toContain('المعارف المجندة');
@@ -143,5 +149,22 @@ describe('official Learning Section print mapper', () => {
     expect(css).toContain('transform: none');
     expect(css).toContain('table-header-group');
     expect(css).toContain('print-color-adjust: exact');
+    expect(markup).toContain('learning-section-print-root');
+    expect(markup).toContain('المؤسسة');
+    expect(markup).toContain('الكفاءة الختامية');
+    expect(markup).toContain('نوع الحصة');
+    expect(markup).toContain('التوجيهات');
+    expect(markup).toContain('الأستاذ: أستاذ المادة');
+    expect(markup).not.toContain('الكفاءة الشاملة');
+    expect(markup).not.toContain('المعايير');
+    expect(markup).not.toContain('المؤشرات');
+    expect(learningPrintCss).toContain('position: static');
+    expect(learningPrintCss).toContain('width: 297mm');
+    expect(learningPrintCss).toContain('min-height: 210mm');
+    expect(learningPrintCss).toContain('display: block !important');
+    expect(learningPrintCss).not.toContain('position: absolute');
+    expect(learningPrintCss).not.toContain('page-break-before: always');
+    expect(learningPrintCss).toContain('break-before: auto');
+    expect(learningPrintCss).toContain('break-inside: avoid');
   });
 });
