@@ -59,7 +59,7 @@ export const QuickAccessPanel: React.FC<QuickAccessPanelProps> = ({ onNavigateTa
             <div className="flex items-center gap-2.5">
               <div className={`p-2 rounded-xl ${tile.iconWrapperClassName}`}>{tile.icon}</div>
               <div>
-                <div className="text-xs font-black text-blue-950 flex items-center gap-1.5">
+                <div className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
                   <span>{tile.title}</span>
                   {tile.badge && (
                     <span className="bg-blue-600 text-white text-[9px] px-1.5 py-0.2 rounded-full font-bold">
@@ -67,7 +67,7 @@ export const QuickAccessPanel: React.FC<QuickAccessPanelProps> = ({ onNavigateTa
                     </span>
                   )}
                 </div>
-                <div className="text-[10px] text-blue-700/90 font-medium">{tile.subtitle}</div>
+                <div className="text-xs text-blue-700/90 font-medium">{tile.subtitle}</div>
               </div>
             </div>
             <ArrowUpRight className="w-4 h-4 text-blue-600 group-hover:translate-x-0.5 transition-transform" />
@@ -84,7 +84,7 @@ export const QuickAccessPanel: React.FC<QuickAccessPanelProps> = ({ onNavigateTa
                 <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
                   {tile.title}
                 </div>
-                <div className="text-[10px] text-slate-500">{tile.subtitle}</div>
+                <div className="text-xs text-slate-500">{tile.subtitle}</div>
               </div>
             </div>
             <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600" />

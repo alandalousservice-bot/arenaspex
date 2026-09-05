@@ -43,7 +43,7 @@ export const TeacherKpiGrid: React.FC<TeacherKpiGridProps> = ({
         iconWrapperClassName="bg-blue-50 text-blue-600"
       >
         <div className="mt-4 flex items-baseline justify-between">
-          <span className="text-3xl font-extrabold text-slate-900">{executionPercentage}%</span>
+          <span className="text-3xl font-bold text-slate-900">{executionPercentage}%</span>
           <span className="text-xs font-semibold text-emerald-600 flex items-center gap-0.5">
             <ArrowUpRight className="w-3.5 h-3.5" /> منظم جداً
           </span>
@@ -62,10 +62,10 @@ export const TeacherKpiGrid: React.FC<TeacherKpiGridProps> = ({
         iconWrapperClassName="bg-emerald-50 text-emerald-600"
       >
         <div className="mt-4 flex items-baseline justify-between">
-          <span className="text-3xl font-extrabold text-slate-900">{completedCount}</span>
+          <span className="text-3xl font-bold text-slate-900">{completedCount}</span>
           <span className="text-xs text-slate-500 font-medium">من أصل {totalSessions} حصة</span>
         </div>
-        <p className="text-[11px] text-slate-500 mt-2">
+        <p className="text-xs text-slate-500 mt-2">
           الحصص المؤجلة: <span className="font-bold text-amber-600">{delayedCount} حصة</span>
         </p>
       </KpiCard>
@@ -76,12 +76,12 @@ export const TeacherKpiGrid: React.FC<TeacherKpiGridProps> = ({
         iconWrapperClassName="bg-purple-50 text-purple-600"
       >
         <div className="mt-4 flex items-baseline justify-between">
-          <span className="text-3xl font-extrabold text-slate-900">{lessonPlansCount}</span>
+          <span className="text-3xl font-bold text-slate-900">{lessonPlansCount}</span>
           <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-md">
             من البنك التربوي
           </span>
         </div>
-        <p className="text-[11px] text-slate-500 mt-2">جاهزة للطباعة والتصدير PDF</p>
+        <p className="text-xs text-slate-500 mt-2">جاهزة للطباعة والتصدير PDF</p>
       </KpiCard>
 
       <KpiCard
@@ -90,10 +90,10 @@ export const TeacherKpiGrid: React.FC<TeacherKpiGridProps> = ({
         iconWrapperClassName="bg-amber-50 text-amber-600"
       >
         <div className="mt-4 flex items-baseline justify-between">
-          <span className="text-3xl font-extrabold text-slate-900">{inspectorNotesCount}</span>
+          <span className="text-3xl font-bold text-slate-900">{inspectorNotesCount}</span>
           <span className="text-xs font-semibold text-emerald-600">توجيه بيداغوجي</span>
         </div>
-        <p className="text-[11px] text-slate-500 mt-2">{LAST_INSPECTION_VISIT_LABEL}</p>
+        <p className="text-xs text-slate-500 mt-2">{LAST_INSPECTION_VISIT_LABEL}</p>
       </KpiCard>
     </div>
   );

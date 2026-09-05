@@ -283,7 +283,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
               ? 'إعدادات الحساب والأمان'
               : 'إعدادات الحساب والأمان والانتساب المهني'}
         </span>
-        <h2 className="text-xl font-extrabold text-slate-900 mt-1 flex items-center gap-2">
+        <h2 className="text-xl font-bold text-slate-900 mt-1 flex items-center gap-2">
           <SettingsIcon className="w-5 h-5 text-blue-600" />
           <span>
             {isInspector
@@ -304,7 +304,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
         <form onSubmit={handleSaveProfile} className="space-y-6 text-xs">
           {/* Section 1: Credentials & Security (Email & Password) */}
           <div className="space-y-4 p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80">
-            <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-200/80 pb-2 flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-900 border-b border-slate-200/80 pb-2 flex items-center gap-2">
               <KeyRound className="w-4 h-4 text-blue-600" />
               <span>1. تعديل بيانات الاعتماد والأمان (البريد الإلكتروني وكلمة المرور)</span>
             </h3>
@@ -329,7 +329,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full p-2.5 rounded-xl border border-slate-300 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 font-bold text-slate-900 bg-white"
                 />
-                <p className="text-[11px] text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   💡 هذا هو البريد المعتمد لتسجيل الدخول وتلقي الإشعارات والتقارير الميدانية.
                 </p>
               </div>
@@ -343,7 +343,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="text-[11px] text-blue-600 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                     <span>{showPassword ? 'إخفاء' : 'إظهار'}</span>
@@ -376,7 +376,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
 
           {/* Section 1.5: Google account linking (دخول سريع بدون كلمة مرور) */}
           <div className="space-y-3 p-4 rounded-2xl bg-white border border-slate-200/80">
-            <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-200/80 pb-2 flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-900 border-b border-slate-200/80 pb-2 flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-blue-600" />
               <span>1.5. ربط الحساب بـ Google (دخول سريع)</span>
             </h3>
@@ -393,7 +393,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                 <p className="text-slate-700 font-bold">
                   ✅ حسابك مربوط بحساب Google — يمكنك الدخول فوراً عبر الزر بدون كلمة مرور.
-                  <span className="block text-[10px] text-slate-400 font-normal mt-1 dir-ltr text-right">
+                  <span className="block text-xs text-slate-400 font-normal mt-1 dir-ltr text-right">
                     Google ID: {currentUser.googleId.slice(0, 10)}…
                   </span>
                 </p>
@@ -401,14 +401,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                   type="button"
                   onClick={handleUnlinkGoogle}
                   disabled={isGoogleBusy}
-                  className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold rounded-xl border border-rose-200 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                  className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl border border-rose-200 transition-all cursor-pointer disabled:opacity-50 shrink-0"
                 >
                   فك الربط
                 </button>
               </div>
             ) : (
               <div className="space-y-2">
-                <p className="text-[11px] text-slate-500 leading-relaxed">
+                <p className="text-xs text-slate-500 leading-relaxed">
                   اربط حسابك بحساب Google يحمل <strong>نفس بريدك الإلكتروني المسجل</strong> لتتمكن
                   لاحقاً من الدخول بنقرة واحدة من شاشة الدخول.
                 </p>
@@ -424,7 +424,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
           {/* Section 1.6: Custom Gemini API Key — admin only */}
           {currentUser.role === 'admin' && (
             <div className="space-y-3 p-4 rounded-2xl bg-indigo-50/60 border border-indigo-200/80">
-              <h3 className="text-sm font-extrabold text-slate-900 border-b border-indigo-200/80 pb-2 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 border-b border-indigo-200/80 pb-2 flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <KeyRound className="w-4 h-4 text-indigo-600" />
                   <span>1.6 مفتاح الذكاء الاصطناعي المخصص (Gemini API Key)</span>
@@ -432,14 +432,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                 <button
                   type="button"
                   onClick={() => setShowApiKey(!showApiKey)}
-                  className="text-[11px] text-indigo-600 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                  className="text-xs text-indigo-600 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                   <span>{showApiKey ? 'إخفاء المفتاح' : 'إظهار المفتاح'}</span>
                 </button>
               </h3>
 
-              <p className="text-[11px] text-slate-600">
+              <p className="text-xs text-slate-600">
                 يمكنك ربط مفتاح Gemini API جديد خاص بحسابك لتوليد المذكرات البيداغوجية والخطط
                 التوجيهية بدون قيود الاستخدام العام.
               </p>
@@ -483,7 +483,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
             </div>
           )}
           <div className="space-y-4">
-            <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
               <UserIcon className="w-4 h-4 text-blue-600" />
               <span>2. المعلومات الشخصية والمهنية</span>
             </h3>
@@ -558,24 +558,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
 
           {isInspector && (
             <div className="space-y-4 pt-2">
-              <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-emerald-600" />
                 <span>3. الانتساب الإداري والتفتيشي</span>
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
                   <span className="font-bold text-slate-600 block mb-1">المديرية</span>
-                  <span className="font-extrabold text-slate-900">{directorateDisplayName}</span>
+                  <span className="font-bold text-slate-900">{directorateDisplayName}</span>
                 </div>
                 <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
                   <span className="font-bold text-slate-600 block mb-1">المقاطعة التفتيشية</span>
-                  <span className="font-extrabold text-slate-900">
+                  <span className="font-bold text-slate-900">
                     {districtName || districtId || 'غير محددة'}
                   </span>
                 </div>
               </div>
               {(!directorateId || !districtId) && (
-                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3 font-bold">
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3 font-semibold">
                   يرجى التواصل مع مشرف المنظومة لاستكمال الانتساب الإداري.
                 </p>
               )}
@@ -585,7 +585,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
           {/* Section 3: Administrative & School Assignment */}
           {!isInspector && showProfessionalFields && (
             <div className="space-y-4 pt-2">
-              <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-emerald-600" />
                 <span>3. بيانات التعيين والمقاطعة ومديرية التربية</span>
               </h3>
@@ -684,11 +684,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
 
               {/* Active Assignment Preview Card */}
               <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 space-y-2 text-emerald-950 mt-2">
-                <div className="flex items-center gap-2 font-black text-xs">
+                <div className="flex items-center gap-2 font-bold text-xs">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
                   <span>ملخص الانتساب الرسمي المنشور في التقارير والمذكرات:</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
                   <div>
                     🏫 <strong>المدرسة:</strong> {schoolName || 'لم تحدد'}
                   </div>
@@ -714,7 +714,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                 الإلكتروني وكلمة المرور بنجاح في قاعدة البيانات!
               </span>
             ) : (
-              <span className="text-[11px] text-slate-400">
+              <span className="text-xs text-slate-400">
                 🔒 يتم حفظ التعديلات وحمايتها فوراً للاستخدام بجميع الجلسات القادمة.
               </span>
             )}

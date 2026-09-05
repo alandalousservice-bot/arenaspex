@@ -302,7 +302,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">
             قاعدة المعرفة الوطنية
           </span>
-          <h2 className="text-xl font-extrabold text-slate-900 mt-1 flex items-center gap-2">
+          <h2 className="text-xl font-bold text-slate-900 mt-1 flex items-center gap-2">
             <BrainCircuit className="w-5 h-5 text-indigo-600" />
             <span>
               محرك المعرفة التربوية{' '}
@@ -332,7 +332,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
         <section className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-extrabold text-slate-900">اقتراح لعبة تربوية</h3>
+              <h3 className="text-sm font-bold text-slate-900">اقتراح لعبة تربوية</h3>
               <p className="text-xs text-slate-500">
                 اختر السنة والميدان والهدف، ثم راجع الاقتراح قبل حفظه.
               </p>
@@ -458,7 +458,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
 
       {suggestionDraft && (
         <section className="bg-white rounded-3xl p-6 border border-indigo-200 shadow-xs space-y-3">
-          <h3 className="text-sm font-extrabold text-slate-900">مراجعة الاقتراح قبل الحفظ</h3>
+          <h3 className="text-sm font-bold text-slate-900">مراجعة الاقتراح قبل الحفظ</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input
               value={suggestionDraft.title || ''}
@@ -617,17 +617,17 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
         <section className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-extrabold text-slate-900">تغطية بنك المعرفة</h3>
-              <p className="text-[11px] text-slate-500">
+              <h3 className="text-sm font-bold text-slate-900">تغطية بنك المعرفة</h3>
+              <p className="text-xs text-slate-500">
                 مؤشر تشخيصي داخلي: فارغة = 0، منخفضة = 1–2، كافية = 3 فأكثر.
               </p>
             </div>
-            <span className="text-[11px] text-slate-500">
+            <span className="text-xs text-slate-500">
               15 خلية · موارد مشتركة معتمدة: {approvedCommunityResources.length}
             </span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-[11px] text-right">
+            <table className="w-full text-xs text-right">
               <thead>
                 <tr className="border-b text-slate-500">
                   <th className="p-2">السنة</th>
@@ -692,12 +692,12 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
 
       {activeTab === 'game' && ownEditableGames.length > 0 && (
         <section className="bg-white rounded-3xl border border-slate-200/80 p-4 space-y-3">
-          <h3 className="text-sm font-extrabold text-slate-900">اقتراحاتي الخاصة</h3>
+          <h3 className="text-sm font-bold text-slate-900">اقتراحاتي الخاصة</h3>
           {ownEditableGames.map((item) => (
             <div key={item.id} className="border border-slate-100 rounded-2xl p-3 space-y-2">
               <div className="flex justify-between">
                 <span className="text-xs font-bold">{item.title}</span>
-                <span className="text-[11px] text-amber-700">
+                <span className="text-xs text-amber-700">
                   {item.approvalStatus === 'REJECTED' ? 'مرفوض' : 'مسودة'}
                 </span>
               </div>
@@ -715,13 +715,13 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
               <div className="flex gap-2">
                 <button
                   onClick={() => onSubmitKnowledgeItem?.(item.id)}
-                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-xl text-[11px] font-bold"
+                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-semibold"
                 >
                   إرسال للاعتماد
                 </button>
                 <button
                   onClick={() => onDeleteKnowledgeItem?.(item.id)}
-                  className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold"
+                  className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold"
                 >
                   حذف
                 </button>
@@ -733,12 +733,12 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
 
       {activeTab === 'game' && pendingGames.length > 0 && (
         <section className="bg-white rounded-3xl border border-amber-200 p-4 space-y-3">
-          <h3 className="text-sm font-extrabold text-slate-900">ألعاب بانتظار الاعتماد</h3>
+          <h3 className="text-sm font-bold text-slate-900">ألعاب بانتظار الاعتماد</h3>
           {pendingGames.map((item) => (
             <div key={item.id} className="border border-slate-100 rounded-2xl p-3 space-y-2">
               <div className="flex justify-between">
                 <span className="text-xs font-bold">{item.title}</span>
-                <span className="text-[11px] text-amber-700">بانتظار الاعتماد</span>
+                <span className="text-xs text-amber-700">بانتظار الاعتماد</span>
               </div>
               <p className="text-xs text-slate-600">
                 السنة {item.levelIds?.[0]?.replace('lvl_p', '')} · {item.fieldName} ·{' '}
@@ -747,7 +747,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
               <div className="flex gap-2">
                 <button
                   onClick={() => onApproveKnowledgeItem?.(item.id)}
-                  className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-[11px] font-bold"
+                  className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-semibold"
                 >
                   اعتماد
                 </button>
@@ -757,12 +757,12 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
                     setRejectionDraft({ ...rejectionDraft, [item.id]: e.target.value })
                   }
                   placeholder="سبب الرفض"
-                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px]"
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs"
                 />
                 <button
                   disabled={!rejectionDraft[item.id]?.trim()}
                   onClick={() => onRejectKnowledgeItem?.(item.id, rejectionDraft[item.id])}
-                  className="px-3 py-1.5 bg-rose-600 text-white rounded-xl text-[11px] font-bold disabled:opacity-40"
+                  className="px-3 py-1.5 bg-rose-600 text-white rounded-xl text-xs font-semibold disabled:opacity-40"
                 >
                   رفض
                 </button>
@@ -782,16 +782,16 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
               className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-3"
             >
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">
+                <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">
                   مورد تعليمي مشترك
                 </span>
-                <span className="text-[10px] text-slate-500">{resource.authorName}</span>
+                <span className="text-xs text-slate-500">{resource.authorName}</span>
               </div>
-              <h3 className="text-sm font-extrabold text-slate-900">{resource.title}</h3>
+              <h3 className="text-sm font-bold text-slate-900">{resource.title}</h3>
               <p className="text-xs leading-relaxed text-slate-600 bg-slate-50 p-3 rounded-2xl">
                 {resource.description}
               </p>
-              <p className="text-[11px] text-slate-500">النوع: {resource.type}</p>
+              <p className="text-xs text-slate-500">النوع: {resource.type}</p>
             </article>
           ))}
           {!filteredCommunityResources.length && (
@@ -808,12 +808,12 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
               className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow space-y-4"
             >
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
                   {item.fieldName || 'الميدان العام'}
                 </span>
               </div>
 
-              <h3 className="text-sm font-extrabold text-slate-900 leading-snug">{item.title}</h3>
+              <h3 className="text-sm font-bold text-slate-900 leading-snug">{item.title}</h3>
               <p className="text-xs text-slate-600 leading-relaxed bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
                 {item.description}
               </p>
@@ -821,19 +821,19 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
               {item.rules && (
                 <div className="text-xs space-y-1">
                   <span className="font-bold text-slate-800 block">طريقة التنفيذ والقوانين:</span>
-                  <p className="text-slate-600 text-[11px]">{item.rules}</p>
+                  <p className="text-slate-600 text-xs">{item.rules}</p>
                 </div>
               )}
 
               {item.equipment && item.equipment.length > 0 && (
-                <div className="text-[11px] text-slate-500 font-medium">
+                <div className="text-xs text-slate-500 font-medium">
                   <span className="font-bold text-slate-700">الأدوات المستعملة:</span>{' '}
                   {item.equipment.join('، ')}
                 </div>
               )}
 
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[10px] text-slate-400">
+                <span className="text-xs text-slate-400">
                   المصدر: {item.approvalStatus === 'APPROVED' ? 'معتمد' : 'اقتراح'}
                 </span>
 

@@ -79,17 +79,17 @@ export const DailyScheduleList: React.FC<DailyScheduleListProps> = ({
                   <span className="text-xs font-bold px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700">
                     {session.startTime || 'غير محدد'}
                   </span>
-                  <span className="text-xs font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
+                  <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
                     {session.classId}
                   </span>
                 </div>
                 <h4 className="text-xs font-bold text-slate-900">حصة تشغيلية مخططة</h4>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-xs text-slate-500">
                   {session.durationMinutes} دقيقة · {session.venue || 'المكان غير محدد'}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="px-2 py-1 rounded-lg bg-slate-100 text-[10px] font-extrabold">
+                <span className="px-2 py-1 rounded-lg bg-slate-100 text-xs font-semibold">
                   {session.status}
                 </span>
                 <button
@@ -113,7 +113,7 @@ export const DailyScheduleList: React.FC<DailyScheduleListProps> = ({
                   <span className="text-xs font-bold px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700">
                     {entry.timeSlot}
                   </span>
-                  <span className="text-xs font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
+                  <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">
                     {entry.className}
                   </span>
                 </div>
@@ -121,7 +121,7 @@ export const DailyScheduleList: React.FC<DailyScheduleListProps> = ({
                   {entry.sessionTitle || 'الحصة التشغيلية المحفوظة'}
                 </h4>
                 {entry.note && (
-                  <p className="text-[11px] text-slate-500 italic">ملاحظة: {entry.note}</p>
+                  <p className="text-xs text-slate-500 italic">ملاحظة: {entry.note}</p>
                 )}
               </div>
 
@@ -133,7 +133,7 @@ export const DailyScheduleList: React.FC<DailyScheduleListProps> = ({
                       onClick={() =>
                         onUpdateNotebookStatus && onUpdateNotebookStatus(entry.id, toggle.status)
                       }
-                      className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                      className={`px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                         entry.status === toggle.status
                           ? toggle.activeClassName
                           : toggle.inactiveClassName

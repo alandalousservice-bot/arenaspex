@@ -293,9 +293,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-bold text-emerald-700">التوزيع السنوي للمستويات</p>
-            <h1 className="mt-1 text-2xl font-extrabold text-slate-900">
-              التوزيع البيداغوجي الأسبوعي
-            </h1>
+            <h1 className="mt-1 text-2xl font-bold text-slate-900">التوزيع البيداغوجي الأسبوعي</h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-500">
               مرجع بيداغوجي موحّد لكل مستوى. يعرض فترات العمل الرقمية، بينما يحدد توقيت القسم الفعلي
               جدوله الأسبوعي.
@@ -349,8 +347,8 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
                 aria-pressed={level.levelId === selectedLevelId}
                 className={`rounded-xl border p-3 text-right ${level.levelId === selectedLevelId ? 'border-emerald-500 bg-emerald-700 text-white' : 'border-slate-200 bg-slate-50 text-slate-800'}`}
               >
-                <span className="block text-xs font-extrabold">السنة {level.grade} ابتدائي</span>
-                <span className="mt-1 block text-[11px] font-bold opacity-80">
+                <span className="block text-xs font-semibold">السنة {level.grade} ابتدائي</span>
+                <span className="mt-1 block text-xs font-medium opacity-80">
                   {level.pedagogicalUnitCount} وحدة · {level.weekCount} أسبوعاً
                 </span>
               </button>
@@ -363,7 +361,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
         <section className="annual-distribution-summary-card rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-sm font-extrabold text-slate-900">ملخص {levelName}</h2>
+              <h2 className="text-sm font-bold text-slate-900">ملخص {levelName}</h2>
               <p className="mt-1 text-xs text-slate-500">
                 {selectedLevel.weekCount} أسبوعاً · {selectedLevel.pedagogicalUnitCount} وحدة
                 بيداغوجية · {selectedLevel.learningUnitCount} حصة تعلمية ·{' '}
@@ -381,23 +379,23 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
               <p className="text-xs font-bold text-emerald-800">الأسابيع</p>
-              <p className="mt-1 text-xl font-black text-emerald-900">{selectedLevel.weekCount}</p>
+              <p className="mt-1 text-xl font-bold text-emerald-900">{selectedLevel.weekCount}</p>
             </div>
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
               <p className="text-xs font-bold text-blue-800">الوحدات البيداغوجية</p>
-              <p className="mt-1 text-xl font-black text-blue-900">
+              <p className="mt-1 text-xl font-bold text-blue-900">
                 {selectedLevel.pedagogicalUnitCount}
               </p>
             </div>
             <div className="rounded-xl border border-violet-200 bg-violet-50 p-3">
               <p className="text-xs font-bold text-violet-800">الحصص التعلمية</p>
-              <p className="mt-1 text-xl font-black text-violet-900">
+              <p className="mt-1 text-xl font-bold text-violet-900">
                 {selectedLevel.learningUnitCount}
               </p>
             </div>
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
               <p className="text-xs font-bold text-amber-800">الساعات السنوية</p>
-              <p className="mt-1 text-xl font-black text-amber-900">{selectedLevel.annualHours}</p>
+              <p className="mt-1 text-xl font-bold text-amber-900">{selectedLevel.annualHours}</p>
             </div>
           </div>
         </section>

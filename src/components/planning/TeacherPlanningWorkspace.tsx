@@ -268,7 +268,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-bold text-blue-600">فضاء الأستاذ</p>
-            <h1 className="mt-1 flex items-center gap-2 text-2xl font-extrabold text-slate-900">
+            <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold text-slate-900">
               <Calendar className="h-6 w-6 text-blue-600" /> التخطيط البيداغوجي
             </h1>
             <p className="mt-1 text-sm text-slate-500">
@@ -344,7 +344,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
         section !== 'weekly' &&
         section !== 'annual-distribution' && (
           <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center">
-            <h2 className="text-lg font-extrabold text-slate-900">لا توجد أقسام مسندة إليك بعد.</h2>
+            <h2 className="text-lg font-bold text-slate-900">لا توجد أقسام مسندة إليك بعد.</h2>
             <p className="mt-2 text-sm text-slate-500">
               أنشئ أو راجع إسناد القسم من فضاء القسم والتلاميذ.
             </p>

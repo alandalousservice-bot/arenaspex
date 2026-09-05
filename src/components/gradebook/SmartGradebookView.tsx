@@ -398,14 +398,14 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
       <div className="workspace-header bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-extrabold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+            <span className="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
               سجلات الأقسام ونظام التقييم الذكي
             </span>
             <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
               دفتر التنقيط الذكي
             </span>
           </div>
-          <h2 className="text-xl font-black text-slate-900 mt-2 flex items-center gap-2">
+          <h2 className="text-xl font-bold text-slate-900 mt-2 flex items-center gap-2">
             <GraduationCap className="w-6 h-6 text-blue-600" />
             <span>دفتر التنقيط الذكي</span>
           </h2>
@@ -433,7 +433,7 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
             <button
               type="button"
               key={cls.id}
-              className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold transition-all whitespace-nowrap flex items-center gap-2 ${
+              className={`px-4 py-2.5 rounded-2xl text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-2 ${
                 isSelected
                   ? 'workspace-level-selector is-selected text-white shadow-md shadow-emerald-600/20 ring-2 ring-emerald-500/30'
                   : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
@@ -443,7 +443,7 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
               <Users className="w-3.5 h-3.5" />
               <span>{cls.name}</span>
               <span
-                className={`text-[10px] px-2 py-0.5 rounded-full ${
+                className={`text-xs px-2 py-0.5 rounded-full ${
                   isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
                 }`}
               >
@@ -474,7 +474,7 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1.5 max-w-3xl">
                 <div className="flex items-center gap-2">
-                  <span className="smart-gradebook-philosophy-badge bg-amber-400 text-slate-950 font-black text-[11px] px-2.5 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
+                  <span className="smart-gradebook-philosophy-badge bg-amber-400 text-slate-950 font-bold text-xs px-2.5 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
                     <Sparkles className="w-3 h-3 text-slate-950 fill-slate-950" />
                     فلسفة التقييم الذكي منصة SPEX
                   </span>
@@ -482,7 +482,7 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
                     التربية البدنية والرياضية • المنهاج الجزائري
                   </span>
                 </div>
-                <h3 className="smart-gradebook-philosophy-heading text-base font-black text-white">
+                <h3 className="smart-gradebook-philosophy-heading text-base font-bold text-white">
                   دفتر التنقيط ليس آلة صماء تمنح العلامات، بل أداة مساعدة ذكية تضع التقديرات وتترك
                   القرار الأخير دائماً للأستاذ
                 </h3>
@@ -522,73 +522,61 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
           {/* Statistics & Analytics Cards Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">متوسط القسم</span>
+              <span className="text-xs font-bold text-slate-500 block">متوسط القسم</span>
               <div className="flex items-baseline gap-1">
-                <span className="text-xl font-black text-blue-700">{classStats.avg}</span>
-                <span className="text-[10px] text-slate-400 font-bold">/ 10</span>
+                <span className="text-xl font-bold text-blue-700">{classStats.avg}</span>
+                <span className="text-xs text-slate-400 font-medium">/ 10</span>
               </div>
-              <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5">
+              <span className="text-xs text-emerald-600 font-medium flex items-center gap-0.5">
                 <TrendingUp className="w-3 h-3" /> أداء ممتاز للقسم
               </span>
             </div>
 
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">
-                أعلى علامة بالقسم
-              </span>
+              <span className="text-xs font-bold text-slate-500 block">أعلى علامة بالقسم</span>
               <div className="flex items-baseline gap-1">
-                <span className="text-xl font-black text-emerald-600">{classStats.max}</span>
-                <span className="text-[10px] text-slate-400 font-bold">/ 10</span>
+                <span className="text-xl font-bold text-emerald-600">{classStats.max}</span>
+                <span className="text-xs text-slate-400 font-medium">/ 10</span>
               </div>
-              <span className="text-[10px] text-slate-500 font-bold">أعلى أداء حركي</span>
+              <span className="text-xs text-slate-500 font-medium">أعلى أداء حركي</span>
             </div>
 
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">
-                أدنى علامة بالقسم
-              </span>
+              <span className="text-xs font-bold text-slate-500 block">أدنى علامة بالقسم</span>
               <div className="flex items-baseline gap-1">
-                <span className="text-xl font-black text-amber-600">{classStats.min}</span>
-                <span className="text-[10px] text-slate-400 font-bold">/ 10</span>
+                <span className="text-xl font-bold text-amber-600">{classStats.min}</span>
+                <span className="text-xs text-slate-400 font-medium">/ 10</span>
               </div>
-              <span className="text-[10px] text-slate-500 font-bold">يحتاج تحفيزاً واستدراكاً</span>
+              <span className="text-xs text-slate-500 font-medium">يحتاج تحفيزاً واستدراكاً</span>
             </div>
 
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">
-                نسبة التمكن الكفائي
-              </span>
+              <span className="text-xs font-bold text-slate-500 block">نسبة التمكن الكفائي</span>
               <div className="flex items-baseline gap-1">
-                <span className="text-xl font-black text-purple-700">
+                <span className="text-xl font-bold text-purple-700">
                   {classStats.competencyRate}%
                 </span>
               </div>
-              <span className="text-[10px] text-purple-600 font-bold">تمكن جيد وممتاز</span>
+              <span className="text-xs text-purple-600 font-medium">تمكن جيد وممتاز</span>
             </div>
 
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">
-                نسبة المواظبة والحضور
-              </span>
+              <span className="text-xs font-bold text-slate-500 block">نسبة المواظبة والحضور</span>
               <div className="flex items-baseline gap-1">
-                <span className="text-xl font-black text-emerald-700">
+                <span className="text-xl font-bold text-emerald-700">
                   {classStats.attendanceRate}%
                 </span>
               </div>
-              <span className="text-[10px] text-slate-500 font-bold">انضباط حركي ملحوظ</span>
+              <span className="text-xs text-slate-500 font-medium">انضباط حركي ملحوظ</span>
             </div>
 
             <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-[11px] font-extrabold text-slate-500 block">
-                حالة الاعتماد الأستاذي
-              </span>
+              <span className="text-xs font-bold text-slate-500 block">حالة الاعتماد الأستاذي</span>
               <div className="flex items-baseline gap-1">
-                <span className="text-xl font-black text-blue-900">{classStats.approvedCount}</span>
-                <span className="text-[10px] text-slate-400 font-bold">
-                  / {classStudents.length}
-                </span>
+                <span className="text-xl font-bold text-blue-900">{classStats.approvedCount}</span>
+                <span className="text-xs text-slate-400 font-medium">/ {classStudents.length}</span>
               </div>
-              <span className="text-[10px] text-blue-600 font-bold">علامات معتمدة</span>
+              <span className="text-xs text-blue-600 font-medium">علامات معتمدة</span>
             </div>
           </div>
 
@@ -596,14 +584,14 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
           <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
             <div className="flex items-center gap-2">
               <BarChart2 className="w-4 h-4 text-blue-600" />
-              <span className="font-extrabold text-slate-900">توزيع المستويات بالقسم:</span>
+              <span className="font-bold text-slate-900">توزيع المستويات بالقسم:</span>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <span className="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl font-bold flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 ممتاز (9-10):{' '}
-                <strong className="font-black text-emerald-900">
+                <strong className="font-bold text-emerald-900">
                   {classStats.distribution.excellent}
                 </strong>
               </span>
@@ -611,13 +599,13 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
               <span className="px-3 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-xl font-bold flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-blue-500" />
                 جيد (7-8.9):{' '}
-                <strong className="font-black text-blue-900">{classStats.distribution.good}</strong>
+                <strong className="font-bold text-blue-900">{classStats.distribution.good}</strong>
               </span>
 
               <span className="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl font-bold flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-amber-500" />
                 متوسط (5-6.9):{' '}
-                <strong className="font-black text-amber-900">
+                <strong className="font-bold text-amber-900">
                   {classStats.distribution.average}
                 </strong>
               </span>
@@ -625,7 +613,7 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
               <span className="px-3 py-1 bg-rose-50 text-rose-800 border border-rose-200 rounded-xl font-bold flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-rose-500" />
                 ضعيف (&lt;5):{' '}
-                <strong className="font-black text-rose-900">{classStats.distribution.weak}</strong>
+                <strong className="font-bold text-rose-900">{classStats.distribution.weak}</strong>
               </span>
             </div>
           </div>
@@ -634,11 +622,11 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
           <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
-                <h3 className="text-base font-black text-slate-900">
+                <h3 className="text-base font-bold text-slate-900">
                   شبكة تنقيط علامات التربية البدنية والرياضية -{' '}
                   <span className="text-blue-700">{activeClass.name}</span>
                 </h3>
-                <span className="text-xs bg-slate-100 text-slate-700 font-extrabold px-2.5 py-1 rounded-xl">
+                <span className="text-xs bg-slate-100 text-slate-700 font-semibold px-2.5 py-1 rounded-xl">
                   توزيع الأوزان: كفاءة ({weights.competencyWeight}) • مشاركة (
                   {weights.participationWeight}) • سلوك ({weights.behaviorWeight}) • مواظبة (
                   {weights.attendanceWeight})
@@ -776,13 +764,13 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
                             </td>
 
                             {/* Full Name */}
-                            <td className="p-3 font-extrabold text-slate-900">
+                            <td className="p-3 font-bold text-slate-900">
                               <div className="flex items-center gap-1.5">
                                 <span>
                                   {std.firstName} {std.lastName}
                                 </span>
                                 {isExempt && (
-                                  <span className="bg-rose-100 text-rose-800 text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                                  <span className="bg-rose-100 text-rose-800 text-xs font-semibold px-1.5 py-0.5 rounded-full">
                                     معفى
                                   </span>
                                 )}
@@ -806,14 +794,14 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
                                 <option value="متوسط">متوسط (1.3)</option>
                                 <option value="ضعيف">ضعيف (0.8)</option>
                               </select>
-                              <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+                              <span className="text-xs text-slate-500 font-mono block mt-0.5">
                                 {rec.behaviorScore ?? '—'} / {weights.behaviorWeight}
                               </span>
                             </td>
 
                             {/* Attendance Score */}
                             <td className="p-2 text-center bg-blue-50/20">
-                              <span className="font-extrabold text-slate-900 block text-xs">
+                              <span className="font-bold text-slate-900 block text-xs">
                                 {rec.attendanceScore ?? '—'} / {weights.attendanceWeight}
                               </span>
                               <span className="text-[9px] text-slate-500 block">
@@ -843,7 +831,7 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
                                 <option value="متوسط">متوسط (1.3)</option>
                                 <option value="ضعيف">ضعيف (0.8)</option>
                               </select>
-                              <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+                              <span className="text-xs text-slate-500 font-mono block mt-0.5">
                                 {rec.participationScore ?? '—'} / {weights.participationWeight}
                               </span>
                             </td>
@@ -866,13 +854,13 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
                                 <option value="تمكن متوسط">تمكن متوسط (3.25)</option>
                                 <option value="تمكن جزئي">تمكن جزئي (2.25)</option>
                               </select>
-                              <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+                              <span className="text-xs text-slate-500 font-mono block mt-0.5">
                                 {rec.competencyScore ?? '—'} / {weights.competencyWeight}
                               </span>
                             </td>
 
                             {/* Suggested Grade (System Calculation) */}
-                            <td className="p-3 text-center bg-indigo-50/40 border-x border-indigo-100 font-mono font-black text-indigo-900 text-sm">
+                            <td className="p-3 text-center bg-indigo-50/40 border-x border-indigo-100 font-mono font-bold text-indigo-900 text-sm">
                               <div className="flex items-center justify-center gap-1">
                                 <Sparkles className="w-3 h-3 text-indigo-600 fill-indigo-600" />
                                 <span>{rec.suggestedMark ?? 'غير مقوّم'}</span>
@@ -895,9 +883,9 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
                                     });
                                   }
                                 }}
-                                className={`w-16 text-center py-1 font-mono font-black text-xs rounded-xl border outline-none ${
+                                className={`w-16 text-center py-1 font-mono font-bold text-xs rounded-xl border outline-none ${
                                   isModified
-                                    ? 'bg-amber-100 border-amber-400 text-amber-950 font-extrabold ring-2 ring-amber-300'
+                                    ? 'bg-amber-100 border-amber-400 text-amber-950 font-bold ring-2 ring-amber-300'
                                     : 'bg-white border-slate-300 text-slate-900 focus:ring-2 focus:ring-emerald-500'
                                 }`}
                               />
@@ -929,7 +917,7 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
                                       isApprovedByTeacher: !rec.isApprovedByTeacher,
                                     })
                                   }
-                                  className={`px-2 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                  className={`px-2 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                                     rec.isApprovedByTeacher
                                       ? 'bg-emerald-600 text-white shadow-xs'
                                       : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
@@ -993,7 +981,7 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl border border-slate-200 space-y-5 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <History className="w-5 h-5 text-blue-600" />
                   <span>سجل التعديلات المباشرة والشفافية (Audit Log)</span>
                 </h3>
@@ -1054,30 +1042,28 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
                       className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-xs"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-slate-900 text-sm">
-                          {log.studentName}
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-mono bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                        <span className="font-bold text-slate-900 text-sm">{log.studentName}</span>
+                        <span className="text-xs text-slate-500 font-mono bg-white px-2.5 py-1 rounded-lg border border-slate-200">
                           {log.changeDate}
                         </span>
                       </div>
 
                       <div className="grid grid-cols-3 gap-2 p-2.5 bg-white rounded-xl border border-slate-100 font-mono text-center">
                         <div>
-                          <span className="text-[10px] text-slate-400 block">المقترحة</span>
-                          <span className="font-black text-indigo-700">
+                          <span className="text-xs text-slate-400 block">المقترحة</span>
+                          <span className="font-bold text-indigo-700">
                             {log.suggestedMark} / 10
                           </span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400 block">السابقة</span>
+                          <span className="text-xs text-slate-400 block">السابقة</span>
                           <span className="font-bold text-slate-600">
                             {log.previousFinalMark ?? '-'}
                           </span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400 block">النهائية المعدلة</span>
-                          <span className="font-black text-emerald-700">
+                          <span className="text-xs text-slate-400 block">النهائية المعدلة</span>
+                          <span className="font-bold text-emerald-700">
                             {log.newFinalMark} / 10
                           </span>
                         </div>
@@ -1092,7 +1078,7 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
                         </div>
                       )}
 
-                      <div className="text-[10px] text-slate-500 flex justify-between items-center pt-1">
+                      <div className="text-xs text-slate-500 flex justify-between items-center pt-1">
                         <span>
                           الأستاذ المعدّل:{' '}
                           <strong className="text-slate-800">{log.changedByTeacherName}</strong>

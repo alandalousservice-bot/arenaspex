@@ -233,7 +233,7 @@ export const Header: React.FC<HeaderProps> = React.memo(
             <div className="hidden sm:block">
               <h1 className="text-base font-bold text-slate-900 leading-tight flex items-center gap-1.5">
                 <span>منصة SPEX</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">
+                <span className="text-xs px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">
                   إصدار 1.0
                 </span>
               </h1>
@@ -289,7 +289,7 @@ export const Header: React.FC<HeaderProps> = React.memo(
                   >
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-slate-800 truncate">{item.label}</p>
-                      <p className="text-[10px] text-slate-400 truncate">{item.sublabel}</p>
+                      <p className="text-xs text-slate-400 truncate">{item.sublabel}</p>
                     </div>
                   </button>
                 ))
@@ -344,10 +344,10 @@ export const Header: React.FC<HeaderProps> = React.memo(
             {showNotifMenu && (
               <div className="absolute left-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 py-3 z-50 text-right animate-in fade-in zoom-in-95 duration-150">
                 <div className="px-4 pb-2 border-b border-slate-100 flex items-center justify-between">
-                  <span className="text-xs font-black text-slate-900">
+                  <span className="text-xs font-bold text-slate-900">
                     تنبيهات إنجاز الحصص والإشعارات
                   </span>
-                  <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">
                     تأشير إنجاز الكراس اليومي
                   </span>
                 </div>
@@ -356,7 +356,7 @@ export const Header: React.FC<HeaderProps> = React.memo(
                   {/* Pending & Today's PE Sessions Alerts */}
                   {dailyNotebookEntries.length > 0 && (
                     <div className="p-3 bg-emerald-50/40">
-                      <div className="text-[11px] font-extrabold text-emerald-900 mb-2 flex items-center gap-1.5">
+                      <div className="text-xs font-bold text-emerald-900 mb-2 flex items-center gap-1.5">
                         <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
                         <span>حصص الكراس اليومي المستهدفة بالتأشير:</span>
                       </div>
@@ -368,11 +368,9 @@ export const Header: React.FC<HeaderProps> = React.memo(
                             className="bg-white p-2.5 rounded-xl border border-blue-100 shadow-2xs text-xs space-y-1.5"
                           >
                             <div className="flex items-center justify-between">
-                              <span className="font-extrabold text-slate-900">
-                                {entry.className}
-                              </span>
+                              <span className="font-bold text-slate-900">{entry.className}</span>
                               <span
-                                className={`text-[10px] px-2 py-0.5 rounded-md font-bold ${
+                                className={`text-xs px-2 py-0.5 rounded-md font-semibold ${
                                   entry.status === 'منجزة'
                                     ? 'bg-emerald-100 text-emerald-800'
                                     : entry.status === 'مؤجلة'
@@ -384,7 +382,7 @@ export const Header: React.FC<HeaderProps> = React.memo(
                               </span>
                             </div>
 
-                            <div className="text-[11px] text-slate-600 font-medium">
+                            <div className="text-xs text-slate-600 font-medium">
                               تاريخ الحصة: {entry.executionDate} ({entry.timeSlot})
                             </div>
 
@@ -393,7 +391,7 @@ export const Header: React.FC<HeaderProps> = React.memo(
                               <div className="flex items-center gap-1 pt-1 border-t border-slate-100">
                                 <button
                                   onClick={() => onUpdateNotebookStatus(entry.id, 'منجزة')}
-                                  className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                                  className={`flex-1 py-1 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                                     entry.status === 'منجزة'
                                       ? 'bg-emerald-600 text-white shadow-2xs'
                                       : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
@@ -403,7 +401,7 @@ export const Header: React.FC<HeaderProps> = React.memo(
                                 </button>
                                 <button
                                   onClick={() => onUpdateNotebookStatus(entry.id, 'غير منجزة')}
-                                  className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                                  className={`flex-1 py-1 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                                     entry.status === 'غير منجزة'
                                       ? 'bg-rose-600 text-white shadow-2xs'
                                       : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
@@ -413,7 +411,7 @@ export const Header: React.FC<HeaderProps> = React.memo(
                                 </button>
                                 <button
                                   onClick={() => onUpdateNotebookStatus(entry.id, 'مؤجلة')}
-                                  className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                                  className={`flex-1 py-1 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                                     entry.status === 'مؤجلة'
                                       ? 'bg-amber-600 text-white shadow-2xs'
                                       : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
@@ -438,12 +436,10 @@ export const Header: React.FC<HeaderProps> = React.memo(
                         <p className="text-xs font-semibold text-slate-800">
                           تم اعتماد التوزيع والبرنامج البيداغوجي
                         </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-xs text-slate-500 mt-0.5">
                           قام المفتش عبد الرحمن سطيفي بمراجعة المخطط والتوزيع السنوي.
                         </p>
-                        <span className="text-[10px] text-slate-400 mt-1 block">
-                          تنبيه آلي بالنظام
-                        </span>
+                        <span className="text-xs text-slate-400 mt-1 block">تنبيه آلي بالنظام</span>
                       </div>
                     </div>
                   </div>
@@ -465,7 +461,7 @@ export const Header: React.FC<HeaderProps> = React.memo(
               <div className="text-xs font-bold text-slate-900 leading-tight">
                 {currentUser.firstName} {currentUser.lastName}
               </div>
-              <div className="text-[10px] text-slate-500 font-medium">{currentUser.email}</div>
+              <div className="text-xs text-slate-500 font-medium">{currentUser.email}</div>
             </div>
 
             <button

@@ -155,7 +155,7 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
       <div className="workspace-card workspace-header space-y-5 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs">
         <div className="flex flex-col items-start justify-between gap-4 border-b border-slate-100 pb-4 sm:flex-row sm:items-center">
           <div>
-            <h3 className="flex items-center gap-2 text-base font-black text-slate-900">
+            <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
               <span>دفتر تسجيل الحضور والغياب للتربية البدنية</span>
               <select
                 aria-label="القسم"
@@ -219,12 +219,12 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
                   return (
                     <tr key={student.id} className="transition-colors hover:bg-slate-50">
                       <td className="p-3 text-center font-bold text-slate-400">{index + 1}</td>
-                      <td className="p-3 font-extrabold text-slate-900">
+                      <td className="p-3 font-bold text-slate-900">
                         {student.firstName} {student.lastName}
                       </td>
                       <td className="p-3 text-center">
                         <span
-                          className={`rounded-xl px-3 py-1 text-xs font-black ${attendanceBadgeClass(status)}`}
+                          className={`rounded-xl px-3 py-1 text-xs font-semibold ${attendanceBadgeClass(status)}`}
                         >
                           {status}
                         </span>
@@ -237,7 +237,7 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
                               type="button"
                               disabled={Boolean(savingStudentId) || Boolean(deletingStudentId)}
                               onClick={() => void saveStatus(student.id, nextStatus)}
-                              className={`cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                              className={`cursor-pointer rounded-lg px-2.5 py-1 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                                 status === nextStatus
                                   ? 'bg-slate-900 text-white shadow-xs'
                                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'

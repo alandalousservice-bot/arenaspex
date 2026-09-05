@@ -507,14 +507,14 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
       <div className="workspace-header students-book-header bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-extrabold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+            <span className="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
               دفتر التلاميذ
             </span>
             <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
               المقاطعة 07 - عين أزال سطيف
             </span>
           </div>
-          <h2 className="text-xl font-black text-slate-900 mt-2 flex items-center gap-2">
+          <h2 className="text-xl font-bold text-slate-900 mt-2 flex items-center gap-2">
             <GraduationCap className="w-6 h-6 text-blue-600" />
             <span>دفتر التلاميذ — القوائم الاسمية والمتابعة</span>
           </h2>
@@ -568,10 +568,8 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="text-xs font-black text-slate-800">الأقسام المسندة للأستاذ</span>
-              <span className="text-[11px] font-semibold text-slate-400">
-                {classes.length} أقسام
-              </span>
+              <span className="text-xs font-bold text-slate-800">الأقسام المسندة للأستاذ</span>
+              <span className="text-xs font-semibold text-slate-400">{classes.length} أقسام</span>
             </div>
             <div className="students-selected-class mt-2 flex flex-wrap items-center gap-2 text-xs">
               <span className="font-semibold text-slate-500">القسم المحدد</span>
@@ -602,7 +600,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
               <button
                 type="button"
                 key={cls.id}
-                className={`students-class-chip min-w-0 rounded-2xl border px-3 py-2.5 text-right text-xs font-extrabold transition-all cursor-pointer ${
+                className={`students-class-chip min-w-0 rounded-2xl border px-3 py-2.5 text-right text-xs font-semibold transition-all cursor-pointer ${
                   isSelected
                     ? 'is-selected border-blue-500 bg-blue-600 text-white shadow-md shadow-blue-600/20 ring-2 ring-blue-500/30'
                     : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-200 hover:bg-emerald-50/60'
@@ -615,7 +613,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
                   <span className="min-w-0 flex-1 break-words">{cls.name}</span>
                 </span>
                 <span
-                  className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}
+                  className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-xs ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}
                 >
                   {count} تلميذاً
                 </span>
@@ -653,7 +651,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
       >
         <button
           onClick={() => setActiveRegister('roster')}
-          className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-extrabold transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
             activeRegister === 'roster'
               ? 'bg-emerald-600 text-white shadow-sm'
               : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-800'
@@ -665,7 +663,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
 
         <button
           onClick={() => setActiveRegister('exempted')}
-          className={`relative flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-extrabold transition-all cursor-pointer ${
+          className={`relative flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
             activeRegister === 'exempted'
               ? 'bg-emerald-600 text-white shadow-sm'
               : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-800'
@@ -674,7 +672,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
           <ShieldAlert className="h-4 w-4" />
           <span>المعفيون طبياً</span>
           {exemptionsList.length > 0 && (
-            <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+            <span className="bg-rose-500 text-white text-xs font-semibold px-1.5 py-0.5 rounded-full">
               {exemptionsList.length}
             </span>
           )}
@@ -682,7 +680,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
 
         <button
           onClick={() => setActiveRegister('clubs')}
-          className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-extrabold transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
             activeRegister === 'clubs'
               ? 'bg-emerald-600 text-white shadow-sm'
               : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-800'
@@ -697,7 +695,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
         <div className="students-book-section workspace-card bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div>
-              <h3 className="text-base font-black text-slate-900">القائمة الاسمية للقسم</h3>
+              <h3 className="text-base font-bold text-slate-900">القائمة الاسمية للقسم</h3>
               <p className="text-xs text-slate-500 mt-1">
                 {activeClass.name || 'لا يوجد قسم محدد'} — {classStudents.length} تلميذاً
               </p>
@@ -732,7 +730,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
                   classStudents.map((std, index) => (
                     <tr key={std.id} className="hover:bg-slate-50">
                       <td className="p-3">{index + 1}</td>
-                      <td className="p-3 font-extrabold">
+                      <td className="p-3 font-bold">
                         {std.firstName} {std.lastName}
                       </td>
                       <td className="p-3 font-mono">
@@ -754,7 +752,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
                           onClick={() =>
                             handleConfirmDeleteStudent(std.id, `${std.firstName} ${std.lastName}`)
                           }
-                          className="workspace-button-danger inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold"
+                          className="workspace-button-danger inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold"
                         >
                           <Trash2 className="h-3 w-3" />
                           حذف
@@ -774,7 +772,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
         <div className="students-book-section workspace-card bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <ShieldAlert className="w-5 h-5 text-rose-600" />
                 <span>دفتر التلاميذ المعفيين طبياً من المجهود البدني</span>
                 <span className="text-xs bg-rose-50 text-rose-700 font-bold px-2.5 py-0.5 rounded-lg border border-rose-100">
@@ -824,7 +822,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
                   exemptionsList.map((ex, idx) => (
                     <tr key={ex.id} className="hover:bg-rose-50/20 transition-colors">
                       <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                      <td className="p-3 font-extrabold text-slate-900">
+                      <td className="p-3 font-bold text-slate-900">
                         {ex.student
                           ? `${ex.student.firstName} ${ex.student.lastName}`
                           : students.find((student) => student.id === ex.studentId)?.firstName ||
@@ -834,13 +832,13 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
                         <div>
                           <strong className="text-slate-800">{ex.issuedOn.slice(0, 10)}</strong>
                         </div>
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-xs text-slate-400">
                           {ex.expiresOn ? `إلى ${ex.expiresOn.slice(0, 10)}` : 'دون تاريخ انتهاء'}
                         </div>
                       </td>
                       <td className="p-3 text-rose-700 font-bold">{ex.reason || ex.note || '—'}</td>
                       <td className="p-3 text-center">
-                        <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2.5 py-1 rounded-full">
+                        <span className="bg-rose-100 text-rose-800 text-xs font-semibold px-2.5 py-1 rounded-full">
                           {ex.expiresOn ? 'محددة بالتاريخ' : 'سارية'}
                         </span>
                       </td>
@@ -872,7 +870,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
         <div className="students-book-section workspace-card bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <Flag className="w-5 h-5 text-emerald-600" />
                 <span>دفتر البلديات التربوية والنوادي الرياضية للقسم</span>
                 <span className="text-xs bg-emerald-50 text-emerald-700 font-bold px-2.5 py-0.5 rounded-lg border border-emerald-100">
@@ -901,9 +899,9 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-blue-600"></div>
-                  <h4 className="text-xs font-black text-blue-900">النادي الأول (نادي أ)</h4>
+                  <h4 className="text-xs font-bold text-blue-900">النادي الأول (نادي أ)</h4>
                 </div>
-                <span className="text-[10px] bg-blue-200/60 text-blue-900 font-extrabold px-2 py-0.5 rounded-full">
+                <span className="text-xs bg-blue-200/60 text-blue-900 font-semibold px-2 py-0.5 rounded-full">
                   {
                     classStudents.filter((s) => (clubAssignments[s.id] || 'club_a') === 'club_a')
                       .length
@@ -913,7 +911,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
               </div>
               <div className="space-y-2">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                  <label className="text-xs font-semibold text-slate-500 block mb-1">
                     اسم النادي:
                   </label>
                   <input
@@ -924,7 +922,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                  <label className="text-xs font-semibold text-slate-500 block mb-1">
                     شعار النادي:
                   </label>
                   <input
@@ -942,15 +940,15 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-teal-600"></div>
-                  <h4 className="text-xs font-black text-purple-900">النادي الثاني (نادي ب)</h4>
+                  <h4 className="text-xs font-bold text-purple-900">النادي الثاني (نادي ب)</h4>
                 </div>
-                <span className="text-[10px] bg-purple-200/60 text-purple-900 font-extrabold px-2 py-0.5 rounded-full">
+                <span className="text-xs bg-purple-200/60 text-purple-900 font-semibold px-2 py-0.5 rounded-full">
                   {classStudents.filter((s) => clubAssignments[s.id] === 'club_b').length} أعضاء
                 </span>
               </div>
               <div className="space-y-2">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                  <label className="text-xs font-semibold text-slate-500 block mb-1">
                     اسم النادي:
                   </label>
                   <input
@@ -961,7 +959,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                  <label className="text-xs font-semibold text-slate-500 block mb-1">
                     شعار النادي:
                   </label>
                   <input
@@ -1006,19 +1004,19 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
                     return (
                       <tr key={std.id} className="hover:bg-slate-50 transition-colors">
                         <td className="p-3 text-center text-slate-400 font-bold">{idx + 1}</td>
-                        <td className="p-3 font-extrabold text-slate-900">
+                        <td className="p-3 font-bold text-slate-900">
                           {std.firstName} {std.lastName}
                         </td>
                         <td className="p-3 text-center">
                           <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${std.gender === 'ذكر' ? 'bg-blue-50 text-blue-700' : 'bg-pink-50 text-pink-700'}`}
+                            className={`px-2 py-0.5 rounded-full text-xs font-semibold ${std.gender === 'ذكر' ? 'bg-blue-50 text-blue-700' : 'bg-pink-50 text-pink-700'}`}
                           >
                             {std.gender}
                           </span>
                         </td>
                         <td className="p-3 text-center">
                           <span
-                            className={`px-3 py-1 rounded-xl text-xs font-black ${
+                            className={`px-3 py-1 rounded-xl text-xs font-bold ${
                               assignedClub === 'club_a'
                                 ? 'bg-blue-100 text-blue-900 border border-blue-200'
                                 : 'bg-purple-100 text-purple-900 border border-purple-200'
@@ -1062,7 +1060,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-200 space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <Plus className="w-5 h-5 text-emerald-600" />
                 <span>إضافة قسم جديد لإسناد الأستاذ</span>
               </h3>
@@ -1140,7 +1138,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-200 space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <Plus className="w-5 h-5 text-blue-600" />
                 <span>إضافة تلميذ إلى قسم {activeClass.name}</span>
               </h3>
@@ -1245,7 +1243,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
           <div className="bg-white rounded-3xl p-6 max-w-3xl w-full shadow-2xl border border-slate-200 space-y-4 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <h3 className="text-base font-black text-slate-900">
+                <h3 className="text-base font-bold text-slate-900">
                   معاينة استيراد قائمة التلاميذ
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -1283,7 +1281,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
                 key={preview.worksheet}
                 className="rounded-2xl border border-slate-200 overflow-hidden"
               >
-                <div className="bg-slate-50 p-3 text-xs font-black">
+                <div className="bg-slate-50 p-3 text-xs font-bold">
                   {preview.worksheet} —{' '}
                   {preview.grade ? `السنة ${preview.grade}` : 'المستوى غير محدد'}{' '}
                   {preview.groupName ? `— ${preview.groupName}` : ''}
@@ -1338,7 +1336,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-200 space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <ShieldAlert className="w-5 h-5 text-rose-600" />
                 <span>تسجيل شهادة إعفاء طبية لقسم {activeClass.name}</span>
               </h3>

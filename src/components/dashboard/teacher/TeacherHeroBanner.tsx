@@ -30,7 +30,7 @@ export const TeacherHeroBanner: React.FC<TeacherHeroBannerProps> = ({
             <Calendar className="w-3.5 h-3.5" />
             <span>{CURRENT_SCHOOL_YEAR_LABEL}</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
             أهلاً بك، أستاذ {user.firstName} {user.lastName} 👋
           </h2>
           <p className="workspace-hero-secondary text-xs sm:text-sm text-blue-100 max-w-2xl leading-relaxed">
@@ -47,7 +47,7 @@ export const TeacherHeroBanner: React.FC<TeacherHeroBannerProps> = ({
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => onNavigateTab('lesson_command_center')}
-            className="flex items-center gap-2 px-5 py-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold rounded-2xl text-xs shadow-md active:scale-95 transition-all cursor-pointer"
+            className="flex items-center gap-2 px-5 py-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-semibold rounded-2xl text-xs shadow-md active:scale-95 transition-all cursor-pointer"
           >
             <Timer className="w-4 h-4 text-slate-950 animate-pulse" />
             <span>مركز قيادة الحصة ⏱️</span>
