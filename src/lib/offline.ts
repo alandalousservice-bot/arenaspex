@@ -6,6 +6,10 @@
  */
 
 const OUTBOX_KEY = 'spex_outbox_v1';
+const QUARANTINE_KEY = 'spex_outbox_quarantine_v1';
+const IDENTITY_KEY = 'spex_offline_identity_v1';
+
+let activeUserId: string | null = null;
 
 export interface OutboxEntry {
   id: string; // internal unique for outbox item
@@ -14,6 +18,13 @@ export interface OutboxEntry {
   payload?: unknown;
   recordId?: string | null; // extracted for dedupe
   timestamp: number;
+  /** The authenticated account that created this mutation. Missing means legacy data. */
+  ownerUserId?: string;
+}
+
+function normalizeUserId(userId: string | null | undefined): string | null {
+  const normalized = typeof userId === 'string' ? userId.trim() : '';
+  return normalized || null;
 }
 
 function isBrowser(): boolean {
@@ -64,6 +75,100 @@ function setOutbox(entries: OutboxEntry[]): void {
   }
 }
 
+function getQuarantine(): OutboxEntry[] {
+  if (!isBrowser()) return [];
+  try {
+    const raw = localStorage.getItem(QUARANTINE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as OutboxEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function setQuarantine(entries: OutboxEntry[]): void {
+  if (!isBrowser()) return;
+  try {
+    localStorage.setItem(QUARANTINE_KEY, JSON.stringify(entries));
+  } catch {
+    // storage full or unavailable - keep the active outbox untouched
+  }
+}
+
+/**
+ * Set the in-memory account context used when a mutation must be queued.
+ * Only the opaque user id is persisted, never a token or other credential.
+ */
+export function setOfflineUserId(userId: string | null): void {
+  const nextUserId = normalizeUserId(userId);
+  let previousUserId: string | null = activeUserId;
+  if (isBrowser()) {
+    try {
+      previousUserId = normalizeUserId(localStorage.getItem(IDENTITY_KEY)) || previousUserId;
+    } catch {
+      // localStorage is best-effort; the in-memory identity remains authoritative.
+    }
+  }
+
+  if (nextUserId && previousUserId && nextUserId !== previousUserId) {
+    clearOfflineReadState();
+  }
+
+  activeUserId = nextUserId;
+  if (!isBrowser()) return;
+  try {
+    if (nextUserId) localStorage.setItem(IDENTITY_KEY, nextUserId);
+    else localStorage.removeItem(IDENTITY_KEY);
+  } catch {
+    // localStorage is best-effort; mutations still fail closed without an id.
+  }
+}
+
+export function getOfflineUserId(): string | null {
+  return activeUserId;
+}
+
+/** Remove authenticated read/optimistic state while preserving pending work. */
+export function clearOfflineReadState(): void {
+  if (!isBrowser()) return;
+  try {
+    const preserved = new Set([OUTBOX_KEY, QUARANTINE_KEY]);
+    for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+      const key = localStorage.key(index);
+      if (key && key.startsWith('spex_') && !preserved.has(key)) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch {
+    // Cache cleanup is best-effort; the service worker never caches authenticated APIs.
+  }
+}
+
+/** Logout/account-switch boundary: clear account state, retain recoverable queues. */
+export function clearOfflineAccountState(): void {
+  activeUserId = null;
+  clearOfflineReadState();
+  if (!isBrowser()) return;
+  try {
+    localStorage.removeItem(IDENTITY_KEY);
+  } catch {
+    // best effort
+  }
+}
+
+function queueMutation(
+  entry: Omit<OutboxEntry, 'id' | 'timestamp' | 'recordId' | 'ownerUserId'> & {
+    payload?: unknown;
+  }
+): boolean {
+  const ownerUserId =
+    activeUserId || normalizeUserId(isBrowser() ? localStorage.getItem(IDENTITY_KEY) : null);
+  if (!ownerUserId) return false;
+  addToOutbox({ ...entry, ownerUserId });
+  return true;
+}
+
 function addToOutbox(
   entry: Omit<OutboxEntry, 'id' | 'timestamp' | 'recordId'> & { payload?: unknown }
 ): void {
@@ -74,9 +179,12 @@ function addToOutbox(
 
   // إزالة تكرار بمعرّف السجل (payload.*.id) — نفس الترتيب مع استبدال الأحدث
   if (recordId) {
-    const filtered = outbox.filter((e) => e.recordId !== recordId);
+    const filtered = outbox.filter(
+      (e) => e.ownerUserId !== entry.ownerUserId || e.recordId !== recordId
+    );
     // also check path may contain same id even if payload doesn't
     const finalFiltered = filtered.filter((e) => {
+      if (e.ownerUserId !== entry.ownerUserId) return true;
       if (e.recordId === recordId) return false;
       // if same path (especially DELETE) with same recordId extracted from path
       const pathId = extractRecordIdFromPath(e.path);
@@ -94,6 +202,7 @@ function addToOutbox(
         if (
           existingPathId &&
           existingPathId === pathId &&
+          e.ownerUserId === entry.ownerUserId &&
           e.method === entry.method &&
           e.path === entry.path
         ) {
@@ -113,6 +222,7 @@ function addToOutbox(
     payload: entry.payload,
     recordId: recordId || extractRecordIdFromPath(entry.path),
     timestamp: Date.now(),
+    ownerUserId: entry.ownerUserId,
   };
   outbox.push(newEntry);
   setOutbox(outbox);
@@ -181,16 +291,22 @@ export async function offlinePost(
         message.includes('NetworkError') ||
         message.includes('Server error')
       ) {
-        addToOutbox({ path, method, payload });
+        if (queueMutation({ path, method, payload })) {
+          return { success: false, error: 'queued offline' };
+        }
+        return { success: false, error: 'offline identity unavailable' };
+      }
+      if (queueMutation({ path, method, payload })) {
         return { success: false, error: 'queued offline' };
       }
-      addToOutbox({ path, method, payload });
-      return { success: false, error: 'queued offline' };
+      return { success: false, error: 'offline identity unavailable' };
     }
   } else {
     // offline directly
-    addToOutbox({ path, method, payload });
-    return { success: false, error: 'queued offline' };
+    if (queueMutation({ path, method, payload })) {
+      return { success: false, error: 'queued offline' };
+    }
+    return { success: false, error: 'offline identity unavailable' };
   }
 }
 
@@ -206,79 +322,85 @@ export async function offlineDelete(path: string): Promise<{ success: boolean; e
         return { success: false, error: `HTTP ${res.status}` };
       }
       throw new Error(`Server error ${res.status}`);
-    } catch (e) {
-      addToOutbox({ path, method: 'DELETE' });
-      return { success: false, error: 'queued offline' };
+    } catch {
+      if (queueMutation({ path, method: 'DELETE' })) {
+        return { success: false, error: 'queued offline' };
+      }
+      return { success: false, error: 'offline identity unavailable' };
     }
   } else {
-    addToOutbox({ path, method: 'DELETE' });
-    return { success: false, error: 'queued offline' };
+    if (queueMutation({ path, method: 'DELETE' })) {
+      return { success: false, error: 'queued offline' };
+    }
+    return { success: false, error: 'offline identity unavailable' };
   }
+}
+
+export async function flushOfflineOutbox(): Promise<void> {
+  if (!isBrowser()) return;
+  const currentUserId = activeUserId || normalizeUserId(localStorage.getItem(IDENTITY_KEY));
+  if (!currentUserId || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
+
+  const outbox = getOutbox();
+  if (outbox.length === 0) return;
+
+  outbox.sort((a, b) => a.timestamp - b.timestamp);
+  const remaining: OutboxEntry[] = [];
+  const quarantined = getQuarantine();
+
+  for (const entry of outbox) {
+    // Legacy entries have no trustworthy owner and must never be replayed.
+    if (!entry.ownerUserId) {
+      quarantined.push(entry);
+      continue;
+    }
+    // Keep another account's pending work for that account's later session.
+    if (entry.ownerUserId !== currentUserId) {
+      remaining.push(entry);
+      continue;
+    }
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      const idx = outbox.indexOf(entry);
+      remaining.push(...outbox.slice(idx));
+      break;
+    }
+
+    try {
+      const res = await fetch(entry.path, {
+        method: entry.method,
+        headers: entry.payload ? { 'Content-Type': 'application/json' } : undefined,
+        body: entry.payload ? JSON.stringify(entry.payload) : undefined,
+      });
+
+      if (res.ok || (res.status >= 400 && res.status < 500) || res.status === 409) {
+        continue;
+      }
+      const idx = outbox.indexOf(entry);
+      remaining.push(...outbox.slice(idx));
+      break;
+    } catch {
+      const idx = outbox.indexOf(entry);
+      remaining.push(...outbox.slice(idx));
+      break;
+    }
+  }
+
+  setQuarantine(quarantined);
+  setOutbox(remaining);
 }
 
 export function registerOnlineFlush(): () => void {
   if (!isBrowser()) return () => {};
 
-  const flush = async () => {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
-    const outbox = getOutbox();
-    if (outbox.length === 0) return;
-
-    // sort by timestamp to preserve order (already in order)
-    outbox.sort((a, b) => a.timestamp - b.timestamp);
-
-    const remaining: OutboxEntry[] = [];
-
-    for (const entry of outbox) {
-      // check online again before each
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        remaining.push(entry);
-        // push rest as remaining
-        const idx = outbox.indexOf(entry);
-        remaining.push(...outbox.slice(idx + 1));
-        break;
-      }
-
-      try {
-        const res = await fetch(entry.path, {
-          method: entry.method,
-          headers: entry.payload ? { 'Content-Type': 'application/json' } : undefined,
-          body: entry.payload ? JSON.stringify(entry.payload) : undefined,
-        });
-
-        if (res.ok) {
-          // success, continue
-          continue;
-        }
-        if ((res.status >= 400 && res.status < 500) || res.status === 409) {
-          // لا تُعاد — احذفها وتابع
-          continue;
-        }
-        // 5xx -> stop and keep remaining
-        remaining.push(entry);
-        const idx = outbox.indexOf(entry);
-        remaining.push(...outbox.slice(idx + 1));
-        break;
-      } catch (e) {
-        // network error — stop flushing
-        remaining.push(entry);
-        const idx = outbox.indexOf(entry);
-        remaining.push(...outbox.slice(idx + 1));
-        break;
-      }
-    }
-
-    setOutbox(remaining);
-  };
-
   // immediate attempt if online
   if (typeof navigator !== 'undefined' && navigator.onLine) {
     // defer slightly to avoid blocking
-    setTimeout(flush, 1000);
+    setTimeout(() => void flushOfflineOutbox(), 1000);
   }
 
   const onOnline = () => {
-    flush();
+    void flushOfflineOutbox();
   };
 
   window.addEventListener('online', onOnline);
@@ -286,7 +408,7 @@ export function registerOnlineFlush(): () => void {
   // also flush on visibility change to online
   const onVisibility = () => {
     if (document.visibilityState === 'visible' && navigator.onLine) {
-      flush();
+      void flushOfflineOutbox();
     }
   };
   document.addEventListener('visibilitychange', onVisibility);
@@ -306,4 +428,10 @@ export function __setOutboxForTest(entries: OutboxEntry[]): void {
 }
 export function __clearOutboxForTest(): void {
   setOutbox([]);
+}
+export function __getQuarantineForTest(): OutboxEntry[] {
+  return getQuarantine();
+}
+export function __clearQuarantineForTest(): void {
+  setQuarantine([]);
 }

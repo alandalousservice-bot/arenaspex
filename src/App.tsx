@@ -12,7 +12,7 @@ import { AuthScreen } from './components/auth/AuthScreen';
 import { AdminLoginPage } from './components/auth/AdminLoginPage';
 import { LandingScreen } from './components/landing/LandingScreen';
 import { PendingApprovalViewerScreen } from './components/auth/PendingApprovalViewerScreen';
-import { useAuth } from './hooks/useAuth';
+import { EMPTY_SESSION_USER, useAuth } from './hooks/useAuth';
 import { usePlatformStore } from './hooks/usePlatformStore';
 import { logoutRequest } from './services/api';
 import {
@@ -24,7 +24,7 @@ import {
 } from './lib/routes';
 import { User } from './types/spex';
 import { INITIAL_DIRECTORATES } from './data/initialState';
-import { registerOnlineFlush } from './lib/offline';
+import { clearOfflineAccountState, registerOnlineFlush } from './lib/offline';
 import { OfflineBanner } from './components/common/OfflineBanner';
 
 const TeacherDashboard = lazy(() =>
@@ -301,6 +301,10 @@ export default function App() {
 
   const handleLogout = () => {
     const logoutPath = currentUser.role === 'admin' ? '/admin/login' : '/login';
+    // Clear authenticated read/optimistic state synchronously, but retain
+    // owner-bound offline mutations for the account that created them.
+    clearOfflineAccountState();
+    setCurrentUser(EMPTY_SESSION_USER);
     setIsAuthenticated(false);
     localStorage.removeItem('spex_current_user');
     logoutRequest();
@@ -309,6 +313,9 @@ export default function App() {
   };
 
   const handleSwitchUser = (user: User) => {
+    if (user.id !== currentUser.id) {
+      clearOfflineAccountState();
+    }
     handleLoginSuccess(user);
   };
 

@@ -78,6 +78,7 @@ import {
 import { INITIAL_AI_SETTINGS, INITIAL_BROADCASTS } from '../data/initialState';
 import { INITIAL_KNOWLEDGE_BANK } from '../data/knowledgeBankData';
 import { normalizeDailyNotebookEntries } from '../services/dailyNotebook.service';
+import { setOfflineUserId } from '../lib/offline';
 
 const LEGACY_DEMO_USER_IDS = new Set(['usr_admin_1', 'usr_teacher_1', 'usr_inspector_1']);
 
@@ -94,6 +95,15 @@ export function usePlatformStore({
   isAuthenticated,
   setCurrentTab,
 }: PlatformStoreParams) {
+  // Establish the account context before mutation-sync effects below run.
+  // The context contains only the opaque user id and is never sent to the SW.
+  useEffect(() => {
+    if (isAuthenticated && currentUser?.id) {
+      setOfflineUserId(currentUser.id);
+    }
+  }, [currentUser?.id, isAuthenticated]);
+
+  const previousAuthenticatedUserId = useRef<string | null>(null);
   // App domain state with persistent LocalStorage backup
   const [allUsersList, setAllUsersList] = useState<User[]>(() => {
     const saved = localStorage.getItem('spex_all_users');
@@ -446,6 +456,42 @@ export function usePlatformStore({
 
   const [activeLessonPlanId, setActiveLessonPlanId] = useState<string | undefined>(undefined);
 
+  // Clear account-bound React state at logout and direct account switches.
+  // Server data is rehydrated for the new identity by the authenticated load.
+  useEffect(() => {
+    const nextUserId = isAuthenticated && currentUser?.id ? currentUser.id : null;
+    const previousUserId = previousAuthenticatedUserId.current;
+    const identityChanged = previousUserId !== nextUserId;
+
+    if (identityChanged && (previousUserId !== null || nextUserId === null)) {
+      dailyNotebookMutationVersion.current += 1;
+      rosterRefreshVersion.current += 1;
+      setAllUsersList([]);
+      setTeacherClasses([]);
+      setAllStudents([]);
+      setDailyNotebook([]);
+      dailyNotebookRef.current = [];
+      setWeeklySchedule([]);
+      setLessonPlans([]);
+      setKnowledgeItems(INITIAL_KNOWLEDGE_BANK);
+      setInspectorNotes([]);
+      setInspectionVisits([]);
+      setTeacherInspectorFeed({ inspector: null, guidance: [], visits: [] });
+      setAssignedTeachers([]);
+      setDirectMessages([]);
+      setCommunityResources([]);
+      setCommunityNotifications([]);
+      setPersonalLibraryItems([]);
+      setDistrictGroupMessages([]);
+      setAiSettings(INITIAL_AI_SETTINGS);
+      setActiveLessonSession(null);
+      setLessonExecutionLogs([]);
+      setActiveLessonPlanId(undefined);
+    }
+
+    previousAuthenticatedUserId.current = nextUserId;
+  }, [currentUser?.id, isAuthenticated]);
+
   // Ticker Interval effect for live session countdown
   useEffect(() => {
     if (
@@ -545,11 +591,12 @@ export function usePlatformStore({
   // Initial Database Load Effect from Platform Server DB
   useEffect(() => {
     if (!isAuthenticated) return;
-
+    let active = true;
     async function loadDBData() {
       try {
         const hydrationVersion = dailyNotebookMutationVersion.current;
         const dbNotebook = await fetchDailyNotebookFromDB();
+        if (!active) return;
         if (dbNotebook !== null && hydrationVersion === dailyNotebookMutationVersion.current) {
           const hydratedNotebook = normalizeDailyNotebookEntries(dbNotebook, currentUser.id);
           dailyNotebookRef.current = hydratedNotebook;
@@ -557,6 +604,7 @@ export function usePlatformStore({
         }
 
         await refreshStudentRoster();
+        if (!active) return;
         const dbUsers = await fetchUsersFromDB();
         if (dbUsers && dbUsers.length > 0) {
           setAllUsersList((prev) => {
@@ -570,6 +618,7 @@ export function usePlatformStore({
         }
 
         const dbLessons = await fetchLessonPlansFromDB();
+        if (!active) return;
         if (dbLessons && dbLessons.length > 0) {
           setLessonPlans((prev) => {
             const map = new Map();
@@ -580,6 +629,7 @@ export function usePlatformStore({
         }
 
         const dbMsgs = await fetchDistrictMessagesFromDB();
+        if (!active) return;
         if (dbMsgs && dbMsgs.length > 0) {
           setDistrictGroupMessages((prev) => {
             const map = new Map();
@@ -590,6 +640,7 @@ export function usePlatformStore({
         }
 
         const dbDirectMsgs = await fetchDirectMessagesFromDB();
+        if (!active) return;
         if (dbDirectMsgs && dbDirectMsgs.length > 0) {
           setDirectMessages((prev) => {
             const map = new Map();
@@ -604,7 +655,10 @@ export function usePlatformStore({
     }
 
     loadDBData();
-  }, [isAuthenticated]);
+    return () => {
+      active = false;
+    };
+  }, [currentUser.id, isAuthenticated]);
 
   // Real-time chat polling & cross-tab sync
   useEffect(() => {
@@ -645,7 +699,7 @@ export function usePlatformStore({
       clearInterval(interval);
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [isAuthenticated]);
+  }, [currentUser.id, isAuthenticated]);
 
   // Auto-Save effects to LocalStorage and Platform DB for full persistence
 

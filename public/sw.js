@@ -1,13 +1,11 @@
 /**
  * SPEX - Service Worker (PART C - C2)
  * CACHE_VERSION 'spex-v2': تنقلات وأصول شبكة-أولاً مع رجوع تخزيني؛
- * قراءات GET /api/** بتخزين آخر رد ناجح في API_CACHE (واحذف set-cookie)؛
- * /api/auth/** بلا تخزين إطلاقاً؛ ولا تلمس طلبات POST/DELETE.
+ * لا تُخزَّن استجابات API المصادق عليها إطلاقاً؛ ولا تلمس طلبات POST/DELETE.
  */
 
 const CACHE_VERSION = 'spex-v2';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
-const API_CACHE = `${CACHE_VERSION}-api`;
 const APP_SHELL = [
   '/',
   '/manifest.webmanifest',
@@ -24,13 +22,13 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate: clean up old cache versions (keep current version only)
+// Activate: remove the legacy authenticated API cache while preserving static assets.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((key) => key.startsWith('spex-') && key !== STATIC_CACHE && key !== API_CACHE)
+          .filter((key) => /^spex-.*-api$/.test(key))
           .map((key) => caches.delete(key))
       )
     )
@@ -40,8 +38,7 @@ self.addEventListener('activate', (event) => {
 
 // Fetch strategy:
 // - POST/DELETE: لا تلمسها إطلاقاً (تمر مباشرة للشبكة)
-// - /api/auth/**: بلا تخزين إطلاقاً (دائماً شبكة)
-// - GET /api/**: network-first مع تخزين آخر رد ناجح في API_CACHE (واحذف set-cookie)
+// - /api/**: بلا تخزين إطلاقاً (دائماً شبكة، حتى لا تختلط حسابات المصادقة)
 // - Navigation: network-first مع رجوع للكاش
 // - Static assets: network-first مع رجوع تخزيني (cache fallback)
 self.addEventListener('fetch', (event) => {
@@ -53,47 +50,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // /api/auth/** بلا تخزين إطلاقاً
-  if (url.pathname.startsWith('/api/auth/')) {
-    // allow network only, no cache
-    return;
-  }
-
-  // GET /api/** بتخزين آخر رد ناجح في API_CACHE (واحذف set-cookie)
+  // كل API GET يمر عبر الشبكة فقط؛ التخزين الثابت منفصل أدناه.
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      (async () => {
-        try {
-          const response = await fetch(request);
-          // خزّن فقط الردود الناجحة (200-299)
-          if (response && response.ok) {
-            try {
-              const clone = response.clone();
-              // احذف set-cookie من الرد قبل التخزين حتى لا يُسرب كوكيز httpOnly إلى الكاش
-              const headers = new Headers(clone.headers);
-              headers.delete('set-cookie');
-              // لا يمكن تعديل headers لاستجابة موجودة مباشرة، فننشئ استجابة جديدة بنفس الجسم
-              const body = await clone.blob();
-              const sanitizedResponse = new Response(body, {
-                status: clone.status,
-                statusText: clone.statusText,
-                headers
-              });
-              const cache = await caches.open(API_CACHE);
-              await cache.put(request, sanitizedResponse);
-            } catch (e) {
-              // تجاهل فشل التخزين
-            }
-          }
-          return response;
-        } catch (err) {
-          // عند انقطاع الشبكة، أرجع آخر رد مخزّن إن وجد
-          const cached = await caches.match(request);
-          if (cached) return cached;
-          throw err;
-        }
-      })()
-    );
+    event.respondWith(fetch(request));
     return;
   }
 

@@ -2,12 +2,24 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 class LocalStorageMock {
   store: Record<string, string> = {};
-  getItem(key: string) { return this.store[key] || null; }
-  setItem(key: string, value: string) { this.store[key] = value; }
-  removeItem(key: string) { delete this.store[key]; }
-  clear() { this.store = {}; }
-  key(index: number) { return Object.keys(this.store)[index] || null; }
-  get length() { return Object.keys(this.store).length; }
+  getItem(key: string) {
+    return this.store[key] || null;
+  }
+  setItem(key: string, value: string) {
+    this.store[key] = value;
+  }
+  removeItem(key: string) {
+    delete this.store[key];
+  }
+  clear() {
+    this.store = {};
+  }
+  key(index: number) {
+    return Object.keys(this.store)[index] || null;
+  }
+  get length() {
+    return Object.keys(this.store).length;
+  }
 }
 
 const localStorageMock = new LocalStorageMock() as any;
@@ -16,7 +28,7 @@ vi.stubGlobal('localStorage', localStorageMock);
 vi.stubGlobal('window', {
   localStorage: localStorageMock,
   addEventListener: vi.fn(),
-  removeEventListener: vi.fn()
+  removeEventListener: vi.fn(),
 } as any);
 
 // Mock caches and serviceWorker
@@ -26,14 +38,14 @@ const cacheKeysMock = vi.fn().mockResolvedValue(['spex-v2-static', 'spex-v2-api'
 vi.stubGlobal('caches', {
   keys: cacheKeysMock,
   delete: cacheDeleteMock,
-  match: vi.fn()
+  match: vi.fn(),
 } as any);
 
 const unregisterMock = vi.fn().mockResolvedValue(true);
 vi.stubGlobal('navigator', {
   serviceWorker: {
-    getRegistrations: vi.fn().mockResolvedValue([{ unregister: unregisterMock }])
-  }
+    getRegistrations: vi.fn().mockResolvedValue([{ unregister: unregisterMock }]),
+  },
 } as any);
 
 const { triggerKillSwitch } = await import('../src/lib/killSwitch');
@@ -45,10 +57,11 @@ beforeEach(() => {
 });
 
 describe('killSwitch - إطلاق الزر + استثناء الصندوق (PART C/C3)', () => {
-  it('يمحي كل مفاتيح spex_* ما عدا spex_outbox_v1 (معفى)', () => {
+  it('يمحي كل مفاتيح spex_* ما عدا صناديق العمليات (معفاة)', () => {
     localStorageMock.setItem('spex_current_user', JSON.stringify({ id: 'u1' }));
     localStorageMock.setItem('spex_custom_api_key', 'key123');
     localStorageMock.setItem('spex_outbox_v1', JSON.stringify([{ id: '1' }]));
+    localStorageMock.setItem('spex_outbox_quarantine_v1', JSON.stringify([{ id: 'legacy-1' }]));
     localStorageMock.setItem('other_key', 'should stay');
 
     triggerKillSwitch();
@@ -56,6 +69,7 @@ describe('killSwitch - إطلاق الزر + استثناء الصندوق (PART
     expect(localStorageMock.getItem('spex_current_user')).toBeNull();
     expect(localStorageMock.getItem('spex_custom_api_key')).toBeNull();
     expect(localStorageMock.getItem('spex_outbox_v1')).not.toBeNull();
+    expect(localStorageMock.getItem('spex_outbox_quarantine_v1')).not.toBeNull();
     expect(localStorageMock.getItem('other_key')).toBe('should stay');
     expect(JSON.parse(localStorageMock.getItem('spex_outbox_v1') as string).length).toBe(1);
   });

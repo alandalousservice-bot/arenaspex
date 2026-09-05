@@ -1,10 +1,12 @@
 /**
  * SPEX - Reversible Security Kill-Switch (PART C - C3)
- * عند إطلاق الزر: تمحى كل مفاتيح spex_* ما عدا spex_outbox_v1 (معفى — بتحديثات الاستاذ قبل الحظر حتى الإعادة التفعيل)
+ * عند إطلاق الزر: تمحى كل مفاتيح spex_* ما عدا صندوق العمليات وصندوق الحجر
+ * (معفيان — لحفظ تحديثات الأستاذ غير المتصلة والإدخالات القديمة للمراجعة)
  * + تمحى كاشات sw + يُلغى تسجيل عمال الخدمة
  */
 
 const OUTBOX_KEY = 'spex_outbox_v1';
+const QUARANTINE_KEY = 'spex_outbox_quarantine_v1';
 const SPEX_PREFIX = 'spex_';
 
 export function triggerKillSwitch(): void {
@@ -16,7 +18,7 @@ export function triggerKillSwitch(): void {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key) continue;
-      if (key.startsWith(SPEX_PREFIX) && key !== OUTBOX_KEY) {
+      if (key.startsWith(SPEX_PREFIX) && key !== OUTBOX_KEY && key !== QUARANTINE_KEY) {
         keysToRemove.push(key);
       }
     }
@@ -28,7 +30,7 @@ export function triggerKillSwitch(): void {
       }
     }
 
-    // احتفظ بـ spex_outbox_v1 — لا نمسحه
+    // احتفظ بالصندوقين — لا نمسحهما
   } catch (e) {
     console.warn('killSwitch localStorage clear failed', e);
   }

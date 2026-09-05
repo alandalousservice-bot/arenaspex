@@ -18,7 +18,7 @@ export type AuthView = 'landing' | 'login';
 
 // Never hydrate an unauthenticated browser with a demo account.  The session
 // is the only source of account data; this placeholder is intentionally empty.
-const EMPTY_SESSION_USER: User = {
+export const EMPTY_SESSION_USER: User = {
   id: '',
   username: '',
   spexId: '',
@@ -57,6 +57,7 @@ export function useAuth() {
         return;
       } else {
         // offline بلا نسخة محلية → غير مصادق
+        setCurrentUser(EMPTY_SESSION_USER);
         setIsAuthenticated(false);
         setIsOfflineSession(true);
         setIsCheckingSession(false);
@@ -111,6 +112,7 @@ export function useAuth() {
       }
       setIsAuthenticated(false);
       setIsOfflineSession(false);
+      setCurrentUser(EMPTY_SESSION_USER);
     }
     setIsCheckingSession(false);
   }, []);
