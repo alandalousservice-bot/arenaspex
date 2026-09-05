@@ -1430,7 +1430,7 @@ export async function fetchPedagogicalGames(scope: 'public' | 'mine' | 'pending'
   const response = await fetch(`/api/pedagogical-games/${scope}`);
   const json = await response.json();
   if (!response.ok) throw new Error(json.error || 'تعذر تحميل الألعاب.');
-  return json.games || [];
+  return Array.isArray(json.games) ? json.games : null;
 }
 
 export async function createPedagogicalGame(game: Partial<KnowledgeItem>) {
@@ -1530,13 +1530,14 @@ export async function syncUsersBatchToDB(users: User[]) {
   await offlinePost('/api/db/users/batch', { users }, 'POST');
 }
 
-export async function fetchUsersFromDB() {
+export async function fetchUsersFromDB(): Promise<User[] | null> {
   try {
     const res = await fetch('/api/db/users');
     const data = await res.json();
-    return data.users || [];
+    if (!res.ok || !Array.isArray(data.users)) return null;
+    return data.users as User[];
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -1712,13 +1713,14 @@ export async function syncLessonPlansBatchToDB(lessonPlans: unknown[]) {
   await offlinePost('/api/db/lesson-plans/batch', { lessonPlans }, 'POST');
 }
 
-export async function fetchLessonPlansFromDB() {
+export async function fetchLessonPlansFromDB(): Promise<unknown[] | null> {
   try {
     const res = await fetch('/api/db/lesson-plans');
     const data = await res.json();
-    return data.lessonPlans || [];
+    if (!res.ok || !Array.isArray(data.lessonPlans)) return null;
+    return data.lessonPlans;
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -1749,11 +1751,13 @@ export async function deleteNotebookEntryFromDB(entryId: string) {
   await offlineDelete(`/api/db/notebook/${entryId}`);
 }
 
-export async function fetchTeacherWeeklyTimetable(academicYearId: string) {
+export async function fetchTeacherWeeklyTimetable(
+  academicYearId: string
+): Promise<unknown[] | null> {
   const data = await getJSON(
     `/api/teacher/weekly-timetable?academicYearId=${encodeURIComponent(academicYearId)}`
   );
-  return Array.isArray(data.slots) ? data.slots : [];
+  return Array.isArray(data.slots) ? data.slots : null;
 }
 
 export async function fetchInspectorWeeklyTimetable(teacherId: string, academicYearId: string) {
@@ -1923,6 +1927,7 @@ export const fetchMyAssignedTeachers = async (filters?: {
   if (filters?.institutionId) params.set('institutionId', filters.institutionId);
   const qs = params.toString();
   const data = await getJSON(`/api/inspector/teachers${qs ? `?${qs}` : ''}`);
+  if (data.success === false) throw new Error(data.error || 'تعذر تحميل الأساتذة المسندين.');
   return Array.isArray(data.teachers) ? data.teachers : [];
 };
 

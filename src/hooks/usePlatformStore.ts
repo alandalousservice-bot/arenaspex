@@ -78,6 +78,10 @@ import {
 import { INITIAL_AI_SETTINGS, INITIAL_BROADCASTS } from '../data/initialState';
 import { INITIAL_KNOWLEDGE_BANK } from '../data/knowledgeBankData';
 import { normalizeDailyNotebookEntries } from '../services/dailyNotebook.service';
+import {
+  authoritativeCollection,
+  PlatformStoreHydrationGuard,
+} from '../services/platformStoreHydration';
 import { setOfflineUserId } from '../lib/offline';
 
 const LEGACY_DEMO_USER_IDS = new Set(['usr_admin_1', 'usr_teacher_1', 'usr_inspector_1']);
@@ -95,6 +99,17 @@ export function usePlatformStore({
   isAuthenticated,
   setCurrentTab,
 }: PlatformStoreParams) {
+  const hydrationIdentity = isAuthenticated && currentUser?.id ? currentUser.id : null;
+  const hydrationGuardRef = useRef<PlatformStoreHydrationGuard | null>(null);
+  if (!hydrationGuardRef.current) {
+    hydrationGuardRef.current = new PlatformStoreHydrationGuard();
+  }
+  const hydrationGuard = hydrationGuardRef.current;
+  hydrationGuard.setIdentity(hydrationIdentity);
+
+  const accountStateIdentityRef = useRef<string | null>(hydrationIdentity);
+  const accountStateReady = accountStateIdentityRef.current === hydrationIdentity;
+
   // Establish the account context before mutation-sync effects below run.
   // The context contains only the opaque user id and is never sent to the SW.
   useEffect(() => {
@@ -106,15 +121,6 @@ export function usePlatformStore({
   const previousAuthenticatedUserId = useRef<string | null>(null);
   // App domain state with persistent LocalStorage backup
   const [allUsersList, setAllUsersList] = useState<User[]>(() => {
-    const saved = localStorage.getItem('spex_all_users');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed.filter((u) => !LEGACY_DEMO_USER_IDS.has(u.id)) : [];
-      } catch (e) {
-        void e;
-      }
-    }
     return [];
   });
 
@@ -161,7 +167,8 @@ export function usePlatformStore({
   const dailyNotebookMutationVersion = useRef(0);
 
   const [weeklySchedule, setWeeklySchedule] = useState<WeeklyScheduleSlot[]>(() => {
-    const saved = localStorage.getItem('spex_weekly_schedule');
+    if (!currentUser?.id) return [];
+    const saved = localStorage.getItem(`spex_weekly_schedule_${currentUser.id}`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -180,16 +187,20 @@ export function usePlatformStore({
 
   useEffect(() => {
     if (!isAuthenticated || currentUser?.role !== 'teacher') return;
+    const token = hydrationGuard.begin('weeklySchedule');
     let active = true;
     void fetchTeacherWeeklyTimetable(LAUNCH_ACADEMIC_YEAR_ID)
       .then((slots) => {
-        if (active) setWeeklySchedule(slots as WeeklyScheduleSlot[]);
+        if (active && hydrationGuard.canCommit(token)) {
+          const authoritativeSlots = authoritativeCollection(slots);
+          if (authoritativeSlots) setWeeklySchedule(authoritativeSlots as WeeklyScheduleSlot[]);
+        }
       })
       .catch(() => undefined);
     return () => {
       active = false;
     };
-  }, [currentUser?.role, isAuthenticated]);
+  }, [currentUser?.id, currentUser?.role, hydrationGuard, isAuthenticated]);
 
   const [lessonPlans, setLessonPlans] = useState<LessonPlan[]>(() => {
     if (!currentUser?.id) return [];
@@ -210,28 +221,31 @@ export function usePlatformStore({
 
   const rosterRefreshVersion = useRef(0);
 
-  const refreshStudentRoster = async () => {
+  const refreshStudentRoster = useCallback(async () => {
+    const token = hydrationGuard.begin('studentRoster');
     const requestVersion = ++rosterRefreshVersion.current;
     const roster = await fetchStudentRoster();
     // The initial DB hydration and a post-import refresh can overlap.  A late
     // response from the older request must never restore a stale zero-count
     // roster over the newest committed read model.
-    if (requestVersion !== rosterRefreshVersion.current) return roster;
+    if (requestVersion !== rosterRefreshVersion.current || !hydrationGuard.canCommit(token))
+      return roster;
     setTeacherClasses(roster.classes as ClassRoom[]);
     setAllStudents(roster.students as Student[]);
     return roster;
-  };
+  }, [hydrationGuard]);
 
   useEffect(() => {
+    const token = hydrationGuard.begin('knowledgeItems');
     let active = true;
     const loadGames = async () => {
       try {
         const scopes: Array<'public' | 'mine' | 'pending'> =
           currentUser.role === 'teacher' ? ['public', 'mine'] : ['public', 'pending'];
-        const rows = (
-          await Promise.all(scopes.map((scope) => fetchPedagogicalGames(scope)))
-        ).flat() as KnowledgeItem[];
-        if (!active) return;
+        const responses = await Promise.all(scopes.map((scope) => fetchPedagogicalGames(scope)));
+        if (!active || !hydrationGuard.canCommit(token)) return;
+        if (!responses.every((response) => Array.isArray(response))) return;
+        const rows = responses.flat() as KnowledgeItem[];
         const dynamic = rows.map((game) => ({
           ...game,
           category: 'game' as const,
@@ -257,7 +271,7 @@ export function usePlatformStore({
     return () => {
       active = false;
     };
-  }, [currentUser.id, currentUser.role]);
+  }, [currentUser.id, currentUser.role, hydrationGuard]);
 
   const [inspectorNotes, setInspectorNotes] = useState<InspectorNote[]>(() => {
     if (!currentUser?.id) return [];
@@ -279,9 +293,10 @@ export function usePlatformStore({
 
   const refreshInspectionVisits = useCallback(async () => {
     if (currentUser.role !== 'inspector') return;
+    const token = hydrationGuard.begin('inspectionVisits');
     const rows = await fetchInspectorVisits();
-    setInspectionVisits(rows as InspectionVisit[]);
-  }, [currentUser.role]);
+    if (hydrationGuard.canCommit(token)) setInspectionVisits(rows as InspectionVisit[]);
+  }, [currentUser.role, hydrationGuard]);
 
   const [teacherInspectorFeed, setTeacherInspectorFeed] = useState<{
     inspector: { id: string; displayName: string } | null;
@@ -292,20 +307,22 @@ export function usePlatformStore({
 
   const refreshAssignedTeachers = async () => {
     if (currentUser.role !== 'inspector') return;
+    const token = hydrationGuard.begin('assignedTeachers');
     try {
       const rows = await fetchMyAssignedTeachers();
-      setAssignedTeachers(rows || []);
+      if (hydrationGuard.canCommit(token)) setAssignedTeachers(rows || []);
     } catch {
-      setAssignedTeachers([]);
+      // A failed refresh is not an authoritative empty assignment list.
     }
   };
 
   useEffect(() => {
+    const feedToken = hydrationGuard.begin('inspectionFeed');
     let active = true;
     if (currentUser.role === 'teacher') {
       void fetchTeacherInspectionFeed()
         .then((feed) => {
-          if (active)
+          if (active && hydrationGuard.canCommit(feedToken))
             setTeacherInspectorFeed({
               inspector: feed.inspector || null,
               guidance: feed.guidance || [],
@@ -313,21 +330,24 @@ export function usePlatformStore({
             });
         })
         .catch(() => {
-          if (active) setTeacherInspectorFeed({ inspector: null, guidance: [], visits: [] });
+          if (active && hydrationGuard.canCommit(feedToken)) {
+            setTeacherInspectorFeed({ inspector: null, guidance: [], visits: [] });
+          }
         });
     } else {
       setTeacherInspectorFeed({ inspector: null, guidance: [], visits: [] });
     }
     if (currentUser.role === 'inspector') {
+      const assignedToken = hydrationGuard.begin('assignedTeachers');
       void fetchMyAssignedTeachers()
         .then((rows) => {
-          if (active) setAssignedTeachers(rows || []);
+          if (active && hydrationGuard.canCommit(assignedToken)) setAssignedTeachers(rows || []);
         })
         .catch(() => {
-          if (active) setAssignedTeachers([]);
+          // A failed refresh is not an authoritative empty assignment list.
         });
       void refreshInspectionVisits().catch(() => {
-        if (active) setInspectionVisits([]);
+        // A failed refresh is not an authoritative empty visit list.
       });
     } else {
       setAssignedTeachers([]);
@@ -335,7 +355,7 @@ export function usePlatformStore({
     return () => {
       active = false;
     };
-  }, [currentUser.id, currentUser.role, refreshInspectionVisits]);
+  }, [currentUser.id, currentUser.role, hydrationGuard, refreshInspectionVisits]);
 
   const [broadcasts, setBroadcasts] = useState<DistrictBroadcast[]>(INITIAL_BROADCASTS);
   const [directMessages, setDirectMessages] = useState<DirectChatMessage[]>(() => {
@@ -463,7 +483,12 @@ export function usePlatformStore({
     const previousUserId = previousAuthenticatedUserId.current;
     const identityChanged = previousUserId !== nextUserId;
 
-    if (identityChanged && (previousUserId !== null || nextUserId === null)) {
+    if (
+      identityChanged &&
+      (previousUserId !== null ||
+        nextUserId === null ||
+        accountStateIdentityRef.current !== nextUserId)
+    ) {
       dailyNotebookMutationVersion.current += 1;
       rosterRefreshVersion.current += 1;
       setAllUsersList([]);
@@ -489,6 +514,7 @@ export function usePlatformStore({
       setActiveLessonPlanId(undefined);
     }
 
+    accountStateIdentityRef.current = nextUserId;
     previousAuthenticatedUserId.current = nextUserId;
   }, [currentUser?.id, isAuthenticated]);
 
@@ -564,39 +590,45 @@ export function usePlatformStore({
   }, [lessonTimingSettings]);
 
   useEffect(() => {
+    if (!accountStateReady) return;
     if (activeLessonSession) {
       localStorage.setItem('spex_active_lesson_session', JSON.stringify(activeLessonSession));
     } else {
       localStorage.removeItem('spex_active_lesson_session');
     }
-  }, [activeLessonSession]);
+  }, [accountStateReady, activeLessonSession]);
 
   useEffect(() => {
+    if (!accountStateReady) return;
     localStorage.setItem('spex_lesson_execution_logs', JSON.stringify(lessonExecutionLogs));
-  }, [lessonExecutionLogs]);
+  }, [accountStateReady, lessonExecutionLogs]);
 
   // Persistent localStorage sync for Community Module
   useEffect(() => {
+    if (!accountStateReady) return;
     localStorage.setItem('spex_community_resources', JSON.stringify(communityResources));
-  }, [communityResources]);
+  }, [accountStateReady, communityResources]);
 
   useEffect(() => {
+    if (!accountStateReady) return;
     localStorage.setItem('spex_community_notifications', JSON.stringify(communityNotifications));
-  }, [communityNotifications]);
+  }, [accountStateReady, communityNotifications]);
 
   useEffect(() => {
+    if (!accountStateReady) return;
     localStorage.setItem('spex_personal_library', JSON.stringify(personalLibraryItems));
-  }, [personalLibraryItems]);
+  }, [accountStateReady, personalLibraryItems]);
 
   // Initial Database Load Effect from Platform Server DB
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !hydrationIdentity) return;
+    const token = hydrationGuard.begin('initial');
     let active = true;
     async function loadDBData() {
       try {
         const hydrationVersion = dailyNotebookMutationVersion.current;
         const dbNotebook = await fetchDailyNotebookFromDB();
-        if (!active) return;
+        if (!active || !hydrationGuard.canCommit(token)) return;
         if (dbNotebook !== null && hydrationVersion === dailyNotebookMutationVersion.current) {
           const hydratedNotebook = normalizeDailyNotebookEntries(dbNotebook, currentUser.id);
           dailyNotebookRef.current = hydratedNotebook;
@@ -604,50 +636,36 @@ export function usePlatformStore({
         }
 
         await refreshStudentRoster();
-        if (!active) return;
+        if (!active || !hydrationGuard.canCommit(token)) return;
         const dbUsers = await fetchUsersFromDB();
-        if (dbUsers && dbUsers.length > 0) {
-          setAllUsersList((prev) => {
-            const map = new Map();
-            prev.forEach((u) => map.set(u.id, u));
-            dbUsers
-              .filter((u: any) => !LEGACY_DEMO_USER_IDS.has(u.id))
-              .forEach((u: any) => map.set(u.id, u));
-            return Array.from(map.values());
-          });
+        if (hydrationGuard.canCommit(token)) {
+          const authoritativeUsers = authoritativeCollection(dbUsers);
+          if (authoritativeUsers) {
+            setAllUsersList(
+              authoritativeUsers.filter((u: any) => !LEGACY_DEMO_USER_IDS.has(u.id)) as User[]
+            );
+          }
         }
 
         const dbLessons = await fetchLessonPlansFromDB();
-        if (!active) return;
-        if (dbLessons && dbLessons.length > 0) {
-          setLessonPlans((prev) => {
-            const map = new Map();
-            prev.forEach((l) => map.set(l.id, l));
-            dbLessons.forEach((l: any) => map.set(l.id, l));
-            return Array.from(map.values());
-          });
+        if (!active || !hydrationGuard.canCommit(token)) return;
+        const authoritativeLessons = authoritativeCollection(dbLessons);
+        if (authoritativeLessons) {
+          setLessonPlans(authoritativeLessons as LessonPlan[]);
         }
 
         const dbMsgs = await fetchDistrictMessagesFromDB();
-        if (!active) return;
-        if (dbMsgs && dbMsgs.length > 0) {
-          setDistrictGroupMessages((prev) => {
-            const map = new Map();
-            prev.forEach((m) => map.set(m.id, m));
-            dbMsgs.forEach((m: any) => map.set(m.id, m));
-            return Array.from(map.values());
-          });
+        if (!active || !hydrationGuard.canCommit(token)) return;
+        const authoritativeDistrictMessages = authoritativeCollection(dbMsgs);
+        if (authoritativeDistrictMessages) {
+          setDistrictGroupMessages(authoritativeDistrictMessages as DistrictGroupMessage[]);
         }
 
         const dbDirectMsgs = await fetchDirectMessagesFromDB();
-        if (!active) return;
-        if (dbDirectMsgs && dbDirectMsgs.length > 0) {
-          setDirectMessages((prev) => {
-            const map = new Map();
-            prev.forEach((m) => map.set(m.id, m));
-            dbDirectMsgs.forEach((m: any) => map.set(m.id, m));
-            return Array.from(map.values());
-          });
+        if (!active || !hydrationGuard.canCommit(token)) return;
+        const authoritativeDirectMessages = authoritativeCollection(dbDirectMsgs);
+        if (authoritativeDirectMessages) {
+          setDirectMessages(authoritativeDirectMessages as DirectChatMessage[]);
         }
       } catch (e) {
         console.warn('Initial DB load error:', e);
@@ -658,23 +676,21 @@ export function usePlatformStore({
     return () => {
       active = false;
     };
-  }, [currentUser.id, isAuthenticated]);
+  }, [currentUser.id, hydrationGuard, hydrationIdentity, isAuthenticated, refreshStudentRoster]);
 
   // Real-time chat polling & cross-tab sync
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const syncDirectMessages = async () => {
+      const token = hydrationGuard.begin('directMessages');
       try {
         const dbDirectMsgs = await fetchDirectMessagesFromDB();
-        if (dbDirectMsgs && dbDirectMsgs.length > 0) {
-          setDirectMessages((prev) => {
-            const map = new Map();
-            prev.forEach((m) => map.set(m.id, m));
-            dbDirectMsgs.forEach((m: any) => map.set(m.id, m));
-            if (map.size === prev.length) return prev;
-            return Array.from(map.values());
-          });
+        if (hydrationGuard.canCommit(token)) {
+          const authoritativeDirectMessages = authoritativeCollection(dbDirectMsgs);
+          if (authoritativeDirectMessages) {
+            setDirectMessages(authoritativeDirectMessages as DirectChatMessage[]);
+          }
         }
       } catch (e) {
         void e;
@@ -684,10 +700,22 @@ export function usePlatformStore({
     const interval = setInterval(syncDirectMessages, 2500);
 
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'spex_direct_messages_shared' && e.newValue) {
+      if (e.key === 'spex_direct_messages_shared' && e.newValue && accountStateReady) {
         try {
           const parsed = JSON.parse(e.newValue);
-          if (Array.isArray(parsed)) setDirectMessages(parsed);
+          if (Array.isArray(parsed)) {
+            const token = hydrationGuard.begin('directMessages');
+            if (hydrationGuard.canCommit(token)) {
+              setDirectMessages(
+                parsed.filter(
+                  (message) =>
+                    message &&
+                    typeof message === 'object' &&
+                    (message.senderId === currentUser.id || message.receiverId === currentUser.id)
+                )
+              );
+            }
+          }
         } catch (err) {
           void err;
         }
@@ -699,7 +727,7 @@ export function usePlatformStore({
       clearInterval(interval);
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [currentUser.id, isAuthenticated]);
+  }, [accountStateReady, currentUser.id, hydrationGuard, isAuthenticated]);
 
   // Auto-Save effects to LocalStorage and Platform DB for full persistence
 
@@ -711,7 +739,7 @@ export function usePlatformStore({
   }, [currentUser, isAuthenticated]);
 
   useEffect(() => {
-    if (directMessages.length > 0) {
+    if (accountStateReady && currentUser?.id) {
       localStorage.setItem('spex_direct_messages_shared', JSON.stringify(directMessages));
       if (currentUser?.id) {
         localStorage.setItem(
@@ -720,62 +748,70 @@ export function usePlatformStore({
         );
       }
     }
-  }, [directMessages, currentUser?.id]);
+  }, [accountStateReady, directMessages, currentUser?.id]);
 
   useEffect(() => {
+    if (!accountStateReady) return;
     localStorage.setItem('spex_district_group_messages', JSON.stringify(districtGroupMessages));
-  }, [districtGroupMessages]);
+  }, [accountStateReady, districtGroupMessages]);
 
   useEffect(() => {
+    if (!accountStateReady) return;
     if (currentUser?.id) {
       localStorage.setItem(`spex_daily_notebook_${currentUser.id}`, JSON.stringify(dailyNotebook));
     }
     dailyNotebookRef.current = dailyNotebook;
-  }, [dailyNotebook, currentUser?.id]);
+  }, [accountStateReady, dailyNotebook, currentUser?.id]);
 
   useEffect(() => {
-    localStorage.setItem('spex_weekly_schedule', JSON.stringify(weeklySchedule));
-  }, [weeklySchedule]);
+    if (accountStateReady && currentUser?.id) {
+      localStorage.setItem(
+        `spex_weekly_schedule_${currentUser.id}`,
+        JSON.stringify(weeklySchedule)
+      );
+    }
+  }, [accountStateReady, weeklySchedule, currentUser?.id]);
 
   useEffect(() => {
-    if (currentUser?.id) {
+    if (accountStateReady && currentUser?.id) {
       localStorage.setItem(`spex_lesson_plans_${currentUser.id}`, JSON.stringify(lessonPlans));
       if (lessonPlans.length > 0) {
         syncLessonPlansBatchToDB(lessonPlans);
       }
     }
-  }, [lessonPlans, currentUser?.id]);
+  }, [accountStateReady, lessonPlans, currentUser?.id]);
 
   useEffect(() => {
-    if (currentUser?.id) {
+    if (accountStateReady && currentUser?.id) {
       localStorage.setItem(
         `spex_teacher_classes_${currentUser.id}`,
         JSON.stringify(teacherClasses)
       );
     }
-  }, [teacherClasses, currentUser?.id]);
+  }, [accountStateReady, teacherClasses, currentUser?.id]);
 
   useEffect(() => {
-    if (currentUser?.id) {
+    if (accountStateReady && currentUser?.id) {
       localStorage.setItem(`spex_all_students_${currentUser.id}`, JSON.stringify(allStudents));
     }
-  }, [allStudents, currentUser?.id]);
+  }, [accountStateReady, allStudents, currentUser?.id]);
 
   useEffect(() => {
+    if (!accountStateReady) return;
     localStorage.setItem('spex_all_users', JSON.stringify(allUsersList));
     if (allUsersList.length > 0) {
       syncUsersBatchToDB(allUsersList);
     }
-  }, [allUsersList]);
+  }, [accountStateReady, allUsersList]);
 
   useEffect(() => {
-    if (currentUser?.id) {
+    if (accountStateReady && currentUser?.id) {
       localStorage.setItem(
         `spex_inspector_notes_${currentUser.id}`,
         JSON.stringify(inspectorNotes)
       );
     }
-  }, [inspectorNotes, currentUser?.id]);
+  }, [accountStateReady, inspectorNotes, currentUser?.id]);
 
   // Handlers for Lesson Command Center
   const handleStartLessonSession = (sessionData: Omit<LessonSession, 'id'>) => {
@@ -1581,32 +1617,34 @@ export function usePlatformStore({
 
   return {
     // State
-    allUsersList,
+    allUsersList: accountStateReady ? allUsersList : [],
     setAllUsersList,
-    teacherClasses,
-    allStudents,
-    dailyNotebook,
-    weeklySchedule,
-    lessonPlans,
-    knowledgeItems,
-    inspectorNotes,
-    inspectionVisits,
+    teacherClasses: accountStateReady ? teacherClasses : [],
+    allStudents: accountStateReady ? allStudents : [],
+    dailyNotebook: accountStateReady ? dailyNotebook : [],
+    weeklySchedule: accountStateReady ? weeklySchedule : [],
+    lessonPlans: accountStateReady ? lessonPlans : [],
+    knowledgeItems: accountStateReady ? knowledgeItems : INITIAL_KNOWLEDGE_BANK,
+    inspectorNotes: accountStateReady ? inspectorNotes : [],
+    inspectionVisits: accountStateReady ? inspectionVisits : [],
     refreshInspectionVisits,
-    teacherInspectorFeed,
-    assignedTeachers,
+    teacherInspectorFeed: accountStateReady
+      ? teacherInspectorFeed
+      : { inspector: null, guidance: [], visits: [] },
+    assignedTeachers: accountStateReady ? assignedTeachers : [],
     refreshAssignedTeachers,
     broadcasts,
-    directMessages,
-    communityResources,
-    communityNotifications,
-    personalLibraryItems,
-    districtGroupMessages,
-    aiSettings,
+    directMessages: accountStateReady ? directMessages : [],
+    communityResources: accountStateReady ? communityResources : [],
+    communityNotifications: accountStateReady ? communityNotifications : [],
+    personalLibraryItems: accountStateReady ? personalLibraryItems : [],
+    districtGroupMessages: accountStateReady ? districtGroupMessages : [],
+    aiSettings: accountStateReady ? aiSettings : INITIAL_AI_SETTINGS,
     setAiSettings,
     aiLogs,
     lessonTimingSettings,
-    activeLessonSession,
-    activeLessonPlanId,
+    activeLessonSession: accountStateReady ? activeLessonSession : null,
+    activeLessonPlanId: accountStateReady ? activeLessonPlanId : undefined,
     // Command center handlers
     handleStartLessonSession,
     handleLaunchCommandCenterForPlan,
