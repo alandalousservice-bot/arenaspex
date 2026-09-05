@@ -21,7 +21,7 @@ import {
 } from './aiGateway.js';
 import { prisma } from './prismaClient.js';
 import { hashPassword, sanitizeUser, sanitizeOwnUser, encryptApiKey } from './auth.js';
-import { requireAuth, requireRole } from './middleware/requireAuth.js';
+import { requireAuth, requireOperationalAccount, requireRole } from './middleware/requireAuth.js';
 import { reassignTeacher, reassignAllForInspector } from './assignmentService.js';
 import { canWriteRecord, resolveOwnerFieldValue } from './collectionAuth.js';
 import { canReadDistrictMessage, normalizeMessageText } from '../services/communicationRules.js';
@@ -116,6 +116,9 @@ apiRouter.get('/health', (req, res) => {
 
 // كل ما يلي يتطلب تسجيل دخول صالح
 apiRouter.use(requireAuth);
+// Every operational API is also approval-gated. Auth/status endpoints live in
+// authRouter and intentionally remain available to pending accounts.
+apiRouter.use(requireOperationalAccount);
 apiRouter.use(teacherAttendanceRouter);
 
 const academicYearIdSchema = z

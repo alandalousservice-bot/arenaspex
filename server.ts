@@ -17,7 +17,7 @@ import { apiRouter } from './src/server/apiRouter.js';
 import { authRouter } from './src/server/authRouter.js';
 import { assignmentRouter } from './src/server/assignmentRouter.js';
 import { geoRouter } from './src/server/geoRouter.js';
-import { requireAuth } from './src/server/middleware/requireAuth.js';
+import { requireAuth, requireOperationalAccount } from './src/server/middleware/requireAuth.js';
 
 // شبكة أمان أخيرة: انقطاع مؤقت لقاعدة البيانات أو أي خطأ غير متوقع لا يجب أن
 // يُسقط المنصة كاملة — نُسجّل الخطأ ونبقى نخدم بقية الطلبات.
@@ -96,7 +96,7 @@ async function startServer() {
   app.use('/api/geo', geoRouter);
   app.use('/api/auth', authRouter);
   app.use('/api', apiRouter);
-  app.use('/api', requireAuth, assignmentRouter);
+  app.use('/api', requireAuth, requireOperationalAccount, assignmentRouter);
 
   // Frontend Serving (Vite dev middleware vs Production static)
   if (process.env.NODE_ENV !== 'production') {

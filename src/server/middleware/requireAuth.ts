@@ -17,6 +17,8 @@ declare global {
         districtId: string;
         institutionId?: string | null;
         isPlatformOwner: boolean;
+        status: string;
+        isApprovedByAdmin: boolean;
       };
     }
   }
@@ -42,14 +44,12 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return res.status(401).json({ error: 'الحساب غير موجود.', code: 'ACCOUNT_GONE' });
   }
   if (user.status === 'inactive') {
-    return res
-      .status(401)
-      .json({
-        error: 'الحساب معطّل من طرف الإدارة.',
-        code: 'ACCOUNT_DISABLED',
-        disabled: true,
-        user: { id: user.id, status: user.status },
-      });
+    return res.status(401).json({
+      error: 'الحساب معطّل من طرف الإدارة.',
+      code: 'ACCOUNT_DISABLED',
+      disabled: true,
+      user: { id: user.id, status: user.status },
+    });
   }
 
   req.user = {
@@ -58,7 +58,28 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     districtId: user.districtId,
     institutionId: user.institutionId,
     isPlatformOwner: user.isPlatformOwner,
+    status: user.status,
+    isApprovedByAdmin: user.isApprovedByAdmin,
   };
+  next();
+}
+
+/**
+ * Operational APIs require both a valid session and the current DB approval
+ * state. Keep this separate from requireAuth so /auth/me and logout remain
+ * available to a pending account.
+ */
+export function requireOperationalAccount(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'يجب تسجيل الدخول.', code: 'ACCOUNT_GONE' });
+  }
+  if (req.user.status !== 'active' || !req.user.isApprovedByAdmin) {
+    return res.status(403).json({
+      error: 'حسابك بانتظار موافقة الإدارة أو غير مفعّل حالياً.',
+      code: 'ACCOUNT_PENDING_APPROVAL',
+      pending: true,
+    });
+  }
   next();
 }
 
