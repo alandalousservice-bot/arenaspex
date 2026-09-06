@@ -71,6 +71,7 @@ export interface CompetencyComponent extends CatalogNode {
 }
 
 export interface LearningRequirement extends CatalogNode {
+  description?: string;
   gradeId: string;
   domainId: string;
   finalCompetencyId: string;
@@ -120,6 +121,24 @@ export type ObjectiveKeyKind = 'practical' | 'technical' | 'methodological';
 export interface ObjectiveKey extends CatalogNode {
   objectiveConceptId: string;
   kind: ObjectiveKeyKind;
+}
+
+export interface SemanticTeacherObjective {
+  teacherObjectiveId: string;
+  objectiveConceptId?: string | null;
+}
+
+export interface SemanticIntegrationPoint {
+  integrationId: string;
+  afterTeacherObjectiveId: string;
+}
+
+export interface DerivedIntegrationCoverage {
+  integrationId: string;
+  teacherObjectiveIds: readonly string[];
+  objectiveConceptIds: readonly string[];
+  learningRequirementIds: readonly string[];
+  unmappedTeacherObjectiveIds: readonly string[];
 }
 
 export type SituationAlignmentUsage =
