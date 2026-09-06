@@ -80,4 +80,24 @@ describe('weekly timetable read model', () => {
     expect(view).toContain('readOnly');
     expect(view).toContain('onDeleteSlot');
   });
+
+  it('uses the fillable five-day sports board without changing slot integrations', () => {
+    const view = readFileSync('src/components/schedule/WeeklyTimetableView.tsx', 'utf8');
+    const css = readFileSync('src/index.css', 'utf8');
+    const screenCss = css.slice(css.indexOf('@media screen'), css.indexOf('@media print'));
+
+    expect(view).toContain('weekly-timetable-hero');
+    expect(view).toContain('weekly-timetable-board');
+    expect(view).toContain('weekly-day-column');
+    expect(view).toContain('openForm(undefined, weekday)');
+    expect(view).toContain('[45, 60, 90]');
+    expect(view).toContain('onAddSlot?.(candidate)');
+    expect(view).toContain('onUpdateSlot?.(candidate)');
+    expect(view).toContain('onDeleteSlot?.(slot.id)');
+    expect(view).toContain('readOnly');
+
+    expect(screenCss).toContain('.weekly-timetable-hero');
+    expect(screenCss).toContain('.weekly-day-heading');
+    expect(screenCss).toContain('--weekly-cyan: #09b8df');
+  });
 });

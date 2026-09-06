@@ -1,11 +1,23 @@
 import React, { useMemo, useState } from 'react';
-import { Clock, Pencil, Plus, Printer, Trash2 } from 'lucide-react';
+import {
+  CalendarDays,
+  Check,
+  Clock,
+  Pencil,
+  Plus,
+  Printer,
+  School,
+  Trash2,
+  Users,
+  X,
+} from 'lucide-react';
 import type { ClassRoom, User, WeeklyScheduleSlot } from '../../types/spex';
 import {
   buildWeeklyTimetableSummary,
   durationMinutes,
   formatWeeklyMinutes,
   hasWeeklyOverlap,
+  minutesFromTime,
   parseSlotTimes,
   validateWeeklyTime,
   WEEKDAYS,
@@ -25,15 +37,9 @@ interface WeeklyTimetableViewProps {
   onDeleteSlot?: (slotId: string) => void;
 }
 
-const START_MINUTES = 8 * 60;
-const END_MINUTES = 17 * 60;
-const ROW_HEIGHT = 42;
-const timeLabel = (minutes: number) =>
-  `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
-
 const classTone = (classId: string) => {
   const palette = [
-    'border-blue-200 bg-blue-50 text-blue-950',
+    'border-sky-200 bg-sky-50 text-sky-950',
     'border-emerald-200 bg-emerald-50 text-emerald-950',
     'border-amber-200 bg-amber-50 text-amber-950',
     'border-indigo-200 bg-indigo-50 text-indigo-950',
@@ -46,6 +52,10 @@ const classTone = (classId: string) => {
 function formatSlot(slot: WeeklyScheduleSlot) {
   const { startTime, endTime } = parseSlotTimes(slot);
   return `${startTime} – ${endTime}`;
+}
+
+function timeFromMinutes(minutes: number) {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 }
 
 export const WeeklyTimetableView: React.FC<WeeklyTimetableViewProps> = ({
@@ -75,8 +85,22 @@ export const WeeklyTimetableView: React.FC<WeeklyTimetableViewProps> = ({
     ? yearSlots.filter((slot) => slot.teacherId === currentUser.id)
     : yearSlots;
   const effectiveSummary = useMemo(() => buildWeeklyTimetableSummary(teacherSlots), [teacherSlots]);
+  const slotsByDay = useMemo(
+    () =>
+      Object.fromEntries(
+        WEEKDAYS.map((weekday) => [
+          weekday,
+          effectiveSummary.slots
+            .filter((slot) => slot.day === weekday)
+            .sort((left, right) =>
+              parseSlotTimes(left).startTime.localeCompare(parseSlotTimes(right).startTime)
+            ),
+        ])
+      ) as Record<WeeklyDay, typeof effectiveSummary.slots>,
+    [effectiveSummary]
+  );
 
-  const openForm = (slot?: WeeklyScheduleSlot) => {
+  const openForm = (slot?: WeeklyScheduleSlot, preferredDay: WeeklyDay = 'الأحد') => {
     setIsFormOpen(true);
     setEditing(slot || null);
     setFormError('');
@@ -86,12 +110,32 @@ export const WeeklyTimetableView: React.FC<WeeklyTimetableViewProps> = ({
       setClassId(slot.classId);
       setStartTime(times.startTime);
       setEndTime(times.endTime);
-    } else {
-      setDay('الأحد');
-      setClassId(teacherClasses[0]?.id || '');
-      setStartTime('08:00');
-      setEndTime('09:00');
+      return;
     }
+
+    const lastSlot = slotsByDay[preferredDay].at(-1);
+    const lastEnd = lastSlot ? parseSlotTimes(lastSlot).endTime : '';
+    const suggestedStart = lastEnd && lastEnd < '16:00' ? lastEnd : '08:00';
+    setDay(preferredDay);
+    setClassId(teacherClasses[0]?.id || '');
+    setStartTime(suggestedStart);
+    setEndTime(timeFromMinutes((minutesFromTime(suggestedStart) || 8 * 60) + 60));
+  };
+
+  const closeForm = () => {
+    setEditing(null);
+    setIsFormOpen(false);
+    setFormError('');
+  };
+
+  const applyDuration = (minutes: number) => {
+    const start = minutesFromTime(startTime);
+    if (start === null || start + minutes > 17 * 60) {
+      setFormError('المدة المختارة تتجاوز نهاية اليوم الدراسي عند 17:00.');
+      return;
+    }
+    setEndTime(timeFromMinutes(start + minutes));
+    setFormError('');
   };
 
   const save = (event: React.FormEvent) => {
@@ -118,29 +162,44 @@ export const WeeklyTimetableView: React.FC<WeeklyTimetableViewProps> = ({
       return setFormError('لا يمكن إضافة حصة متداخلة مع حصة أخرى في اليوم نفسه.');
     if (editing) onUpdateSlot?.(candidate);
     else onAddSlot?.(candidate);
-    setEditing(null);
-    setIsFormOpen(false);
+    closeForm();
   };
 
   return (
-    <section className="weekly-timetable-print space-y-4" dir="rtl">
-      <header className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs print:shadow-none">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-bold text-blue-600">التوقيت الأسبوعي</p>
-            <h2 className="mt-1 flex items-center gap-2 text-xl font-extrabold text-slate-900">
-              <Clock className="h-6 w-6 text-blue-600" /> التوزيع الأسبوعي
+    <section className="weekly-timetable-workspace weekly-timetable-print space-y-4" dir="rtl">
+      <header className="weekly-timetable-hero relative overflow-hidden rounded-3xl border p-5 shadow-sm print:shadow-none">
+        <div className="weekly-timetable-sport-mark" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+        <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="weekly-timetable-eyebrow text-xs font-semibold">التوقيت التربوي الرسمي</p>
+            <h2 className="mt-1 flex items-center gap-2 text-2xl font-bold">
+              <CalendarDays className="h-6 w-6" /> التوزيع الأسبوعي
             </h2>
-            <p className="mt-1 text-xs text-slate-500">
-              {schoolName} · {teacherName} · السنة الدراسية {academicYearId}
+            <p className="weekly-timetable-hero-copy mt-2 text-sm">
+              نظّم حصصك من الأحد إلى الخميس، ثم عدّلها مباشرة من بطاقة اليوم.
             </p>
+            <div className="weekly-timetable-identity mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs">
+              <span className="flex items-center gap-1.5">
+                <School className="h-4 w-4" /> {schoolName}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Users className="h-4 w-4" /> {teacherName}
+              </span>
+              <span className="font-mono" dir="ltr">
+                {academicYearId}
+              </span>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2 print:hidden">
             {!readOnly && (
               <button
                 type="button"
                 onClick={() => openForm()}
-                className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white"
+                className="weekly-timetable-primary-action flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
               >
                 <Plus className="h-4 w-4" /> إضافة حصة
               </button>
@@ -148,224 +207,290 @@ export const WeeklyTimetableView: React.FC<WeeklyTimetableViewProps> = ({
             <button
               type="button"
               onClick={() => window.print()}
-              className="flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white"
+              className="weekly-timetable-secondary-action flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
             >
               <Printer className="h-4 w-4" /> طباعة التوقيت
             </button>
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+
+        <div className="relative z-10 mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[
             ['عدد الأقسام', effectiveSummary.uniqueClasses],
             ['عدد الحصص', effectiveSummary.totalSessions],
             ['النصاب الأسبوعي', formatWeeklyMinutes(effectiveSummary.totalMinutes)],
             ['أيام العمل', effectiveSummary.workingDays],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <span className="block text-xs font-bold text-slate-500">{label}</span>
-              <strong className="mt-1 block text-lg font-extrabold text-slate-900">{value}</strong>
+            <div key={label} className="weekly-timetable-stat rounded-2xl border px-3 py-2.5">
+              <span className="block text-[11px] font-medium">{label}</span>
+              <strong className="mt-0.5 block text-base font-bold">{value}</strong>
             </div>
           ))}
         </div>
       </header>
 
-      {effectiveSummary.totalSessions === 0 ? (
-        <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm font-bold text-slate-500">
-          لم يقم الأستاذ بإعداد التوزيع الأسبوعي بعد.
+      <section className="weekly-timetable-board rounded-3xl border border-slate-200 bg-white p-3 shadow-sm print:shadow-none sm:p-4">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between print:hidden">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">لوحة أيام الأسبوع</h3>
+            <p className="mt-0.5 text-xs text-slate-500">
+              اضغط «إضافة» داخل اليوم المطلوب لتعبئة التوقيت بسرعة.
+            </p>
+          </div>
+          <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-800">
+            ساعات العمل: 08:00 — 17:00
+          </span>
         </div>
-      ) : (
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-xs print:shadow-none">
-          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {WEEKDAYS.map((weekday) => (
-              <div
-                key={weekday}
-                className="rounded-xl bg-slate-50 p-2 text-center text-xs font-bold text-slate-600"
-              >
-                {weekday}
-                <span className="mt-1 block text-sm font-extrabold text-slate-900">
-                  {formatWeeklyMinutes(effectiveSummary.dailyTotals[weekday])}
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5 print:grid-cols-5 print:gap-2">
+          {WEEKDAYS.map((weekday) => {
+            const weekdaySlots = slotsByDay[weekday];
+            return (
+              <article key={weekday} className="weekly-day-column min-w-0 rounded-2xl border p-2">
+                <header className="weekly-day-heading rounded-xl px-3 py-2.5 text-center">
+                  <h4 className="text-base font-bold">{weekday}</h4>
+                  <p className="mt-0.5 text-[11px] font-medium">
+                    {weekdaySlots.length} حصة ·{' '}
+                    {formatWeeklyMinutes(effectiveSummary.dailyTotals[weekday])}
+                  </p>
+                </header>
+
+                <div className="mt-2 space-y-2">
+                  {weekdaySlots.map((slot) => (
+                    <div
+                      key={slot.id}
+                      className={`weekly-slot-card rounded-xl border p-3 shadow-xs ${classTone(slot.classId)}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="min-w-0 font-bold leading-5">{slot.className}</span>
+                        {!readOnly && (
+                          <span className="flex shrink-0 gap-1 print:hidden">
+                            <button
+                              type="button"
+                              aria-label={`تعديل حصة ${slot.className}`}
+                              onClick={() => openForm(slot)}
+                              className="weekly-slot-action rounded-lg p-1"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`حذف حصة ${slot.className}`}
+                              onClick={() => onDeleteSlot?.(slot.id)}
+                              className="weekly-slot-delete rounded-lg p-1"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-2 flex items-center justify-between gap-2 border-t border-current/10 pt-2">
+                        <span
+                          className="flex items-center gap-1 font-mono text-xs font-bold"
+                          dir="ltr"
+                        >
+                          <Clock className="h-3.5 w-3.5" /> {formatSlot(slot)}
+                        </span>
+                        <span className="text-[10px] font-medium">
+                          {formatWeeklyMinutes(durationMinutes(slot))}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+
+                  {weekdaySlots.length === 0 && (
+                    <div className="weekly-day-empty flex min-h-24 items-center justify-center rounded-xl border border-dashed p-3 text-center text-xs font-medium">
+                      لا توجد حصة مبرمجة
+                    </div>
+                  )}
+                </div>
+
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => openForm(undefined, weekday)}
+                    className="weekly-day-add mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed px-2 py-2 text-xs font-semibold print:hidden"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> إضافة في {weekday}
+                  </button>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="weekly-timetable-summary rounded-3xl border border-slate-200 bg-white p-4 shadow-sm print:shadow-none">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-bold text-slate-900">ملخص النصاب حسب القسم</h3>
+          <span className="text-xs text-slate-500">محسوب تلقائيًا من الحصص أعلاه</span>
+        </div>
+        {Object.keys(effectiveSummary.classTotals).length ? (
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {Object.entries(effectiveSummary.classTotals).map(([itemClassId, item]) => (
+              <div key={itemClassId} className={`rounded-2xl border p-3 ${classTone(itemClassId)}`}>
+                <span className="block font-bold">{item.className}</span>
+                <span className="text-xs">
+                  {item.sessions} حصة · {formatWeeklyMinutes(item.minutes)}
                 </span>
               </div>
             ))}
           </div>
-          <div className="overflow-x-auto">
-            <div
-              className="relative grid min-w-[860px] grid-cols-[64px_repeat(5,minmax(150px,1fr))]"
-              style={{ height: `${((END_MINUTES - START_MINUTES) / 30) * ROW_HEIGHT}px` }}
-            >
-              <div className="relative border-l border-slate-200 bg-slate-50">
-                {Array.from({ length: 19 }, (_, index) => (
-                  <span
-                    key={index}
-                    className="absolute left-1 top-0 -translate-y-1/2 text-[10px] font-bold text-slate-500"
-                    style={{ top: `${index * ROW_HEIGHT * 2}px` }}
-                  >
-                    {timeLabel(START_MINUTES + index * 30)}
-                  </span>
-                ))}
-              </div>
-              {WEEKDAYS.map((weekday) => (
-                <div key={weekday} className="relative border-l border-slate-200 bg-white">
-                  {Array.from({ length: 18 }, (_, index) => (
-                    <div
-                      key={index}
-                      className="absolute inset-x-0 border-t border-slate-100"
-                      style={{ top: `${index * ROW_HEIGHT}px` }}
-                    />
-                  ))}
-                  {effectiveSummary.slots
-                    .filter((slot) => slot.day === weekday)
-                    .map((slot) => {
-                      const times = parseSlotTimes(slot);
-                      const start =
-                        Number(times.startTime.slice(0, 2)) * 60 +
-                        Number(times.startTime.slice(3)) -
-                        START_MINUTES;
-                      const height = Math.max((durationMinutes(slot) / 30) * ROW_HEIGHT - 4, 28);
-                      return (
-                        <div
-                          key={slot.id}
-                          className={`absolute inset-x-1 z-10 overflow-hidden rounded-xl border p-2 text-xs shadow-xs ${classTone(slot.classId)}`}
-                          style={{
-                            top: `${(start / 30) * ROW_HEIGHT + 2}px`,
-                            height: `${height}px`,
-                          }}
-                        >
-                          <div className="flex items-start justify-between gap-1">
-                            <span className="font-extrabold">{slot.className}</span>
-                            {!readOnly && (
-                              <span className="flex gap-1 print:hidden">
-                                <button
-                                  type="button"
-                                  aria-label="تعديل الحصة"
-                                  onClick={() => openForm(slot)}
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  aria-label="حذف الحصة"
-                                  onClick={() => onDeleteSlot?.(slot.id)}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5 text-rose-600" />
-                                </button>
-                              </span>
-                            )}
-                          </div>
-                          <span className="block font-mono font-bold">{formatSlot(slot)}</span>
-                          <span className="block text-[10px]">
-                            {formatWeeklyMinutes(durationMinutes(slot))}
-                          </span>
-                        </div>
-                      );
-                    })}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-xs print:shadow-none">
-        <h3 className="mb-3 text-sm font-extrabold text-slate-900">ملخص النصاب حسب القسم</h3>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {Object.values(effectiveSummary.classTotals).map((item) => (
-            <div
-              key={item.className}
-              className="rounded-2xl border border-slate-100 bg-slate-50 p-3"
-            >
-              <span className="block font-extrabold text-slate-900">{item.className}</span>
-              <span className="text-xs text-slate-600">
-                {item.sessions} حصة · {formatWeeklyMinutes(item.minutes)}
-              </span>
-            </div>
-          ))}
-        </div>
+        ) : (
+          <p className="mt-3 rounded-2xl bg-slate-50 p-4 text-center text-xs font-medium text-slate-500">
+            سيظهر ملخص النصاب بعد إضافة أول حصة.
+          </p>
+        )}
       </section>
 
       {isFormOpen && !readOnly && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 print:hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 print:hidden">
           <form
             onSubmit={save}
-            className="w-full max-w-md space-y-4 rounded-3xl bg-white p-5 shadow-2xl"
+            className="weekly-timetable-form w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl"
             dir="rtl"
           >
-            <h3 className="text-lg font-extrabold text-slate-900">
-              {editing ? 'تعديل الحصة' : 'إضافة حصة'}
-            </h3>
-            <label className="block text-xs font-bold">
-              اليوم
-              <select
-                value={day}
-                onChange={(event) => setDay(event.target.value as WeeklyDay)}
-                className="mt-1 block w-full rounded-xl border border-slate-200 p-2"
-              >
-                {WEEKDAYS.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-xs font-bold">
-              القسم
-              <select
-                value={classId}
-                onChange={(event) => setClassId(event.target.value)}
-                className="mt-1 block w-full rounded-xl border border-slate-200 p-2"
-              >
-                {teacherClasses.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="text-xs font-bold">
-                من
-                <input
-                  type="time"
-                  min="08:00"
-                  max="17:00"
-                  step="300"
-                  value={startTime}
-                  onChange={(event) => setStartTime(event.target.value)}
-                  className="mt-1 block w-full rounded-xl border border-slate-200 p-2"
-                />
-              </label>
-              <label className="text-xs font-bold">
-                إلى
-                <input
-                  type="time"
-                  min="08:00"
-                  max="17:00"
-                  step="300"
-                  value={endTime}
-                  onChange={(event) => setEndTime(event.target.value)}
-                  className="mt-1 block w-full rounded-xl border border-slate-200 p-2"
-                />
-              </label>
-            </div>
-            {formError && (
-              <p className="rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-700">
-                {formError}
-              </p>
-            )}
-            <div className="flex justify-end gap-2">
+            <div className="weekly-timetable-form-header flex items-center justify-between gap-3 px-5 py-4">
+              <div>
+                <p className="text-[11px] font-medium">تعبئة سريعة للتوقيت</p>
+                <h3 className="mt-0.5 text-lg font-bold">
+                  {editing ? 'تعديل بيانات الحصة' : 'إضافة حصة جديدة'}
+                </h3>
+              </div>
               <button
                 type="button"
-                onClick={() => {
-                  setEditing(null);
-                  setIsFormOpen(false);
-                }}
-                className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold"
+                onClick={closeForm}
+                aria-label="إغلاق نافذة الحصة"
+                className="rounded-xl border border-white/25 bg-white/10 p-2"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-5 p-5">
+              <fieldset>
+                <legend className="mb-2 text-xs font-bold text-slate-700">1. اختر اليوم</legend>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {WEEKDAYS.map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => setDay(item)}
+                      className={`rounded-xl border px-1 py-2 text-xs font-semibold transition ${
+                        day === item
+                          ? 'border-emerald-700 bg-emerald-700 text-white'
+                          : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300'
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
+              <label className="block text-xs font-bold text-slate-700">
+                2. اختر القسم
+                <select
+                  value={classId}
+                  onChange={(event) => setClassId(event.target.value)}
+                  className="mt-2 block w-full rounded-xl border border-slate-200 bg-white p-3 text-sm"
+                >
+                  {teacherClasses.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <fieldset>
+                <legend className="mb-2 text-xs font-bold text-slate-700">3. حدد التوقيت</legend>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-xs font-medium text-slate-600">
+                    من
+                    <input
+                      type="time"
+                      min="08:00"
+                      max="17:00"
+                      step="300"
+                      value={startTime}
+                      onChange={(event) => {
+                        const nextStart = event.target.value;
+                        setStartTime(nextStart);
+                        const nextStartMinutes = minutesFromTime(nextStart);
+                        const currentEndMinutes = minutesFromTime(endTime);
+                        if (
+                          nextStartMinutes !== null &&
+                          nextStartMinutes + 60 <= 17 * 60 &&
+                          (currentEndMinutes === null || currentEndMinutes <= nextStartMinutes)
+                        ) {
+                          setEndTime(timeFromMinutes(nextStartMinutes + 60));
+                        }
+                      }}
+                      className="mt-1 block w-full rounded-xl border border-slate-200 p-3 font-mono text-sm"
+                    />
+                  </label>
+                  <label className="text-xs font-medium text-slate-600">
+                    إلى
+                    <input
+                      type="time"
+                      min="08:00"
+                      max="17:00"
+                      step="300"
+                      value={endTime}
+                      onChange={(event) => setEndTime(event.target.value)}
+                      className="mt-1 block w-full rounded-xl border border-slate-200 p-3 font-mono text-sm"
+                    />
+                  </label>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-medium text-slate-500">مدة سريعة:</span>
+                  {[45, 60, 90].map((minutes) => (
+                    <button
+                      key={minutes}
+                      type="button"
+                      onClick={() => applyDuration(minutes)}
+                      className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] font-semibold text-sky-800 hover:bg-sky-100"
+                    >
+                      {minutes} دقيقة
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
+              <div className="weekly-timetable-form-preview flex items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 text-xs">
+                <span className="font-semibold">{day}</span>
+                <span>
+                  {teacherClasses.find((item) => item.id === classId)?.name || 'اختر القسم'}
+                </span>
+                <span className="font-mono font-bold" dir="ltr">
+                  {startTime} — {endTime}
+                </span>
+              </div>
+
+              {formError && (
+                <p
+                  role="alert"
+                  className="rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-700"
+                >
+                  {formError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4">
+              <button
+                type="button"
+                onClick={closeForm}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700"
               >
                 إلغاء
               </button>
               <button
                 type="submit"
-                className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"
+                className="flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-xs font-semibold text-white hover:bg-emerald-800"
               >
-                حفظ
+                <Check className="h-4 w-4" /> حفظ الحصة
               </button>
             </div>
           </form>
