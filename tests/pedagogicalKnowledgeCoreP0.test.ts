@@ -4,6 +4,7 @@ import {
   P0_GRADE_ID,
   P0_GRADE_ONE_DOMAIN_ONE_CATALOG,
   P0_DOMAIN_ID,
+  P0_CANONICAL_FINAL_COMPETENCY_WORDING,
   calculateCompetencyCoverage,
   canSatisfyAuthoritativeCoverage,
   computeCatalogHash,
@@ -67,6 +68,52 @@ describe('Pedagogical Knowledge Core P0 catalog', () => {
     expect(resolveKnowledgeId('f_locomotion__2', P0_GRADE_ONE_DOMAIN_ONE_CATALOG.aliases)).toBe(
       'objective-concept:lvl_p1:f_locomotion:1'
     );
+  });
+
+  it('freezes one canonical Grade 1 / Domain 1 final-competency identity and wording', () => {
+    const matching = P0_GRADE_ONE_DOMAIN_ONE_CATALOG.finalCompetencies.filter(
+      (item) => item.gradeId === P0_GRADE_ID && item.domainId === P0_DOMAIN_ID
+    );
+    expect(matching).toHaveLength(1);
+    expect(matching[0]).toMatchObject({
+      id: P0_FINAL_COMPETENCY_ID,
+      label: P0_CANONICAL_FINAL_COMPETENCY_WORDING,
+      originType: 'official_source',
+      reviewStatus: 'approved',
+      sourceRef: 'pedagogical-knowledge-core-reference:g1:d1:final-competency',
+    });
+    expect(P0_CANONICAL_FINAL_COMPETENCY_WORDING).toBe(
+      'يتخذ وضعيات وهيآت طبيعية لها علاقة مع محيطه المباشر.'
+    );
+  });
+
+  it('resolves every current final-competency source slot to the canonical identity', () => {
+    const sourceIds = [
+      'source:annual-plan-reference:lvl_p1:f_locomotion:final-competency',
+      'source:domain-one-learning-section-reference:lvl_p1:f_locomotion:final-competency',
+      'source:algerian-curriculum:lvl_p1:f_locomotion:final-competency',
+    ];
+    expect(
+      sourceIds.map((sourceId) =>
+        resolveKnowledgeId(sourceId, P0_GRADE_ONE_DOMAIN_ONE_CATALOG.aliases)
+      )
+    ).toEqual(sourceIds.map(() => P0_FINAL_COMPETENCY_ID));
+  });
+
+  it('preserves the three component IDs with reviewed provenance and one final competency', () => {
+    const components = P0_GRADE_ONE_DOMAIN_ONE_CATALOG.competencyComponents;
+    expect(components).toHaveLength(3);
+    expect(components.every((item) => item.finalCompetencyId === P0_FINAL_COMPETENCY_ID)).toBe(
+      true
+    );
+    expect(
+      components.every(
+        (item) =>
+          item.originType === 'reviewed_derived' &&
+          item.reviewStatus === 'approved' &&
+          item.sourceRef === 'domain-one-learning-section-reference:lvl_p1:f_locomotion'
+      )
+    ).toBe(true);
   });
 
   it('models CompetencyComponent N:M LearningRequirement links', () => {

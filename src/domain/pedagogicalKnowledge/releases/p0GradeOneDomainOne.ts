@@ -10,6 +10,8 @@ export const P0_RELEASE_ID = 'knowledge-core:v1.0-pilot' as const;
 export const P0_GRADE_ID = 'lvl_p1' as const;
 export const P0_DOMAIN_ID = 'f_locomotion' as const;
 export const P0_FINAL_COMPETENCY_ID = 'fc_lvl_p1_f_locomotion' as const;
+export const P0_CANONICAL_FINAL_COMPETENCY_WORDING =
+  'يتخذ وضعيات وهيآت طبيعية لها علاقة مع محيطه المباشر.' as const;
 
 const approvedOfficial: KnowledgeProvenance = {
   originType: 'official_source',
@@ -25,6 +27,16 @@ const approvedDerived: KnowledgeProvenance = {
   sourceRef: 'domain-one-learning-section-reference:lvl_p1:f_locomotion',
   reviewedById: 'arenaspex-pedagogical-review',
   reviewedAt: '2026-09-06',
+};
+
+const approvedDomainOneDerived: KnowledgeProvenance = {
+  ...approvedDerived,
+  sourceRef: 'domain-one-learning-section-reference:lvl_p1:f_locomotion',
+};
+
+const approvedCanonicalFinalOfficial: KnowledgeProvenance = {
+  ...approvedOfficial,
+  sourceRef: 'pedagogical-knowledge-core-reference:g1:d1:final-competency',
 };
 
 const draftDerived: KnowledgeProvenance = {
@@ -105,6 +117,11 @@ const catalogWithoutHash = {
         repositoryPath: 'src/data/algerianCurriculum.ts',
         classification: 'platform_reference',
       },
+      {
+        id: 'pedagogical-knowledge-core-reference',
+        title: 'ArenaSPEX Pedagogical Knowledge Core reference v1.0',
+        classification: 'platform_reference',
+      },
     ],
     hashStrategy: 'fnv1a32-stable-json-v1',
     provenancePolicy:
@@ -127,15 +144,20 @@ const catalogWithoutHash = {
     }),
   ],
   finalCompetencies: [
-    node(P0_FINAL_COMPETENCY_ID, 'يتخذ وضعيات وهيئات طبيعية لها علاقة مع محيطه المباشر.', {
-      gradeId: P0_GRADE_ID,
-      domainId: P0_DOMAIN_ID,
-      requirementSetStatus: 'incomplete' as const,
-      metadata: {
-        reason:
-          'P0 preserves only safely reconciled requirements; the complete approved requirement set remains pending pedagogical review.',
+    node(
+      P0_FINAL_COMPETENCY_ID,
+      P0_CANONICAL_FINAL_COMPETENCY_WORDING,
+      {
+        gradeId: P0_GRADE_ID,
+        domainId: P0_DOMAIN_ID,
+        requirementSetStatus: 'incomplete' as const,
+        metadata: {
+          reason:
+            'P0 preserves only safely reconciled requirements; the complete approved requirement set remains pending pedagogical review.',
+        },
       },
-    }),
+      approvedCanonicalFinalOfficial
+    ),
   ],
   competencyComponents: [
     node(
@@ -146,7 +168,8 @@ const catalogWithoutHash = {
         domainId: P0_DOMAIN_ID,
         finalCompetencyId: P0_FINAL_COMPETENCY_ID,
         order: 1,
-      }
+      },
+      approvedDomainOneDerived
     ),
     node(
       componentIds[1],
@@ -156,14 +179,20 @@ const catalogWithoutHash = {
         domainId: P0_DOMAIN_ID,
         finalCompetencyId: P0_FINAL_COMPETENCY_ID,
         order: 2,
-      }
+      },
+      approvedDomainOneDerived
     ),
-    node(componentIds[2], 'يحترم القواعد العامة عند أخذ مختلف الوضعيات.', {
-      gradeId: P0_GRADE_ID,
-      domainId: P0_DOMAIN_ID,
-      finalCompetencyId: P0_FINAL_COMPETENCY_ID,
-      order: 3,
-    }),
+    node(
+      componentIds[2],
+      'يحترم القواعد العامة عند أخذ مختلف الوضعيات.',
+      {
+        gradeId: P0_GRADE_ID,
+        domainId: P0_DOMAIN_ID,
+        finalCompetencyId: P0_FINAL_COMPETENCY_ID,
+        order: 3,
+      },
+      approvedDomainOneDerived
+    ),
   ],
   learningRequirements: [
     node(
@@ -268,11 +297,29 @@ const catalogWithoutHash = {
       draftDerived
     )
   ),
-  aliases: conceptIds.map((canonicalId, index) => ({
-    legacyId: `${P0_DOMAIN_ID}__${[2, 3, 4, 6, 7, 8, 9][index]}`,
-    canonicalId,
-    reason: 'Preserve the existing Teacher Learning Plan sourceReferenceId.',
-  })),
+  aliases: [
+    {
+      legacyId: 'source:annual-plan-reference:lvl_p1:f_locomotion:final-competency',
+      canonicalId: P0_FINAL_COMPETENCY_ID,
+      reason: 'Resolve the Annual Plan source slot to the frozen canonical competency identity.',
+    },
+    {
+      legacyId: 'source:domain-one-learning-section-reference:lvl_p1:f_locomotion:final-competency',
+      canonicalId: P0_FINAL_COMPETENCY_ID,
+      reason: 'Resolve the Domain 1 source slot to the frozen canonical competency identity.',
+    },
+    {
+      legacyId: 'source:algerian-curriculum:lvl_p1:f_locomotion:final-competency',
+      canonicalId: P0_FINAL_COMPETENCY_ID,
+      reason:
+        'Preserve the narrower operational wording as an alternate source representation without making it canonical.',
+    },
+    ...conceptIds.map((canonicalId, index) => ({
+      legacyId: `${P0_DOMAIN_ID}__${[2, 3, 4, 6, 7, 8, 9][index]}`,
+      canonicalId,
+      reason: 'Preserve the existing Teacher Learning Plan sourceReferenceId.',
+    })),
+  ],
 } satisfies Omit<PedagogicalKnowledgeCatalog, 'release'> & {
   release: Omit<CurriculumRelease, 'catalogHash'>;
 };
