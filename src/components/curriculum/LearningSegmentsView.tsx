@@ -8,7 +8,6 @@ import {
   ArrowDown,
   ArrowUp,
   BookOpen,
-  CheckCircle2,
   Clock,
   Layers,
   Pencil,
@@ -25,6 +24,11 @@ import {
   PE_FIELDS,
   PE_LEVELS,
 } from '../../data/algerianCurriculum';
+import {
+  getDomainOneLearningSectionReference,
+  getLearningSectionComponents,
+  type OfficialLearningSectionComponent,
+} from '../../data/domainOneLearningSectionReference';
 import { useTeacherLearningPlan } from '../../hooks/useTeacherLearningPlan';
 import {
   addTeacherLearningIntegration,
@@ -35,6 +39,7 @@ import {
   reorderTeacherLearningObjectives,
   updateTeacherLearningIntegration,
   updateTeacherLearningObjectiveDetails,
+  updateTeacherLearningSpecialEntry,
 } from '../../services/teacherLearningPlan.service';
 import {
   findSuitableSituations,
@@ -46,6 +51,7 @@ import type {
   TeacherLearningIntegrationPoint,
   TeacherLearningObjective,
   TeacherLearningPlanData,
+  TeacherLearningSpecialEntry,
   User,
 } from '../../types/spex';
 import { AcademicYearLabel } from '../common/AcademicYearLabel';
@@ -60,6 +66,7 @@ interface LearningSegmentsViewProps {
 
 type EditableDraft = {
   text: string;
+  competencyComponentIds: string[];
   learningContent: string;
   executionContent: string;
   resources: string;
@@ -71,7 +78,7 @@ type EditableDraft = {
 };
 
 type EditingItem = {
-  kind: 'objective' | 'integration';
+  kind: 'objective' | 'integration' | 'diagnostic' | 'summative';
   fieldId: string;
   id: string;
   draft: EditableDraft;
@@ -85,8 +92,8 @@ type NewSessionDraft = {
 };
 
 type SequenceItem =
-  | { kind: 'diagnostic'; id: string; label: string; text: string }
-  | { kind: 'summative'; id: string; label: string; text: string }
+  | { kind: 'diagnostic'; id: string; label: string; item: TeacherLearningSpecialEntry }
+  | { kind: 'summative'; id: string; label: string; item: TeacherLearningSpecialEntry }
   | { kind: 'objective'; id: string; label: string; item: TeacherLearningObjective }
   | { kind: 'integration'; id: string; label: string; item: TeacherLearningIntegrationPoint };
 
@@ -98,6 +105,7 @@ function gradeFromLevelId(levelId: string): number {
 function draftFromObjective(objective: TeacherLearningObjective): EditableDraft {
   return {
     text: objective.text,
+    competencyComponentIds: objective.competencyComponentIds || [],
     learningContent: objective.learningContent || '',
     executionContent: objective.executionContent || '',
     resources: (objective.resources || []).join('، '),
@@ -111,6 +119,7 @@ function draftFromObjective(objective: TeacherLearningObjective): EditableDraft 
 function draftFromIntegration(point: TeacherLearningIntegrationPoint): EditableDraft {
   return {
     text: point.objective || '',
+    competencyComponentIds: point.competencyComponentIds || [],
     learningContent: point.learningContent || '',
     executionContent: point.executionContent || '',
     resources: (point.resources || []).join('، '),
@@ -122,18 +131,37 @@ function draftFromIntegration(point: TeacherLearningIntegrationPoint): EditableD
   };
 }
 
+function draftFromSpecial(item: TeacherLearningSpecialEntry): EditableDraft {
+  return {
+    text: item.objective || '',
+    competencyComponentIds: item.competencyComponentIds || [],
+    learningContent: item.learningContent || '',
+    executionContent: item.executionContent || '',
+    resources: (item.resources || []).join('، '),
+    pedagogicalKnowledge: item.pedagogicalKnowledge || '',
+    guidance: item.guidance || '',
+    teacherNotes: item.teacherNotes || '',
+    situations: item.situations || [],
+  };
+}
+
 function sequenceFor(
   field: (typeof COMPLETE_ANNUAL_CURRICULUM)[string]['fields'][string],
-  domain: Pick<TeacherLearningPlanData['domains'][number], 'objectives' | 'integrationPoints'>
+  domain: Pick<
+    TeacherLearningPlanData['domains'][number],
+    'objectives' | 'integrationPoints' | 'diagnostic' | 'summative'
+  >
 ): SequenceItem[] {
   const items: SequenceItem[] = [
     {
       kind: 'diagnostic',
       id: `diagnostic:${field.fieldId}`,
       label: 'تقويم تشخيصي',
-      text:
-        field.sessionsList.find((session) => session.type === 'تقويم تشخيصي')?.objective ||
-        'تقويم تشخيصي لمكتسبات التلاميذ',
+      item: domain.diagnostic || {
+        objective:
+          field.sessionsList.find((session) => session.type === 'تقويم تشخيصي')?.objective ||
+          'تقويم تشخيصي لمكتسبات التلاميذ',
+      },
     },
   ];
   const integrations = [...domain.integrationPoints].sort(
@@ -160,9 +188,11 @@ function sequenceFor(
     kind: 'summative',
     id: `summative:${field.fieldId}`,
     label: 'تقويم تحصيلي',
-    text:
-      field.sessionsList.find((session) => session.type === 'تقويم تحصيلي')?.objective ||
-      'تقويم تحصيلي لمكتسبات المتعلمين',
+    item: domain.summative || {
+      objective:
+        field.sessionsList.find((session) => session.type === 'تقويم تحصيلي')?.objective ||
+        'تقويم تحصيلي لمكتسبات المتعلمين',
+    },
   });
   return items;
 }
@@ -229,17 +259,19 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
   const startEditing = (
     kind: EditingItem['kind'],
     fieldId: string,
-    item: TeacherLearningObjective | TeacherLearningIntegrationPoint
+    item: TeacherLearningObjective | TeacherLearningIntegrationPoint | TeacherLearningSpecialEntry
   ) => {
     setSituationPickerKey(null);
     setEditingItem({
       kind,
       fieldId,
-      id: item.id,
+      id: 'id' in item ? item.id : `${kind}:${fieldId}`,
       draft:
         kind === 'objective'
           ? draftFromObjective(item as TeacherLearningObjective)
-          : draftFromIntegration(item as TeacherLearningIntegrationPoint),
+          : kind === 'integration'
+            ? draftFromIntegration(item as TeacherLearningIntegrationPoint)
+            : draftFromSpecial(item as TeacherLearningSpecialEntry),
     });
   };
 
@@ -252,6 +284,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
     if (!plan || !editingItem || !editingItem.draft.text.trim()) return;
     const draft = editingItem.draft;
     const fields = {
+      competencyComponentIds: draft.competencyComponentIds,
       learningContent: draft.learningContent,
       executionContent: draft.executionContent,
       resources: splitResources(draft.resources),
@@ -261,18 +294,23 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
       situations: draft.situations,
     };
     try {
-      savePlan(
+      const nextPlan =
         editingItem.kind === 'objective'
           ? updateTeacherLearningObjectiveDetails(plan, editingItem.fieldId, editingItem.id, {
               text: draft.text,
               ...fields,
             })
-          : updateTeacherLearningIntegration(plan, editingItem.fieldId, editingItem.id, {
-              objective: draft.text,
-              afterObjectiveId: draft.afterObjectiveId || null,
-              ...fields,
-            })
-      );
+          : editingItem.kind === 'integration'
+            ? updateTeacherLearningIntegration(plan, editingItem.fieldId, editingItem.id, {
+                objective: draft.text,
+                afterObjectiveId: draft.afterObjectiveId || null,
+                ...fields,
+              })
+            : updateTeacherLearningSpecialEntry(plan, editingItem.fieldId, editingItem.kind, {
+                objective: draft.text,
+                ...fields,
+              });
+      savePlan(nextPlan);
       setEditingItem(null);
       setSituationPickerKey(null);
     } catch (reason: unknown) {
@@ -361,6 +399,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
           field: printField,
           domain: printDomain,
           level: currentLevelCurriculum.levelName,
+          levelId: selectedLevelId,
           currentUser,
           academicYearId,
         })
@@ -527,7 +566,17 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
           if (!domain) return null;
           const objectives = domain.objectives || [];
           const integrationPoints = domain.integrationPoints || [];
-          const sequence = sequenceFor(field, { objectives, integrationPoints });
+          const sequence = sequenceFor(field, {
+            objectives,
+            integrationPoints,
+            diagnostic: domain.diagnostic,
+            summative: domain.summative,
+          });
+          const officialReference = getDomainOneLearningSectionReference(
+            selectedLevelId,
+            field.fieldId
+          );
+          const officialComponents = getLearningSectionComponents(selectedLevelId, field.fieldId);
           return (
             <section
               key={field.fieldId}
@@ -539,7 +588,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                     الميدان الرسمي: {field.fieldName}
                   </span>
                   <h3 className="mt-2 text-base font-extrabold text-slate-900">
-                    {field.finalCompetency}
+                    {officialReference?.finalCompetency || field.finalCompetency}
                   </h3>
                   <p className="mt-1 text-xs text-slate-500">
                     المستوى: {currentLevelCurriculum.levelName} · الكفاءة الشاملة محفوظة من المرجع
@@ -551,34 +600,23 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                   {domain.integrationPoints.length} إدماجيات
                 </span>
               </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-1.5 rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
-                  <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
-                    معايير تحقيق الكفاءة
-                  </span>
-                  <ul className="space-y-1 pt-1 text-xs text-slate-700">
-                    {field.criteria.map((criterion, index) => (
-                      <li key={index} className="flex items-start gap-1.5">
-                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                        <span>{criterion}</span>
-                      </li>
+              {officialReference && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
+                  <p className="text-[11px] font-extrabold text-emerald-900">
+                    مركبات الكفاءة الرسمية — مرجع غير قابل للتعديل
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {officialComponents.map((component) => (
+                      <span
+                        key={component.id}
+                        className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-emerald-900"
+                      >
+                        {component.title}
+                      </span>
                     ))}
-                  </ul>
+                  </div>
                 </div>
-                <div className="space-y-1.5 rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
-                  <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-[11px] font-bold text-indigo-800">
-                    مؤشرات تحقيق الكفاءة
-                  </span>
-                  <ul className="space-y-1 pt-1 text-xs text-slate-700">
-                    {field.indicators.map((indicator, index) => (
-                      <li key={index} className="flex items-start gap-1.5">
-                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-600" />
-                        <span>{indicator}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
+              )}
               {field.pedagogicalNotes && field.pedagogicalNotes.length > 0 && (
                 <div className="space-y-1 rounded-2xl border border-amber-200/80 bg-amber-50/60 p-3 text-xs text-amber-900">
                   <span className="flex items-center gap-1 font-bold text-amber-800">
@@ -625,21 +663,94 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                 </div>
                 <div className="space-y-2">
                   {sequence.map((item) => {
-                    if (item.kind === 'diagnostic' || item.kind === 'summative')
+                    if (item.kind === 'diagnostic' || item.kind === 'summative') {
+                      const itemDraft =
+                        editingItem?.fieldId === field.fieldId && editingItem.id === item.id
+                          ? editingItem.draft
+                          : null;
                       return (
                         <div
                           key={item.id}
-                          className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"
+                          className="rounded-xl border border-slate-200 bg-slate-50 p-3"
                         >
-                          <span
-                            className={`rounded-lg px-2 py-1 text-[11px] font-black ${item.kind === 'diagnostic' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'}`}
-                          >
-                            {item.label}
-                          </span>
-                          <p className="flex-1 text-xs leading-6 text-slate-700">{item.text}</p>
-                          <span className="text-[10px] font-bold text-slate-400">مرجع رسمي</span>
+                          <div className="flex items-start gap-3">
+                            <span
+                              className={`rounded-lg px-2 py-1 text-[11px] font-black ${item.kind === 'diagnostic' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'}`}
+                            >
+                              {item.label}
+                            </span>
+                            {itemDraft ? (
+                              <EditFields
+                                draft={itemDraft}
+                                isIntegration={false}
+                                objectives={objectives}
+                                components={officialComponents}
+                                pickerOpen={situationPickerKey === item.id}
+                                onChange={updateDraft}
+                                onTogglePicker={() =>
+                                  setSituationPickerKey(
+                                    situationPickerKey === item.id ? null : item.id
+                                  )
+                                }
+                                suggestions={suitableSituations}
+                                onAddSituation={(situation) =>
+                                  updateDraft({
+                                    situations: [
+                                      ...itemDraft.situations,
+                                      snapshotSituation(situation),
+                                    ],
+                                  })
+                                }
+                                onRemoveSituation={(id) =>
+                                  updateDraft({
+                                    situations: itemDraft.situations.filter(
+                                      (situation) => situation.situationId !== id
+                                    ),
+                                  })
+                                }
+                                onSave={saveEditing}
+                                onCancel={() => {
+                                  setEditingItem(null);
+                                  setSituationPickerKey(null);
+                                }}
+                                saving={isSaving}
+                              />
+                            ) : (
+                              <>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs leading-6 text-slate-700">
+                                    {item.item.objective}
+                                  </p>
+                                  <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-slate-500">
+                                    {item.item.learningContent && (
+                                      <span className="max-w-full truncate">
+                                        محتوى التعلم: {item.item.learningContent}
+                                      </span>
+                                    )}
+                                    <span>
+                                      مركبات الكفاءة:{' '}
+                                      {item.item.competencyComponentIds?.length || 0}
+                                    </span>
+                                    <span>
+                                      المواقف التربوية: {item.item.situations?.length || 0}
+                                    </span>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  aria-label={`تعديل ${item.label}`}
+                                  title={`تعديل ${item.label}`}
+                                  onClick={() => startEditing(item.kind, field.fieldId, item.item)}
+                                  className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:text-blue-700 print:hidden"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       );
+                    }
                     const isObjective = item.kind === 'objective';
                     const itemDraft =
                       editingItem?.fieldId === field.fieldId && editingItem.id === item.id
@@ -661,6 +772,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                               draft={itemDraft}
                               isIntegration={!isObjective}
                               objectives={objectives}
+                              components={officialComponents}
                               pickerOpen={situationPickerKey === item.id}
                               onChange={updateDraft}
                               onTogglePicker={() =>
@@ -707,6 +819,9 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                                     </span>
                                   )}
                                   <span>المواقف التربوية: {item.item.situations?.length || 0}</span>
+                                  <span>
+                                    مركبات الكفاءة: {item.item.competencyComponentIds?.length || 0}
+                                  </span>
                                 </div>
                               </div>
                               <div className="flex shrink-0 items-center gap-1 print:hidden">
@@ -921,6 +1036,7 @@ interface EditFieldsProps {
   draft: EditableDraft;
   isIntegration: boolean;
   objectives: TeacherLearningObjective[];
+  components: OfficialLearningSectionComponent[];
   pickerOpen: boolean;
   onChange: (changes: Partial<EditableDraft>) => void;
   onTogglePicker: () => void;
@@ -936,6 +1052,7 @@ const EditFields: React.FC<EditFieldsProps> = ({
   draft,
   isIntegration,
   objectives,
+  components,
   pickerOpen,
   onChange,
   onTogglePicker,
@@ -957,6 +1074,36 @@ const EditFields: React.FC<EditFieldsProps> = ({
         placeholder={isIntegration ? 'موضوع الحصة الإدماجية...' : 'الهدف التعليمي...'}
       />
     </label>
+    {components.length > 0 && (
+      <fieldset className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-2">
+        <legend className="px-1 text-xs font-bold text-emerald-900">مركبات الكفاءة المرتبطة</legend>
+        <p className="mb-2 text-[10px] text-emerald-800">
+          اختر من المرجع الرسمي؛ نصوص المركبات غير قابلة للتعديل.
+        </p>
+        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+          {components.map((component) => (
+            <label
+              key={component.id}
+              className="flex cursor-pointer items-start gap-2 rounded-md border border-emerald-100 bg-white p-2 text-[11px] font-semibold text-slate-800"
+            >
+              <input
+                type="checkbox"
+                checked={draft.competencyComponentIds.includes(component.id)}
+                onChange={(event) =>
+                  onChange({
+                    competencyComponentIds: event.target.checked
+                      ? [...draft.competencyComponentIds, component.id]
+                      : draft.competencyComponentIds.filter((id) => id !== component.id),
+                  })
+                }
+                className="mt-0.5 h-4 w-4 accent-emerald-700"
+              />
+              <span>{component.title}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+    )}
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <label className="block text-xs font-bold text-slate-700">
         محتوى التعلم

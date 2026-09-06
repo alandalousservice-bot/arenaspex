@@ -498,6 +498,7 @@ export interface TeacherLearningObjective {
   text: string;
   orderIndex: number;
   sourceReferenceId?: string | null;
+  competencyComponentIds?: string[];
   learningContent?: string;
   executionContent?: string;
   resources?: string[];
@@ -512,6 +513,19 @@ export interface TeacherLearningIntegrationPoint {
   afterObjectiveId: string | null;
   orderIndex: number;
   label: string;
+  competencyComponentIds?: string[];
+  objective?: string;
+  learningContent?: string;
+  executionContent?: string;
+  resources?: string[];
+  pedagogicalKnowledge?: string;
+  guidance?: string;
+  teacherNotes?: string;
+  situations?: EducationalSituationSnapshot[];
+}
+
+export interface TeacherLearningSpecialEntry {
+  competencyComponentIds?: string[];
   objective?: string;
   learningContent?: string;
   executionContent?: string;
@@ -527,6 +541,8 @@ export interface TeacherLearningPlanDomain {
   finalCompetencyId?: string;
   objectives: TeacherLearningObjective[];
   integrationPoints: TeacherLearningIntegrationPoint[];
+  diagnostic?: TeacherLearningSpecialEntry;
+  summative?: TeacherLearningSpecialEntry;
 }
 
 export interface TeacherLearningPlanData {

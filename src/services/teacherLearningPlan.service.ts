@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../data/algerianCurriculum';
+import {
+  getDomainOneLearningSectionReference,
+  getLearningSectionComponents,
+} from '../data/domainOneLearningSectionReference';
 import type { TeacherLearningPlanData } from '../types/spex';
 
 export const TEACHER_LEARNING_PLAN_KIND = 'teacher_learning_plan' as const;
@@ -9,6 +13,7 @@ const objectiveSchema = z.object({
   text: z.string().trim().min(1).max(2000),
   orderIndex: z.number().int().positive(),
   sourceReferenceId: z.string().trim().max(240).nullable().optional(),
+  competencyComponentIds: z.array(z.string().trim().min(1).max(240)).max(12).optional(),
   learningContent: z.string().trim().max(4000).optional(),
   executionContent: z.string().trim().max(4000).optional(),
   resources: z.array(z.string().trim().max(500)).max(30).optional(),
@@ -34,6 +39,7 @@ const integrationPointSchema = z.object({
   afterObjectiveId: z.string().trim().max(160).nullable(),
   orderIndex: z.number().int().positive(),
   label: z.string().trim().min(1).max(100),
+  competencyComponentIds: objectiveSchema.shape.competencyComponentIds,
   objective: z.string().trim().max(2000).optional(),
   learningContent: z.string().trim().max(4000).optional(),
   executionContent: z.string().trim().max(4000).optional(),
@@ -44,11 +50,25 @@ const integrationPointSchema = z.object({
   situations: objectiveSchema.shape.situations,
 });
 
+const specialEntrySchema = z.object({
+  competencyComponentIds: objectiveSchema.shape.competencyComponentIds,
+  objective: z.string().trim().max(2000).optional(),
+  learningContent: objectiveSchema.shape.learningContent,
+  executionContent: objectiveSchema.shape.executionContent,
+  resources: objectiveSchema.shape.resources,
+  pedagogicalKnowledge: objectiveSchema.shape.pedagogicalKnowledge,
+  guidance: objectiveSchema.shape.guidance,
+  teacherNotes: objectiveSchema.shape.teacherNotes,
+  situations: objectiveSchema.shape.situations,
+});
+
 const teacherLearningPlanDomainSchema = z.object({
   fieldId: z.string().trim().min(1),
   finalCompetencyId: z.string().trim().max(240).optional(),
   objectives: z.array(objectiveSchema).min(1),
   integrationPoints: z.array(integrationPointSchema),
+  diagnostic: specialEntrySchema.optional(),
+  summative: specialEntrySchema.optional(),
 });
 
 const teacherLearningPlanShapeSchema = z.object({
@@ -92,6 +112,18 @@ export const teacherLearningPlanSchema = teacherLearningPlanShapeSchema.superRef
       seenFields.add(domain.fieldId);
 
       const domainObjectiveIds = new Set(domain.objectives.map((objective) => objective.id));
+      const officialComponentIds = new Set(
+        getLearningSectionComponents(plan.levelId, domain.fieldId).map((component) => component.id)
+      );
+      const validateComponents = (ids: string[] | undefined, path: (string | number)[]) => {
+        if ((ids || []).some((id) => !officialComponentIds.has(id))) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path,
+            message: 'مركب الكفاءة غير تابع للمرجع الرسمي للمستوى والميدان.',
+          });
+        }
+      };
       domain.objectives.forEach((objective, objectiveIndex) => {
         if (objectiveIds.has(objective.id)) {
           context.addIssue({
@@ -101,6 +133,13 @@ export const teacherLearningPlanSchema = teacherLearningPlanShapeSchema.superRef
           });
         }
         objectiveIds.add(objective.id);
+        validateComponents(objective.competencyComponentIds, [
+          'domains',
+          domainIndex,
+          'objectives',
+          objectiveIndex,
+          'competencyComponentIds',
+        ]);
       });
 
       domain.integrationPoints.forEach((point, pointIndex) => {
@@ -112,6 +151,13 @@ export const teacherLearningPlanSchema = teacherLearningPlanShapeSchema.superRef
           });
         }
         integrationIds.add(point.id);
+        validateComponents(point.competencyComponentIds, [
+          'domains',
+          domainIndex,
+          'integrationPoints',
+          pointIndex,
+          'competencyComponentIds',
+        ]);
         if (point.afterObjectiveId !== null && !domainObjectiveIds.has(point.afterObjectiveId)) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
@@ -120,6 +166,18 @@ export const teacherLearningPlanSchema = teacherLearningPlanShapeSchema.superRef
           });
         }
       });
+      validateComponents(domain.diagnostic?.competencyComponentIds, [
+        'domains',
+        domainIndex,
+        'diagnostic',
+        'competencyComponentIds',
+      ]);
+      validateComponents(domain.summative?.competencyComponentIds, [
+        'domains',
+        domainIndex,
+        'summative',
+        'competencyComponentIds',
+      ]);
     });
 
     if (seenFields.size !== officialFieldIds.length) {
@@ -184,6 +242,7 @@ export function normalizeTeacherLearningPlan(plan: TeacherLearningPlan): Teacher
         ...objective,
         text: objective.text.trim(),
         orderIndex: index + 1,
+        competencyComponentIds: [...new Set(objective.competencyComponentIds || [])],
         learningContent: objective.learningContent?.trim() || '',
         executionContent: objective.executionContent?.trim() || '',
         resources: objective.resources || [],
@@ -209,6 +268,7 @@ export function normalizeTeacherLearningPlan(plan: TeacherLearningPlan): Teacher
           ...point,
           orderIndex: index + 1,
           label: `إدماجية ${index + 1}`,
+          competencyComponentIds: [...new Set(point.competencyComponentIds || [])],
           objective: point.objective?.trim() || '',
           learningContent: point.learningContent?.trim() || '',
           executionContent: point.executionContent?.trim() || '',
@@ -218,7 +278,25 @@ export function normalizeTeacherLearningPlan(plan: TeacherLearningPlan): Teacher
           teacherNotes: point.teacherNotes?.trim() || '',
           situations: point.situations || [],
         })),
+      ...(domain.diagnostic ? { diagnostic: normalizeSpecialEntry(domain.diagnostic) } : {}),
+      ...(domain.summative ? { summative: normalizeSpecialEntry(domain.summative) } : {}),
     })),
+  };
+}
+
+function normalizeSpecialEntry(
+  item: NonNullable<TeacherLearningPlanDomain['diagnostic']>
+): NonNullable<TeacherLearningPlanDomain['diagnostic']> {
+  return {
+    competencyComponentIds: [...new Set(item.competencyComponentIds || [])],
+    objective: item.objective?.trim() || '',
+    learningContent: item.learningContent?.trim() || '',
+    executionContent: item.executionContent?.trim() || '',
+    resources: item.resources || [],
+    pedagogicalKnowledge: item.pedagogicalKnowledge?.trim() || '',
+    guidance: item.guidance?.trim() || '',
+    teacherNotes: item.teacherNotes?.trim() || '',
+    situations: item.situations || [],
   };
 }
 
@@ -258,14 +336,28 @@ export function seedTeacherLearningPlan(
     levelId,
     domains: Object.values(curriculum.fields).map((field) => {
       const learningSessions = field.sessionsList.filter((session) => session.type === 'تعلمية');
-      const objectives = learningSessions.map((session) => ({
-        id: seedObjectiveId(levelId, field.fieldId, session.sessionNumber),
-        text:
-          wordingOverrides[`${field.fieldId}__${session.sessionNumber}`]?.objective?.trim() ||
-          session.objective,
-        orderIndex: session.sessionNumber,
-        sourceReferenceId: `${field.fieldId}__${session.sessionNumber}`,
-      }));
+      const domainReference = getDomainOneLearningSectionReference(levelId, field.fieldId);
+      const componentIds = domainReference?.components.map((component) => component.id) || [];
+      const objectives = learningSessions.map((session, index) => {
+        const componentIndex = Math.min(
+          componentIds.length - 1,
+          Math.floor((index * componentIds.length) / learningSessions.length)
+        );
+        return {
+          id: seedObjectiveId(levelId, field.fieldId, session.sessionNumber),
+          text:
+            wordingOverrides[`${field.fieldId}__${session.sessionNumber}`]?.objective?.trim() ||
+            session.objective,
+          orderIndex: session.sessionNumber,
+          sourceReferenceId: `${field.fieldId}__${session.sessionNumber}`,
+          ...(domainReference
+            ? {
+                competencyComponentIds: [componentIds[componentIndex]],
+                ...domainReference.defaults,
+              }
+            : {}),
+        };
+      });
       const integrationPoints = field.sessionsList
         .filter((session) => session.type === 'إدماجية')
         .slice(0, 2)
@@ -284,6 +376,9 @@ export function seedTeacherLearningPlan(
             afterObjectiveId: objectiveBefore?.id || null,
             orderIndex: index + 1,
             label: `إدماجية ${index + 1}`,
+            ...(domainReference
+              ? { competencyComponentIds: componentIds, ...domainReference.defaults }
+              : {}),
           };
         });
 
@@ -293,6 +388,9 @@ export function seedTeacherLearningPlan(
           afterObjectiveId: objectives.at(-2)?.id || objectives.at(-1)?.id || null,
           orderIndex: 2,
           label: 'إدماجية 2',
+          ...(domainReference
+            ? { competencyComponentIds: componentIds, ...domainReference.defaults }
+            : {}),
         });
       }
 
@@ -301,6 +399,24 @@ export function seedTeacherLearningPlan(
         finalCompetencyId: `fc_${levelId}_${field.fieldId}`,
         objectives,
         integrationPoints,
+        ...(domainReference
+          ? {
+              diagnostic: {
+                competencyComponentIds: componentIds,
+                objective:
+                  field.sessionsList.find((session) => session.type === 'تقويم تشخيصي')
+                    ?.objective || '',
+                ...domainReference.defaults,
+              },
+              summative: {
+                competencyComponentIds: componentIds,
+                objective:
+                  field.sessionsList.find((session) => session.type === 'تقويم تحصيلي')
+                    ?.objective || '',
+                ...domainReference.defaults,
+              },
+            }
+          : {}),
       };
     }),
   });
@@ -379,6 +495,7 @@ export function updateTeacherLearningObjective(
 type TeacherLearningItemFields = {
   text?: string;
   objective?: string;
+  competencyComponentIds?: string[];
   learningContent?: string;
   executionContent?: string;
   resources?: string[];
@@ -387,6 +504,29 @@ type TeacherLearningItemFields = {
   teacherNotes?: string;
   situations?: TeacherLearningPlan['domains'][number]['objectives'][number]['situations'];
 };
+
+export function updateTeacherLearningSpecialEntry(
+  plan: TeacherLearningPlan,
+  fieldId: string,
+  kind: 'diagnostic' | 'summative',
+  fields: TeacherLearningItemFields
+): TeacherLearningPlan {
+  return normalizeTeacherLearningPlan({
+    ...plan,
+    domains: plan.domains.map((domain) =>
+      domain.fieldId === fieldId
+        ? {
+            ...domain,
+            [kind]: {
+              ...(domain[kind] || {}),
+              ...fields,
+              ...(fields.objective === undefined ? {} : { objective: fields.objective.trim() }),
+            },
+          }
+        : domain
+    ),
+  });
+}
 
 export function updateTeacherLearningObjectiveDetails(
   plan: TeacherLearningPlan,
@@ -437,6 +577,7 @@ export function addTeacherLearningIntegration(
                 afterObjectiveId,
                 orderIndex: domain.integrationPoints.length + 1,
                 label: `إدماجية ${domain.integrationPoints.length + 1}`,
+                competencyComponentIds: fields.competencyComponentIds || [],
                 objective: fields.objective?.trim() || '',
                 learningContent: fields.learningContent?.trim() || '',
                 executionContent: fields.executionContent?.trim() || '',

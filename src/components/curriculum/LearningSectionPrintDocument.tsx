@@ -54,6 +54,7 @@ export const LearningSectionPrintDocument: React.FC<LearningSectionPrintDocument
       <table className="learning-section-print-table">
         <colgroup>
           <col className="learning-section-print-col-type" />
+          <col className="learning-section-print-col-components" />
           <col className="learning-section-print-col-objective" />
           <col className="learning-section-print-col-content" />
           <col className="learning-section-print-col-execution" />
@@ -65,6 +66,7 @@ export const LearningSectionPrintDocument: React.FC<LearningSectionPrintDocument
         <thead>
           <tr>
             <th>نوع الحصة</th>
+            <th>مركبات الكفاءة</th>
             <th>هدف الحصة / التعلم</th>
             <th>محتوى التعلم</th>
             <th>محتوى الإنجاز</th>
@@ -77,6 +79,7 @@ export const LearningSectionPrintDocument: React.FC<LearningSectionPrintDocument
           {model.rows.map((row, index) => (
             <tr key={`${row.kind}-${index}`} className={`learning-section-print-row-${row.kind}`}>
               <th scope="row">{row.label}</th>
+              <td>{row.components}</td>
               <td>{row.objective}</td>
               <td>{row.learningContent}</td>
               <td>{row.executionContent}</td>

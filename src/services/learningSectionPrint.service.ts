@@ -1,4 +1,8 @@
 import type { CurriculumFieldDetail } from '../data/algerianCurriculum';
+import {
+  getDomainOneLearningSectionReference,
+  getLearningSectionComponents,
+} from '../data/domainOneLearningSectionReference';
 import type {
   TeacherLearningIntegrationPoint,
   TeacherLearningObjective,
@@ -11,6 +15,7 @@ export type LearningSectionPrintRowKind = 'diagnostic' | 'objective' | 'integrat
 export interface LearningSectionPrintRow {
   kind: LearningSectionPrintRowKind;
   label: string;
+  components: string;
   objective: string;
   learningContent: string;
   executionContent: string;
@@ -40,6 +45,7 @@ type PrintContext = {
   field: CurriculumFieldDetail;
   domain: TeacherLearningPlanDomain;
   level: string;
+  levelId: string;
   currentUser: Pick<User, 'firstName' | 'lastName' | 'schoolName'>;
   academicYearId: string;
 };
@@ -70,11 +76,16 @@ function situationsAndResources(
 function teacherRow(
   kind: 'objective' | 'integration',
   label: string,
-  item: TeacherLearningObjective | TeacherLearningIntegrationPoint
+  item: TeacherLearningObjective | TeacherLearningIntegrationPoint,
+  componentsById: Map<string, string>
 ): LearningSectionPrintRow {
   return {
     kind,
     label,
+    components: (item.competencyComponentIds || [])
+      .map((id) => componentsById.get(id))
+      .filter((value): value is string => Boolean(value))
+      .join('؛ '),
     objective: text(
       kind === 'objective'
         ? (item as TeacherLearningObjective).text
@@ -97,9 +108,17 @@ export function mapLearningSectionForPrint({
   field,
   domain,
   level,
+  levelId,
   currentUser,
   academicYearId,
 }: PrintContext): LearningSectionPrintModel {
+  const reference = getDomainOneLearningSectionReference(levelId, field.fieldId);
+  const componentsById = new Map(
+    getLearningSectionComponents(levelId, field.fieldId).map((component) => [
+      component.id,
+      component.title,
+    ])
+  );
   const integrationsByAnchor = new Map<string | null, TeacherLearningIntegrationPoint[]>();
   [...domain.integrationPoints]
     .sort((left, right) => left.orderIndex - right.orderIndex)
@@ -117,26 +136,35 @@ export function mapLearningSectionForPrint({
       kind: 'diagnostic',
       label: 'تقويم تشخيصي',
       objective: text(
-        field.sessionsList.find((session) => session.type === 'تقويم تشخيصي')?.objective
+        domain.diagnostic?.objective ||
+          field.sessionsList.find((session) => session.type === 'تقويم تشخيصي')?.objective
       ),
-      learningContent: EMPTY_CELL,
-      executionContent: EMPTY_CELL,
-      situationsAndResources: EMPTY_CELL,
-      knowledge: EMPTY_CELL,
-      guidance: EMPTY_CELL,
+      components: (domain.diagnostic?.competencyComponentIds || [])
+        .map((id) => componentsById.get(id))
+        .filter((value): value is string => Boolean(value))
+        .join('؛ '),
+      learningContent: optionalText(domain.diagnostic?.learningContent),
+      executionContent: optionalText(domain.diagnostic?.executionContent),
+      situationsAndResources: domain.diagnostic
+        ? situationsAndResources(domain.diagnostic)
+        : EMPTY_CELL,
+      knowledge: optionalText(domain.diagnostic?.pedagogicalKnowledge),
+      guidance: optionalText(domain.diagnostic?.guidance),
     },
   ];
   let integrationNumber = 0;
   const appendIntegrations = (anchor: string | null) => {
     (integrationsByAnchor.get(anchor) || []).forEach((point) => {
       integrationNumber += 1;
-      rows.push(teacherRow('integration', `حصة إدماجية ${integrationNumber}`, point));
+      rows.push(
+        teacherRow('integration', `حصة إدماجية ${integrationNumber}`, point, componentsById)
+      );
     });
   };
 
   appendIntegrations(null);
   domain.objectives.forEach((objective, index) => {
-    rows.push(teacherRow('objective', `حصة تعلمية ${index + 1}`, objective));
+    rows.push(teacherRow('objective', `حصة تعلمية ${index + 1}`, objective, componentsById));
     appendIntegrations(objective.id);
   });
 
@@ -144,13 +172,20 @@ export function mapLearningSectionForPrint({
     kind: 'summative',
     label: 'تقويم تحصيلي',
     objective: text(
-      field.sessionsList.find((session) => session.type === 'تقويم تحصيلي')?.objective
+      domain.summative?.objective ||
+        field.sessionsList.find((session) => session.type === 'تقويم تحصيلي')?.objective
     ),
-    learningContent: EMPTY_CELL,
-    executionContent: EMPTY_CELL,
-    situationsAndResources: EMPTY_CELL,
-    knowledge: EMPTY_CELL,
-    guidance: EMPTY_CELL,
+    components: (domain.summative?.competencyComponentIds || [])
+      .map((id) => componentsById.get(id))
+      .filter((value): value is string => Boolean(value))
+      .join('؛ '),
+    learningContent: optionalText(domain.summative?.learningContent),
+    executionContent: optionalText(domain.summative?.executionContent),
+    situationsAndResources: domain.summative
+      ? situationsAndResources(domain.summative)
+      : EMPTY_CELL,
+    knowledge: optionalText(domain.summative?.pedagogicalKnowledge),
+    guidance: optionalText(domain.summative?.guidance),
   });
 
   return {
@@ -161,7 +196,7 @@ export function mapLearningSectionForPrint({
       level: text(level),
       domain: text(field.fieldName),
     },
-    finalCompetency: text(field.finalCompetency),
+    finalCompetency: text(reference?.finalCompetency || field.finalCompetency),
     rows,
     signatures: {
       teacher: text(`${currentUser.firstName} ${currentUser.lastName}`),

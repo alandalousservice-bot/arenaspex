@@ -3,6 +3,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../src/data/algerianCurriculum';
+import { getDomainOneLearningSectionReference } from '../src/data/domainOneLearningSectionReference';
 import { LearningSectionPrintDocument } from '../src/components/curriculum/LearningSectionPrintDocument';
 import {
   addTeacherLearningIntegration,
@@ -41,6 +42,7 @@ function printModel(objectiveCount = 7) {
     field,
     domain: plan.domains[0] as Parameters<typeof mapLearningSectionForPrint>[0]['domain'],
     level: COMPLETE_ANNUAL_CURRICULUM.lvl_p1.levelName,
+    levelId: 'lvl_p1',
     currentUser: {
       firstName: 'أستاذ',
       lastName: 'المادة',
@@ -62,7 +64,7 @@ describe('official Learning Section print mapper', () => {
     });
     expect(model).not.toHaveProperty('overallCompetency');
     expect(model.finalCompetency).toBe(
-      COMPLETE_ANNUAL_CURRICULUM.lvl_p1.fields.f_locomotion.finalCompetency
+      getDomainOneLearningSectionReference('lvl_p1', 'f_locomotion')?.finalCompetency
     );
     expect(model).not.toHaveProperty('criteria');
     expect(model).not.toHaveProperty('indicators');
@@ -105,24 +107,17 @@ describe('official Learning Section print mapper', () => {
     expect(JSON.stringify(model)).not.toContain('[]');
   });
 
-  it('leaves optional pedagogical cells blank instead of rendering dash sentinels', () => {
+  it('prints seeded Domain 1 pedagogy and keeps genuinely optional cells free of sentinels', () => {
     const model = printModel();
     const objective = model.rows.find((row) => row.kind === 'objective');
     const diagnostic = model.rows.find((row) => row.kind === 'diagnostic');
-    expect(objective).toMatchObject({
-      learningContent: '',
-      executionContent: '',
-      knowledge: '',
-      guidance: '',
-    });
-    expect(objective?.situationsAndResources).toBe('');
-    expect(diagnostic).toMatchObject({
-      learningContent: '',
-      executionContent: '',
-      situationsAndResources: '',
-      knowledge: '',
-      guidance: '',
-    });
+    expect(objective?.components).toContain('يتعرف على مختلف الوضعيات');
+    expect(objective?.learningContent).toContain('الوضعيات الطبيعية');
+    expect(objective?.executionContent).toContain('اتخاذ وضعيات جسمية');
+    expect(objective?.knowledge).toContain('الوقوف والجلوس');
+    expect(objective?.guidance).toContain('السلامة');
+    expect(diagnostic?.components).toContain('يتعرف على مختلف الوضعيات');
+    expect(diagnostic?.learningContent).toContain('الوضعيات الطبيعية');
   });
 
   it('uses a dedicated document with no interactive controls or technical columns', () => {
@@ -133,6 +128,7 @@ describe('official Learning Section print mapper', () => {
     const learningPrintCss = css.slice(css.lastIndexOf('@media print'));
     expect(document).toContain('learning-section-print-root');
     expect(document).toContain('المواقف التربوية / الموارد');
+    expect(document).toContain('مركبات الكفاءة');
     expect(document).toContain('المعارف المجندة');
     expect(document).not.toContain('معايير تحقيق الكفاءة');
     expect(document).not.toContain('مؤشرات تحقيق الكفاءة');

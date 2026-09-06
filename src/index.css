@@ -2026,25 +2026,28 @@
 }
 
 .learning-section-print-col-type {
-  width: 10%;
+  width: 9%;
+}
+.learning-section-print-col-components {
+  width: 14%;
 }
 .learning-section-print-col-objective {
-  width: 19%;
+  width: 15%;
 }
 .learning-section-print-col-content {
-  width: 17%;
+  width: 14%;
 }
 .learning-section-print-col-execution {
-  width: 17%;
+  width: 14%;
 }
 .learning-section-print-col-situations {
-  width: 15%;
+  width: 13%;
 }
 .learning-section-print-col-knowledge {
   width: 11%;
 }
 .learning-section-print-col-guidance {
-  width: 11%;
+  width: 10%;
 }
 
 .learning-section-print-signatures {

@@ -28,6 +28,7 @@ const printModel: LearningSectionPrintModel = {
     {
       kind: 'diagnostic',
       label: 'تقويم تشخيصي',
+      components: '',
       objective: 'تحديد المكتسبات',
       learningContent: '',
       executionContent: '',
