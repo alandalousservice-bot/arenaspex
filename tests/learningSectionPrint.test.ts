@@ -8,6 +8,7 @@ import { LearningSectionPrintDocument } from '../src/components/curriculum/Learn
 import {
   addTeacherLearningIntegration,
   addTeacherLearningObjective,
+  resolveTeacherLearningPlan,
   seedTeacherLearningPlan,
 } from '../src/services/teacherLearningPlan.service';
 import { mapLearningSectionForPrint } from '../src/services/learningSectionPrint.service';
@@ -118,6 +119,38 @@ describe('official Learning Section print mapper', () => {
     expect(objective?.guidance).toContain('السلامة');
     expect(diagnostic?.components).toContain('يتعرف على مختلف الوضعيات');
     expect(diagnostic?.learningContent).toContain('الوضعيات الطبيعية');
+  });
+
+  it('prints enriched content when the persisted plan predates the Domain 1 fields', () => {
+    const seeded = seedTeacherLearningPlan('lvl_p1');
+    const legacy = JSON.parse(JSON.stringify(seeded));
+    for (const domain of legacy.domains) {
+      delete domain.diagnostic;
+      delete domain.summative;
+      for (const objective of domain.objectives) {
+        delete objective.competencyComponentIds;
+        delete objective.learningContent;
+        delete objective.pedagogicalKnowledge;
+        delete objective.executionContent;
+        delete objective.guidance;
+      }
+    }
+    const resolved = resolveTeacherLearningPlan('lvl_p1', legacy);
+    const field = COMPLETE_ANNUAL_CURRICULUM.lvl_p1.fields.f_locomotion;
+    const model = mapLearningSectionForPrint({
+      field,
+      domain: resolved.domains[0] as Parameters<typeof mapLearningSectionForPrint>[0]['domain'],
+      level: COMPLETE_ANNUAL_CURRICULUM.lvl_p1.levelName,
+      levelId: 'lvl_p1',
+      currentUser: { firstName: 'أستاذ', lastName: 'قديم', schoolName: 'مدرسة الاختبار' },
+      academicYearId: '2026-2027',
+    });
+    const objective = model.rows.find((row) => row.kind === 'objective');
+    expect(objective?.components).toContain('يتعرف على مختلف الوضعيات');
+    expect(objective?.learningContent).toContain('الوضعيات الطبيعية');
+    expect(objective?.knowledge).toContain('الوقوف والجلوس');
+    expect(objective?.executionContent).toContain('اتخاذ وضعيات');
+    expect(objective?.guidance).toContain('السلامة');
   });
 
   it('uses a dedicated document with no interactive controls or technical columns', () => {
