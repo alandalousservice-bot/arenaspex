@@ -99,7 +99,7 @@ export interface TeacherPlanSemanticProjection {
   warnings: readonly TeacherPlanSemanticIssue[];
 }
 
-const P1B_SOURCE_REFERENCE_MAPPINGS = Object.freeze(
+const P1B_GRADE_ONE_SOURCE_REFERENCE_MAPPINGS = Object.freeze(
   [2, 3, 4, 6, 7, 8, 9].map((sessionNumber, index) => [
     `f_locomotion__${sessionNumber}`,
     `objective-concept:lvl_p1:f_locomotion:${index + 1}`,
@@ -352,7 +352,21 @@ export function projectTeacherPlanSemantics(
     });
   }
 
-  const sourceMappings = new Map(P1B_SOURCE_REFERENCE_MAPPINGS);
+  const sourceMappings = new Map(
+    input.gradeId === 'lvl_p1' && input.domainId === 'f_locomotion'
+      ? P1B_GRADE_ONE_SOURCE_REFERENCE_MAPPINGS
+      : []
+  );
+  for (const mapping of input.catalog.teacherPlanSourceReferenceMappings || []) {
+    if (
+      mapping.releaseId === input.coreReleaseId &&
+      mapping.gradeId === input.gradeId &&
+      mapping.domainId === input.domainId &&
+      canSatisfyAuthoritativeCoverage(mapping)
+    ) {
+      sourceMappings.set(mapping.sourceReferenceId, mapping.objectiveConceptId);
+    }
+  }
   const reviewedMappings = new Map(P1B_REVIEWED_SOURCE_MAPPINGS);
   const aliasTargets = buildAliasTargets(input.catalog);
   const objectiveResolutions = input.domain.objectives.map((objective) =>

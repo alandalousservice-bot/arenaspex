@@ -4,6 +4,7 @@ export * from './engine/competencyCoverage.service';
 export * from './provenance';
 export * from './releases/p0GradeOneDomainOne';
 export * from './releases/p1aGradeOneDomainOne';
+export * from './releases/p1cDomainOneGradesTwoToFive';
 export * from './semanticValidation';
 export * from './teacherPlanSemanticAdapter';
 export type * from './types';

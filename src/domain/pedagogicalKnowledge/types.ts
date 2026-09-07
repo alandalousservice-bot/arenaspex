@@ -164,6 +164,15 @@ export interface KnowledgeAlias {
   reason: string;
 }
 
+export interface TeacherPlanSourceReferenceMapping extends KnowledgeProvenance {
+  releaseId: string;
+  gradeId: string;
+  domainId: string;
+  sourceReferenceId: string;
+  objectiveConceptId: string;
+  reason: string;
+}
+
 export interface PedagogicalKnowledgeCatalog {
   release: CurriculumRelease;
   grades: readonly CurriculumGrade[];
@@ -179,6 +188,8 @@ export interface PedagogicalKnowledgeCatalog {
   objectiveVariants: readonly ObjectiveVariant[];
   objectiveKeys: readonly ObjectiveKey[];
   aliases: readonly KnowledgeAlias[];
+  /** Optional read-only adapter data; never persisted into Teacher plans. */
+  teacherPlanSourceReferenceMappings?: readonly TeacherPlanSourceReferenceMapping[];
 }
 
 export interface TeacherObjectiveCoverageInput {

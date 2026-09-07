@@ -138,6 +138,27 @@ export function validatePedagogicalKnowledgeCatalog(
       errors.push(`${item.id}: unknown objective concept ${item.objectiveConceptId}`);
     }
   }
+  for (const item of catalog.teacherPlanSourceReferenceMappings || []) {
+    errors.push(...validateProvenance(item, `source mapping ${item.sourceReferenceId}`));
+    const concept = catalog.objectiveConcepts.find(
+      (candidate) => candidate.id === item.objectiveConceptId
+    );
+    if (item.releaseId !== catalog.release.id) {
+      errors.push(
+        `Source mapping ${item.sourceReferenceId}: releaseId does not match ${catalog.release.id}`
+      );
+    }
+    if (
+      !concept ||
+      concept.releaseId !== item.releaseId ||
+      concept.gradeId !== item.gradeId ||
+      concept.domainId !== item.domainId
+    ) {
+      errors.push(
+        `Source mapping ${item.sourceReferenceId}: incompatible objective concept ${item.objectiveConceptId}`
+      );
+    }
+  }
   for (const item of catalog.indicators) {
     if (!criterionIds.has(item.criterionId)) {
       errors.push(`${item.id}: unknown criterion ${item.criterionId}`);
