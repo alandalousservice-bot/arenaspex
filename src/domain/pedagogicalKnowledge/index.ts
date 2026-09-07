@@ -2,6 +2,8 @@ export * from './aliases';
 export * from './catalog';
 export * from './engine/competencyCoverage.service';
 export * from './operationalReconciliation';
+export * from './migrations/domainOneLegacyMigrationDryRun';
+export * from './migrations/domainOneLegacyP1E.manifest';
 export * from './provenance';
 export * from './releases/p0GradeOneDomainOne';
 export * from './releases/p1aGradeOneDomainOne';
