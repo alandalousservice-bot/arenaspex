@@ -191,7 +191,7 @@ describe('P1C Domain 1 semantic catalog across Grades 2–5', () => {
       );
     });
 
-    it('derives two integration cycles and reports the seventh objective outside them', () => {
+    it('preserves the historical old-placement fixture warning for the seventh objective', () => {
       const domain = canonicalDomain(gradeId, [1, 2, 3, 4, 5, 6, 7], true);
       const result = project(gradeId, domain);
       expect(result.integrationCycles.map((item) => item.teacherObjectiveIds.length)).toEqual([

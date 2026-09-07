@@ -50,8 +50,8 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
     const secondIntegrationIndex = sessions.findIndex(
       (session) => session.sessionTypeLabel === 'إدماجية 2'
     );
-    expect(secondIntegrationIndex).toBe(14);
-    expect(sessions[secondIntegrationIndex - 1].objectiveId).toBe(plan.domains[0].objectives[5].id);
+    expect(secondIntegrationIndex).toBe(16);
+    expect(sessions[secondIntegrationIndex - 1].objectiveId).toBe(plan.domains[0].objectives[6].id);
   });
 
   it('supports the explicit 8-8-7 scenario without hard-coding it', () => {

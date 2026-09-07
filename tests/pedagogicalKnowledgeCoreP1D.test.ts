@@ -193,24 +193,47 @@ describe('P1D Domain 1 operational reconciliation', () => {
   });
 
   it.each(P1C_GRADE_IDS)(
-    'identifies the shared %s Objective 7 placement defect without moving anchors',
+    'confirms corrected new %s defaults include Objective 7 without mutating the plan',
     (gradeId) => {
       const domain = operationalDomain(gradeId);
       const before = structuredClone(domain);
       const audit = auditDefaultIntegrationBoundaries(domain);
       const projection = project(gradeId, domain);
       expect(audit).toEqual({
-        integrationAnchorObjectiveIndexes: [3, 6],
-        outsideObjectiveIndexes: [7],
-        sharedRootCause: 'SECOND_INTEGRATION_FALLBACK_ANCHORED_TO_PENULTIMATE_OBJECTIVE',
-        classification: 'PLACEMENT_DEFECT',
+        integrationAnchorObjectiveIndexes: [3, 7],
+        outsideObjectiveIndexes: [],
+        sharedRootCause: 'NONE',
+        classification: 'COMPLETE',
       });
       expect(
         projection.warnings.some((item) => item.code === 'objective_outside_integration_cycles')
-      ).toBe(true);
+      ).toBe(false);
       expect(domain).toEqual(before);
     }
   );
+
+  it('preserves and diagnoses a historical old-placement plan without mutating it', () => {
+    const generated = operationalDomain('lvl_p3');
+    const historical = {
+      ...generated,
+      integrationPoints: generated.integrationPoints.map((point, index) =>
+        index === 1 ? { ...point, afterObjectiveId: generated.objectives[5].id } : point
+      ),
+    };
+    const before = structuredClone(historical);
+    expect(auditDefaultIntegrationBoundaries(historical)).toMatchObject({
+      integrationAnchorObjectiveIndexes: [3, 6],
+      outsideObjectiveIndexes: [7],
+      sharedRootCause: 'SECOND_INTEGRATION_FALLBACK_ANCHORED_TO_PENULTIMATE_OBJECTIVE',
+      classification: 'PLACEMENT_DEFECT',
+    });
+    expect(
+      project('lvl_p3', historical).warnings.some(
+        (item) => item.code === 'objective_outside_integration_cycles'
+      )
+    ).toBe(true);
+    expect(historical).toEqual(before);
+  });
 
   it('does not mutate the catalog or Teacher Plan input during reconciliation projection', () => {
     const domain = structuredClone(operationalDomain('lvl_p2'));

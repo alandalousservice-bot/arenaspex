@@ -316,6 +316,12 @@ function integrationId(levelId: string, fieldId: string, label: string): string 
   return `teacher-integration:${levelId}:${fieldId}:${label}`;
 }
 
+export function defaultIntegrationTwoAnchorObjectiveId(
+  objectives: readonly { id: string }[]
+): string | null {
+  return objectives.at(-1)?.id || null;
+}
+
 function newIntegrationId(levelId: string, fieldId: string): string {
   const randomId =
     typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -385,7 +391,7 @@ export function seedTeacherLearningPlan(
       if (integrationPoints.length < 2) {
         integrationPoints.push({
           id: integrationId(levelId, field.fieldId, 'إدماجية 2'),
-          afterObjectiveId: objectives.at(-2)?.id || objectives.at(-1)?.id || null,
+          afterObjectiveId: defaultIntegrationTwoAnchorObjectiveId(objectives),
           orderIndex: 2,
           label: 'إدماجية 2',
           ...(domainReference

@@ -243,13 +243,29 @@ describe('P1B read-only Teacher Plan semantic adapter', () => {
     ).toBe(true);
   });
 
-  it('detects canonical Objective 7 outside both current integration cycles', () => {
-    const result = projectTeacherPlanSemantics(inputFor());
+  it('detects Objective 7 outside both cycles in a historical old-placement fixture', () => {
+    const historicalDomain = {
+      ...canonicalDomain,
+      integrationPoints: canonicalDomain.integrationPoints.map((point, index) =>
+        index === 1 ? { ...point, afterObjectiveId: canonicalDomain.objectives[5].id } : point
+      ),
+    };
+    const result = projectTeacherPlanSemantics(inputFor(historicalDomain));
     const warning = result.warnings.find(
       (item) => item.code === 'objective_outside_integration_cycles'
     );
     expect(warning?.relatedIds).toContain(canonicalDomain.objectives[6].id);
     expect(result.integrationCycles).toHaveLength(2);
+  });
+
+  it('includes every objective in the corrected newly generated integration cycles', () => {
+    const result = projectTeacherPlanSemantics(inputFor());
+    expect(result.integrationCycles.map((cycle) => cycle.teacherObjectiveIds.length)).toEqual([
+      3, 4,
+    ]);
+    expect(
+      result.warnings.some((item) => item.code === 'objective_outside_integration_cycles')
+    ).toBe(false);
   });
 
   it('reports partial coverage through the existing Coverage Engine', () => {
