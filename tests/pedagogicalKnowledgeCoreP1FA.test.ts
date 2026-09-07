@@ -201,7 +201,9 @@ describe('P1F-A reviewed Domain 2 and Domain 3 semantic core', () => {
       .filter((file) => !file.endsWith('p1faDomainTwoAndThree.ts'))
       .filter((file) => readFileSync(file, 'utf8').includes('p1faDomainTwoAndThree'))
       .map((file) => relative(root, file));
-    expect(imports).toEqual([]);
+    expect(imports).toEqual([
+      join('domain', 'pedagogicalKnowledge', 'releases', 'p1fcCombinedSemanticRelease.ts'),
+    ]);
     expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.criteria).toEqual([]);
     expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.indicators).toEqual([]);
   });

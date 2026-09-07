@@ -213,6 +213,8 @@ describe('P1F-B reviewed Domain 1 correction release', () => {
       .filter((file) => !file.endsWith('p1fbDomainOneCorrection.ts'))
       .filter((file) => readFileSync(file, 'utf8').includes('p1fbDomainOneCorrection'))
       .map((file) => relative(root, file));
-    expect(imports).toEqual([]);
+    expect(imports).toEqual([
+      join('domain', 'pedagogicalKnowledge', 'releases', 'p1fcCombinedSemanticRelease.ts'),
+    ]);
   });
 });

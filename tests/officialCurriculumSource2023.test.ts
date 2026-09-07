@@ -106,6 +106,7 @@ describe('official EPS 2023 curriculum source artifact', () => {
     expect(imports).toEqual([
       join('domain', 'pedagogicalKnowledge', 'releases', 'p1faDomainTwoAndThree.ts'),
       join('domain', 'pedagogicalKnowledge', 'releases', 'p1fbDomainOneCorrection.ts'),
+      join('domain', 'pedagogicalKnowledge', 'releases', 'p1fcCombinedSemanticRelease.ts'),
     ]);
   });
 });

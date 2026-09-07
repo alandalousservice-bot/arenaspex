@@ -12,7 +12,8 @@ export interface KnowledgeProvenance {
   supersedesId?: string;
 }
 
-export type CurriculumReleaseStatus = 'draft' | 'reviewed' | 'active' | 'deprecated' | 'superseded';
+export type CurriculumReleaseStatus =
+  'draft' | 'reviewed' | 'activation_candidate' | 'active' | 'deprecated' | 'superseded';
 
 export interface CurriculumSourceDocument {
   id: string;
