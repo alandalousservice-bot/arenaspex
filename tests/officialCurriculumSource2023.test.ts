@@ -97,12 +97,14 @@ describe('official EPS 2023 curriculum source artifact', () => {
     }).toThrow();
   });
 
-  it('has no production import outside its isolated source boundary', () => {
+  it('is consumed only by the reviewed semantic release, never by production code', () => {
     const root = join(process.cwd(), 'src');
     const imports = allSourceFiles(root)
       .filter((file) => !file.includes(`${join('pedagogicalKnowledge', 'source')}`))
       .filter((file) => readFileSync(file, 'utf8').includes('officialCurriculum2023'))
       .map((file) => relative(root, file));
-    expect(imports).toEqual([]);
+    expect(imports).toEqual([
+      join('domain', 'pedagogicalKnowledge', 'releases', 'p1faDomainTwoAndThree.ts'),
+    ]);
   });
 });
