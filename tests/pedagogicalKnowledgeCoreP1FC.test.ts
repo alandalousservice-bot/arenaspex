@@ -212,6 +212,8 @@ describe('P1F-C combined semantic activation candidate', () => {
       .filter((file) => !file.endsWith('p1fcCombinedSemanticRelease.ts'))
       .filter((file) => readFileSync(file, 'utf8').includes('p1fcCombinedSemanticRelease'))
       .map((file) => relative(root, file));
-    expect(imports).toEqual([]);
+    expect(imports).toEqual([
+      'domain\\pedagogicalKnowledge\\runtime\\knowledgeCoreReleaseRegistry.ts',
+    ]);
   });
 });

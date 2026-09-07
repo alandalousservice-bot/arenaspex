@@ -4,6 +4,7 @@ import {
   getDomainOneLearningSectionReference,
   getLearningSectionComponents,
 } from '../data/domainOneLearningSectionReference';
+import { knowledgeCoreRuntime } from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime';
 import type { TeacherLearningPlanData } from '../types/spex';
 
 export const TEACHER_LEARNING_PLAN_KIND = 'teacher_learning_plan' as const;
@@ -341,6 +342,13 @@ export function seedTeacherLearningPlan(
     version: 1,
     levelId,
     domains: Object.values(curriculum.fields).map((field) => {
+      // P1G observation is deliberately side-effect free. Legacy curriculum remains
+      // authoritative even when a deployment enables shadow comparison.
+      knowledgeCoreRuntime.compareLegacyReference({
+        gradeId: levelId,
+        domainId: field.fieldId,
+        finalCompetency: field.finalCompetency,
+      });
       const learningSessions = field.sessionsList.filter((session) => session.type === 'تعلمية');
       const domainReference = getDomainOneLearningSectionReference(levelId, field.fieldId);
       const componentIds = domainReference?.components.map((component) => component.id) || [];
