@@ -13,6 +13,7 @@ import {
   knowledgeCoreConfigFromEnvironment,
 } from '../src/domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime';
 import { getRegisteredKnowledgeCoreRelease } from '../src/domain/pedagogicalKnowledge/runtime/knowledgeCoreReleaseRegistry';
+import { KNOWLEDGE_CORE_PRODUCT_APPROVAL } from '../src/domain/pedagogicalKnowledge/runtime/knowledgeCoreProductApproval';
 import {
   compareKnowledgeCoreCell,
   evaluateRuntimeIntegrationGate,
@@ -27,7 +28,18 @@ const walk = (dir: string): string[] =>
   });
 
 const runtime = (mode?: string, productApproved = false, releaseId: string = P1FC_RELEASE_ID) =>
-  createKnowledgeCoreRuntime({ mode, productApproved, releaseId });
+  createKnowledgeCoreRuntime(
+    { mode, productApproved, releaseId },
+    productApproved
+      ? {
+          approvalRecord: {
+            ...KNOWLEDGE_CORE_PRODUCT_APPROVAL,
+            approvalStatus: 'approved',
+            approvedAt: 'test-only',
+          },
+        }
+      : {}
+  );
 
 const legacySnapshots = Object.values(COMPLETE_ANNUAL_CURRICULUM).flatMap((grade) =>
   Object.values(grade.fields).map((field) => ({

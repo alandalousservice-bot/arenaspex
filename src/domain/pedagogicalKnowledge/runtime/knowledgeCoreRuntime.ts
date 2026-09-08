@@ -4,6 +4,10 @@ import {
   KNOWLEDGE_CORE_HISTORICAL_IDENTITY_MAP,
 } from './knowledgeCoreReleaseRegistry';
 import { compareKnowledgeCoreCell } from './knowledgeCoreShadowComparison';
+import {
+  KNOWLEDGE_CORE_PRODUCT_APPROVAL,
+  type KnowledgeCoreProductApprovalRecord,
+} from './knowledgeCoreProductApproval';
 import type {
   KnowledgeCoreCell,
   KnowledgeCoreMode,
@@ -37,6 +41,7 @@ export function createKnowledgeCoreRuntime(
   config: KnowledgeCoreRuntimeConfig = {},
   dependencies: {
     getRelease?: typeof getRegisteredKnowledgeCoreRelease;
+    approvalRecord?: Readonly<KnowledgeCoreProductApprovalRecord>;
   } = {}
 ): KnowledgeCoreRuntime {
   const requestedMode = config.mode || 'legacy';
@@ -46,7 +51,9 @@ export function createKnowledgeCoreRuntime(
     requestedReleaseId
   );
   const validCandidate = Boolean(registered?.validation.activationEligible);
-  const productApproved = config.productApproved === true;
+  const approvalRecord = dependencies.approvalRecord || KNOWLEDGE_CORE_PRODUCT_APPROVAL;
+  const productApproved =
+    config.productApproved === true && approvalRecord.approvalStatus === 'approved';
   let effectiveMode: KnowledgeCoreMode = parsedMode || 'legacy';
   let fallbackReason: string | undefined;
 
@@ -71,12 +78,15 @@ export function createKnowledgeCoreRuntime(
     effectiveMode,
     authority,
     productApproved,
+    approvalStatus: approvalRecord.approvalStatus,
     candidateParticipates,
     diagnostic: Object.freeze({
       knowledgeCoreMode: effectiveMode,
       releaseId: registered?.catalog.release.id || null,
       validationStatus:
         parsedMode === 'legacy' ? 'NOT_REQUESTED' : validCandidate ? 'PASS' : 'FAIL',
+      approvalStatus: approvalRecord.approvalStatus,
+      authority,
       ...(fallbackReason ? { fallbackReason } : {}),
     }),
   });

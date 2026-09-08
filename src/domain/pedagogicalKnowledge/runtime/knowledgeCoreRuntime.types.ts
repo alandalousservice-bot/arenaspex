@@ -27,6 +27,8 @@ export interface KnowledgeCoreDiagnostic {
   knowledgeCoreMode: KnowledgeCoreMode;
   releaseId: string | null;
   validationStatus: 'PASS' | 'FAIL' | 'NOT_REQUESTED';
+  approvalStatus: 'pending' | 'approved' | 'rejected';
+  authority: KnowledgeCoreAuthority;
   shadowComparisonStatus?: ShadowComparisonStatus;
   fallbackReason?: string;
 }
@@ -36,6 +38,7 @@ export interface KnowledgeCoreStatus {
   effectiveMode: KnowledgeCoreMode;
   authority: KnowledgeCoreAuthority;
   productApproved: boolean;
+  approvalStatus: 'pending' | 'approved' | 'rejected';
   candidateParticipates: boolean;
   diagnostic: KnowledgeCoreDiagnostic;
 }
