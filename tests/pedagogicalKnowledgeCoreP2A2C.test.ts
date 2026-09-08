@@ -49,7 +49,7 @@ describe('P2A.2C immutable source-fidelity release', () => {
     expect(registeredKnowledgeCoreReleaseIds()).toEqual([P1FC_RELEASE_ID, P2A2C_RELEASE_ID]);
   });
 
-  it('registers v1.5.1 as an unapproved activation candidate', () => {
+  it('registers v1.5.1 as an independently approved activation candidate', () => {
     const registered = getRegisteredKnowledgeCoreRelease(P2A2C_RELEASE_ID)!;
     expect(registered.catalog.release.status).toBe('activation_candidate');
     expect(registered.productApprovedByDefault).toBe(false);
@@ -57,7 +57,7 @@ describe('P2A.2C immutable source-fidelity release', () => {
     expect(
       createKnowledgeCoreRuntime({ mode: 'candidate', releaseId: P2A2C_RELEASE_ID }).getStatus()
         .authority
-    ).toBe('legacy');
+    ).toBe('candidate');
   });
 
   it('validates 5 grades, 15 cells, 15 final competencies, 45 components and 55 resources', () => {

@@ -4,10 +4,8 @@ import {
   KNOWLEDGE_CORE_HISTORICAL_IDENTITY_MAP,
 } from './knowledgeCoreReleaseRegistry';
 import { compareKnowledgeCoreCell } from './knowledgeCoreShadowComparison';
-import {
-  KNOWLEDGE_CORE_PRODUCT_APPROVAL,
-  type KnowledgeCoreProductApprovalRecord,
-} from './knowledgeCoreProductApproval';
+import { type KnowledgeCoreProductApprovalRecord } from './knowledgeCoreProductApproval';
+import { resolveKnowledgeCoreProductApproval } from './knowledgeCoreProductApprovalRegistry';
 import type {
   KnowledgeCoreCell,
   KnowledgeCoreMode,
@@ -43,6 +41,7 @@ export function createKnowledgeCoreRuntime(
   dependencies: {
     getRelease?: typeof getRegisteredKnowledgeCoreRelease;
     approvalRecord?: Readonly<KnowledgeCoreProductApprovalRecord>;
+    resolveApproval?: typeof resolveKnowledgeCoreProductApproval;
   } = {}
 ): KnowledgeCoreRuntime {
   const requestedMode = config.mode || 'legacy';
@@ -52,9 +51,12 @@ export function createKnowledgeCoreRuntime(
     requestedReleaseId
   );
   const validCandidate = Boolean(registered?.validation.activationEligible);
-  const approvalRecord = dependencies.approvalRecord || KNOWLEDGE_CORE_PRODUCT_APPROVAL;
+  const approvalRecord = registered
+    ? dependencies.approvalRecord ||
+      (dependencies.resolveApproval || resolveKnowledgeCoreProductApproval)(requestedReleaseId)
+    : null;
   const productApproved =
-    approvalRecord.approvalStatus === 'approved' &&
+    approvalRecord?.approvalStatus === 'approved' &&
     approvalRecord.candidateReleaseId === requestedReleaseId;
   let effectiveMode: KnowledgeCoreMode = parsedMode || 'legacy';
   let fallbackReason: string | undefined;
@@ -81,14 +83,14 @@ export function createKnowledgeCoreRuntime(
     authority,
     releaseId: registered?.catalog.release.id || null,
     productApproved,
-    approvalStatus: approvalRecord.approvalStatus,
+    approvalStatus: approvalRecord?.approvalStatus || 'pending',
     candidateParticipates,
     diagnostic: Object.freeze({
       knowledgeCoreMode: effectiveMode,
       releaseId: registered?.catalog.release.id || null,
       validationStatus:
         parsedMode === 'legacy' ? 'NOT_REQUESTED' : validCandidate ? 'PASS' : 'FAIL',
-      approvalStatus: approvalRecord.approvalStatus,
+      approvalStatus: approvalRecord?.approvalStatus || 'pending',
       authority,
       ...(fallbackReason ? { fallbackReason } : {}),
     }),
