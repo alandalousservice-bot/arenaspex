@@ -22,6 +22,9 @@ export const KNOWLEDGE_CORE_RELEASE_CONFIG = 'ARENASPEX_KNOWLEDGE_CORE_RELEASE_I
 
 type RuntimeEnvironment = Readonly<Record<string, string | undefined>>;
 
+declare const __ARENASPEX_KNOWLEDGE_CORE_MODE__: string | undefined;
+declare const __ARENASPEX_KNOWLEDGE_CORE_RELEASE_ID__: string | undefined;
+
 export function knowledgeCoreConfigFromEnvironment(
   environment: RuntimeEnvironment = {}
 ): KnowledgeCoreRuntimeConfig {
@@ -118,6 +121,46 @@ export function createKnowledgeCoreRuntime(
     getReleaseMetadata: () =>
       candidateParticipates && registered ? registered.catalog.release : null,
     getGradeDomainCell: getCell,
+    getAnnualPlanReference: (gradeId: string) => {
+      if (
+        authority !== 'candidate' ||
+        !registered ||
+        !approvalRecord.approvalScope.includes('annual_plan_reference_reads')
+      )
+        return null;
+      const grade = registered.catalog.grades.find((item) => item.gradeId === gradeId);
+      const overallCompetency = registered.catalog.overallCompetencies.find(
+        (item) => item.gradeId === gradeId
+      );
+      if (!grade || !overallCompetency) return null;
+      const domains = registered.catalog.domains
+        .filter((item) => item.gradeId === gradeId)
+        .sort((left, right) => (left.order || 0) - (right.order || 0))
+        .flatMap((domain) => {
+          const finalCompetency = registered.catalog.finalCompetencies.find(
+            (item) => item.gradeId === gradeId && item.domainId === domain.domainId
+          );
+          if (!finalCompetency) return [];
+          return [
+            Object.freeze({
+              domain,
+              finalCompetency,
+              components: Object.freeze(
+                registered.catalog.competencyComponents
+                  .filter((item) => item.gradeId === gradeId && item.domainId === domain.domainId)
+                  .sort((left, right) => (left.order || 0) - (right.order || 0))
+              ),
+            }),
+          ];
+        });
+      if (domains.length !== 3) return null;
+      return Object.freeze({
+        releaseId: registered.catalog.release.id,
+        grade,
+        overallCompetency,
+        domains: Object.freeze(domains),
+      });
+    },
     resolveObjectiveReference: (referenceId: string) => {
       const found = KNOWLEDGE_CORE_HISTORICAL_IDENTITY_MAP.find(
         (item) => item.historicalId === referenceId
@@ -203,7 +246,17 @@ export function createKnowledgeCoreRuntime(
  * a later, explicitly approved activation task supplies guarded configuration. */
 const processEnvironment = (): RuntimeEnvironment => {
   const runtimeProcess = (globalThis as { process?: { env?: RuntimeEnvironment } }).process;
-  return runtimeProcess?.env || {};
+  if (runtimeProcess?.env) return runtimeProcess.env;
+  return {
+    [KNOWLEDGE_CORE_MODE_CONFIG]:
+      typeof __ARENASPEX_KNOWLEDGE_CORE_MODE__ === 'string'
+        ? __ARENASPEX_KNOWLEDGE_CORE_MODE__
+        : undefined,
+    [KNOWLEDGE_CORE_RELEASE_CONFIG]:
+      typeof __ARENASPEX_KNOWLEDGE_CORE_RELEASE_ID__ === 'string'
+        ? __ARENASPEX_KNOWLEDGE_CORE_RELEASE_ID__
+        : undefined,
+  };
 };
 
 export const knowledgeCoreRuntime = createKnowledgeCoreRuntime(

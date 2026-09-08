@@ -28,6 +28,10 @@ import {
   buildAnnualPlanPresentation,
   buildDomainPresentation,
 } from '../../services/annualPlanPresentation';
+import {
+  resolveAnnualPlanReferenceReadModel,
+  resolveAnnualPlanTeacherValue,
+} from '../../services/annualPlanReferenceReadModel';
 
 interface AnnualPlanViewProps {
   currentUser: User;
@@ -92,7 +96,10 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
       kind: 'annual_plan_new',
       academicYearId,
     });
-  const referenceLevel = ANNUAL_PLAN_REFERENCE[selectedLevelId] || ANNUAL_PLAN_REFERENCE.lvl_p1;
+  const referenceLevel = useMemo(
+    () => resolveAnnualPlanReferenceReadModel(selectedLevelId),
+    [selectedLevelId]
+  );
   const hasCustomization = !!record;
   const isCleared =
     !!values.__cleared ||
@@ -107,27 +114,8 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
           )
       ));
   const displayValue = useCallback(
-    (key: string, reference: string): string => {
-      if (!hasCustomization) return reference;
-      if (values.__cleared) return '';
-      const override = values[key];
-      if (!override) return reference;
-      const value =
-        key === 'comprehensive'
-          ? override.comprehensive
-          : key.endsWith('__final')
-            ? override.finalCompetency
-            : key.endsWith('__components')
-              ? override.components
-              : key.endsWith('__knowledge')
-                ? override.knowledgeResources
-                : key.endsWith('__transversal')
-                  ? override.transversalResources
-                  : key.endsWith('__evaluation')
-                    ? override.evaluationCriteria
-                    : override.time;
-      return typeof value === 'string' ? value : reference;
-    },
+    (key: string, reference: string): string =>
+      resolveAnnualPlanTeacherValue(key, reference, hasCustomization, values),
     [hasCustomization, values]
   );
   const presentation = useMemo(() => {

@@ -97,8 +97,11 @@ export const KNOWLEDGE_CORE_PRODUCT_APPROVAL: Readonly<KnowledgeCoreProductAppro
     candidateReleaseId: DEFAULT_CANDIDATE_RELEASE_ID,
     approvalStatus: 'approved',
     approvedAt: '2026-09-08',
-    approvedByPolicy: 'explicit_product_owner_approval_p1k',
-    approvalScope: Object.freeze(['teacher_learning_plan_reference_reads']),
+    approvedByPolicy: 'explicit_product_owner_approval_p1k_p2a',
+    approvalScope: Object.freeze([
+      'teacher_learning_plan_reference_reads',
+      'annual_plan_reference_reads',
+    ]),
     approvalBasis: Object.freeze([
       'official_source_validation_pass',
       'semantic_cells_15_of_15_pass',
@@ -110,6 +113,7 @@ export const KNOWLEDGE_CORE_PRODUCT_APPROVAL: Readonly<KnowledgeCoreProductAppro
       'teacher_ownership_and_executed_history_protected',
       'fail_closed_and_rollback_pass',
       'explicit_product_owner_approval',
+      'annual_plan_read_model_integration_p2a',
     ]),
     reviewedCells,
     reviewSummary: Object.freeze({
@@ -121,7 +125,8 @@ export const KNOWLEDGE_CORE_PRODUCT_APPROVAL: Readonly<KnowledgeCoreProductAppro
     activationConstraints: Object.freeze([
       'Default runtime mode remains legacy.',
       'Candidate authority requires valid release, explicit candidate mode, and approved product record.',
-      'Authority scope is limited to Teacher Learning Plan reference reads.',
+      'Authority scope is limited to explicitly approved read-only product consumers.',
+      'Annual Plan may read Grade, Overall Competency, Domain, Final Competency, and Competency Component references through the runtime boundary.',
       'Runtime activation is not Teacher-plan migration; P1E remains inactive.',
       'Switching mode to legacy is the immediate rollback.',
     ]),

@@ -1,9 +1,12 @@
 import type {
   CompetencyComponent,
+  CurriculumDomain,
   CurriculumRelease,
+  CurriculumGrade,
   FinalCompetency,
   LearningRequirement,
   ObjectiveConcept,
+  OverallCompetency,
 } from '../types';
 
 export type KnowledgeCoreMode = 'legacy' | 'shadow' | 'candidate';
@@ -52,6 +55,17 @@ export interface KnowledgeCoreCell {
   objectiveConcepts: readonly ObjectiveConcept[];
 }
 
+export interface KnowledgeCoreAnnualPlanReference {
+  releaseId: string;
+  grade: Readonly<CurriculumGrade>;
+  overallCompetency: Readonly<OverallCompetency>;
+  domains: readonly Readonly<{
+    domain: CurriculumDomain;
+    finalCompetency: FinalCompetency;
+    components: readonly CompetencyComponent[];
+  }>[];
+}
+
 export interface KnowledgeCoreCoverageResult {
   releaseId: string;
   coveredRequirementIds: readonly string[];
@@ -84,6 +98,7 @@ export interface KnowledgeCoreRuntime {
   getStatus(): KnowledgeCoreStatus;
   getReleaseMetadata(): Readonly<CurriculumRelease> | null;
   getGradeDomainCell(gradeId: string, domainId: string): Readonly<KnowledgeCoreCell> | null;
+  getAnnualPlanReference(gradeId: string): Readonly<KnowledgeCoreAnnualPlanReference> | null;
   resolveObjectiveReference(referenceId: string): Readonly<{
     historicalId: string;
     status: string;

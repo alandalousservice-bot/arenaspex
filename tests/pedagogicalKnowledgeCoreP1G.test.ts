@@ -223,7 +223,7 @@ describe('P1G guarded read-only Knowledge Core runtime', () => {
     expect(createKnowledgeCoreRuntime(config).getStatus().authority).toBe('legacy');
   });
 
-  it('allows only the narrow Teacher Learning Plan feature to import the boundary', () => {
+  it('allows only the approved Teacher Learning Plan and Annual Plan reads to import the boundary', () => {
     const featureFiles = walk(join(process.cwd(), 'src')).filter((file) =>
       /[\\/](components|services)[\\/]/.test(file)
     );
@@ -238,7 +238,10 @@ describe('P1G guarded read-only Knowledge Core runtime', () => {
       .map((file) => relative(process.cwd(), file).replaceAll('\\', '/'));
     expect(directCandidate).toEqual([]);
     expect(directSource).toEqual([]);
-    expect(boundaryConsumers).toEqual(['src/services/teacherLearningPlan.service.ts']);
+    expect(boundaryConsumers).toEqual([
+      'src/services/annualPlanReferenceReadModel.ts',
+      'src/services/teacherLearningPlan.service.ts',
+    ]);
   });
 
   it('keeps the source immutable and P1E inactive', () => {

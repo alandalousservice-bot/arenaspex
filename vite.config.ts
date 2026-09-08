@@ -65,6 +65,14 @@ function expressApiPlugin() {
 
 export default defineConfig(() => {
   return {
+    define: {
+      __ARENASPEX_KNOWLEDGE_CORE_MODE__: JSON.stringify(
+        process.env.ARENASPEX_KNOWLEDGE_CORE_MODE || ''
+      ),
+      __ARENASPEX_KNOWLEDGE_CORE_RELEASE_ID__: JSON.stringify(
+        process.env.ARENASPEX_KNOWLEDGE_CORE_RELEASE_ID || ''
+      ),
+    },
     plugins: [react(), tailwindcss(), expressApiPlugin()],
     resolve: {
       alias: {

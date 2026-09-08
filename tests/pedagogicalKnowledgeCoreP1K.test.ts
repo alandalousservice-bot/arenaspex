@@ -24,10 +24,11 @@ describe('P1K controlled production activation', () => {
     expect(KNOWLEDGE_CORE_PRODUCT_APPROVAL).toMatchObject({
       candidateReleaseId: P1FC_RELEASE_ID,
       approvalStatus: 'approved',
-      approvedByPolicy: 'explicit_product_owner_approval_p1k',
+      approvedByPolicy: 'explicit_product_owner_approval_p1k_p2a',
     });
     expect(KNOWLEDGE_CORE_PRODUCT_APPROVAL.approvalScope).toEqual([
       'teacher_learning_plan_reference_reads',
+      'annual_plan_reference_reads',
     ]);
     expect(KNOWLEDGE_CORE_GATE_J_STATUS).toBe('APPROVED');
     expect(KNOWLEDGE_CORE_ACTIVATION_STATE).toBe('APPROVED_FOR_CONTROLLED_ACTIVATION');
