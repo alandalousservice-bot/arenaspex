@@ -161,8 +161,9 @@ describe('P1K controlled production activation', () => {
       join(process.cwd(), 'src/services/teacherLearningPlan.service.ts'),
       'utf8'
     );
-    expect(source).toContain('knowledgeCoreRuntime.getStatus().authority');
-    expect(source).toContain('knowledgeCoreRuntime.getGradeDomainCell');
+    expect(source).toContain('referenceRuntime.getStatus().authority');
+    expect(source).toContain('referenceRuntime.getGradeDomainCell');
+    expect(source).toContain('referenceRuntime: KnowledgeCoreRuntime = knowledgeCoreRuntime');
     expect(source).not.toContain('p1fcCombinedSemanticRelease');
     expect(source).not.toContain('officialCurriculum2023');
   });

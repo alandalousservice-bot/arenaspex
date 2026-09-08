@@ -126,6 +126,26 @@ export function createKnowledgeCoreRuntime(
         found || { historicalId: referenceId, status: 'UNKNOWN', canonicalIds: [] }
       );
     },
+    resolveCompetencyComponentReference: (gradeId, domainId, referenceId) => {
+      const component = registered?.catalog.competencyComponents.find(
+        (item) => item.id === referenceId
+      );
+      if (!component) return Object.freeze({ referenceId, status: 'UNKNOWN' as const });
+      if (component.gradeId === gradeId && component.domainId === domainId) {
+        return Object.freeze({
+          referenceId,
+          status: 'CANONICAL' as const,
+          canonicalGradeId: component.gradeId,
+          canonicalDomainId: component.domainId,
+        });
+      }
+      return Object.freeze({
+        referenceId,
+        status: 'MOVED_DOMAIN' as const,
+        canonicalGradeId: component.gradeId,
+        canonicalDomainId: component.domainId,
+      });
+    },
     evaluateCoverage: (gradeId, domainId, objectiveReferenceIds) => {
       const cell = getCell(gradeId, domainId);
       if (!cell) {

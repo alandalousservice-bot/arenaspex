@@ -89,6 +89,16 @@ export interface KnowledgeCoreRuntime {
     status: string;
     canonicalIds: readonly string[];
   }>;
+  resolveCompetencyComponentReference(
+    gradeId: string,
+    domainId: string,
+    referenceId: string
+  ): Readonly<{
+    referenceId: string;
+    status: 'CANONICAL' | 'MOVED_DOMAIN' | 'UNKNOWN';
+    canonicalGradeId?: string;
+    canonicalDomainId?: string;
+  }>;
   evaluateCoverage(
     gradeId: string,
     domainId: string,

@@ -5,6 +5,7 @@ import {
   getLearningSectionComponents,
 } from '../data/domainOneLearningSectionReference';
 import { knowledgeCoreRuntime } from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime';
+import type { KnowledgeCoreRuntime } from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime.types';
 import type { TeacherLearningPlanData } from '../types/spex';
 
 export const TEACHER_LEARNING_PLAN_KIND = 'teacher_learning_plan' as const;
@@ -78,8 +79,8 @@ const teacherLearningPlanShapeSchema = z.object({
   domains: z.array(teacherLearningPlanDomainSchema).min(1),
 });
 
-export const teacherLearningPlanSchema = teacherLearningPlanShapeSchema.superRefine(
-  (plan, context) => {
+const createTeacherLearningPlanSchema = (preserveUnmappedComponentIds = false) =>
+  teacherLearningPlanShapeSchema.superRefine((plan, context) => {
     const curriculum = COMPLETE_ANNUAL_CURRICULUM[plan.levelId];
     if (!curriculum) {
       context.addIssue({
@@ -117,7 +118,16 @@ export const teacherLearningPlanSchema = teacherLearningPlanShapeSchema.superRef
         getLearningSectionComponents(plan.levelId, domain.fieldId).map((component) => component.id)
       );
       const validateComponents = (ids: string[] | undefined, path: (string | number)[]) => {
-        if ((ids || []).some((id) => !officialComponentIds.has(id))) {
+        const invalid = (ids || []).some((id) => {
+          if (officialComponentIds.has(id)) return false;
+          const resolution = knowledgeCoreRuntime.resolveCompetencyComponentReference(
+            plan.levelId,
+            domain.fieldId,
+            id
+          );
+          return resolution.status !== 'CANONICAL' && !preserveUnmappedComponentIds;
+        });
+        if (invalid) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
             path,
@@ -188,8 +198,10 @@ export const teacherLearningPlanSchema = teacherLearningPlanShapeSchema.superRef
         message: 'يجب أن تشمل الخطة الميادين الرسمية للمستوى.',
       });
     }
-  }
-);
+  });
+
+export const teacherLearningPlanSchema = createTeacherLearningPlanSchema();
+const teacherLearningPlanCompatibleReadSchema = createTeacherLearningPlanSchema(true);
 
 export type TeacherLearningPlan = z.infer<typeof teacherLearningPlanSchema>;
 export type TeacherLearningPlanDomain = TeacherLearningPlan['domains'][number];
@@ -202,7 +214,10 @@ export function parseTeacherLearningPlan(value: unknown): TeacherLearningPlan {
  * The array order is the teacher's chosen order. Numeric order metadata is
  * normalized server-side so it never becomes an identity or stale sort key.
  */
-export function normalizeTeacherLearningPlan(plan: TeacherLearningPlan): TeacherLearningPlan {
+export function normalizeTeacherLearningPlan(
+  plan: TeacherLearningPlan,
+  options: { preserveUnmappedComponentIds?: boolean } = {}
+): TeacherLearningPlan {
   const shaped = teacherLearningPlanShapeSchema.parse(plan);
   const seenObjectiveIds = new Set<string>();
   const seenIntegrationIds = new Set<string>();
@@ -234,7 +249,11 @@ export function normalizeTeacherLearningPlan(plan: TeacherLearningPlan): Teacher
       return { ...domain, objectives, integrationPoints };
     }),
   };
-  const parsed = teacherLearningPlanSchema.parse(sanitized);
+  const parsed = (
+    options.preserveUnmappedComponentIds
+      ? teacherLearningPlanCompatibleReadSchema
+      : teacherLearningPlanSchema
+  ).parse(sanitized);
   return {
     ...parsed,
     domains: parsed.domains.map((domain) => ({
@@ -333,7 +352,8 @@ function newIntegrationId(levelId: string, fieldId: string): string {
 
 export function seedTeacherLearningPlan(
   levelId: string,
-  wordingOverrides: Record<string, { objective?: string } | undefined> = {}
+  wordingOverrides: Record<string, { objective?: string } | undefined> = {},
+  referenceRuntime: KnowledgeCoreRuntime = knowledgeCoreRuntime
 ): TeacherLearningPlan {
   const curriculum = COMPLETE_ANNUAL_CURRICULUM[levelId];
   if (!curriculum) throw new Error('مستوى غير معروف.');
@@ -344,7 +364,7 @@ export function seedTeacherLearningPlan(
     domains: Object.values(curriculum.fields).map((field) => {
       // P1G observation is deliberately side-effect free. Legacy curriculum remains
       // authoritative even when a deployment enables shadow comparison.
-      knowledgeCoreRuntime.compareLegacyReference({
+      referenceRuntime.compareLegacyReference({
         gradeId: levelId,
         domainId: field.fieldId,
         finalCompetency: field.finalCompetency,
@@ -352,8 +372,8 @@ export function seedTeacherLearningPlan(
       const learningSessions = field.sessionsList.filter((session) => session.type === 'تعلمية');
       const domainReference = getDomainOneLearningSectionReference(levelId, field.fieldId);
       const candidateCell =
-        knowledgeCoreRuntime.getStatus().authority === 'candidate'
-          ? knowledgeCoreRuntime.getGradeDomainCell(levelId, field.fieldId)
+        referenceRuntime.getStatus().authority === 'candidate'
+          ? referenceRuntime.getGradeDomainCell(levelId, field.fieldId)
           : null;
       const componentIds = candidateCell
         ? candidateCell.components.map((component) => component.id)
@@ -452,7 +472,9 @@ export function resolveTeacherLearningPlan(
   const shaped = teacherLearningPlanShapeSchema.safeParse(persistedPlan);
   if (shaped.success && shaped.data.levelId === levelId) {
     try {
-      return enrichTeacherLearningPlanFromReference(levelId, shaped.data as TeacherLearningPlan);
+      return enrichTeacherLearningPlanFromReference(levelId, shaped.data as TeacherLearningPlan, {
+        preserveUnmappedComponentIds: true,
+      });
     } catch {
       // Invalid persisted structure falls back to the immutable official seed.
     }
@@ -467,101 +489,107 @@ export function resolveTeacherLearningPlan(
  */
 export function enrichTeacherLearningPlanFromReference(
   levelId: string,
-  plan: TeacherLearningPlan
+  plan: TeacherLearningPlan,
+  options: { preserveUnmappedComponentIds?: boolean } = {}
 ): TeacherLearningPlan {
   const curriculum = COMPLETE_ANNUAL_CURRICULUM[levelId];
   if (!curriculum) return plan;
 
-  return normalizeTeacherLearningPlan({
-    ...plan,
-    domains: plan.domains.map((domain) => {
-      const field = curriculum.fields[domain.fieldId];
-      const reference = getDomainOneLearningSectionReference(levelId, domain.fieldId);
-      if (!field || !reference) return domain;
+  return normalizeTeacherLearningPlan(
+    {
+      ...plan,
+      domains: plan.domains.map((domain) => {
+        const field = curriculum.fields[domain.fieldId];
+        const reference = getDomainOneLearningSectionReference(levelId, domain.fieldId);
+        if (!field || !reference) return domain;
 
-      const defaults = reference.defaults;
-      const componentIds = reference.components.map((component) => component.id);
-      const learningSessions = field.sessionsList.filter((session) => session.type === 'تعلمية');
-      const learningObjectivesByReference = new Map(
-        learningSessions.map((session) => [`${field.fieldId}__${session.sessionNumber}`, session])
-      );
-      const objectiveComponentsByReference = new Map(
-        learningSessions.map((session, index) => {
-          const componentIndex = Math.min(
-            componentIds.length - 1,
-            Math.floor((index * componentIds.length) / learningSessions.length)
+        const defaults = reference.defaults;
+        const componentIds = reference.components.map((component) => component.id);
+        const learningSessions = field.sessionsList.filter((session) => session.type === 'تعلمية');
+        const learningObjectivesByReference = new Map(
+          learningSessions.map((session) => [`${field.fieldId}__${session.sessionNumber}`, session])
+        );
+        const objectiveComponentsByReference = new Map(
+          learningSessions.map((session, index) => {
+            const componentIndex = Math.min(
+              componentIds.length - 1,
+              Math.floor((index * componentIds.length) / learningSessions.length)
+            );
+            return [`${field.fieldId}__${session.sessionNumber}`, [componentIds[componentIndex]]];
+          })
+        );
+        const mergeFields = <
+          T extends {
+            competencyComponentIds?: string[];
+            learningContent?: string;
+            pedagogicalKnowledge?: string;
+            executionContent?: string;
+            guidance?: string;
+            resources?: string[];
+          },
+        >(
+          entry: T,
+          objectiveDefaults?: { objective?: string },
+          defaultComponentIds = componentIds
+        ): T => ({
+          ...entry,
+          ...(entry.competencyComponentIds === undefined
+            ? { competencyComponentIds: defaultComponentIds }
+            : {}),
+          ...(entry.learningContent === undefined || entry.learningContent.trim() === ''
+            ? { learningContent: defaults.learningContent }
+            : {}),
+          ...(entry.pedagogicalKnowledge === undefined || entry.pedagogicalKnowledge.trim() === ''
+            ? { pedagogicalKnowledge: defaults.pedagogicalKnowledge }
+            : {}),
+          ...(entry.executionContent === undefined || entry.executionContent.trim() === ''
+            ? { executionContent: defaults.executionContent }
+            : {}),
+          ...(entry.guidance === undefined || entry.guidance.trim() === ''
+            ? { guidance: defaults.guidance }
+            : {}),
+          ...(entry.resources === undefined ? { resources: defaults.resources } : {}),
+          ...(objectiveDefaults && (entry as { objective?: string }).objective?.trim() === ''
+            ? { objective: objectiveDefaults.objective || '' }
+            : {}),
+        });
+
+        const objectives = domain.objectives.map((objective) => {
+          const sourceReference = objective.sourceReferenceId
+            ? learningObjectivesByReference.get(objective.sourceReferenceId)
+            : undefined;
+          if (!sourceReference) return objective;
+          return mergeFields(
+            objective,
+            { objective: sourceReference.objective },
+            objectiveComponentsByReference.get(objective.sourceReferenceId!) || componentIds
           );
-          return [`${field.fieldId}__${session.sessionNumber}`, [componentIds[componentIndex]]];
-        })
-      );
-      const mergeFields = <
-        T extends {
-          competencyComponentIds?: string[];
-          learningContent?: string;
-          pedagogicalKnowledge?: string;
-          executionContent?: string;
-          guidance?: string;
-          resources?: string[];
-        },
-      >(
-        entry: T,
-        objectiveDefaults?: { objective?: string },
-        defaultComponentIds = componentIds
-      ): T => ({
-        ...entry,
-        ...(entry.competencyComponentIds === undefined
-          ? { competencyComponentIds: defaultComponentIds }
-          : {}),
-        ...(entry.learningContent === undefined || entry.learningContent.trim() === ''
-          ? { learningContent: defaults.learningContent }
-          : {}),
-        ...(entry.pedagogicalKnowledge === undefined || entry.pedagogicalKnowledge.trim() === ''
-          ? { pedagogicalKnowledge: defaults.pedagogicalKnowledge }
-          : {}),
-        ...(entry.executionContent === undefined || entry.executionContent.trim() === ''
-          ? { executionContent: defaults.executionContent }
-          : {}),
-        ...(entry.guidance === undefined || entry.guidance.trim() === ''
-          ? { guidance: defaults.guidance }
-          : {}),
-        ...(entry.resources === undefined ? { resources: defaults.resources } : {}),
-        ...(objectiveDefaults && (entry as { objective?: string }).objective?.trim() === ''
-          ? { objective: objectiveDefaults.objective || '' }
-          : {}),
-      });
+        });
 
-      const objectives = domain.objectives.map((objective) => {
-        const sourceReference = objective.sourceReferenceId
-          ? learningObjectivesByReference.get(objective.sourceReferenceId)
-          : undefined;
-        if (!sourceReference) return objective;
-        return mergeFields(
-          objective,
-          { objective: sourceReference.objective },
-          objectiveComponentsByReference.get(objective.sourceReferenceId!) || componentIds
-        );
-      });
+        const integrations = domain.integrationPoints.map((point) => {
+          const integrationNumber = point.id.match(/إدماجية\s+(\d+)$/)?.[1];
+          const sourceIntegration = field.sessionsList.find(
+            (session) =>
+              session.type === 'إدماجية' &&
+              session.typeLabel.replace(/\D/g, '') === (integrationNumber || '')
+          );
+          return mergeFields(point, { objective: sourceIntegration?.objective });
+        });
 
-      const integrations = domain.integrationPoints.map((point) => {
-        const integrationNumber = point.id.match(/إدماجية\s+(\d+)$/)?.[1];
-        const sourceIntegration = field.sessionsList.find(
-          (session) =>
-            session.type === 'إدماجية' &&
-            session.typeLabel.replace(/\D/g, '') === (integrationNumber || '')
-        );
-        return mergeFields(point, { objective: sourceIntegration?.objective });
-      });
+        const diagnostic = mergeFields(domain.diagnostic || {}, {
+          objective: field.sessionsList.find((session) => session.type === 'تقويم تشخيصي')
+            ?.objective,
+        });
+        const summative = mergeFields(domain.summative || {}, {
+          objective: field.sessionsList.find((session) => session.type === 'تقويم تحصيلي')
+            ?.objective,
+        });
 
-      const diagnostic = mergeFields(domain.diagnostic || {}, {
-        objective: field.sessionsList.find((session) => session.type === 'تقويم تشخيصي')?.objective,
-      });
-      const summative = mergeFields(domain.summative || {}, {
-        objective: field.sessionsList.find((session) => session.type === 'تقويم تحصيلي')?.objective,
-      });
-
-      return { ...domain, objectives, integrationPoints: integrations, diagnostic, summative };
-    }),
-  });
+        return { ...domain, objectives, integrationPoints: integrations, diagnostic, summative };
+      }),
+    },
+    options
+  );
 }
 
 export function addTeacherLearningObjective(
