@@ -213,6 +213,7 @@ describe('P1F-C combined semantic activation candidate', () => {
       .filter((file) => readFileSync(file, 'utf8').includes('p1fcCombinedSemanticRelease'))
       .map((file) => relative(root, file));
     expect(imports).toEqual([
+      'domain\\pedagogicalKnowledge\\releases\\p2a2cSourceFidelityRelease.ts',
       'domain\\pedagogicalKnowledge\\runtime\\knowledgeCoreReleaseRegistry.ts',
     ]);
   });

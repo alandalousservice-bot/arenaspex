@@ -162,9 +162,9 @@ export function createKnowledgeCoreRuntime(
       });
     },
     resolveObjectiveReference: (referenceId: string) => {
-      const found = KNOWLEDGE_CORE_HISTORICAL_IDENTITY_MAP.find(
-        (item) => item.historicalId === referenceId
-      );
+      const identityMap =
+        registered?.historicalIdentityMap || KNOWLEDGE_CORE_HISTORICAL_IDENTITY_MAP;
+      const found = identityMap.find((item) => item.historicalId === referenceId);
       return Object.freeze(
         found || { historicalId: referenceId, status: 'UNKNOWN', canonicalIds: [] }
       );
@@ -204,9 +204,9 @@ export function createKnowledgeCoreRuntime(
       const matched = objectiveReferenceIds.flatMap((id) => {
         const direct = concepts.get(id);
         if (direct) return [direct];
-        const historical = KNOWLEDGE_CORE_HISTORICAL_IDENTITY_MAP.find(
-          (item) => item.historicalId === id
-        );
+        const identityMap =
+          registered?.historicalIdentityMap || KNOWLEDGE_CORE_HISTORICAL_IDENTITY_MAP;
+        const historical = identityMap.find((item) => item.historicalId === id);
         if (!historical || historical.status !== 'CANONICAL') return [];
         return historical.canonicalIds.flatMap((canonicalId) => {
           const concept = concepts.get(canonicalId);
@@ -218,7 +218,7 @@ export function createKnowledgeCoreRuntime(
       const unmapped = objectiveReferenceIds.filter(
         (id) =>
           !concepts.has(id) &&
-          !KNOWLEDGE_CORE_HISTORICAL_IDENTITY_MAP.some(
+          !(registered?.historicalIdentityMap || KNOWLEDGE_CORE_HISTORICAL_IDENTITY_MAP).some(
             (item) => item.historicalId === id && item.status === 'CANONICAL'
           )
       );
