@@ -19,6 +19,8 @@ import { authRouter } from './src/server/authRouter.js';
 import { assignmentRouter } from './src/server/assignmentRouter.js';
 import { geoRouter } from './src/server/geoRouter.js';
 import { requireAuth, requireOperationalAccount } from './src/server/middleware/requireAuth.js';
+import { knowledgeCoreRuntime } from './src/domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime.js';
+import { emitKnowledgeCoreRuntimeDiagnosticOnce } from './src/domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntimeDiagnostic.js';
 
 // شبكة أمان أخيرة: انقطاع مؤقت لقاعدة البيانات أو أي خطأ غير متوقع لا يجب أن
 // يُسقط المنصة كاملة — نُسجّل الخطأ ونبقى نخدم بقية الطلبات.
@@ -32,6 +34,9 @@ process.on('uncaughtException', (err) => {
 const rootDir = process.cwd();
 
 async function startServer() {
+  emitKnowledgeCoreRuntimeDiagnosticOnce(knowledgeCoreRuntime, (line) =>
+    process.stdout.write(`${line}\n`)
+  );
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
