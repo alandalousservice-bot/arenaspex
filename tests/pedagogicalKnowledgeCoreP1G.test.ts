@@ -27,18 +27,18 @@ const walk = (dir: string): string[] =>
     return entry.isDirectory() ? walk(path) : /\.(ts|tsx)$/.test(entry.name) ? [path] : [];
   });
 
-const runtime = (mode?: string, productApproved = false, releaseId: string = P1FC_RELEASE_ID) =>
+const runtime = (mode?: string, approvalGranted = false, releaseId: string = P1FC_RELEASE_ID) =>
   createKnowledgeCoreRuntime(
-    { mode, productApproved, releaseId },
-    productApproved
-      ? {
+    { mode, releaseId },
+    approvalGranted
+      ? {}
+      : {
           approvalRecord: {
             ...KNOWLEDGE_CORE_PRODUCT_APPROVAL,
-            approvalStatus: 'approved',
-            approvedAt: 'test-only',
+            approvalStatus: 'pending',
+            approvedAt: null,
           },
         }
-      : {}
   );
 
 const legacySnapshots = Object.values(COMPLETE_ANNUAL_CURRICULUM).flatMap((grade) =>
@@ -219,7 +219,6 @@ describe('P1G guarded read-only Knowledge Core runtime', () => {
   it('invalid environment configuration resolves to legacy without approval', () => {
     const config = knowledgeCoreConfigFromEnvironment({
       ARENASPEX_KNOWLEDGE_CORE_MODE: 'invalid',
-      ARENASPEX_KNOWLEDGE_CORE_PRODUCT_APPROVED: 'false',
     });
     expect(createKnowledgeCoreRuntime(config).getStatus().authority).toBe('legacy');
   });

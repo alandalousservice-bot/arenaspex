@@ -19,7 +19,6 @@ import type {
 
 export const KNOWLEDGE_CORE_MODE_CONFIG = 'ARENASPEX_KNOWLEDGE_CORE_MODE';
 export const KNOWLEDGE_CORE_RELEASE_CONFIG = 'ARENASPEX_KNOWLEDGE_CORE_RELEASE_ID';
-export const KNOWLEDGE_CORE_APPROVAL_CONFIG = 'ARENASPEX_KNOWLEDGE_CORE_PRODUCT_APPROVED';
 
 type RuntimeEnvironment = Readonly<Record<string, string | undefined>>;
 
@@ -29,7 +28,6 @@ export function knowledgeCoreConfigFromEnvironment(
   return {
     mode: environment[KNOWLEDGE_CORE_MODE_CONFIG],
     releaseId: environment[KNOWLEDGE_CORE_RELEASE_CONFIG],
-    productApproved: environment[KNOWLEDGE_CORE_APPROVAL_CONFIG] === 'true',
   };
 }
 
@@ -53,7 +51,8 @@ export function createKnowledgeCoreRuntime(
   const validCandidate = Boolean(registered?.validation.activationEligible);
   const approvalRecord = dependencies.approvalRecord || KNOWLEDGE_CORE_PRODUCT_APPROVAL;
   const productApproved =
-    config.productApproved === true && approvalRecord.approvalStatus === 'approved';
+    approvalRecord.approvalStatus === 'approved' &&
+    approvalRecord.candidateReleaseId === requestedReleaseId;
   let effectiveMode: KnowledgeCoreMode = parsedMode || 'legacy';
   let fallbackReason: string | undefined;
 
@@ -77,6 +76,7 @@ export function createKnowledgeCoreRuntime(
     requestedMode,
     effectiveMode,
     authority,
+    releaseId: registered?.catalog.release.id || null,
     productApproved,
     approvalStatus: approvalRecord.approvalStatus,
     candidateParticipates,

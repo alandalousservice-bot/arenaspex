@@ -7,6 +7,9 @@ import {
 export type ProductApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type CellApprovalDecision = 'APPROVE' | 'APPROVE_WITH_NOTE' | 'HOLD' | 'REJECT';
 
+export const KNOWLEDGE_CORE_GATE_J_STATUS = 'APPROVED' as const;
+export const KNOWLEDGE_CORE_ACTIVATION_STATE = 'APPROVED_FOR_CONTROLLED_ACTIVATION' as const;
+
 export interface KnowledgeCoreCellProductReview {
   gradeId: string;
   domainId: string;
@@ -26,6 +29,8 @@ export interface KnowledgeCoreProductApprovalRecord {
   approvalStatus: ProductApprovalStatus;
   approvedAt: string | null;
   approvedByPolicy: string;
+  approvalScope: readonly string[];
+  approvalBasis: readonly string[];
   reviewedCells: readonly KnowledgeCoreCellProductReview[];
   reviewSummary: Readonly<{
     approve: number;
@@ -84,15 +89,28 @@ const count = (decision: CellApprovalDecision) =>
   reviewedCells.filter((cell) => cell.decision === decision).length;
 
 /**
- * Review is complete, but this repository task contains no explicit human
- * product-approval grant. Runtime authority therefore remains default-deny.
+ * P1K records the explicit product-owner decision for this release and this
+ * narrow scope only. Future releases require an independent approval record.
  */
 export const KNOWLEDGE_CORE_PRODUCT_APPROVAL: Readonly<KnowledgeCoreProductApprovalRecord> =
   Object.freeze({
     candidateReleaseId: DEFAULT_CANDIDATE_RELEASE_ID,
-    approvalStatus: 'pending',
-    approvedAt: null,
-    approvedByPolicy: 'explicit_product_decision_required',
+    approvalStatus: 'approved',
+    approvedAt: '2026-09-08',
+    approvedByPolicy: 'explicit_product_owner_approval_p1k',
+    approvalScope: Object.freeze(['teacher_learning_plan_reference_reads']),
+    approvalBasis: Object.freeze([
+      'official_source_validation_pass',
+      'semantic_cells_15_of_15_pass',
+      'semantic_coverage_complete',
+      'gate_i_pass',
+      'shadow_expected_corrections_15_reviewed',
+      'approve_6_approve_with_note_9_hold_0_reject_0',
+      'ambiguous_0_conflict_0_critical_contamination_0',
+      'teacher_ownership_and_executed_history_protected',
+      'fail_closed_and_rollback_pass',
+      'explicit_product_owner_approval',
+    ]),
     reviewedCells,
     reviewSummary: Object.freeze({
       approve: count('APPROVE'),

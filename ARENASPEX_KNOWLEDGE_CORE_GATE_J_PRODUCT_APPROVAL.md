@@ -58,13 +58,13 @@ Unset/invalid mode, unknown/invalid release, failed validation, or missing appro
 
 ## 13. Gate J final decision
 
-The 15-cell product review is complete and contains no HOLD/REJECT decision. However, the task context does not provide a separate explicit human approval grant. The machine-readable record therefore remains `pending`.
+The 15-cell product review contains no HOLD/REJECT decision. P1K subsequently recorded the explicit product-owner approval for `knowledge-core:v1.5-combined-2023`, limited to Teacher Learning Plan reference reads.
 
-**Result: `GATE_J_REVIEW_COMPLETE_APPROVAL_REQUIRED`.**
+**Current result: `GATE_J_APPROVED`.**
 
 ## 14. Production activation recommendation
 
-Obtain an explicit product-owner approval statement for this candidate. In a subsequent controlled activation step, mark the approval record `approved`, deploy with `ARENASPEX_KNOWLEDGE_CORE_MODE=candidate`, the exact release ID, and approval enabled, while retaining legacy as the code fallback.
+Deploy only through explicit `ARENASPEX_KNOWLEDGE_CORE_MODE=candidate` and the exact approved release ID, while retaining legacy as the code fallback and rollback authority.
 
 ## 15. Remaining risks
 

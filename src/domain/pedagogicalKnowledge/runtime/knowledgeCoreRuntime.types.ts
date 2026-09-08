@@ -20,7 +20,6 @@ export type ShadowComparisonStatus =
 export interface KnowledgeCoreRuntimeConfig {
   mode?: string;
   releaseId?: string;
-  productApproved?: boolean;
 }
 
 export interface KnowledgeCoreDiagnostic {
@@ -37,6 +36,7 @@ export interface KnowledgeCoreStatus {
   requestedMode: string;
   effectiveMode: KnowledgeCoreMode;
   authority: KnowledgeCoreAuthority;
+  releaseId: string | null;
   productApproved: boolean;
   approvalStatus: 'pending' | 'approved' | 'rejected';
   candidateParticipates: boolean;

@@ -13,6 +13,11 @@ const approvedForTest = {
   approvalStatus: 'approved' as const,
   approvedAt: 'test-only',
 };
+const pendingForTest = {
+  ...approval,
+  approvalStatus: 'pending' as const,
+  approvedAt: null,
+};
 
 describe('P1J product approval review and activation control', () => {
   it('contains all 15 reviewed cells tied to the candidate', () => {
@@ -31,8 +36,11 @@ describe('P1J product approval review and activation control', () => {
     });
   });
 
-  it('keeps repository approval pending and blocks candidate authority', () => {
-    const result = createKnowledgeCoreRuntime({ mode: 'candidate', productApproved: true });
+  it('blocks candidate authority when an approval record is pending', () => {
+    const result = createKnowledgeCoreRuntime(
+      { mode: 'candidate' },
+      { approvalRecord: pendingForTest }
+    );
     expect(result.getStatus()).toMatchObject({
       authority: 'legacy',
       approvalStatus: 'pending',
@@ -46,7 +54,7 @@ describe('P1J product approval review and activation control', () => {
 
   it('permits explicitly configured candidate only with an approved record', () => {
     const result = createKnowledgeCoreRuntime(
-      { mode: 'candidate', releaseId: P1FC_RELEASE_ID, productApproved: true },
+      { mode: 'candidate', releaseId: P1FC_RELEASE_ID },
       { approvalRecord: approvedForTest }
     );
     expect(result.getStatus()).toMatchObject({
@@ -66,7 +74,7 @@ describe('P1J product approval review and activation control', () => {
 
   it('rolls an approved simulated candidate immediately back to legacy', () => {
     const active = createKnowledgeCoreRuntime(
-      { mode: 'candidate', productApproved: true },
+      { mode: 'candidate' },
       { approvalRecord: approvedForTest }
     );
     expect(active.getStatus().authority).toBe('candidate');
@@ -129,7 +137,10 @@ describe('P1J product approval review and activation control', () => {
   });
 
   it('exposes only non-personal structured approval diagnostics', () => {
-    const diagnostic = createKnowledgeCoreRuntime({ mode: 'candidate' }).getStatus().diagnostic;
+    const diagnostic = createKnowledgeCoreRuntime(
+      { mode: 'candidate' },
+      { approvalRecord: pendingForTest }
+    ).getStatus().diagnostic;
     expect(diagnostic).toMatchObject({
       approvalStatus: 'pending',
       authority: 'legacy',

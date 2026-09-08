@@ -351,7 +351,13 @@ export function seedTeacherLearningPlan(
       });
       const learningSessions = field.sessionsList.filter((session) => session.type === 'تعلمية');
       const domainReference = getDomainOneLearningSectionReference(levelId, field.fieldId);
-      const componentIds = domainReference?.components.map((component) => component.id) || [];
+      const candidateCell =
+        knowledgeCoreRuntime.getStatus().authority === 'candidate'
+          ? knowledgeCoreRuntime.getGradeDomainCell(levelId, field.fieldId)
+          : null;
+      const componentIds = candidateCell
+        ? candidateCell.components.map((component) => component.id)
+        : domainReference?.components.map((component) => component.id) || [];
       const objectives = learningSessions.map((session, index) => {
         const componentIndex = Math.min(
           componentIds.length - 1,
@@ -364,10 +370,10 @@ export function seedTeacherLearningPlan(
             session.objective,
           orderIndex: session.sessionNumber,
           sourceReferenceId: `${field.fieldId}__${session.sessionNumber}`,
-          ...(domainReference
+          ...(componentIds.length
             ? {
                 competencyComponentIds: [componentIds[componentIndex]],
-                ...domainReference.defaults,
+                ...(domainReference?.defaults || {}),
               }
             : {}),
         };
@@ -390,8 +396,8 @@ export function seedTeacherLearningPlan(
             afterObjectiveId: objectiveBefore?.id || null,
             orderIndex: index + 1,
             label: `إدماجية ${index + 1}`,
-            ...(domainReference
-              ? { competencyComponentIds: componentIds, ...domainReference.defaults }
+            ...(componentIds.length
+              ? { competencyComponentIds: componentIds, ...(domainReference?.defaults || {}) }
               : {}),
           };
         });
@@ -402,8 +408,8 @@ export function seedTeacherLearningPlan(
           afterObjectiveId: defaultIntegrationTwoAnchorObjectiveId(objectives),
           orderIndex: 2,
           label: 'إدماجية 2',
-          ...(domainReference
-            ? { competencyComponentIds: componentIds, ...domainReference.defaults }
+          ...(componentIds.length
+            ? { competencyComponentIds: componentIds, ...(domainReference?.defaults || {}) }
             : {}),
         });
       }
@@ -413,21 +419,21 @@ export function seedTeacherLearningPlan(
         finalCompetencyId: `fc_${levelId}_${field.fieldId}`,
         objectives,
         integrationPoints,
-        ...(domainReference
+        ...(componentIds.length
           ? {
               diagnostic: {
                 competencyComponentIds: componentIds,
                 objective:
                   field.sessionsList.find((session) => session.type === 'تقويم تشخيصي')
                     ?.objective || '',
-                ...domainReference.defaults,
+                ...(domainReference?.defaults || {}),
               },
               summative: {
                 competencyComponentIds: componentIds,
                 objective:
                   field.sessionsList.find((session) => session.type === 'تقويم تحصيلي')
                     ?.objective || '',
-                ...domainReference.defaults,
+                ...(domainReference?.defaults || {}),
               },
             }
           : {}),
