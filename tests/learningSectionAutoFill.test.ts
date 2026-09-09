@@ -5,12 +5,15 @@ import {
   getLearningObjectiveBank,
   GRADE_ONE_DOMAIN_ONE_OBJECTIVE_BANK,
   GRADE_ONE_DOMAIN_ONE_RESOURCES,
+  orderRecommendedObjectives,
   selectRecommendedObjectives,
 } from '../src/data/gradeOneDomainOneObjectiveBank';
 import {
   addTeacherLearningObjective,
   addTeacherLearningObjectiveFromBank,
   generateTeacherLearningSectionStructure,
+  reorderTeacherLearningObjectives,
+  reorderTeacherLearningObjectivesAutomatically,
   resolveTeacherLearningPlan,
   seedTeacherLearningPlan,
   updateTeacherLearningObjectiveDetails,
@@ -32,6 +35,7 @@ const selected = (count = 8) =>
     resources: GRADE_ONE_DOMAIN_ONE_RESOURCES,
     requestedCount: count,
   });
+const ordered = (count = 8) => orderRecommendedObjectives(selected(count));
 const generate = (
   objectiveCount = 8,
   integrationCount = 2,
@@ -59,13 +63,13 @@ describe('Learning Section objective-bank auto-fill', () => {
     expect(first).toHaveLength(8);
     expect(first).toEqual([
       'G1-D1-OBJ-03',
-      'G1-D1-OBJ-04',
-      'G1-D1-OBJ-05',
-      'G1-D1-OBJ-07',
       'G1-D1-OBJ-09',
-      'G1-D1-OBJ-10',
       'G1-D1-OBJ-12',
+      'G1-D1-OBJ-07',
       'G1-D1-OBJ-14',
+      'G1-D1-OBJ-05',
+      'G1-D1-OBJ-10',
+      'G1-D1-OBJ-04',
     ]);
     expect(first).not.toEqual(bank.slice(0, 8).map((item) => item.id));
   });
@@ -87,9 +91,6 @@ describe('Learning Section objective-bank auto-fill', () => {
       ])
     );
     expect(new Set(recommendation.flatMap((item) => item.curriculumResourceIds)).size).toBe(10);
-    expect(recommendation.map((item) => bank.indexOf(item))).toEqual(
-      [...recommendation.map((item) => bank.indexOf(item))].sort((left, right) => left - right)
-    );
   });
 
   it('auto-fills all generated slots as immutable snapshots with provenance', () => {
@@ -99,10 +100,10 @@ describe('Learning Section objective-bank auto-fill', () => {
     expect(objectives).toHaveLength(8);
     expect(objectives.every((item) => item.text && !item.isPlaceholder)).toBe(true);
     expect(objectives.map((item) => item.sourceReferenceId)).toEqual(
-      selected(8).map((item) => item.id)
+      ordered(8).map((item) => item.id)
     );
     objectives.forEach((objective, index) => {
-      const reference = selected(8)[index];
+      const reference = ordered(8)[index];
       expect(objective).toMatchObject({
         text: reference.objectiveText,
         competencyComponentIds: reference.competencyComponentIds,
@@ -206,6 +207,39 @@ describe('Learning Section objective-bank auto-fill', () => {
     });
   });
 
+  it('automatically reorders without rewriting Teacher edits, provenance, or situations', () => {
+    const generated = generate();
+    const first = domain(generated).objectives[0];
+    const edited = updateTeacherLearningObjectiveDetails(generated, DOMAIN, first.id, {
+      text: 'هدف محرر من الأستاذ',
+      teacherNotes: 'ملاحظة محفوظة',
+      situations: [
+        {
+          situationId: 'situation-preserved',
+          name: 'موقف محفوظ',
+          organization: 'أفواج',
+          equipment: [],
+        },
+      ],
+    });
+    const scrambled = reorderTeacherLearningObjectives(edited, DOMAIN, first.id, 'down');
+    const reordered = reorderTeacherLearningObjectivesAutomatically(scrambled, DOMAIN);
+    expect(domain(reordered).objectives.map((item) => item.id)).toEqual(
+      domain(generated).objectives.map((item) => item.id)
+    );
+    expect(domain(reordered).objectives[0]).toMatchObject({
+      id: first.id,
+      text: 'هدف محرر من الأستاذ',
+      teacherNotes: 'ملاحظة محفوظة',
+      sourceReferenceId: first.sourceReferenceId,
+      situations: [expect.objectContaining({ situationId: 'situation-preserved' })],
+    });
+    expect(domain(reordered).integrationPoints.map((point) => point.afterObjectiveId)).toEqual([
+      domain(reordered).objectives[3].id,
+      domain(reordered).objectives[7].id,
+    ]);
+  });
+
   it('preserves 8+2 placement and the existing operational occurrence rules', () => {
     const plan = generate();
     const generatedDomain = domain(plan);
@@ -263,12 +297,14 @@ describe('Learning Section objective-bank auto-fill', () => {
 
   it('exposes auto/structure UI modes and corrected Learning Objective terminology', () => {
     const ui = source('src/components/curriculum/LearningSegmentsView.tsx');
-    expect(ui).toContain('طريقة ملء الأهداف');
-    expect(ui).toContain('تلقائيًا من بنك الأهداف المقترحة');
+    expect(ui).toContain('طريقة بناء الأهداف');
+    expect(ui).toContain('توليد وترتيب تلقائي من بنك الأهداف');
+    expect(ui).toContain('اختيار يدوي من بنك الأهداف');
     expect(ui).toContain('إنشاء الهيكل فقط');
     expect(ui).toContain('إعادة تنظيم المقطع');
     expect(ui).toContain('إعادة توليد الأهداف من البنك');
     expect(ui).toContain('استبدال من البنك');
+    expect(ui).toContain('إعادة ترتيب الأهداف تلقائيًا');
     expect(ui).toContain('disabled={objectiveBank.length === 0}');
     expect(ui).toContain('الهدف التعلمي ${index + 1}');
     expect(ui).toContain('لم يُحدَّد الهدف التعلمي بعد');
@@ -277,12 +313,32 @@ describe('Learning Section objective-bank auto-fill', () => {
     expect(ui).not.toMatch(/الذكاء الاصطناعي|Gemini|API key/);
   });
 
+  it('separates deterministic selection from pedagogical ordering metadata', () => {
+    const recommendation = selected(8);
+    const progression = ordered(8);
+    expect(recommendation.map((item) => item.id)).not.toEqual(progression.map((item) => item.id));
+    expect(progression.map((item) => item.progressionStage)).toEqual([
+      'transition',
+      'balance',
+      'balance',
+      'balance',
+      'locomotion-basic',
+      'locomotion-advanced',
+      'locomotion-advanced',
+      'adaptation',
+    ]);
+    expect(progression[0].sequenceWeight).toBeLessThan(progression.at(-1)!.sequenceWeight);
+    expect(GRADE_ONE_DOMAIN_ONE_RESOURCES[0]).toHaveProperty('selectionWeight');
+    expect(GRADE_ONE_DOMAIN_ONE_RESOURCES[0]).not.toHaveProperty('progressionStage');
+    expect(progression[0]).toHaveProperty('progressionStage');
+  });
+
   it('keeps downstream architecture, Annual Plan, and Prisma out of the change', () => {
     const service = source('src/services/teacherLearningPlan.service.ts');
     expect(service).not.toContain('AnnualPlanView');
     expect(service).not.toContain('prisma.');
     expect(source('src/components/curriculum/LearningSectionPrintDocument.tsx')).not.toContain(
-      'طريقة ملء الأهداف'
+      'طريقة بناء الأهداف'
     );
   });
 });

@@ -7,6 +7,8 @@ import {
 import {
   getLearningObjectiveBank,
   getLearningObjectiveBankItem,
+  orderRecommendedObjectives,
+  PROGRESSION_STAGE_ORDER,
   selectRecommendedObjectives,
   type ReferenceLearningObjective,
 } from '../data/gradeOneDomainOneObjectiveBank';
@@ -502,7 +504,9 @@ export function generateTeacherLearningSectionStructure(
   }
   const recommendedObjectives =
     objectiveFillMode === 'bank-auto'
-      ? selectRecommendedObjectives({ bank: objectiveBank, requestedCount: objectiveCount })
+      ? orderRecommendedObjectives(
+          selectRecommendedObjectives({ bank: objectiveBank, requestedCount: objectiveCount })
+        )
       : [];
   if (
     options.mode === 'replace' &&
@@ -1180,6 +1184,62 @@ export function reorderTeacherLearningObjectives(
       [objectives[index], objectives[nextIndex]] = [objectives[nextIndex], objectives[index]];
       return { ...domain, objectives };
     }),
+  });
+}
+
+export function reorderTeacherLearningObjectivesAutomatically(
+  plan: TeacherLearningPlan,
+  fieldId: string
+): TeacherLearningPlan {
+  const domain = plan.domains.find((item) => item.fieldId === fieldId);
+  if (!domain) throw new Error('الميدان غير موجود في خطة الأستاذ.');
+  const bank = getLearningObjectiveBank(plan.levelId, fieldId);
+  const bankBySourceId = new Map(bank.map((objective) => [objective.id, objective]));
+  const originalOrder = new Map(domain.objectives.map((objective, index) => [objective.id, index]));
+  const objectives = [...domain.objectives].sort((left, right) => {
+    const leftReference = left.sourceReferenceId
+      ? bankBySourceId.get(left.sourceReferenceId)
+      : undefined;
+    const rightReference = right.sourceReferenceId
+      ? bankBySourceId.get(right.sourceReferenceId)
+      : undefined;
+    if (!leftReference && !rightReference) {
+      return (originalOrder.get(left.id) || 0) - (originalOrder.get(right.id) || 0);
+    }
+    if (!leftReference) return 1;
+    if (!rightReference) return -1;
+    return (
+      PROGRESSION_STAGE_ORDER[leftReference.progressionStage] -
+        PROGRESSION_STAGE_ORDER[rightReference.progressionStage] ||
+      leftReference.sequenceWeight - rightReference.sequenceWeight ||
+      (originalOrder.get(left.id) || 0) - (originalOrder.get(right.id) || 0)
+    );
+  });
+  const anchors = balancedIntegrationObjectiveIndexes(
+    objectives.length,
+    domain.integrationPoints.length
+  );
+  const integrationPoints = [...domain.integrationPoints]
+    .sort((left, right) => left.orderIndex - right.orderIndex)
+    .map((point, index) => ({
+      ...point,
+      afterObjectiveId: objectives[anchors[index] - 1]?.id || null,
+      orderIndex: index + 1,
+    }));
+  return normalizeTeacherLearningPlan({
+    ...plan,
+    domains: plan.domains.map((item) =>
+      item.fieldId === fieldId
+        ? {
+            ...item,
+            objectives: objectives.map((objective, index) => ({
+              ...objective,
+              orderIndex: index + 1,
+            })),
+            integrationPoints,
+          }
+        : item
+    ),
   });
 }
 

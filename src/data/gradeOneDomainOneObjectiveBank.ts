@@ -33,6 +33,14 @@ export interface ReferenceLearningObjective {
   readonly guidance: string;
   readonly sourceReferences: readonly string[];
   readonly tags: readonly string[];
+  readonly progressionStage:
+    | 'foundation'
+    | 'transition'
+    | 'balance'
+    | 'locomotion-basic'
+    | 'locomotion-advanced'
+    | 'adaptation';
+  readonly sequenceWeight: number;
 }
 
 const componentId = (index: number) =>
@@ -41,6 +49,26 @@ const resourceId = (slug: string) =>
   `curriculum-resource:${GRADE_ONE_LEVEL_ID}:${DOMAIN_ONE_FIELD_ID}:${slug}`;
 const transversalId = (slug: string) =>
   `transversal-resource:${GRADE_ONE_LEVEL_ID}:${DOMAIN_ONE_FIELD_ID}:${slug}`;
+
+const OBJECTIVE_PROGRESSION: Record<
+  number,
+  Pick<ReferenceLearningObjective, 'progressionStage' | 'sequenceWeight'>
+> = {
+  1: { progressionStage: 'foundation', sequenceWeight: 10 },
+  2: { progressionStage: 'foundation', sequenceWeight: 20 },
+  3: { progressionStage: 'transition', sequenceWeight: 30 },
+  4: { progressionStage: 'balance', sequenceWeight: 40 },
+  5: { progressionStage: 'balance', sequenceWeight: 45 },
+  6: { progressionStage: 'balance', sequenceWeight: 50 },
+  7: { progressionStage: 'balance', sequenceWeight: 55 },
+  8: { progressionStage: 'balance', sequenceWeight: 60 },
+  9: { progressionStage: 'locomotion-basic', sequenceWeight: 70 },
+  10: { progressionStage: 'locomotion-advanced', sequenceWeight: 80 },
+  11: { progressionStage: 'locomotion-advanced', sequenceWeight: 85 },
+  12: { progressionStage: 'locomotion-advanced', sequenceWeight: 90 },
+  13: { progressionStage: 'locomotion-advanced', sequenceWeight: 95 },
+  14: { progressionStage: 'adaptation', sequenceWeight: 100 },
+};
 
 const POSTURES_GROUP = 'official-resource-group:lvl_p1:f_locomotion:1';
 const LOCOMOTION_GROUP = 'official-resource-group:lvl_p1:f_locomotion:4';
@@ -207,6 +235,7 @@ const objective = (
       'domain-one-learning-section-reference:lvl_p1:f_locomotion',
     ],
     tags,
+    ...OBJECTIVE_PROGRESSION[index],
   };
 };
 
@@ -482,8 +511,30 @@ export function selectRecommendedObjectives({
     );
   }
 
-  return selected.sort(
-    (left, right) => (bankOrder.get(left.id) || 0) - (bankOrder.get(right.id) || 0)
+  return selected;
+}
+
+export const PROGRESSION_STAGE_ORDER: Record<
+  ReferenceLearningObjective['progressionStage'],
+  number
+> = {
+  foundation: 1,
+  transition: 2,
+  balance: 3,
+  'locomotion-basic': 4,
+  'locomotion-advanced': 5,
+  adaptation: 6,
+};
+
+export function orderRecommendedObjectives(
+  objectives: readonly ReferenceLearningObjective[]
+): readonly ReferenceLearningObjective[] {
+  return [...objectives].sort(
+    (left, right) =>
+      PROGRESSION_STAGE_ORDER[left.progressionStage] -
+        PROGRESSION_STAGE_ORDER[right.progressionStage] ||
+      left.sequenceWeight - right.sequenceWeight ||
+      left.id.localeCompare(right.id)
   );
 }
 

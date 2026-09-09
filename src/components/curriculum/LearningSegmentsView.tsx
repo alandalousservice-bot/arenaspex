@@ -45,6 +45,7 @@ import {
   hasMeaningfulTeacherLearningSection,
   reorderTeacherLearningIntegrations,
   reorderTeacherLearningObjectives,
+  reorderTeacherLearningObjectivesAutomatically,
   summarizeLearningSectionStructure,
   updateTeacherLearningIntegration,
   updateTeacherLearningObjectiveDetails,
@@ -105,7 +106,7 @@ type SectionGeneratorDraft = {
   objectiveCount: string;
   integrationCount: string;
   mode: 'reorganize' | 'replace';
-  fillMode: 'bank-auto' | 'structure-only';
+  generationMode: 'auto' | 'manual' | 'structure';
 };
 
 type SequenceItem =
@@ -402,7 +403,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
     let allowObjectiveRemoval = false;
     if (generatorDraft.mode === 'replace' && hasMeaningfulTeacherLearningSection(domain)) {
       allowDestructiveReplacement = window.confirm(
-        generatorDraft.fillMode === 'bank-auto'
+        generatorDraft.generationMode === 'auto'
           ? 'إعادة توليد الأهداف من البنك ستستبدل الأهداف والإدماجيات الحالية. هل تريد المتابعة؟'
           : 'إنشاء هيكل جديد سيستبدل الأهداف والإدماجيات الحالية. هل تريد المتابعة؟'
       );
@@ -427,7 +428,8 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
           integrationCount,
           {
             mode: generatorDraft.mode,
-            objectiveFillMode: generatorDraft.fillMode,
+            objectiveFillMode:
+              generatorDraft.generationMode === 'auto' ? 'bank-auto' : 'structure-only',
             allowDestructiveReplacement,
             allowObjectiveRemoval,
           }
@@ -436,6 +438,15 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
       setGeneratorDraft(null);
     } catch (reason: unknown) {
       window.alert(reason instanceof Error ? reason.message : 'تعذر توليد هيكل المقطع.');
+    }
+  };
+
+  const autoReorderSection = (fieldId: string) => {
+    if (!plan) return;
+    try {
+      savePlan(reorderTeacherLearningObjectivesAutomatically(plan, fieldId));
+    } catch (reason: unknown) {
+      window.alert(reason instanceof Error ? reason.message : 'تعذر إعادة ترتيب الأهداف.');
     }
   };
 
@@ -679,7 +690,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                 Number(generatorDraft.objectiveCount),
                 Number(generatorDraft.integrationCount)
               );
-              if (generatorDraft.fillMode === 'bank-auto') {
+              if (generatorDraft.generationMode === 'auto') {
                 if (objectiveBank.length === 0) {
                   throw new Error('لا يتوفر بنك أهداف مقترحة لهذا المستوى والميدان بعد.');
                 }
@@ -812,7 +823,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                                 objectiveCount: String(objectives.length),
                                 integrationCount: String(integrationPoints.length),
                                 mode: 'reorganize',
-                                fillMode: objectiveBank.length > 0 ? 'bank-auto' : 'structure-only',
+                                generationMode: objectiveBank.length > 0 ? 'auto' : 'structure',
                               }
                         );
                       }}
@@ -820,6 +831,16 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                     >
                       <Layers className="h-3.5 w-3.5" /> إعداد المقطع
                     </button>
+                    {objectives.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => autoReorderSection(field.fieldId)}
+                        disabled={isSaving}
+                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-800 disabled:opacity-50"
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" /> إعادة ترتيب الأهداف تلقائيًا
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={(event) => openPrintPreview(event, field.fieldId)}
@@ -880,7 +901,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                       <div>
                         <h5 className="text-xs font-extrabold text-blue-950">إعداد المقطع</h5>
                         <p className="text-[10px] text-blue-800">
-                          حدّد البنية وطريقة ملء الأهداف، مع إمكانية تعديلها لاحقًا.
+                          حدّد بنية الأهداف وطريقة بنائها، مع إمكانية تعديلها لاحقًا.
                         </p>
                       </div>
                       <button
@@ -928,21 +949,25 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                         />
                       </label>
                       <label className="text-xs font-bold text-blue-950">
-                        طريقة ملء الأهداف
+                        طريقة بناء الأهداف
                         <select
-                          value={generatorDraft.fillMode}
+                          value={generatorDraft.generationMode}
                           onChange={(event) =>
                             setGeneratorDraft({
                               ...generatorDraft,
-                              fillMode: event.target.value as SectionGeneratorDraft['fillMode'],
+                              generationMode: event.target
+                                .value as SectionGeneratorDraft['generationMode'],
                             })
                           }
                           className={`${inputClass} mt-1`}
                         >
-                          <option value="bank-auto" disabled={objectiveBank.length === 0}>
-                            تلقائيًا من بنك الأهداف المقترحة
+                          <option value="auto" disabled={objectiveBank.length === 0}>
+                            توليد وترتيب تلقائي من بنك الأهداف
                           </option>
-                          <option value="structure-only">إنشاء الهيكل فقط</option>
+                          <option value="manual" disabled={objectiveBank.length === 0}>
+                            اختيار يدوي من بنك الأهداف
+                          </option>
+                          <option value="structure">إنشاء الهيكل فقط</option>
                         </select>
                       </label>
                       <label className="text-xs font-bold text-blue-950">
@@ -959,7 +984,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                         >
                           <option value="reorganize">إعادة تنظيم المقطع</option>
                           <option value="replace">
-                            {generatorDraft.fillMode === 'bank-auto'
+                            {generatorDraft.generationMode === 'auto'
                               ? 'إعادة توليد الأهداف من البنك'
                               : 'إنشاء هيكل جديد'}
                           </option>
