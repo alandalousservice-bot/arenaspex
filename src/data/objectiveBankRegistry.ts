@@ -12,6 +12,10 @@ import {
   GRADE_THREE_DOMAIN_ONE_OBJECTIVE_BANK,
   GRADE_THREE_DOMAIN_ONE_RESOURCES,
 } from './gradeThreeDomainOneObjectiveBank';
+import {
+  GRADE_FOUR_DOMAIN_ONE_OBJECTIVE_BANK,
+  GRADE_FOUR_DOMAIN_ONE_RESOURCES,
+} from './gradeFourDomainOneObjectiveBank';
 
 export function getObjectiveBank(
   gradeId: string,
@@ -25,6 +29,9 @@ export function getObjectiveBank(
   }
   if (gradeId === 'lvl_p3' && domainId === 'f_locomotion') {
     return GRADE_THREE_DOMAIN_ONE_OBJECTIVE_BANK;
+  }
+  if (gradeId === 'lvl_p4' && domainId === 'f_locomotion') {
+    return GRADE_FOUR_DOMAIN_ONE_OBJECTIVE_BANK;
   }
   return [];
 }
@@ -41,6 +48,9 @@ export function getObjectiveBankResources(
   }
   if (gradeId === 'lvl_p3' && domainId === 'f_locomotion') {
     return GRADE_THREE_DOMAIN_ONE_RESOURCES;
+  }
+  if (gradeId === 'lvl_p4' && domainId === 'f_locomotion') {
+    return GRADE_FOUR_DOMAIN_ONE_RESOURCES;
   }
   return [];
 }

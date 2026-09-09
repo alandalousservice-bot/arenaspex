@@ -143,7 +143,7 @@ describe('Learning Section objective-bank auto-fill', () => {
   it('rejects bank overflow and unsupported banks without fabricating objectives', () => {
     expect(() => selected(15)).toThrow('بنك الأهداف المقترحة لهذا الميدان يحتوي على 14 هدفًا فقط.');
     expect(() =>
-      generateTeacherLearningSectionStructure(seedTeacherLearningPlan('lvl_p4'), DOMAIN, 8, 2, {
+      generateTeacherLearningSectionStructure(seedTeacherLearningPlan('lvl_p5'), DOMAIN, 8, 2, {
         mode: 'replace',
         objectiveFillMode: 'bank-auto',
         allowDestructiveReplacement: true,
