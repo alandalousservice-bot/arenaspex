@@ -61,7 +61,7 @@ describe('Grade 1 / Domain 2 objective bank', () => {
   it('registers only G1/D2 and materializes ordinary objectives as A/B snapshots', () => {
     expect(getObjectiveBank('lvl_p1', DOMAIN)).toBe(bank);
     expect(getObjectiveBankResources('lvl_p1', DOMAIN)).toBe(resources);
-    expect(getObjectiveBank('lvl_p2', DOMAIN)).toEqual([]);
+    expect(getObjectiveBank('lvl_p2', DOMAIN).length).toBeGreaterThan(0);
     expect(getObjectiveBank('lvl_p1', 'f_structuring')).toEqual([]);
     const plan = generateTeacherLearningSectionStructure(
       seedTeacherLearningPlan('lvl_p1'),

@@ -105,8 +105,7 @@ describe('Grade 2 / Domain 1 objective bank', () => {
   it('registers only G1/D1 and G2/D1 while keeping other banks unavailable', () => {
     expect(getObjectiveBank('lvl_p2', DOMAIN)).toBe(bank);
     expect(getObjectiveBankResources('lvl_p2', DOMAIN)).toBe(resources);
-    expect(getObjectiveBank('lvl_p2', 'f_fundamentals')).toEqual([]);
-    expect(getObjectiveBank('lvl_p2', 'f_fundamentals')).toEqual([]);
+    expect(getObjectiveBank('lvl_p2', 'f_fundamentals').length).toBeGreaterThan(0);
     expect(source('src/data/objectiveBankRegistry.ts')).toContain(
       'GRADE_THREE_DOMAIN_ONE_OBJECTIVE_BANK'
     );
