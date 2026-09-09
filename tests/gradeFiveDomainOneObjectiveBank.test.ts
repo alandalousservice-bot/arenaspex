@@ -65,6 +65,49 @@ describe('Grade 5 / Domain 1 objective bank', () => {
     expect(new Set(first.flatMap((item) => item.curriculumResourceIds)).size).toBeGreaterThan(5);
   });
 
+  it('keeps advanced and integrative objectives semantically narrow', () => {
+    const objective = (id: string) => bank.find((item) => item.id === id)!;
+    expect(objective('G5-D1-OBJ-10').curriculumResourceIds).toEqual([
+      expect.stringContaining('combined-movement-sequence'),
+    ]);
+    expect(objective('G5-D1-OBJ-10').curriculumResourceIds).not.toEqual(
+      expect.arrayContaining([expect.stringContaining('push-force-sequence')])
+    );
+    expect(objective('G5-D1-OBJ-13').objectiveText).toBe(
+      'يلائم وضعية جسمه عند الانتقال بين حركتين حسب متطلبات الموقف.'
+    );
+    expect(objective('G5-D1-OBJ-13').curriculumResourceIds).toEqual(
+      expect.arrayContaining([expect.stringContaining('body-position-adaptation')])
+    );
+    expect(objective('G5-D1-OBJ-13').curriculumResourceIds).toHaveLength(2);
+    expect(objective('G5-D1-OBJ-13').curriculumResourceIds).not.toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('running-balance'),
+        expect.stringContaining('jump-balance'),
+        expect.stringContaining('throw-object-awareness'),
+      ])
+    );
+    expect(objective('G5-D1-OBJ-14').curriculumResourceIds).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('individual-execution'),
+        expect.stringContaining('movement-coherence'),
+      ])
+    );
+    expect(objective('G5-D1-OBJ-15').curriculumResourceIds).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('movement-coherence'),
+        expect.stringContaining('safe-execution-space'),
+      ])
+    );
+    expect(objective('G5-D1-OBJ-10').progressionStage).toBe('locomotion-advanced');
+    expect(objective('G5-D1-OBJ-10').sequenceWeight).toBeGreaterThan(
+      objective('G5-D1-OBJ-09').sequenceWeight
+    );
+    expect(
+      selectRecommendedObjectives({ bank, resources, requestedCount: 6 }).map((item) => item.id)
+    ).not.toContain('G5-D1-OBJ-10');
+  });
+
   it('materializes each learning objective as exactly one meeting, never A/B', () => {
     const plan = generateTeacherLearningSectionStructure(
       seedTeacherLearningPlan(GRADE_FIVE_LEVEL_ID),

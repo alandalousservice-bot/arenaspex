@@ -62,8 +62,22 @@ export const GRADE_THREE_DOMAIN_ONE_RESOURCES: readonly ObjectiveBankResource[] 
     'core',
     100
   ),
-  resource('one-hand-throw-static', 'الرمي بيد واحدة من الثبات', THROWING, 'response', 'core', 105),
-  resource('two-hand-throw-static', 'الرمي باليدين من الثبات', THROWING, 'response', 'core', 100),
+  resource(
+    'one-hand-throw-static',
+    'الرمي بيد واحدة من الثبات',
+    THROWING,
+    'response',
+    'supporting',
+    105
+  ),
+  resource(
+    'two-hand-throw-static',
+    'الرمي باليدين من الثبات',
+    THROWING,
+    'response',
+    'supporting',
+    100
+  ),
   resource('running-throw-chain', 'الربط بين الجري والرمي', THROWING, 'transition', 'core', 110),
   resource(
     'instruction-following',
@@ -209,7 +223,7 @@ export const GRADE_THREE_DOMAIN_ONE_OBJECTIVE_BANK: readonly ReferenceLearningOb
     ),
     makeObjective(
       6,
-      'يرمي بيد واحدة من الثبات وفق التوجيه المناسب.',
+      'يتخذ وضعية مناسبة وينفذ الرمي بيد واحدة من الثبات وفق التوجيه.',
       [components.c1, components.c2],
       [R('one-hand-throw-static')],
       [T('instruction-response'), T('space-safety')],
@@ -222,7 +236,7 @@ export const GRADE_THREE_DOMAIN_ONE_OBJECTIVE_BANK: readonly ReferenceLearningOb
     ),
     makeObjective(
       7,
-      'يرمي باليدين معا من الثبات محافظا على سلامة الأداء.',
+      'يتخذ وضعية مناسبة وينفذ الرمي باليدين معا من الثبات بصورة آمنة.',
       [components.c1, components.c2],
       [R('two-hand-throw-static')],
       [T('body-control'), T('space-safety')],
@@ -315,7 +329,7 @@ export const GRADE_THREE_DOMAIN_ONE_OBJECTIVE_BANK: readonly ReferenceLearningOb
       14,
       'يعدل أداءه في الجري والرمي بما يلائم إمكاناته والموقف.',
       [components.c1, components.c2],
-      [R('running-rhythm'), R('progressive-action'), R('one-hand-throw-static')],
+      [R('running-rhythm'), R('progressive-action')],
       [T('body-control'), T('rhythm-adaptation')],
       'ملاءمة الأداء لقدرات المتعلم ومتطلبات الموقف.',
       'اختيار الوتيرة والوضعية المناسبتين.',

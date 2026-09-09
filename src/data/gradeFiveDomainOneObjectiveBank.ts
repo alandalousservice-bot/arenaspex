@@ -39,7 +39,7 @@ export const GRADE_FIVE_DOMAIN_ONE_RESOURCES: readonly ObjectiveBankResource[] =
     'running-coordination',
     'التنسيق بين الأطراف أثناء الجري',
     BODY,
-    'balance-support',
+    'support-balance',
     'core',
     105
   ),
@@ -54,16 +54,23 @@ export const GRADE_FIVE_DOMAIN_ONE_RESOURCES: readonly ObjectiveBankResource[] =
     105
   ),
   resource('jump-balance', 'التوازن أثناء الوثب', BODY, 'support-balance', 'core', 100),
-  resource('safe-landing', 'السقوط السليم', BODY, 'support-balance', 'core', 100),
+  resource('safe-landing', 'السقوط السليم', BODY, 'support-balance', 'supporting', 100),
   resource(
     'throw-object-awareness',
     'الإحساس بالأداة والتحكم فيها أثناء الرمي',
     BODY,
     'response',
-    'core',
+    'supporting',
     100
   ),
-  resource('push-force-sequence', 'تسلسل القوى عند الدفع', SEQUENCE, 'transition', 'core', 110),
+  resource(
+    'push-force-sequence',
+    'تسلسل القوى عند الدفع',
+    SEQUENCE,
+    'transition',
+    'supporting',
+    110
+  ),
   resource('throwing-field-awareness', 'تحديد مجال الرمي', SAFETY, 'organization', 'core', 95),
   resource(
     'transition-to-jump',
@@ -294,7 +301,7 @@ export const GRADE_FIVE_DOMAIN_ONE_OBJECTIVE_BANK: readonly ReferenceLearningObj
       10,
       'يربط بين الجري والوثب والرمي في جملة حركية منظمة.',
       [C.c1, C.c2, C.c3],
-      [R('combined-movement-sequence'), R('push-force-sequence')],
+      [R('combined-movement-sequence')],
       [T('movement-coordination'), T('body-control')],
       'تسلسل الجري والوثب والرمي.',
       'ترتيب مراحل الأداء وربطها.',
@@ -331,14 +338,9 @@ export const GRADE_FIVE_DOMAIN_ONE_OBJECTIVE_BANK: readonly ReferenceLearningObj
     ),
     makeObjective(
       13,
-      'يلائم وضعية جسمه حسب متطلبات الجري أو الوثب أو الرمي.',
+      'يلائم وضعية جسمه عند الانتقال بين حركتين حسب متطلبات الموقف.',
       [C.c1, C.c2],
-      [
-        R('body-position-adaptation'),
-        R('running-balance'),
-        R('jump-balance'),
-        R('throw-object-awareness'),
-      ],
+      [R('body-position-adaptation'), R('transition-to-jump')],
       [T('body-control'), T('movement-adaptation')],
       'ملاءمة وضعية الجسم لمختلف الحركات.',
       'الفروق بين الوضعيات ومتطلبات الموقف.',

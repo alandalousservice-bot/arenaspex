@@ -74,6 +74,31 @@ describe('Grade 3 / Domain 1 objective bank', () => {
     expect(new Set(first.flatMap((item) => item.curriculumResourceIds)).size).toBeGreaterThan(4);
   });
 
+  it('keeps throwing resources from inflating Domain 1 transition coverage', () => {
+    const objective = (id: string) => bank.find((item) => item.id === id)!;
+    expect(objective('G3-D1-OBJ-06').objectiveText).toContain('يتخذ وضعية مناسبة');
+    expect(objective('G3-D1-OBJ-06').curriculumResourceIds).toEqual([
+      expect.stringContaining('one-hand-throw-static'),
+    ]);
+    expect(objective('G3-D1-OBJ-06').curriculumResourceIds).not.toEqual(
+      expect.arrayContaining([expect.stringContaining('running')])
+    );
+    expect(objective('G3-D1-OBJ-07').objectiveText).toContain('يتخذ وضعية مناسبة');
+    expect(objective('G3-D1-OBJ-07').curriculumResourceIds).not.toEqual(
+      expect.arrayContaining([expect.stringContaining('progressive')])
+    );
+    expect(objective('G3-D1-OBJ-14').curriculumResourceIds).not.toEqual(
+      expect.arrayContaining([expect.stringContaining('one-hand-throw-static')])
+    );
+    const selected = selectRecommendedObjectives({ bank, resources, requestedCount: 6 });
+    expect(selected.find((item) => item.id === 'G3-D1-OBJ-06')?.curriculumResourceIds).toEqual([
+      expect.stringContaining('one-hand-throw-static'),
+    ]);
+    expect(selected.find((item) => item.id === 'G3-D1-OBJ-14')?.curriculumResourceIds).not.toEqual(
+      expect.arrayContaining([expect.stringContaining('one-hand-throw-static')])
+    );
+  });
+
   it('supports automatic generation, snapshots, A/B meetings, and one-meeting special sessions', () => {
     const plan = generateTeacherLearningSectionStructure(
       seedTeacherLearningPlan(GRADE_THREE_LEVEL_ID),
