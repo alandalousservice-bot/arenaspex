@@ -26,16 +26,25 @@ const reference = (
   finalCompetency: string,
   componentTitles: string[],
   defaults: DomainOnePedagogicalDefaults
-): DomainOneLearningSectionReference => ({
-  levelId,
-  fieldId: DOMAIN_ONE_FIELD_ID,
-  finalCompetency,
-  components: componentTitles.map((title, index) => ({
-    id: `learning-section:${levelId}:${DOMAIN_ONE_FIELD_ID}:component:${index + 1}`,
-    title,
-  })),
-  defaults,
-});
+): DomainOneLearningSectionReference => {
+  const components = componentTitles.map((title, index) =>
+    Object.freeze({
+      id: `learning-section:${levelId}:${DOMAIN_ONE_FIELD_ID}:component:${index + 1}`,
+      title,
+    })
+  );
+  const immutableDefaults = Object.freeze({
+    ...defaults,
+    resources: Object.freeze([...defaults.resources]) as unknown as string[],
+  });
+  return Object.freeze({
+    levelId,
+    fieldId: DOMAIN_ONE_FIELD_ID,
+    finalCompetency,
+    components: Object.freeze(components) as unknown as OfficialLearningSectionComponent[],
+    defaults: immutableDefaults,
+  });
+};
 
 /**
  * Official Domain 1 reference transcribed from the primary-school PE curriculum.
