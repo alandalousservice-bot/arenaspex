@@ -58,6 +58,38 @@ const GRADE_TWO_DOMAIN_TWO_REFERENCE: DomainOneLearningSectionReference = Object
   }),
 });
 
+const GRADE_THREE_DOMAIN_TWO_REFERENCE: DomainOneLearningSectionReference = Object.freeze({
+  levelId: 'lvl_p3',
+  fieldId: 'f_fundamentals' as never,
+  finalCompetency: 'ينجز حركات قاعدية متعلقة بالجري وبالرمي.',
+  components: Object.freeze([
+    {
+      id: 'learning-section:lvl_p3:f_fundamentals:component:1',
+      title: 'يتعرف على الحركات القاعدية حسب وتائرها والقواعد الأمنية.',
+    },
+    {
+      id: 'learning-section:lvl_p3:f_fundamentals:component:2',
+      title: 'ينفذ الحركات القاعدية ويلتزم بالقواعد الأمنية.',
+    },
+    { id: 'learning-section:lvl_p3:f_fundamentals:component:3', title: 'يحترم القواعد الأمنية.' },
+  ]) as unknown as DomainOneLearningSectionReference['components'],
+  defaults: Object.freeze({
+    learningContent:
+      'الجري بوتائر مختلفة ومسارات متنوعة، والرمي بيد واحدة وباليدين في اتجاهات ومسافات نوعية.',
+    pedagogicalKnowledge:
+      'الوتائر البطيئة والمتوسطة والسريعة؛ الجري المستقيم والمنعرج والمتعرج؛ الرمي بيد واحدة وباليدين مع احترام مجال الرمي.',
+    executionContent:
+      'ينفذ الجري والرمي بالشكل والوتيرة والاتجاه الملائم، ويحافظ على سلامة مجال الممارسة.',
+    guidance: 'اختيار الوتيرة والمسار المناسبين، وتنظيم فضاء الرمي واحترام قواعد الأمن.',
+    resources: Object.freeze([
+      'علامات أرضية',
+      'أقماع',
+      'كرات',
+      'أكياس رملية',
+    ]) as unknown as string[],
+  }),
+});
+
 export function getDomainTwoLearningSectionReference(
   levelId: string,
   fieldId: string
@@ -65,5 +97,6 @@ export function getDomainTwoLearningSectionReference(
   if (fieldId !== DOMAIN_TWO_FIELD_ID) return undefined;
   if (levelId === 'lvl_p1') return GRADE_ONE_DOMAIN_TWO_REFERENCE;
   if (levelId === 'lvl_p2') return GRADE_TWO_DOMAIN_TWO_REFERENCE;
+  if (levelId === 'lvl_p3') return GRADE_THREE_DOMAIN_TWO_REFERENCE;
   return undefined;
 }

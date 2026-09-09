@@ -28,6 +28,10 @@ import {
   GRADE_TWO_DOMAIN_TWO_OBJECTIVE_BANK,
   GRADE_TWO_DOMAIN_TWO_RESOURCES,
 } from './gradeTwoDomainTwoObjectiveBank';
+import {
+  GRADE_THREE_DOMAIN_TWO_OBJECTIVE_BANK,
+  GRADE_THREE_DOMAIN_TWO_RESOURCES,
+} from './gradeThreeDomainTwoObjectiveBank';
 
 export function getObjectiveBank(
   gradeId: string,
@@ -38,6 +42,9 @@ export function getObjectiveBank(
   }
   if (gradeId === 'lvl_p2' && domainId === 'f_fundamentals') {
     return GRADE_TWO_DOMAIN_TWO_OBJECTIVE_BANK;
+  }
+  if (gradeId === 'lvl_p3' && domainId === 'f_fundamentals') {
+    return GRADE_THREE_DOMAIN_TWO_OBJECTIVE_BANK;
   }
   if (gradeId === 'lvl_p1' && domainId === 'f_locomotion') {
     return GRADE_ONE_DOMAIN_ONE_OBJECTIVE_BANK;
@@ -66,6 +73,9 @@ export function getObjectiveBankResources(
   }
   if (gradeId === 'lvl_p2' && domainId === 'f_fundamentals') {
     return GRADE_TWO_DOMAIN_TWO_RESOURCES;
+  }
+  if (gradeId === 'lvl_p3' && domainId === 'f_fundamentals') {
+    return GRADE_THREE_DOMAIN_TWO_RESOURCES;
   }
   if (gradeId === 'lvl_p1' && domainId === 'f_locomotion') {
     return GRADE_ONE_DOMAIN_ONE_RESOURCES;
