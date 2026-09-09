@@ -21,6 +21,15 @@ import { geoRouter } from './src/server/geoRouter.js';
 import { requireAuth, requireOperationalAccount } from './src/server/middleware/requireAuth.js';
 import { knowledgeCoreRuntime } from './src/domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime.js';
 import { emitKnowledgeCoreRuntimeDiagnosticOnce } from './src/domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntimeDiagnostic.js';
+import {
+  emitDbLifecycleEvent,
+  emitInstanceStartTelemetry,
+  registerDatabaseLifecycleSignalTelemetry,
+  safeErrorMetadata,
+} from './src/server/dbLifecycleTelemetry.js';
+
+emitInstanceStartTelemetry();
+registerDatabaseLifecycleSignalTelemetry();
 
 // شبكة أمان أخيرة: انقطاع مؤقت لقاعدة البيانات أو أي خطأ غير متوقع لا يجب أن
 // يُسقط المنصة كاملة — نُسجّل الخطأ ونبقى نخدم بقية الطلبات.
@@ -177,6 +186,7 @@ async function verifyDatabaseConnection() {
   try {
     const prisma = (await import('./src/server/prismaClient.js')).prisma;
     await prisma.$queryRaw`SELECT 1`;
+    emitDbLifecycleEvent('db.probe.success');
     console.log('✅ SPEX DB: PostgreSQL connection verified.');
 
     // فحص جاهزية المخطط: بدون جدول User لا يعمل أي تسجيل دخول — لكننا لا نهجّر تلقائياً
@@ -206,6 +216,7 @@ async function verifyDatabaseConnection() {
       }
     }
   } catch (err) {
+    emitDbLifecycleEvent('db.probe.failure', safeErrorMetadata(err));
     console.error(
       '❌ SPEX DB: تعذّر الاتصال بقاعدة البيانات. تحقق من DATABASE_URL في Render Dashboard → Environment ' +
         '(تأكد من ضبط DATABASE_URL كرابط Neon pooled صالح).',

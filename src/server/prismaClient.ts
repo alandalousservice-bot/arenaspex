@@ -8,6 +8,7 @@
  */
 
 import { getRuntimeDatabaseUrl } from './runtimeDatabaseUrl.js';
+import { emitDbLifecycleEvent, safeErrorMetadata } from './dbLifecycleTelemetry.js';
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -61,23 +62,48 @@ async function sleep(ms: number): Promise<void> {
 
 async function withRetry<T>(fn: () => Promise<T>, retries = 3, baseDelayMs = 400): Promise<T> {
   let lastErr: any;
+  let activeRetryAttempt: number | undefined;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      return await fn();
+      const result = await fn();
+      if (activeRetryAttempt !== undefined) {
+        emitDbLifecycleEvent('db.prisma.retry_succeeded', { attempt: activeRetryAttempt });
+      }
+      return result;
     } catch (err: any) {
       lastErr = err;
       if (!isRetryableDbError(err) || attempt === retries) {
+        if (activeRetryAttempt !== undefined) {
+          emitDbLifecycleEvent('db.prisma.retry_failed', {
+            attempt: activeRetryAttempt,
+            ...safeErrorMetadata(err),
+          });
+        }
         throw err;
       }
+      activeRetryAttempt = attempt + 1;
+      emitDbLifecycleEvent('db.prisma.retry_started', {
+        attempt: activeRetryAttempt,
+        ...safeErrorMetadata(err),
+      });
       console.warn(
         `[DB] ⚠️ Detected retryable DB error (${err.code || 'no-code'}): ${String(err.message).slice(0, 180)} — retrying ${attempt + 1}/${retries}`
       );
       // محاولة فصل وإعادة توصيل لتنظيف الـ pool الفاسد
       try {
         if (typeof prismaBase !== 'undefined' && prismaBase.$disconnect) {
-          await prismaBase.$disconnect().catch(() => {
-            // Intentionally ignore cleanup failures before retrying the operation.
-          });
+          emitDbLifecycleEvent('db.prisma.disconnect_started', { attempt: activeRetryAttempt });
+          try {
+            await prismaBase.$disconnect();
+            emitDbLifecycleEvent('db.prisma.disconnect_completed', {
+              attempt: activeRetryAttempt,
+            });
+          } catch (disconnectError) {
+            emitDbLifecycleEvent('db.prisma.disconnect_failed', {
+              attempt: activeRetryAttempt,
+              ...safeErrorMetadata(disconnectError),
+            });
+          }
         }
       } catch {
         // Intentionally ignore cleanup failures before retrying the operation.
