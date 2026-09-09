@@ -143,11 +143,17 @@ describe('Learning Section objective-bank auto-fill', () => {
   it('rejects bank overflow and unsupported banks without fabricating objectives', () => {
     expect(() => selected(15)).toThrow('بنك الأهداف المقترحة لهذا الميدان يحتوي على 14 هدفًا فقط.');
     expect(() =>
-      generateTeacherLearningSectionStructure(seedTeacherLearningPlan('lvl_p5'), DOMAIN, 8, 2, {
-        mode: 'replace',
-        objectiveFillMode: 'bank-auto',
-        allowDestructiveReplacement: true,
-      })
+      generateTeacherLearningSectionStructure(
+        seedTeacherLearningPlan('lvl_p2'),
+        'f_fundamentals',
+        8,
+        2,
+        {
+          mode: 'replace',
+          objectiveFillMode: 'bank-auto',
+          allowDestructiveReplacement: true,
+        }
+      )
     ).toThrow('لا يتوفر بنك أهداف مقترحة لهذا المستوى والميدان بعد.');
     expect(getObjectiveBank('lvl_p2', DOMAIN).length).toBeGreaterThan(0);
   });

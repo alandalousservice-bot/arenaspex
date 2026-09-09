@@ -124,7 +124,7 @@ describe('Grade 3 / Domain 1 objective bank', () => {
   it('registers G3/D1 only and leaves unsupported banks unavailable', () => {
     expect(getObjectiveBank(GRADE_THREE_LEVEL_ID, DOMAIN)).toBe(bank);
     expect(getObjectiveBankResources(GRADE_THREE_LEVEL_ID, DOMAIN)).toBe(resources);
-    expect(getObjectiveBank('lvl_p5', DOMAIN)).toEqual([]);
+    expect(getObjectiveBank('lvl_p3', 'f_fundamentals')).toEqual([]);
     expect(getObjectiveBank(GRADE_THREE_LEVEL_ID, 'f_fundamentals')).toEqual([]);
   });
 });

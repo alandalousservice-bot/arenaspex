@@ -5,11 +5,11 @@ import {
   selectRecommendedObjectives,
 } from '../src/data/gradeOneDomainOneObjectiveBank';
 import {
-  GRADE_FOUR_DOMAIN_ONE_OBJECTIVE_BANK as bank,
-  GRADE_FOUR_DOMAIN_ONE_RESOURCES as resources,
-  GRADE_FOUR_DOMAIN_ONE_TRANSVERSAL_RESOURCES as transversals,
-  GRADE_FOUR_LEVEL_ID,
-} from '../src/data/gradeFourDomainOneObjectiveBank';
+  GRADE_FIVE_DOMAIN_ONE_OBJECTIVE_BANK as bank,
+  GRADE_FIVE_DOMAIN_ONE_RESOURCES as resources,
+  GRADE_FIVE_DOMAIN_ONE_TRANSVERSAL_RESOURCES as transversals,
+  GRADE_FIVE_LEVEL_ID,
+} from '../src/data/gradeFiveDomainOneObjectiveBank';
 import { getObjectiveBank, getObjectiveBankResources } from '../src/data/objectiveBankRegistry';
 import { getDomainOneLearningSectionReference } from '../src/data/domainOneLearningSectionReference';
 import {
@@ -23,40 +23,41 @@ const DOMAIN = 'f_locomotion';
 const domain = (plan: ReturnType<typeof seedTeacherLearningPlan>) =>
   plan.domains.find((item) => item.fieldId === DOMAIN)!;
 
-describe('Grade 4 / Domain 1 objective bank', () => {
-  it('has stable immutable motor objectives and official components', () => {
+describe('Grade 5 / Domain 1 objective bank', () => {
+  it('has the canonical final competency, immutable bank, and observable objectives', () => {
     expect(bank.length).toBeGreaterThan(0);
     expect(new Set(bank.map((item) => item.id)).size).toBe(bank.length);
     expect(
-      bank.every((item, index) => item.id === `G4-D1-OBJ-${String(index + 1).padStart(2, '0')}`)
+      bank.every((item, index) => item.id === `G5-D1-OBJ-${String(index + 1).padStart(2, '0')}`)
     ).toBe(true);
     expect(Object.isFrozen(bank)).toBe(true);
     expect(bank.every((item) => !item.objectiveText.trim().startsWith('أن'))).toBe(true);
-    expect(bank.every((item) => item.sourceReferences.includes('EPS-2023:grade-4:domain-1'))).toBe(
+    expect(bank.every((item) => item.sourceReferences.includes('EPS-2023:grade-5:domain-1'))).toBe(
       true
     );
-    expect(getDomainOneLearningSectionReference(GRADE_FOUR_LEVEL_ID, DOMAIN)?.finalCompetency).toBe(
-      'ينجز مختلف الحركات فرديا وجماعيا ويحافظ على ترابطها.'
+    expect(getDomainOneLearningSectionReference(GRADE_FIVE_LEVEL_ID, DOMAIN)?.finalCompetency).toBe(
+      'ينجز مختلف الوضعيات والتنقلات في الرياضات الفردية والألعاب الجماعية محافظا على ترابطها، ويلائم وضعية جسمه حسب الموقف.'
     );
     expect(
-      getDomainOneLearningSectionReference(GRADE_FOUR_LEVEL_ID, DOMAIN)?.components
+      getDomainOneLearningSectionReference(GRADE_FIVE_LEVEL_ID, DOMAIN)?.components
     ).toHaveLength(3);
     expect(transversals.length).toBeGreaterThan(0);
   });
 
-  it('covers all core resources by stable IDs', () => {
-    const coverage = calculateObjectiveBankCoverage(GRADE_FOUR_LEVEL_ID, DOMAIN, bank, resources);
+  it('covers all core resources by IDs without invented quantities', () => {
+    const coverage = calculateObjectiveBankCoverage(GRADE_FIVE_LEVEL_ID, DOMAIN, bank, resources);
     expect(coverage.missing).toEqual([]);
     expect(coverage.covered.map((item) => item.id)).toEqual(
       expect.arrayContaining(
         resources.filter((item) => item.priority === 'core').map((item) => item.id)
       )
     );
+    expect(bank.join(' ')).not.toMatch(/\d+\s*(مرة|متر|ثانية|٪|%)/);
   });
 
-  it('selects deterministically and orders independently', () => {
-    const first = selectRecommendedObjectives({ bank, resources, requestedCount: 8 });
-    const second = selectRecommendedObjectives({ bank, resources, requestedCount: 8 });
+  it('selects broadly and orders deterministically', () => {
+    const first = selectRecommendedObjectives({ bank, resources, requestedCount: 6 });
+    const second = selectRecommendedObjectives({ bank, resources, requestedCount: 6 });
     expect(first.map((item) => item.id)).toEqual(second.map((item) => item.id));
     expect(orderRecommendedObjectives(first).map((item) => item.id)).toEqual(
       orderRecommendedObjectives(second).map((item) => item.id)
@@ -64,38 +65,41 @@ describe('Grade 4 / Domain 1 objective bank', () => {
     expect(new Set(first.flatMap((item) => item.curriculumResourceIds)).size).toBeGreaterThan(5);
   });
 
-  it('supports automatic generation and Grades 1-4 A/B rules', () => {
+  it('materializes each learning objective as exactly one meeting, never A/B', () => {
     const plan = generateTeacherLearningSectionStructure(
-      seedTeacherLearningPlan(GRADE_FOUR_LEVEL_ID),
+      seedTeacherLearningPlan(GRADE_FIVE_LEVEL_ID),
       DOMAIN,
-      8,
+      6,
       2,
       { mode: 'replace', objectiveFillMode: 'bank-auto', allowDestructiveReplacement: true }
     );
     const generated = domain(plan);
-    expect(generated.objectives).toHaveLength(8);
+    expect(generated.objectives).toHaveLength(6);
     expect(
-      generated.objectives.every((item) => item.sourceReferenceId?.startsWith('G4-D1-OBJ-'))
+      generated.objectives.every((item) => item.sourceReferenceId?.startsWith('G5-D1-OBJ-'))
     ).toBe(true);
     expect(generated.integrationPoints).toHaveLength(2);
     const sessions = canonicalPlanningSessions(
-      GRADE_FOUR_LEVEL_ID,
+      GRADE_FIVE_LEVEL_ID,
       '2026-09-21',
       '2026-2027',
       0,
       plan
     ).filter((item) => item.domainId === DOMAIN);
-    for (const objective of generated.objectives)
-      expect(sessions.filter((item) => item.objectiveId === objective.id)).toHaveLength(2);
+    for (const objective of generated.objectives) {
+      const occurrences = sessions.filter((item) => item.objectiveId === objective.id);
+      expect(occurrences).toHaveLength(1);
+      expect(occurrences[0].referenceSessionId).not.toContain(':meeting:');
+    }
     for (const special of sessions.filter((item) => item.sessionType !== 'تعلمية'))
       expect(
         sessions.filter((item) => item.objectiveGroupId === special.objectiveGroupId)
       ).toHaveLength(1);
   });
 
-  it('supports manual selection and source-identity duplicate protection', () => {
+  it('supports manual selection and duplicate source protection', () => {
     const plan = generateTeacherLearningSectionStructure(
-      seedTeacherLearningPlan(GRADE_FOUR_LEVEL_ID),
+      seedTeacherLearningPlan(GRADE_FIVE_LEVEL_ID),
       DOMAIN,
       1,
       0,
@@ -109,10 +113,10 @@ describe('Grade 4 / Domain 1 objective bank', () => {
     );
   });
 
-  it('registers G4/D1 while keeping G5 and other domains unsupported', () => {
-    expect(getObjectiveBank(GRADE_FOUR_LEVEL_ID, DOMAIN)).toBe(bank);
-    expect(getObjectiveBankResources(GRADE_FOUR_LEVEL_ID, DOMAIN)).toBe(resources);
-    expect(getObjectiveBank('lvl_p4', 'f_fundamentals')).toEqual([]);
-    expect(getObjectiveBank(GRADE_FOUR_LEVEL_ID, 'f_fundamentals')).toEqual([]);
+  it('registers all five Domain 1 banks while keeping other domains unsupported', () => {
+    expect(getObjectiveBank(GRADE_FIVE_LEVEL_ID, DOMAIN)).toBe(bank);
+    expect(getObjectiveBankResources(GRADE_FIVE_LEVEL_ID, DOMAIN)).toBe(resources);
+    expect(getObjectiveBank('lvl_p5', 'f_fundamentals')).toEqual([]);
+    expect(getObjectiveBank('lvl_p5', 'f_structuring')).toEqual([]);
   });
 });
