@@ -4,6 +4,7 @@ import {
   getDomainOneLearningSectionReference,
   getLearningSectionComponents,
 } from '../data/domainOneLearningSectionReference';
+import { getLearningObjectiveBankItem } from '../data/gradeOneDomainOneObjectiveBank';
 import { knowledgeCoreRuntime } from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime';
 import type { KnowledgeCoreRuntime } from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime.types';
 import type { TeacherLearningPlanData } from '../types/spex';
@@ -15,6 +16,8 @@ const objectiveSchema = z.object({
   text: z.string().trim().min(1).max(2000),
   orderIndex: z.number().int().positive(),
   sourceReferenceId: z.string().trim().max(240).nullable().optional(),
+  curriculumResourceIds: z.array(z.string().trim().min(1).max(240)).max(40).optional(),
+  transversalResourceIds: z.array(z.string().trim().min(1).max(240)).max(20).optional(),
   competencyComponentIds: z.array(z.string().trim().min(1).max(240)).max(12).optional(),
   learningContent: z.string().trim().max(4000).optional(),
   executionContent: z.string().trim().max(4000).optional(),
@@ -262,6 +265,8 @@ export function normalizeTeacherLearningPlan(
         ...objective,
         text: objective.text.trim(),
         orderIndex: index + 1,
+        curriculumResourceIds: [...new Set(objective.curriculumResourceIds || [])],
+        transversalResourceIds: [...new Set(objective.transversalResourceIds || [])],
         competencyComponentIds: [...new Set(objective.competencyComponentIds || [])],
         learningContent: objective.learningContent?.trim() || '',
         executionContent: objective.executionContent?.trim() || '',
@@ -617,6 +622,50 @@ export function addTeacherLearningObjective(
             ],
           }
         : domain
+    ),
+  });
+}
+
+export function addTeacherLearningObjectiveFromBank(
+  plan: TeacherLearningPlan,
+  fieldId: string,
+  sourceObjectiveId: string
+): TeacherLearningPlan {
+  const bankObjective = getLearningObjectiveBankItem(plan.levelId, fieldId, sourceObjectiveId);
+  if (!bankObjective) throw new Error('الهدف المقترح غير متاح لهذا المستوى والميدان.');
+  const domain = plan.domains.find((item) => item.fieldId === fieldId);
+  if (!domain) throw new Error('الميدان غير موجود في خطة الأستاذ.');
+  if (domain.objectives.some((item) => item.sourceReferenceId === bankObjective.id)) {
+    throw new Error('هذا الهدف مضاف إلى المقطع بالفعل.');
+  }
+
+  return normalizeTeacherLearningPlan({
+    ...plan,
+    domains: plan.domains.map((item) =>
+      item.fieldId === fieldId
+        ? {
+            ...item,
+            objectives: [
+              ...item.objectives,
+              {
+                id: newObjectiveId(plan.levelId, fieldId),
+                text: bankObjective.objectiveText,
+                orderIndex: item.objectives.length + 1,
+                sourceReferenceId: bankObjective.id,
+                competencyComponentIds: [...bankObjective.competencyComponentIds],
+                curriculumResourceIds: [...bankObjective.curriculumResourceIds],
+                transversalResourceIds: [...bankObjective.transversalResourceIds],
+                learningContent: bankObjective.learningContent,
+                pedagogicalKnowledge: bankObjective.mobilizedKnowledge,
+                executionContent: bankObjective.executionContent,
+                guidance: bankObjective.guidance,
+                resources: [],
+                situations: [],
+                teacherNotes: '',
+              },
+            ],
+          }
+        : item
     ),
   });
 }

@@ -10,6 +10,7 @@ import {
   BookOpen,
   Clock,
   Layers,
+  Library,
   Pencil,
   Plus,
   Printer,
@@ -29,10 +30,15 @@ import {
   getLearningSectionComponents,
   type OfficialLearningSectionComponent,
 } from '../../data/domainOneLearningSectionReference';
+import {
+  calculateObjectiveBankCoverage,
+  getLearningObjectiveBank,
+} from '../../data/gradeOneDomainOneObjectiveBank';
 import { useTeacherLearningPlan } from '../../hooks/useTeacherLearningPlan';
 import {
   addTeacherLearningIntegration,
   addTeacherLearningObjective,
+  addTeacherLearningObjectiveFromBank,
   deleteTeacherLearningIntegration,
   deleteTeacherLearningObjective,
   reorderTeacherLearningIntegrations,
@@ -217,6 +223,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
   const [searchVal, setSearchVal] = useState('');
   const [editingItem, setEditingItem] = useState<EditingItem | null>(null);
   const [newSessionDraft, setNewSessionDraft] = useState<NewSessionDraft | null>(null);
+  const [objectiveBankFieldId, setObjectiveBankFieldId] = useState<string | null>(null);
   const [situationPickerKey, setSituationPickerKey] = useState<string | null>(null);
   const [printingFieldId, setPrintingFieldId] = useState<string | null>(null);
   const printPreviewDialogRef = useRef<HTMLDivElement>(null);
@@ -352,6 +359,15 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
       setNewSessionDraft(null);
     } catch (reason: unknown) {
       window.alert(reason instanceof Error ? reason.message : 'تعذر إضافة الحصة.');
+    }
+  };
+
+  const addBankObjective = (fieldId: string, sourceObjectiveId: string) => {
+    if (!plan) return;
+    try {
+      savePlan(addTeacherLearningObjectiveFromBank(plan, fieldId, sourceObjectiveId));
+    } catch (reason: unknown) {
+      window.alert(reason instanceof Error ? reason.message : 'تعذر إضافة الهدف المقترح.');
     }
   };
 
@@ -577,6 +593,15 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
             field.fieldId
           );
           const officialComponents = getLearningSectionComponents(selectedLevelId, field.fieldId);
+          const objectiveBank = getLearningObjectiveBank(selectedLevelId, field.fieldId);
+          const objectiveCoverage = calculateObjectiveBankCoverage(
+            selectedLevelId,
+            field.fieldId,
+            objectives
+          );
+          const selectedBankObjectiveIds = new Set(
+            objectives.map((objective) => objective.sourceReferenceId).filter(Boolean)
+          );
           return (
             <section
               key={field.fieldId}
@@ -617,6 +642,49 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                   </div>
                 </div>
               )}
+              {objectiveCoverage.total > 0 && (
+                <details className="rounded-xl border border-sky-200 bg-sky-50/70 p-3 print:hidden">
+                  <summary className="cursor-pointer text-[11px] font-extrabold text-sky-950">
+                    تغطية موارد الميدان: {objectiveCoverage.covered.length} /{' '}
+                    {objectiveCoverage.total}
+                  </summary>
+                  <div className="mt-2 grid grid-cols-1 gap-3 text-[10px] sm:grid-cols-2">
+                    <div>
+                      <p className="font-bold text-emerald-800">مغطى</p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {objectiveCoverage.covered.length ? (
+                          objectiveCoverage.covered.map((resource) => (
+                            <span
+                              key={resource.id}
+                              className="rounded-full bg-white px-2 py-1 text-emerald-900"
+                            >
+                              ✓ {resource.label}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-slate-500">لم تُغطَّ موارد بعد.</span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-700">غير مغطى بعد</p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {objectiveCoverage.missing.map((resource) => (
+                          <span
+                            key={resource.id}
+                            className="rounded-full bg-white px-2 py-1 text-slate-600"
+                          >
+                            ○ {resource.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-[10px] text-sky-800">
+                    مؤشر إرشادي لا يمنع الحفظ أو التعديل أو الطباعة.
+                  </p>
+                </details>
+              )}
               {field.pedagogicalNotes && field.pedagogicalNotes.length > 0 && (
                 <div className="space-y-1 rounded-2xl border border-amber-200/80 bg-amber-50/60 p-3 text-xs text-amber-900">
                   <span className="flex items-center gap-1 font-bold text-amber-800">
@@ -645,22 +713,119 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                     >
                       <Printer className="h-3.5 w-3.5" /> طباعة المقطع
                     </button>
+                    {objectiveBank.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setObjectiveBankFieldId(
+                            objectiveBankFieldId === field.fieldId ? null : field.fieldId
+                          )
+                        }
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-bold text-emerald-800"
+                      >
+                        <Library className="h-3.5 w-3.5" /> اختيار من بنك الأهداف المقترحة
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() =>
+                      aria-label="إضافة هدف خاص — إنشاء هدف خاص"
+                      onClick={() => {
+                        setObjectiveBankFieldId(null);
                         setNewSessionDraft({
                           fieldId: field.fieldId,
                           type: 'تعلمية',
                           text: '',
                           afterObjectiveId: objectives.at(-1)?.id || null,
-                        })
-                      }
+                        });
+                      }}
                       className="action-primary inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white"
                     >
-                      <Plus className="h-3.5 w-3.5" /> إضافة حصة / إضافة هدف
+                      <Plus className="h-3.5 w-3.5" /> إنشاء هدف خاص
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setObjectiveBankFieldId(null);
+                        setNewSessionDraft({
+                          fieldId: field.fieldId,
+                          type: 'إدماجية',
+                          text: '',
+                          afterObjectiveId: objectives.at(-1)?.id || null,
+                        });
+                      }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> إضافة حصة إدماجية
                     </button>
                   </div>
                 </div>
+                {objectiveBankFieldId === field.fieldId && objectiveBank.length > 0 && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 print:hidden">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <h5 className="text-xs font-extrabold text-emerald-950">
+                          بنك الأهداف المقترحة
+                        </h5>
+                        <p className="text-[10px] text-emerald-800">
+                          اختر ما يناسب مقطعك؛ يمكنك تعديل النسخة المضافة وترتيبها لاحقًا.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="إغلاق بنك الأهداف المقترحة"
+                        onClick={() => setObjectiveBankFieldId(null)}
+                        className="rounded-lg border border-emerald-200 bg-white p-1.5 text-emerald-800"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-2">
+                      {objectiveBank.map((bankObjective) => {
+                        const alreadyAdded = selectedBankObjectiveIds.has(bankObjective.id);
+                        const componentLabels = bankObjective.competencyComponentIds
+                          .map(
+                            (id) =>
+                              officialComponents.find((component) => component.id === id)?.title
+                          )
+                          .filter(Boolean);
+                        const coverageLabels = objectiveCoverage.total
+                          ? bankObjective.curriculumResourceIds
+                              .map(
+                                (id) =>
+                                  [...objectiveCoverage.covered, ...objectiveCoverage.missing].find(
+                                    (resource) => resource.id === id
+                                  )?.label
+                              )
+                              .filter(Boolean)
+                          : [];
+                        return (
+                          <article
+                            key={bankObjective.id}
+                            className="rounded-xl border border-emerald-100 bg-white p-3"
+                          >
+                            <p className="text-xs font-semibold leading-6 text-slate-900">
+                              {bankObjective.objectiveText}
+                            </p>
+                            <p className="mt-1 text-[10px] text-slate-600">
+                              مركبة الكفاءة: {componentLabels.join(' · ')}
+                            </p>
+                            <p className="mt-1 text-[10px] text-slate-500">
+                              يغطي: {coverageLabels.join('، ')}
+                            </p>
+                            <button
+                              type="button"
+                              disabled={isSaving || alreadyAdded}
+                              onClick={() => addBankObjective(field.fieldId, bankObjective.id)}
+                              className="mt-2 rounded-lg bg-emerald-700 px-2.5 py-1.5 text-[10px] font-bold text-white disabled:bg-slate-200 disabled:text-slate-600"
+                            >
+                              {alreadyAdded ? 'مضاف إلى المقطع' : 'اختيار الهدف'}
+                            </button>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2">
                   {sequence.map((item) => {
                     if (item.kind === 'diagnostic' || item.kind === 'summative') {

@@ -498,6 +498,8 @@ export interface TeacherLearningObjective {
   text: string;
   orderIndex: number;
   sourceReferenceId?: string | null;
+  curriculumResourceIds?: string[];
+  transversalResourceIds?: string[];
   competencyComponentIds?: string[];
   learningContent?: string;
   executionContent?: string;
