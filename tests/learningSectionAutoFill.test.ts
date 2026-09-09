@@ -144,7 +144,7 @@ describe('Learning Section objective-bank auto-fill', () => {
     expect(() => selected(15)).toThrow('بنك الأهداف المقترحة لهذا الميدان يحتوي على 14 هدفًا فقط.');
     expect(() =>
       generateTeacherLearningSectionStructure(
-        seedTeacherLearningPlan('lvl_p4'),
+        seedTeacherLearningPlan('lvl_p5'),
         'f_fundamentals',
         8,
         2,

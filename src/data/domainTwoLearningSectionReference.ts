@@ -90,6 +90,39 @@ const GRADE_THREE_DOMAIN_TWO_REFERENCE: DomainOneLearningSectionReference = Obje
   }),
 });
 
+const GRADE_FOUR_DOMAIN_TWO_REFERENCE: DomainOneLearningSectionReference = Object.freeze({
+  levelId: 'lvl_p4',
+  fieldId: 'f_fundamentals' as never,
+  finalCompetency: 'يبني الحركات القاعدية التي تضمن مواجهة الموقف بما يتماشى وفضاء الممارسة.',
+  components: Object.freeze([
+    {
+      id: 'learning-section:lvl_p4:f_fundamentals:component:1',
+      title: 'يتعرف على أنماط الوثب والرمي والحركات القاعدية للجمباز وضوابطها وفضاء الممارسة.',
+    },
+    {
+      id: 'learning-section:lvl_p4:f_fundamentals:component:2',
+      title: 'يمارس أنماط الوثب والرمي والحركات القاعدية للجمباز.',
+    },
+    {
+      id: 'learning-section:lvl_p4:f_fundamentals:component:3',
+      title: 'يلتزم بأخلاقيات الممارسة.',
+    },
+  ]) as unknown as DomainOneLearningSectionReference['components'],
+  defaults: Object.freeze({
+    learningContent: 'الوثب والرمي والحركات القاعدية للجمباز والتوازن والدوران والتدحرج.',
+    pedagogicalKnowledge:
+      'الوثب برجل واحدة أو بالرجلين، الوثبات المتتالية، الرمي من الثبات والحركة، التوازن، الدوران، التدحرج والسقوط الآمن.',
+    executionContent: 'يمارس الحركة القاعدية الملائمة ويحافظ على التحكم في الجسم وفضاء الممارسة.',
+    guidance: 'احترام ضوابط الممارسة، سلامة السقوط، المجال، وأخلاقيات العمل.',
+    resources: Object.freeze([
+      'بساط',
+      'كرات',
+      'حواجز منخفضة',
+      'علامات أرضية',
+    ]) as unknown as string[],
+  }),
+});
+
 export function getDomainTwoLearningSectionReference(
   levelId: string,
   fieldId: string
@@ -98,5 +131,6 @@ export function getDomainTwoLearningSectionReference(
   if (levelId === 'lvl_p1') return GRADE_ONE_DOMAIN_TWO_REFERENCE;
   if (levelId === 'lvl_p2') return GRADE_TWO_DOMAIN_TWO_REFERENCE;
   if (levelId === 'lvl_p3') return GRADE_THREE_DOMAIN_TWO_REFERENCE;
+  if (levelId === 'lvl_p4') return GRADE_FOUR_DOMAIN_TWO_REFERENCE;
   return undefined;
 }
