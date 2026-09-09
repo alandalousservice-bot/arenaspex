@@ -145,7 +145,7 @@ describe('Learning Section objective-bank auto-fill', () => {
     expect(() =>
       generateTeacherLearningSectionStructure(
         seedTeacherLearningPlan('lvl_p5'),
-        'f_fundamentals',
+        'f_structuring',
         8,
         2,
         {

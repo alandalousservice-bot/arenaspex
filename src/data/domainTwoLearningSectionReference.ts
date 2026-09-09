@@ -123,6 +123,32 @@ const GRADE_FOUR_DOMAIN_TWO_REFERENCE: DomainOneLearningSectionReference = Objec
   }),
 });
 
+const GRADE_FIVE_DOMAIN_TWO_REFERENCE: DomainOneLearningSectionReference = Object.freeze({
+  levelId: 'lvl_p5',
+  fieldId: 'f_fundamentals' as never,
+  finalCompetency: 'ينجز حركات قاعدية متعلقة بالجري والوثب والرمي بطريقة سليمة.',
+  components: Object.freeze([
+    {
+      id: 'learning-section:lvl_p5:f_fundamentals:component:1',
+      title: 'يتعرف على الحركات القاعدية حسب وتائرها والقواعد الأمنية.',
+    },
+    {
+      id: 'learning-section:lvl_p5:f_fundamentals:component:2',
+      title: 'ينفذ الحركات القاعدية ويلتزم بالقواعد الأمنية.',
+    },
+    { id: 'learning-section:lvl_p5:f_fundamentals:component:3', title: 'يحترم القواعد الأمنية.' },
+  ]) as unknown as DomainOneLearningSectionReference['components'],
+  defaults: Object.freeze({
+    learningContent:
+      'ديناميكية الجري والوثب والرمي، والحركات القاعدية للجمباز والتوازن والدوران والتدحرج.',
+    pedagogicalKnowledge:
+      'تواتر الخطوات وتنسيق الأطراف؛ مراحل الوثب والرمي؛ التوازن والدوران والتدحرج؛ الربط بين الحركات.',
+    executionContent: 'ينفذ الحركة القاعدية بإتقان نسبي، ويضبط مراحلها ويحافظ على سلامة الممارسة.',
+    guidance: 'احترام المجال، مراحل التنفيذ، السقوط الآمن، وقواعد الممارسة.',
+    resources: Object.freeze(['كرات', 'أقماع', 'حواجز', 'بساط']) as unknown as string[],
+  }),
+});
+
 export function getDomainTwoLearningSectionReference(
   levelId: string,
   fieldId: string
@@ -132,5 +158,6 @@ export function getDomainTwoLearningSectionReference(
   if (levelId === 'lvl_p2') return GRADE_TWO_DOMAIN_TWO_REFERENCE;
   if (levelId === 'lvl_p3') return GRADE_THREE_DOMAIN_TWO_REFERENCE;
   if (levelId === 'lvl_p4') return GRADE_FOUR_DOMAIN_TWO_REFERENCE;
+  if (levelId === 'lvl_p5') return GRADE_FIVE_DOMAIN_TWO_REFERENCE;
   return undefined;
 }

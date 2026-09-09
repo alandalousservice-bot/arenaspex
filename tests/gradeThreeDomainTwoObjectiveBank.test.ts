@@ -59,8 +59,7 @@ describe('Grade 3 / Domain 2 objective bank', () => {
   it('registers G3/D2 and preserves G4/G5/domain isolation', () => {
     expect(getObjectiveBank('lvl_p3', DOMAIN)).toBe(bank);
     expect(getObjectiveBankResources('lvl_p3', DOMAIN)).toBe(resources);
-    expect(getObjectiveBank('lvl_p5', DOMAIN)).toEqual([]);
-    expect(getObjectiveBank('lvl_p5', DOMAIN)).toEqual([]);
+    expect(getObjectiveBank('lvl_p5', 'f_structuring')).toEqual([]);
     expect(getObjectiveBank('lvl_p3', 'f_structuring')).toEqual([]);
   });
 

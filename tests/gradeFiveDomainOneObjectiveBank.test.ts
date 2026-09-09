@@ -159,7 +159,7 @@ describe('Grade 5 / Domain 1 objective bank', () => {
   it('registers all five Domain 1 banks while keeping other domains unsupported', () => {
     expect(getObjectiveBank(GRADE_FIVE_LEVEL_ID, DOMAIN)).toBe(bank);
     expect(getObjectiveBankResources(GRADE_FIVE_LEVEL_ID, DOMAIN)).toBe(resources);
-    expect(getObjectiveBank('lvl_p5', 'f_fundamentals')).toEqual([]);
+    expect(getObjectiveBank('lvl_p5', 'f_fundamentals').length).toBeGreaterThan(0);
     expect(getObjectiveBank('lvl_p5', 'f_structuring')).toEqual([]);
   });
 });
