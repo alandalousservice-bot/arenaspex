@@ -1,9 +1,7 @@
 import { z } from 'zod';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../data/algerianCurriculum';
-import {
-  getDomainOneLearningSectionReference,
-  getLearningSectionComponents,
-} from '../data/domainOneLearningSectionReference';
+import { getDomainOneLearningSectionReference } from '../data/domainOneLearningSectionReference';
+import { getDomainTwoLearningSectionReference } from '../data/domainTwoLearningSectionReference';
 import {
   orderRecommendedObjectives,
   PROGRESSION_STAGE_ORDER,
@@ -18,6 +16,13 @@ import {
 import { knowledgeCoreRuntime } from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime';
 import type { KnowledgeCoreRuntime } from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime.types';
 import type { TeacherLearningPlanData } from '../types/spex';
+
+const getLearningSectionReference = (levelId: string, fieldId: string) =>
+  getDomainOneLearningSectionReference(levelId, fieldId) ||
+  getDomainTwoLearningSectionReference(levelId, fieldId);
+
+const getLearningSectionComponents = (levelId: string, fieldId: string) =>
+  getLearningSectionReference(levelId, fieldId)?.components || [];
 
 export const TEACHER_LEARNING_PLAN_KIND = 'teacher_learning_plan' as const;
 
@@ -627,7 +632,7 @@ export function seedTeacherLearningPlan(
         finalCompetency: field.finalCompetency,
       });
       const learningSessions = field.sessionsList.filter((session) => session.type === 'تعلمية');
-      const domainReference = getDomainOneLearningSectionReference(levelId, field.fieldId);
+      const domainReference = getLearningSectionReference(levelId, field.fieldId);
       const candidateCell =
         referenceRuntime.getStatus().authority === 'candidate'
           ? referenceRuntime.getGradeDomainCell(levelId, field.fieldId)
@@ -757,7 +762,7 @@ export function enrichTeacherLearningPlanFromReference(
       ...plan,
       domains: plan.domains.map((domain) => {
         const field = curriculum.fields[domain.fieldId];
-        const reference = getDomainOneLearningSectionReference(levelId, domain.fieldId);
+        const reference = getLearningSectionReference(levelId, domain.fieldId);
         if (!field || !reference) return domain;
 
         const defaults = reference.defaults;

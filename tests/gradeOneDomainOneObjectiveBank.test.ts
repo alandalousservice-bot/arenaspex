@@ -35,8 +35,8 @@ describe('Grade 1 / Domain 1 reference objective bank', () => {
     expect(new Set(bank.map((item) => item.id)).size).toBe(14);
     expect(getObjectiveBank(LEVEL, DOMAIN)).toBe(bank);
     expect(getObjectiveBank('lvl_p2', DOMAIN).length).toBeGreaterThan(0);
-    expect(getObjectiveBank('lvl_p1', 'f_fundamentals')).toEqual([]);
-    expect(getObjectiveBank(LEVEL, 'f_fundamentals')).toEqual([]);
+    expect(getObjectiveBank('lvl_p1', 'f_fundamentals').length).toBeGreaterThan(0);
+    expect(getObjectiveBank(LEVEL, 'f_fundamentals').length).toBeGreaterThan(0);
     expect(getObjectiveBank(LEVEL, 'f_structuring')).toEqual([]);
   });
 

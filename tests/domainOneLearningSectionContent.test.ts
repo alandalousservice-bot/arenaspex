@@ -31,9 +31,11 @@ describe('Domain 1 Learning Section pedagogical reference', () => {
     expect(getLearningSectionComponents('lvl_p1', 'f_fundamentals')).toEqual([]);
     expect(getLearningSectionComponents('lvl_p1', 'f_structuring')).toEqual([]);
     const plan = seedTeacherLearningPlan('lvl_p1');
-    expect(plan.domains[1].objectives[0].competencyComponentIds).toEqual([]);
+    expect(plan.domains[1].objectives[0].competencyComponentIds).toEqual([
+      'learning-section:lvl_p1:f_fundamentals:component:1',
+    ]);
     expect(plan.domains[2].objectives[0].competencyComponentIds).toEqual([]);
-    expect(plan.domains[1].diagnostic).toBeUndefined();
+    expect(plan.domains[1].diagnostic?.objective).toContain('تشخيص مستوى التحكم');
     expect(plan.domains[2].summative).toBeUndefined();
   });
 
