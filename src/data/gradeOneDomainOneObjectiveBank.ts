@@ -11,7 +11,20 @@ export interface ObjectiveBankResource {
   readonly priority: 'core' | 'supporting';
   readonly selectionWeight: number;
   readonly family:
-    'posture' | 'transition' | 'support-balance' | 'walking' | 'jogging' | 'response';
+    | 'posture'
+    | 'transition'
+    | 'support-balance'
+    | 'balance-support'
+    | 'walking'
+    | 'jogging'
+    | 'response'
+    | 'running'
+    | 'speed-control'
+    | 'adaptation'
+    | 'path-straight'
+    | 'path-zigzag'
+    | 'path-circular'
+    | 'organization';
 }
 
 export interface ObjectiveBankTransversalResource {
@@ -21,8 +34,8 @@ export interface ObjectiveBankTransversalResource {
 
 export interface ReferenceLearningObjective {
   readonly id: string;
-  readonly gradeId: typeof GRADE_ONE_LEVEL_ID;
-  readonly domainId: typeof DOMAIN_ONE_FIELD_ID;
+  readonly gradeId: string;
+  readonly domainId: string;
   readonly objectiveText: string;
   readonly competencyComponentIds: readonly string[];
   readonly curriculumResourceIds: readonly string[];
@@ -39,7 +52,12 @@ export interface ReferenceLearningObjective {
     | 'balance'
     | 'locomotion-basic'
     | 'locomotion-advanced'
-    | 'adaptation';
+    | 'adaptation'
+    | 'speed-control'
+    | 'path-straight'
+    | 'path-zigzag'
+    | 'path-circular'
+    | 'organization';
   readonly sequenceWeight: number;
 }
 
@@ -514,16 +532,18 @@ export function selectRecommendedObjectives({
   return selected;
 }
 
-export const PROGRESSION_STAGE_ORDER: Record<
-  ReferenceLearningObjective['progressionStage'],
-  number
-> = {
+export const PROGRESSION_STAGE_ORDER: Record<string, number> = {
   foundation: 1,
   transition: 2,
   balance: 3,
   'locomotion-basic': 4,
   'locomotion-advanced': 5,
   adaptation: 6,
+  'speed-control': 5,
+  'path-straight': 6,
+  'path-zigzag': 7,
+  'path-circular': 8,
+  organization: 9,
 };
 
 export function orderRecommendedObjectives(
@@ -547,12 +567,14 @@ export interface ObjectiveBankCoverage {
 export function calculateObjectiveBankCoverage(
   gradeId: string,
   domainId: string,
-  objectives: readonly { readonly curriculumResourceIds?: readonly string[] }[]
+  objectives: readonly { readonly curriculumResourceIds?: readonly string[] }[],
+  resourcesOverride?: readonly ObjectiveBankResource[]
 ): ObjectiveBankCoverage {
   const resources =
-    gradeId === GRADE_ONE_LEVEL_ID && domainId === DOMAIN_ONE_FIELD_ID
+    resourcesOverride ||
+    (gradeId === GRADE_ONE_LEVEL_ID && domainId === DOMAIN_ONE_FIELD_ID
       ? GRADE_ONE_DOMAIN_ONE_RESOURCES
-      : [];
+      : []);
   const coveredIds = new Set(
     objectives
       .flatMap((item) => item.curriculumResourceIds || [])

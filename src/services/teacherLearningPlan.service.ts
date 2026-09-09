@@ -5,13 +5,16 @@ import {
   getLearningSectionComponents,
 } from '../data/domainOneLearningSectionReference';
 import {
-  getLearningObjectiveBank,
-  getLearningObjectiveBankItem,
   orderRecommendedObjectives,
   PROGRESSION_STAGE_ORDER,
   selectRecommendedObjectives,
   type ReferenceLearningObjective,
 } from '../data/gradeOneDomainOneObjectiveBank';
+import {
+  getObjectiveBank,
+  getObjectiveBankItem,
+  getObjectiveBankResources,
+} from '../data/objectiveBankRegistry';
 import { knowledgeCoreRuntime } from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime';
 import type { KnowledgeCoreRuntime } from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime.types';
 import type { TeacherLearningPlanData } from '../types/spex';
@@ -498,14 +501,19 @@ export function generateTeacherLearningSectionStructure(
   const domain = plan.domains.find((item) => item.fieldId === fieldId);
   if (!domain) throw new Error('الميدان غير موجود في خطة الأستاذ.');
   const objectiveFillMode = options.objectiveFillMode || 'structure-only';
-  const objectiveBank = getLearningObjectiveBank(plan.levelId, fieldId);
+  const objectiveBank = getObjectiveBank(plan.levelId, fieldId);
+  const objectiveBankResources = getObjectiveBankResources(plan.levelId, fieldId);
   if (objectiveFillMode === 'bank-auto' && objectiveBank.length === 0) {
     throw new Error('لا يتوفر بنك أهداف مقترحة لهذا المستوى والميدان بعد.');
   }
   const recommendedObjectives =
     objectiveFillMode === 'bank-auto'
       ? orderRecommendedObjectives(
-          selectRecommendedObjectives({ bank: objectiveBank, requestedCount: objectiveCount })
+          selectRecommendedObjectives({
+            bank: objectiveBank,
+            resources: objectiveBankResources,
+            requestedCount: objectiveCount,
+          })
         )
       : [];
   if (
@@ -901,7 +909,7 @@ export function addTeacherLearningObjectiveFromBank(
   sourceObjectiveId: string,
   targetObjectiveId?: string
 ): TeacherLearningPlan {
-  const bankObjective = getLearningObjectiveBankItem(plan.levelId, fieldId, sourceObjectiveId);
+  const bankObjective = getObjectiveBankItem(plan.levelId, fieldId, sourceObjectiveId);
   if (!bankObjective) throw new Error('الهدف المقترح غير متاح لهذا المستوى والميدان.');
   const domain = plan.domains.find((item) => item.fieldId === fieldId);
   if (!domain) throw new Error('الميدان غير موجود في خطة الأستاذ.');
@@ -1193,7 +1201,7 @@ export function reorderTeacherLearningObjectivesAutomatically(
 ): TeacherLearningPlan {
   const domain = plan.domains.find((item) => item.fieldId === fieldId);
   if (!domain) throw new Error('الميدان غير موجود في خطة الأستاذ.');
-  const bank = getLearningObjectiveBank(plan.levelId, fieldId);
+  const bank = getObjectiveBank(plan.levelId, fieldId);
   const bankBySourceId = new Map(bank.map((objective) => [objective.id, objective]));
   const originalOrder = new Map(domain.objectives.map((objective, index) => [objective.id, index]));
   const objectives = [...domain.objectives].sort((left, right) => {

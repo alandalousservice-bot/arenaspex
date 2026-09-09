@@ -30,10 +30,8 @@ import {
   getLearningSectionComponents,
   type OfficialLearningSectionComponent,
 } from '../../data/domainOneLearningSectionReference';
-import {
-  calculateObjectiveBankCoverage,
-  getLearningObjectiveBank,
-} from '../../data/gradeOneDomainOneObjectiveBank';
+import { calculateObjectiveBankCoverage } from '../../data/gradeOneDomainOneObjectiveBank';
+import { getObjectiveBank, getObjectiveBankResources } from '../../data/objectiveBankRegistry';
 import { useTeacherLearningPlan } from '../../hooks/useTeacherLearningPlan';
 import {
   addTeacherLearningIntegration,
@@ -672,11 +670,12 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
             field.fieldId
           );
           const officialComponents = getLearningSectionComponents(selectedLevelId, field.fieldId);
-          const objectiveBank = getLearningObjectiveBank(selectedLevelId, field.fieldId);
+          const objectiveBank = getObjectiveBank(selectedLevelId, field.fieldId);
           const objectiveCoverage = calculateObjectiveBankCoverage(
             selectedLevelId,
             field.fieldId,
-            objectives
+            objectives,
+            getObjectiveBankResources(selectedLevelId, field.fieldId)
           );
           const selectedBankObjectiveIds = new Set(
             objectives.map((objective) => objective.sourceReferenceId).filter(Boolean)

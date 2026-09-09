@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   calculateObjectiveBankCoverage,
-  getLearningObjectiveBank,
   GRADE_ONE_DOMAIN_ONE_OBJECTIVE_BANK,
   GRADE_ONE_DOMAIN_ONE_RESOURCES,
   GRADE_ONE_DOMAIN_ONE_TRANSVERSAL_RESOURCES,
 } from '../src/data/gradeOneDomainOneObjectiveBank';
+import { getObjectiveBank } from '../src/data/objectiveBankRegistry';
 import { getLearningSectionComponents } from '../src/data/domainOneLearningSectionReference';
 import {
   addTeacherLearningObjective,
@@ -33,10 +33,11 @@ describe('Grade 1 / Domain 1 reference objective bank', () => {
       Array.from({ length: 14 }, (_, index) => `G1-D1-OBJ-${String(index + 1).padStart(2, '0')}`)
     );
     expect(new Set(bank.map((item) => item.id)).size).toBe(14);
-    expect(getLearningObjectiveBank(LEVEL, DOMAIN)).toBe(bank);
-    expect(getLearningObjectiveBank('lvl_p2', DOMAIN)).toEqual([]);
-    expect(getLearningObjectiveBank(LEVEL, 'f_fundamentals')).toEqual([]);
-    expect(getLearningObjectiveBank(LEVEL, 'f_structuring')).toEqual([]);
+    expect(getObjectiveBank(LEVEL, DOMAIN)).toBe(bank);
+    expect(getObjectiveBank('lvl_p2', DOMAIN).length).toBeGreaterThan(0);
+    expect(getObjectiveBank('lvl_p3', DOMAIN)).toEqual([]);
+    expect(getObjectiveBank(LEVEL, 'f_fundamentals')).toEqual([]);
+    expect(getObjectiveBank(LEVEL, 'f_structuring')).toEqual([]);
   });
 
   it('keeps every bank definition and nested relationship immutable', () => {

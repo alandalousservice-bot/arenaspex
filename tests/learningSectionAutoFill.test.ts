@@ -2,12 +2,12 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   calculateObjectiveBankCoverage,
-  getLearningObjectiveBank,
   GRADE_ONE_DOMAIN_ONE_OBJECTIVE_BANK,
   GRADE_ONE_DOMAIN_ONE_RESOURCES,
   orderRecommendedObjectives,
   selectRecommendedObjectives,
 } from '../src/data/gradeOneDomainOneObjectiveBank';
+import { getObjectiveBank } from '../src/data/objectiveBankRegistry';
 import {
   addTeacherLearningObjective,
   addTeacherLearningObjectiveFromBank,
@@ -143,13 +143,13 @@ describe('Learning Section objective-bank auto-fill', () => {
   it('rejects bank overflow and unsupported banks without fabricating objectives', () => {
     expect(() => selected(15)).toThrow('بنك الأهداف المقترحة لهذا الميدان يحتوي على 14 هدفًا فقط.');
     expect(() =>
-      generateTeacherLearningSectionStructure(seedTeacherLearningPlan('lvl_p2'), DOMAIN, 8, 2, {
+      generateTeacherLearningSectionStructure(seedTeacherLearningPlan('lvl_p3'), DOMAIN, 8, 2, {
         mode: 'replace',
         objectiveFillMode: 'bank-auto',
         allowDestructiveReplacement: true,
       })
     ).toThrow('لا يتوفر بنك أهداف مقترحة لهذا المستوى والميدان بعد.');
-    expect(getLearningObjectiveBank('lvl_p2', DOMAIN)).toEqual([]);
+    expect(getObjectiveBank('lvl_p2', DOMAIN).length).toBeGreaterThan(0);
   });
 
   it('protects populated plans from destructive bank regeneration', () => {
