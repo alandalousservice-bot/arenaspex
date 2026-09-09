@@ -41,8 +41,11 @@ import {
   addTeacherLearningObjectiveFromBank,
   deleteTeacherLearningIntegration,
   deleteTeacherLearningObjective,
+  generateTeacherLearningSectionStructure,
+  hasMeaningfulTeacherLearningSection,
   reorderTeacherLearningIntegrations,
   reorderTeacherLearningObjectives,
+  summarizeLearningSectionStructure,
   updateTeacherLearningIntegration,
   updateTeacherLearningObjectiveDetails,
   updateTeacherLearningSpecialEntry,
@@ -95,6 +98,13 @@ type NewSessionDraft = {
   type: 'تعلمية' | 'إدماجية';
   text: string;
   afterObjectiveId: string | null;
+};
+
+type SectionGeneratorDraft = {
+  fieldId: string;
+  objectiveCount: string;
+  integrationCount: string;
+  mode: 'reorganize' | 'replace';
 };
 
 type SequenceItem =
@@ -224,6 +234,8 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
   const [editingItem, setEditingItem] = useState<EditingItem | null>(null);
   const [newSessionDraft, setNewSessionDraft] = useState<NewSessionDraft | null>(null);
   const [objectiveBankFieldId, setObjectiveBankFieldId] = useState<string | null>(null);
+  const [objectiveBankTargetId, setObjectiveBankTargetId] = useState<string | null>(null);
+  const [generatorDraft, setGeneratorDraft] = useState<SectionGeneratorDraft | null>(null);
   const [situationPickerKey, setSituationPickerKey] = useState<string | null>(null);
   const [printingFieldId, setPrintingFieldId] = useState<string | null>(null);
   const printPreviewDialogRef = useRef<HTMLDivElement>(null);
@@ -365,9 +377,61 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
   const addBankObjective = (fieldId: string, sourceObjectiveId: string) => {
     if (!plan) return;
     try {
-      savePlan(addTeacherLearningObjectiveFromBank(plan, fieldId, sourceObjectiveId));
+      savePlan(
+        addTeacherLearningObjectiveFromBank(
+          plan,
+          fieldId,
+          sourceObjectiveId,
+          objectiveBankTargetId || undefined
+        )
+      );
+      setObjectiveBankTargetId(null);
     } catch (reason: unknown) {
       window.alert(reason instanceof Error ? reason.message : 'تعذر إضافة الهدف المقترح.');
+    }
+  };
+
+  const generateSection = () => {
+    if (!plan || !generatorDraft) return;
+    const objectiveCount = Number(generatorDraft.objectiveCount);
+    const integrationCount = Number(generatorDraft.integrationCount);
+    const domain = plan.domains.find((item) => item.fieldId === generatorDraft.fieldId);
+    if (!domain) return;
+    let allowDestructiveReplacement = false;
+    let allowObjectiveRemoval = false;
+    if (generatorDraft.mode === 'replace' && hasMeaningfulTeacherLearningSection(domain)) {
+      allowDestructiveReplacement = window.confirm(
+        'إنشاء هيكل جديد سيستبدل الأهداف والإدماجيات الحالية. هل تريد المتابعة؟'
+      );
+      if (!allowDestructiveReplacement) return;
+    }
+    if (
+      generatorDraft.mode === 'reorganize' &&
+      Number.isInteger(objectiveCount) &&
+      objectiveCount < domain.objectives.length
+    ) {
+      allowObjectiveRemoval = window.confirm(
+        'تقليل عدد الأهداف قد يحذف أهدافًا موجودة في نهاية المقطع. هل تريد المتابعة؟'
+      );
+      if (!allowObjectiveRemoval) return;
+    }
+    try {
+      savePlan(
+        generateTeacherLearningSectionStructure(
+          plan,
+          generatorDraft.fieldId,
+          objectiveCount,
+          integrationCount,
+          {
+            mode: generatorDraft.mode,
+            allowDestructiveReplacement,
+            allowObjectiveRemoval,
+          }
+        )
+      );
+      setGeneratorDraft(null);
+    } catch (reason: unknown) {
+      window.alert(reason instanceof Error ? reason.message : 'تعذر توليد هيكل المقطع.');
     }
   };
 
@@ -602,6 +666,20 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
           const selectedBankObjectiveIds = new Set(
             objectives.map((objective) => objective.sourceReferenceId).filter(Boolean)
           );
+          let generatorSummary: ReturnType<typeof summarizeLearningSectionStructure> | null = null;
+          let generatorValidationMessage = '';
+          if (generatorDraft?.fieldId === field.fieldId) {
+            try {
+              generatorSummary = summarizeLearningSectionStructure(
+                selectedLevelId,
+                Number(generatorDraft.objectiveCount),
+                Number(generatorDraft.integrationCount)
+              );
+            } catch (reason: unknown) {
+              generatorValidationMessage =
+                reason instanceof Error ? reason.message : 'تحقق من القيم المدخلة.';
+            }
+          }
           return (
             <section
               key={field.fieldId}
@@ -708,6 +786,26 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                   <div className="flex flex-wrap items-center gap-2 print:hidden">
                     <button
                       type="button"
+                      onClick={() => {
+                        setObjectiveBankFieldId(null);
+                        setNewSessionDraft(null);
+                        setGeneratorDraft(
+                          generatorDraft?.fieldId === field.fieldId
+                            ? null
+                            : {
+                                fieldId: field.fieldId,
+                                objectiveCount: String(objectives.length),
+                                integrationCount: String(integrationPoints.length),
+                                mode: 'reorganize',
+                              }
+                        );
+                      }}
+                      className="action-primary inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white"
+                    >
+                      <Layers className="h-3.5 w-3.5" /> إعداد المقطع
+                    </button>
+                    <button
+                      type="button"
                       onClick={(event) => openPrintPreview(event, field.fieldId)}
                       className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700"
                     >
@@ -716,11 +814,12 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                     {objectiveBank.length > 0 && (
                       <button
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
+                          setObjectiveBankTargetId(null);
                           setObjectiveBankFieldId(
                             objectiveBankFieldId === field.fieldId ? null : field.fieldId
-                          )
-                        }
+                          );
+                        }}
                         className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-bold text-emerald-800"
                       >
                         <Library className="h-3.5 w-3.5" /> اختيار من بنك الأهداف المقترحة
@@ -738,7 +837,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                           afterObjectiveId: objectives.at(-1)?.id || null,
                         });
                       }}
-                      className="action-primary inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white"
+                      className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-800"
                     >
                       <Plus className="h-3.5 w-3.5" /> إنشاء هدف خاص
                     </button>
@@ -759,6 +858,103 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                     </button>
                   </div>
                 </div>
+                {generatorDraft?.fieldId === field.fieldId && (
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-3 print:hidden">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <h5 className="text-xs font-extrabold text-blue-950">إعداد المقطع</h5>
+                        <p className="text-[10px] text-blue-800">
+                          حدّد البنية فقط، ثم اختر محتوى الأهداف أو صغه بنفسك.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="إغلاق إعداد المقطع"
+                        onClick={() => setGeneratorDraft(null)}
+                        className="rounded-lg border border-blue-200 bg-white p-1.5 text-blue-800"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      <label className="text-xs font-bold text-blue-950">
+                        عدد الأهداف التعلمية
+                        <input
+                          type="number"
+                          min={1}
+                          max={30}
+                          step={1}
+                          value={generatorDraft.objectiveCount}
+                          onChange={(event) =>
+                            setGeneratorDraft({
+                              ...generatorDraft,
+                              objectiveCount: event.target.value,
+                            })
+                          }
+                          className={`${inputClass} mt-1`}
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-blue-950">
+                        عدد الحصص الإدماجية
+                        <input
+                          type="number"
+                          min={0}
+                          max={10}
+                          step={1}
+                          value={generatorDraft.integrationCount}
+                          onChange={(event) =>
+                            setGeneratorDraft({
+                              ...generatorDraft,
+                              integrationCount: event.target.value,
+                            })
+                          }
+                          className={`${inputClass} mt-1`}
+                        />
+                      </label>
+                      <label className="text-xs font-bold text-blue-950">
+                        طريقة التوليد
+                        <select
+                          value={generatorDraft.mode}
+                          onChange={(event) =>
+                            setGeneratorDraft({
+                              ...generatorDraft,
+                              mode: event.target.value as SectionGeneratorDraft['mode'],
+                            })
+                          }
+                          className={`${inputClass} mt-1`}
+                        >
+                          <option value="reorganize">إعادة تنظيم الهيكل الحالي</option>
+                          <option value="replace">إنشاء هيكل جديد</option>
+                        </select>
+                      </label>
+                    </div>
+                    {generatorSummary ? (
+                      <div className="mt-3 rounded-xl border border-blue-100 bg-white p-2.5 text-[11px] text-slate-700">
+                        <p className="font-bold text-blue-950">
+                          {generatorSummary.objectiveCount} أهداف تعلمية ={' '}
+                          {generatorSummary.learningMeetingCount} حصة تعلمية +{' '}
+                          {generatorSummary.integrationCount} حصة إدماجية + 1 تقويم تشخيصي + 1 تقويم
+                          تحصيلي
+                        </p>
+                        <p className="mt-1 font-extrabold text-emerald-800">
+                          المجموع: {generatorSummary.totalOperationalMeetings} حصة فعلية
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-[11px] font-semibold text-rose-700">
+                        {generatorValidationMessage}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={generateSection}
+                      disabled={isSaving || !generatorSummary}
+                      className="mt-3 rounded-lg bg-blue-700 px-3 py-1.5 text-[11px] font-bold text-white disabled:bg-slate-300"
+                    >
+                      توليد المقطع
+                    </button>
+                  </div>
+                )}
                 {objectiveBankFieldId === field.fieldId && objectiveBank.length > 0 && (
                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 print:hidden">
                     <div className="flex items-center justify-between gap-2">
@@ -773,7 +969,10 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                       <button
                         type="button"
                         aria-label="إغلاق بنك الأهداف المقترحة"
-                        onClick={() => setObjectiveBankFieldId(null)}
+                        onClick={() => {
+                          setObjectiveBankFieldId(null);
+                          setObjectiveBankTargetId(null);
+                        }}
                         className="rounded-lg border border-emerald-200 bg-white p-1.5 text-emerald-800"
                       >
                         <X className="h-3.5 w-3.5" />
@@ -887,11 +1086,6 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                                     {item.item.objective}
                                   </p>
                                   <div className="mt-1 flex flex-wrap gap-2 text-[10px] text-slate-500">
-                                    {item.item.learningContent && (
-                                      <span className="max-w-full truncate">
-                                        محتوى التعلم: {item.item.learningContent}
-                                      </span>
-                                    )}
                                     <span>
                                       مركبات الكفاءة:{' '}
                                       {item.item.competencyComponentIds?.length || 0}
@@ -973,16 +1167,11 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                               <div className="min-w-0 flex-1">
                                 <p className="text-xs font-semibold leading-6 text-slate-800">
                                   {isObjective
-                                    ? item.item.text
+                                    ? item.item.text || 'هدف تعلمي غير معيّن'
                                     : item.item.objective ||
                                       'حصة إدماجية قابلة للتخصيص من طرف الأستاذ.'}
                                 </p>
                                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
-                                  {item.item.learningContent && (
-                                    <span className="max-w-full truncate">
-                                      محتوى التعلم: {item.item.learningContent}
-                                    </span>
-                                  )}
                                   <span>المواقف التربوية: {item.item.situations?.length || 0}</span>
                                   <span>
                                     مركبات الكفاءة: {item.item.competencyComponentIds?.length || 0}
@@ -990,6 +1179,20 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                                 </div>
                               </div>
                               <div className="flex shrink-0 items-center gap-1 print:hidden">
+                                {isObjective &&
+                                  item.item.isPlaceholder &&
+                                  objectiveBank.length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setObjectiveBankTargetId(item.id);
+                                        setObjectiveBankFieldId(field.fieldId);
+                                      }}
+                                      className="rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-[10px] font-bold text-emerald-800"
+                                    >
+                                      اختيار من البنك
+                                    </button>
+                                  )}
                                 <button
                                   type="button"
                                   aria-label="تعديل"

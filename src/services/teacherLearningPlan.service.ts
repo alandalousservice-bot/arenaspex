@@ -4,7 +4,10 @@ import {
   getDomainOneLearningSectionReference,
   getLearningSectionComponents,
 } from '../data/domainOneLearningSectionReference';
-import { getLearningObjectiveBankItem } from '../data/gradeOneDomainOneObjectiveBank';
+import {
+  getLearningObjectiveBankItem,
+  type ReferenceLearningObjective,
+} from '../data/gradeOneDomainOneObjectiveBank';
 import { knowledgeCoreRuntime } from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime';
 import type { KnowledgeCoreRuntime } from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime.types';
 import type { TeacherLearningPlanData } from '../types/spex';
@@ -13,8 +16,9 @@ export const TEACHER_LEARNING_PLAN_KIND = 'teacher_learning_plan' as const;
 
 const objectiveSchema = z.object({
   id: z.string().trim().min(1).max(160),
-  text: z.string().trim().min(1).max(2000),
+  text: z.string().trim().max(2000),
   orderIndex: z.number().int().positive(),
+  isPlaceholder: z.boolean().optional(),
   sourceReferenceId: z.string().trim().max(240).nullable().optional(),
   curriculumResourceIds: z.array(z.string().trim().min(1).max(240)).max(40).optional(),
   transversalResourceIds: z.array(z.string().trim().min(1).max(240)).max(20).optional(),
@@ -139,6 +143,13 @@ const createTeacherLearningPlanSchema = (preserveUnmappedComponentIds = false) =
         }
       };
       domain.objectives.forEach((objective, objectiveIndex) => {
+        if (!objective.text.trim() && !objective.isPlaceholder) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['domains', domainIndex, 'objectives', objectiveIndex, 'text'],
+            message: 'اكتب هدفاً تعليمياً صالحاً أو استخدم خانة هدف غير معيّنة.',
+          });
+        }
         if (objectiveIds.has(objective.id)) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
@@ -265,6 +276,7 @@ export function normalizeTeacherLearningPlan(
         ...objective,
         text: objective.text.trim(),
         orderIndex: index + 1,
+        isPlaceholder: Boolean(objective.isPlaceholder && !objective.text.trim()),
         curriculumResourceIds: [...new Set(objective.curriculumResourceIds || [])],
         transversalResourceIds: [...new Set(objective.transversalResourceIds || [])],
         competencyComponentIds: [...new Set(objective.competencyComponentIds || [])],
@@ -353,6 +365,205 @@ function newIntegrationId(levelId: string, fieldId: string): string {
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return `teacher-integration:${levelId}:${fieldId}:${randomId}`;
+}
+
+export const LEARNING_SECTION_GENERATOR_LIMITS = Object.freeze({
+  minimumObjectives: 1,
+  maximumObjectives: 30,
+  maximumIntegrations: 10,
+});
+
+export type LearningSectionGenerationMode = 'replace' | 'reorganize';
+
+export interface LearningSectionGeneratorSummary {
+  objectiveCount: number;
+  learningMeetingCount: number;
+  integrationCount: number;
+  diagnosticCount: 1;
+  summativeCount: 1;
+  totalOperationalMeetings: number;
+}
+
+export interface LearningSectionGenerationOptions {
+  mode: LearningSectionGenerationMode;
+  allowDestructiveReplacement?: boolean;
+  allowObjectiveRemoval?: boolean;
+}
+
+export function validateLearningSectionGeneratorCounts(
+  objectiveCount: number,
+  integrationCount: number
+): void {
+  if (!Number.isInteger(objectiveCount) || !Number.isInteger(integrationCount)) {
+    throw new Error('يجب إدخال أعداد صحيحة دون فواصل.');
+  }
+  if (
+    objectiveCount < LEARNING_SECTION_GENERATOR_LIMITS.minimumObjectives ||
+    objectiveCount > LEARNING_SECTION_GENERATOR_LIMITS.maximumObjectives
+  ) {
+    throw new Error(
+      `عدد الأهداف التعلمية يجب أن يكون بين ${LEARNING_SECTION_GENERATOR_LIMITS.minimumObjectives} و${LEARNING_SECTION_GENERATOR_LIMITS.maximumObjectives}.`
+    );
+  }
+  if (
+    integrationCount < 0 ||
+    integrationCount > LEARNING_SECTION_GENERATOR_LIMITS.maximumIntegrations
+  ) {
+    throw new Error(
+      `عدد الحصص الإدماجية يجب أن يكون بين 0 و${LEARNING_SECTION_GENERATOR_LIMITS.maximumIntegrations}.`
+    );
+  }
+  if (integrationCount > objectiveCount) {
+    throw new Error('لا يمكن أن يتجاوز عدد الحصص الإدماجية عدد الأهداف التعلمية.');
+  }
+}
+
+export function summarizeLearningSectionStructure(
+  levelId: string,
+  objectiveCount: number,
+  integrationCount: number
+): LearningSectionGeneratorSummary {
+  validateLearningSectionGeneratorCounts(objectiveCount, integrationCount);
+  const grade = Number(levelId.match(/(\d+)$/)?.[1] || 0);
+  const meetingsPerObjective = grade >= 1 && grade <= 4 ? 2 : 1;
+  const learningMeetingCount = objectiveCount * meetingsPerObjective;
+  return {
+    objectiveCount,
+    learningMeetingCount,
+    integrationCount,
+    diagnosticCount: 1,
+    summativeCount: 1,
+    totalOperationalMeetings: learningMeetingCount + integrationCount + 2,
+  };
+}
+
+export function balancedIntegrationObjectiveIndexes(
+  objectiveCount: number,
+  integrationCount: number
+): number[] {
+  validateLearningSectionGeneratorCounts(objectiveCount, integrationCount);
+  return Array.from({ length: integrationCount }, (_, index) =>
+    Math.ceil(((index + 1) * objectiveCount) / integrationCount)
+  );
+}
+
+function hasMeaningfulObjective(objective: TeacherLearningPlanDomain['objectives'][number]) {
+  return Boolean(
+    !objective.isPlaceholder ||
+    objective.text.trim() ||
+    objective.sourceReferenceId ||
+    objective.competencyComponentIds?.length ||
+    objective.curriculumResourceIds?.length ||
+    objective.transversalResourceIds?.length ||
+    objective.learningContent?.trim() ||
+    objective.executionContent?.trim() ||
+    objective.pedagogicalKnowledge?.trim() ||
+    objective.guidance?.trim() ||
+    objective.teacherNotes?.trim() ||
+    objective.situations?.length
+  );
+}
+
+export function hasMeaningfulTeacherLearningSection(domain: TeacherLearningPlanDomain): boolean {
+  return (
+    domain.objectives.some(hasMeaningfulObjective) ||
+    domain.integrationPoints.some(
+      (point) =>
+        point.objective?.trim() ||
+        point.competencyComponentIds?.length ||
+        point.learningContent?.trim() ||
+        point.executionContent?.trim() ||
+        point.pedagogicalKnowledge?.trim() ||
+        point.guidance?.trim() ||
+        point.teacherNotes?.trim() ||
+        point.situations?.length
+    )
+  );
+}
+
+export function generateTeacherLearningSectionStructure(
+  plan: TeacherLearningPlan,
+  fieldId: string,
+  objectiveCount: number,
+  integrationCount: number,
+  options: LearningSectionGenerationOptions
+): TeacherLearningPlan {
+  validateLearningSectionGeneratorCounts(objectiveCount, integrationCount);
+  const domain = plan.domains.find((item) => item.fieldId === fieldId);
+  if (!domain) throw new Error('الميدان غير موجود في خطة الأستاذ.');
+  if (
+    options.mode === 'replace' &&
+    hasMeaningfulTeacherLearningSection(domain) &&
+    !options.allowDestructiveReplacement
+  ) {
+    throw new Error('إنشاء هيكل جديد سيستبدل محتوى موجودًا ويحتاج إلى تأكيد صريح.');
+  }
+
+  const removedObjectives = domain.objectives.slice(objectiveCount);
+  if (
+    options.mode === 'reorganize' &&
+    removedObjectives.some(hasMeaningfulObjective) &&
+    !options.allowObjectiveRemoval
+  ) {
+    throw new Error('تقليل عدد الأهداف سيحذف محتوى موجودًا ويحتاج إلى تأكيد صريح.');
+  }
+
+  const placeholder = (orderIndex: number) => ({
+    id: newObjectiveId(plan.levelId, fieldId),
+    text: '',
+    orderIndex,
+    isPlaceholder: true,
+    sourceReferenceId: null,
+    competencyComponentIds: [],
+    curriculumResourceIds: [],
+    transversalResourceIds: [],
+    learningContent: '',
+    executionContent: '',
+    resources: [],
+    pedagogicalKnowledge: '',
+    guidance: '',
+    teacherNotes: '',
+    situations: [],
+  });
+  const objectives =
+    options.mode === 'replace'
+      ? Array.from({ length: objectiveCount }, (_, index) => placeholder(index + 1))
+      : [
+          ...domain.objectives.slice(0, objectiveCount),
+          ...Array.from(
+            { length: Math.max(0, objectiveCount - domain.objectives.length) },
+            (_, index) => placeholder(domain.objectives.length + index + 1)
+          ),
+        ];
+  const anchors = balancedIntegrationObjectiveIndexes(objectiveCount, integrationCount);
+  const retainedIntegrations = options.mode === 'reorganize' ? domain.integrationPoints : [];
+  const integrationPoints = anchors.map((objectiveIndex, index) => {
+    const existing = retainedIntegrations[index];
+    return {
+      ...(existing || {
+        id: newIntegrationId(plan.levelId, fieldId),
+        objective: '',
+        competencyComponentIds: [],
+        learningContent: '',
+        executionContent: '',
+        resources: [],
+        pedagogicalKnowledge: '',
+        guidance: '',
+        teacherNotes: '',
+        situations: [],
+      }),
+      afterObjectiveId: objectives[objectiveIndex - 1]?.id || null,
+      orderIndex: index + 1,
+      label: `إدماجية ${index + 1}`,
+    };
+  });
+
+  return normalizeTeacherLearningPlan({
+    ...plan,
+    domains: plan.domains.map((item) =>
+      item.fieldId === fieldId ? { ...item, objectives, integrationPoints } : item
+    ),
+  });
 }
 
 export function seedTeacherLearningPlan(
@@ -617,6 +828,7 @@ export function addTeacherLearningObjective(
                 id,
                 text: value,
                 orderIndex: domain.objectives.length + 1,
+                isPlaceholder: false,
                 sourceReferenceId: null,
               },
             ],
@@ -626,10 +838,35 @@ export function addTeacherLearningObjective(
   });
 }
 
+function teacherObjectiveFromBank(
+  id: string,
+  orderIndex: number,
+  bankObjective: ReferenceLearningObjective
+): TeacherLearningPlanDomain['objectives'][number] {
+  return {
+    id,
+    text: bankObjective.objectiveText,
+    orderIndex,
+    isPlaceholder: false,
+    sourceReferenceId: bankObjective.id,
+    competencyComponentIds: [...bankObjective.competencyComponentIds],
+    curriculumResourceIds: [...bankObjective.curriculumResourceIds],
+    transversalResourceIds: [...bankObjective.transversalResourceIds],
+    learningContent: bankObjective.learningContent,
+    pedagogicalKnowledge: bankObjective.mobilizedKnowledge,
+    executionContent: bankObjective.executionContent,
+    guidance: bankObjective.guidance,
+    resources: [],
+    situations: [],
+    teacherNotes: '',
+  };
+}
+
 export function addTeacherLearningObjectiveFromBank(
   plan: TeacherLearningPlan,
   fieldId: string,
-  sourceObjectiveId: string
+  sourceObjectiveId: string,
+  targetObjectiveId?: string
 ): TeacherLearningPlan {
   const bankObjective = getLearningObjectiveBankItem(plan.levelId, fieldId, sourceObjectiveId);
   if (!bankObjective) throw new Error('الهدف المقترح غير متاح لهذا المستوى والميدان.');
@@ -639,31 +876,34 @@ export function addTeacherLearningObjectiveFromBank(
     throw new Error('هذا الهدف مضاف إلى المقطع بالفعل.');
   }
 
+  const requestedPlaceholder = targetObjectiveId
+    ? domain.objectives.find(
+        (item) => item.id === targetObjectiveId && item.isPlaceholder && !item.text.trim()
+      )
+    : undefined;
+  const placeholder =
+    requestedPlaceholder ||
+    domain.objectives.find((item) => item.isPlaceholder && !item.text.trim());
   return normalizeTeacherLearningPlan({
     ...plan,
     domains: plan.domains.map((item) =>
       item.fieldId === fieldId
         ? {
             ...item,
-            objectives: [
-              ...item.objectives,
-              {
-                id: newObjectiveId(plan.levelId, fieldId),
-                text: bankObjective.objectiveText,
-                orderIndex: item.objectives.length + 1,
-                sourceReferenceId: bankObjective.id,
-                competencyComponentIds: [...bankObjective.competencyComponentIds],
-                curriculumResourceIds: [...bankObjective.curriculumResourceIds],
-                transversalResourceIds: [...bankObjective.transversalResourceIds],
-                learningContent: bankObjective.learningContent,
-                pedagogicalKnowledge: bankObjective.mobilizedKnowledge,
-                executionContent: bankObjective.executionContent,
-                guidance: bankObjective.guidance,
-                resources: [],
-                situations: [],
-                teacherNotes: '',
-              },
-            ],
+            objectives: placeholder
+              ? item.objectives.map((objective) =>
+                  objective.id === placeholder.id
+                    ? teacherObjectiveFromBank(objective.id, objective.orderIndex, bankObjective)
+                    : objective
+                )
+              : [
+                  ...item.objectives,
+                  teacherObjectiveFromBank(
+                    newObjectiveId(plan.levelId, fieldId),
+                    item.objectives.length + 1,
+                    bankObjective
+                  ),
+                ],
           }
         : item
     ),
@@ -685,7 +925,9 @@ export function updateTeacherLearningObjective(
         ? {
             ...domain,
             objectives: domain.objectives.map((objective) =>
-              objective.id === objectiveId ? { ...objective, text: value } : objective
+              objective.id === objectiveId
+                ? { ...objective, text: value, isPlaceholder: false }
+                : objective
             ),
           }
         : domain
@@ -749,7 +991,7 @@ export function updateTeacherLearningObjectiveDetails(
                     ...objective,
                     ...(text === undefined ? {} : { text }),
                     ...fields,
-                    ...(text === undefined ? {} : { text }),
+                    ...(text === undefined ? {} : { text, isPlaceholder: false }),
                   }
                 : objective
             ),
