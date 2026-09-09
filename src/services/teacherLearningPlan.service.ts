@@ -5,7 +5,9 @@ import {
   getLearningSectionComponents,
 } from '../data/domainOneLearningSectionReference';
 import {
+  getLearningObjectiveBank,
   getLearningObjectiveBankItem,
+  selectRecommendedObjectives,
   type ReferenceLearningObjective,
 } from '../data/gradeOneDomainOneObjectiveBank';
 import { knowledgeCoreRuntime } from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime';
@@ -374,6 +376,7 @@ export const LEARNING_SECTION_GENERATOR_LIMITS = Object.freeze({
 });
 
 export type LearningSectionGenerationMode = 'replace' | 'reorganize';
+export type LearningSectionObjectiveFillMode = 'bank-auto' | 'structure-only';
 
 export interface LearningSectionGeneratorSummary {
   objectiveCount: number;
@@ -386,6 +389,7 @@ export interface LearningSectionGeneratorSummary {
 
 export interface LearningSectionGenerationOptions {
   mode: LearningSectionGenerationMode;
+  objectiveFillMode?: LearningSectionObjectiveFillMode;
   allowDestructiveReplacement?: boolean;
   allowObjectiveRemoval?: boolean;
 }
@@ -491,6 +495,15 @@ export function generateTeacherLearningSectionStructure(
   validateLearningSectionGeneratorCounts(objectiveCount, integrationCount);
   const domain = plan.domains.find((item) => item.fieldId === fieldId);
   if (!domain) throw new Error('الميدان غير موجود في خطة الأستاذ.');
+  const objectiveFillMode = options.objectiveFillMode || 'structure-only';
+  const objectiveBank = getLearningObjectiveBank(plan.levelId, fieldId);
+  if (objectiveFillMode === 'bank-auto' && objectiveBank.length === 0) {
+    throw new Error('لا يتوفر بنك أهداف مقترحة لهذا المستوى والميدان بعد.');
+  }
+  const recommendedObjectives =
+    objectiveFillMode === 'bank-auto'
+      ? selectRecommendedObjectives({ bank: objectiveBank, requestedCount: objectiveCount })
+      : [];
   if (
     options.mode === 'replace' &&
     hasMeaningfulTeacherLearningSection(domain) &&
@@ -525,7 +538,7 @@ export function generateTeacherLearningSectionStructure(
     teacherNotes: '',
     situations: [],
   });
-  const objectives =
+  let objectives =
     options.mode === 'replace'
       ? Array.from({ length: objectiveCount }, (_, index) => placeholder(index + 1))
       : [
@@ -535,6 +548,22 @@ export function generateTeacherLearningSectionStructure(
             (_, index) => placeholder(domain.objectives.length + index + 1)
           ),
         ];
+  if (objectiveFillMode === 'bank-auto') {
+    const existingSourceIds = new Set(
+      objectives.map((objective) => objective.sourceReferenceId).filter(Boolean)
+    );
+    const availableRecommendations = recommendedObjectives.filter(
+      (objective) => !existingSourceIds.has(objective.id)
+    );
+    let recommendationIndex = 0;
+    objectives = objectives.map((objective) => {
+      if (!objective.isPlaceholder || objective.text.trim()) return objective;
+      const recommendation = availableRecommendations[recommendationIndex++];
+      return recommendation
+        ? teacherObjectiveFromBank(objective.id, objective.orderIndex, recommendation)
+        : objective;
+    });
+  }
   const anchors = balancedIntegrationObjectiveIndexes(objectiveCount, integrationCount);
   const retainedIntegrations = options.mode === 'reorganize' ? domain.integrationPoints : [];
   const integrationPoints = anchors.map((objectiveIndex, index) => {
@@ -872,18 +901,19 @@ export function addTeacherLearningObjectiveFromBank(
   if (!bankObjective) throw new Error('الهدف المقترح غير متاح لهذا المستوى والميدان.');
   const domain = plan.domains.find((item) => item.fieldId === fieldId);
   if (!domain) throw new Error('الميدان غير موجود في خطة الأستاذ.');
-  if (domain.objectives.some((item) => item.sourceReferenceId === bankObjective.id)) {
+  if (
+    domain.objectives.some(
+      (item) => item.id !== targetObjectiveId && item.sourceReferenceId === bankObjective.id
+    )
+  ) {
     throw new Error('هذا الهدف مضاف إلى المقطع بالفعل.');
   }
 
-  const requestedPlaceholder = targetObjectiveId
-    ? domain.objectives.find(
-        (item) => item.id === targetObjectiveId && item.isPlaceholder && !item.text.trim()
-      )
+  const requestedTarget = targetObjectiveId
+    ? domain.objectives.find((item) => item.id === targetObjectiveId)
     : undefined;
   const placeholder =
-    requestedPlaceholder ||
-    domain.objectives.find((item) => item.isPlaceholder && !item.text.trim());
+    requestedTarget || domain.objectives.find((item) => item.isPlaceholder && !item.text.trim());
   return normalizeTeacherLearningPlan({
     ...plan,
     domains: plan.domains.map((item) =>

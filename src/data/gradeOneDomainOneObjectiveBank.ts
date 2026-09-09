@@ -1,5 +1,4 @@
 import { deepFreeze } from '../domain/pedagogicalKnowledge/catalog';
-import type { TeacherLearningObjective } from '../types/spex';
 import { DOMAIN_ONE_FIELD_ID } from './domainOneLearningSectionReference';
 
 export const GRADE_ONE_LEVEL_ID = 'lvl_p1' as const;
@@ -9,6 +8,10 @@ export interface ObjectiveBankResource {
   readonly id: string;
   readonly label: string;
   readonly officialResourceGroupId: string;
+  readonly priority: 'core' | 'supporting';
+  readonly selectionWeight: number;
+  readonly family:
+    'posture' | 'transition' | 'support-balance' | 'walking' | 'jogging' | 'response';
 }
 
 export interface ObjectiveBankTransversalResource {
@@ -43,63 +46,117 @@ const POSTURES_GROUP = 'official-resource-group:lvl_p1:f_locomotion:1';
 const LOCOMOTION_GROUP = 'official-resource-group:lvl_p1:f_locomotion:4';
 
 export const GRADE_ONE_DOMAIN_ONE_RESOURCES: readonly ObjectiveBankResource[] = deepFreeze([
-  { id: resourceId('standing'), label: 'وضعيات الوقوف', officialResourceGroupId: POSTURES_GROUP },
-  { id: resourceId('sitting'), label: 'وضعيات الجلوس', officialResourceGroupId: POSTURES_GROUP },
+  {
+    id: resourceId('standing'),
+    label: 'وضعيات الوقوف',
+    officialResourceGroupId: POSTURES_GROUP,
+    priority: 'core',
+    selectionWeight: 100,
+    family: 'posture',
+  },
+  {
+    id: resourceId('sitting'),
+    label: 'وضعيات الجلوس',
+    officialResourceGroupId: POSTURES_GROUP,
+    priority: 'core',
+    selectionWeight: 100,
+    family: 'posture',
+  },
   {
     id: resourceId('standing-sitting-transition'),
     label: 'التحول بين الوقوف والجلوس',
     officialResourceGroupId: POSTURES_GROUP,
+    priority: 'core',
+    selectionWeight: 110,
+    family: 'transition',
   },
-  { id: resourceId('prone'), label: 'الانبطاح', officialResourceGroupId: POSTURES_GROUP },
+  {
+    id: resourceId('prone'),
+    label: 'الانبطاح',
+    officialResourceGroupId: POSTURES_GROUP,
+    priority: 'supporting',
+    selectionWeight: 65,
+    family: 'support-balance',
+  },
   {
     id: resourceId('all-fours'),
     label: 'الانتصاب على أربع',
     officialResourceGroupId: POSTURES_GROUP,
+    priority: 'core',
+    selectionWeight: 90,
+    family: 'support-balance',
   },
   {
     id: resourceId('reverse-all-fours'),
     label: 'الانتصاب على أربع المعكوس',
     officialResourceGroupId: POSTURES_GROUP,
+    priority: 'supporting',
+    selectionWeight: 60,
+    family: 'support-balance',
   },
   {
     id: resourceId('single-leg-stance'),
     label: 'الوقوف على رجل واحدة',
     officialResourceGroupId: POSTURES_GROUP,
+    priority: 'core',
+    selectionWeight: 95,
+    family: 'support-balance',
   },
   {
     id: resourceId('kneeling'),
     label: 'الارتكاز على الركبتين',
     officialResourceGroupId: POSTURES_GROUP,
+    priority: 'supporting',
+    selectionWeight: 60,
+    family: 'support-balance',
   },
   {
     id: resourceId('individual-walking'),
     label: 'المشي الفردي',
     officialResourceGroupId: LOCOMOTION_GROUP,
+    priority: 'core',
+    selectionWeight: 110,
+    family: 'walking',
   },
   {
     id: resourceId('active-walking'),
     label: 'المشي النشيط',
     officialResourceGroupId: LOCOMOTION_GROUP,
+    priority: 'supporting',
+    selectionWeight: 80,
+    family: 'walking',
   },
   {
     id: resourceId('paired-walking'),
     label: 'المشي الثنائي',
     officialResourceGroupId: LOCOMOTION_GROUP,
+    priority: 'supporting',
+    selectionWeight: 50,
+    family: 'walking',
   },
   {
     id: resourceId('individual-jogging'),
     label: 'الهرولة الفردية',
     officialResourceGroupId: LOCOMOTION_GROUP,
+    priority: 'core',
+    selectionWeight: 110,
+    family: 'jogging',
   },
   {
     id: resourceId('paired-jogging'),
     label: 'الهرولة الثنائية',
     officialResourceGroupId: LOCOMOTION_GROUP,
+    priority: 'supporting',
+    selectionWeight: 50,
+    family: 'jogging',
   },
   {
     id: resourceId('posture-response'),
     label: 'الانتقال والاستجابة حسب الموقف',
     officialResourceGroupId: POSTURES_GROUP,
+    priority: 'core',
+    selectionWeight: 90,
+    family: 'response',
   },
 ]);
 
@@ -348,6 +405,88 @@ export function getLearningObjectiveBankItem(
   return getLearningObjectiveBank(gradeId, domainId).find((item) => item.id === objectiveId);
 }
 
+export interface RecommendedObjectiveSelectionInput {
+  readonly bank: readonly ReferenceLearningObjective[];
+  readonly requestedCount: number;
+  readonly resources?: readonly ObjectiveBankResource[];
+}
+
+export function selectRecommendedObjectives({
+  bank,
+  requestedCount,
+  resources = GRADE_ONE_DOMAIN_ONE_RESOURCES,
+}: RecommendedObjectiveSelectionInput): readonly ReferenceLearningObjective[] {
+  if (!Number.isInteger(requestedCount) || requestedCount < 1) {
+    throw new Error('عدد الأهداف المطلوب يجب أن يكون عددًا صحيحًا موجبًا.');
+  }
+  if (requestedCount > bank.length) {
+    throw new Error(`بنك الأهداف المقترحة لهذا الميدان يحتوي على ${bank.length} هدفًا فقط.`);
+  }
+
+  const resourceById = new Map(resources.map((resource) => [resource.id, resource]));
+  const selected: ReferenceLearningObjective[] = [];
+  const coveredResources = new Set<string>();
+  const coveredFamilies = new Set<string>();
+  const coveredTransversalResources = new Set<string>();
+  const bankOrder = new Map(bank.map((objective, index) => [objective.id, index]));
+
+  while (selected.length < requestedCount) {
+    const remaining = bank.filter(
+      (objective) => !selected.some((item) => item.id === objective.id)
+    );
+    remaining.sort((left, right) => {
+      const score = (objective: ReferenceLearningObjective) => {
+        const uncovered = objective.curriculumResourceIds.filter(
+          (resourceId) => !coveredResources.has(resourceId)
+        );
+        const uncoveredMetadata = uncovered
+          .map((resourceId) => resourceById.get(resourceId))
+          .filter((resource): resource is ObjectiveBankResource => Boolean(resource));
+        return {
+          distinctCoverage: uncovered.length,
+          resourceWeight: uncoveredMetadata.reduce(
+            (total, resource) => total + resource.selectionWeight,
+            0
+          ),
+          coreCoverage: uncoveredMetadata.filter((resource) => resource.priority === 'core').length,
+          familyCoverage: new Set(
+            uncoveredMetadata
+              .filter((resource) => !coveredFamilies.has(resource.family))
+              .map((resource) => resource.family)
+          ).size,
+          transversalCoverage: objective.transversalResourceIds.filter(
+            (resourceId) => !coveredTransversalResources.has(resourceId)
+          ).length,
+        };
+      };
+      const leftScore = score(left);
+      const rightScore = score(right);
+      return (
+        rightScore.distinctCoverage - leftScore.distinctCoverage ||
+        rightScore.coreCoverage - leftScore.coreCoverage ||
+        rightScore.resourceWeight - leftScore.resourceWeight ||
+        rightScore.familyCoverage - leftScore.familyCoverage ||
+        rightScore.transversalCoverage - leftScore.transversalCoverage ||
+        (bankOrder.get(left.id) || 0) - (bankOrder.get(right.id) || 0)
+      );
+    });
+    const chosen = remaining[0];
+    selected.push(chosen);
+    chosen.curriculumResourceIds.forEach((resourceId) => {
+      coveredResources.add(resourceId);
+      const family = resourceById.get(resourceId)?.family;
+      if (family) coveredFamilies.add(family);
+    });
+    chosen.transversalResourceIds.forEach((resourceId) =>
+      coveredTransversalResources.add(resourceId)
+    );
+  }
+
+  return selected.sort(
+    (left, right) => (bankOrder.get(left.id) || 0) - (bankOrder.get(right.id) || 0)
+  );
+}
+
 export interface ObjectiveBankCoverage {
   readonly total: number;
   readonly covered: readonly ObjectiveBankResource[];
@@ -357,7 +496,7 @@ export interface ObjectiveBankCoverage {
 export function calculateObjectiveBankCoverage(
   gradeId: string,
   domainId: string,
-  objectives: readonly Pick<TeacherLearningObjective, 'curriculumResourceIds'>[]
+  objectives: readonly { readonly curriculumResourceIds?: readonly string[] }[]
 ): ObjectiveBankCoverage {
   const resources =
     gradeId === GRADE_ONE_LEVEL_ID && domainId === DOMAIN_ONE_FIELD_ID

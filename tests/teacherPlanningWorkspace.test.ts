@@ -165,7 +165,7 @@ describe('unified Teacher planning workspace', () => {
     expect(segments).toContain('title="تحريك لأسفل"');
     expect(segments).toContain('تقويم تشخيصي');
     expect(segments).toContain('تقويم تحصيلي');
-    expect(segments).toContain('حصة تعلمية ${index + 1}');
+    expect(segments).toContain('الهدف التعلمي ${index + 1}');
     expect(printCss).toContain('size: A4 portrait');
     expect(printCss).toContain('-webkit-print-color-adjust: exact');
     expect(printCss).toContain('page-break-inside: avoid');
