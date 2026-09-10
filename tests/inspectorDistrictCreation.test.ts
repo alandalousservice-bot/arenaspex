@@ -6,13 +6,15 @@ const settings = readFileSync('src/components/settings/SettingsView.tsx', 'utf8'
 
 describe('inspector missing-district creation', () => {
   it('uses an Inspector/Admin-only server endpoint with geographic validation', () => {
-    expect(router).toContain("assignmentRouter.post('/inspector/districts'");
+    expect(router).toContain("'/inspector/districts'");
     expect(router).toContain("requireRole('inspector', 'admin')");
     expect(router).toContain('لا يمكنك إنشاء مقاطعة خارج مديريتك.');
-    expect(router).toContain('data: { name, directorateId, districtNumber }');
+    expect(router).toContain('tx.inspectionDistrict.create({');
+    expect(router).toContain('data: { name, directorateId, districtNumber },');
     expect(router).toContain('eduDistrictId: created.id');
     expect(router).toContain('districtId: created.id');
     expect(router).toContain('districtNumber');
+    expect(router).toContain('res.status(201).json({ success: true, district })');
   });
 
   it('keeps creation in the Inspector settings flow and does not use Setif fallback', () => {
