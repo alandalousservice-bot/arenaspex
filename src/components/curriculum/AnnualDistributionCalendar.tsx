@@ -129,6 +129,20 @@ function formatISODate(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
 }
 
+export function annualDistributionWeekDateRange(
+  planningStartDate: string,
+  weekIndex: number,
+  academicYearId?: string
+): string {
+  const start = annualDistributionWeekStart(planningStartDate, weekIndex, academicYearId);
+  const end = formatISODate(addUtcDays(new Date(`${start}T00:00:00Z`), 4));
+  const formatDisplayDate = (value: string) => {
+    const [year, month, day] = value.split('-');
+    return `${day}/${month}/${year}`;
+  };
+  return `${formatDisplayDate(start)} - ${formatDisplayDate(end)}`;
+}
+
 export function annualDistributionWeekTypeLabel(week: TeacherAnnualDistributionWeek): string {
   const labels: string[] = [];
   for (let index = 0; index < week.slots.length; index += 1) {
@@ -197,7 +211,13 @@ function AnnualDistributionTable({
               key={`${row.week.weekIndex}-${firstSlot?.referenceSessionId}`}
               className="align-top"
             >
-              <td className="p-3 font-extrabold text-slate-800">الأسبوع {row.week.weekIndex}</td>
+              <td className="p-3 font-extrabold text-slate-800">
+                {annualDistributionWeekDateRange(
+                  planningStartDate,
+                  row.week.weekIndex,
+                  academicYearId
+                )}
+              </td>
               <td className="p-3">
                 <span className={`rounded-lg px-2 py-1 font-bold ${typeTone(firstSlot)}`}>
                   {annualDistributionWeekTypeLabel(row.week)}

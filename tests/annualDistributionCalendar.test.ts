@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   annualDistributionMeetingLabel,
+  annualDistributionWeekDateRange,
   annualDistributionWeekFieldLabel,
   annualDistributionWeekTypeLabel,
   buildAnnualDistributionRows,
@@ -23,14 +24,23 @@ describe('weekly level-based annual distribution', () => {
     expect(source).not.toContain('التعلمات / الهدف');
     expect(source).not.toContain('لقاءان: 1/2 و 2/2');
     expect(source).toContain('(أ - ب)');
-    expect(source).not.toContain('الفترة / التاريخ');
-    expect(source).not.toContain('الأحد إلى الخميس');
-    expect(source).not.toContain('تاريخ الحصة');
+    expect(source).toContain('annualDistributionWeekDateRange');
+    expect(source).toContain('planningStartDate');
+    expect(source).toContain('academicYearId');
     expect(source).not.toContain('classPlannedSessionId');
     expect(source).not.toContain('selectedClass');
     expect(source).not.toContain('onUpdateDate');
     expect(source).not.toContain('BookOpen');
     expect(source).not.toContain('NotebookPen');
+  });
+
+  it('renders each pedagogical week as a Sunday-to-Thursday date range', () => {
+    expect(annualDistributionWeekDateRange('2026-09-21', 1, '2026-2027')).toBe(
+      '20/09/2026 - 24/09/2026'
+    );
+    expect(annualDistributionWeekDateRange('2026-09-21', 2, '2026-2027')).toBe(
+      '27/09/2026 - 01/10/2026'
+    );
   });
 
   it('creates one distribution per level and an intro week marker', () => {
@@ -138,10 +148,12 @@ describe('weekly level-based annual distribution', () => {
     expect(firstFieldWeek?.pedagogicalUnits[1].meetingCount).toBe(2);
   });
 
-  it('uses a pedagogical week identifier instead of operational dates', () => {
+  it('uses the planning calendar date range for each pedagogical week', () => {
     const source = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
-    expect(source).toContain('الأسبوع {row.week.weekIndex}');
-    expect(source).not.toContain('annualDistributionWeekDateRange');
+    expect(source).toContain('annualDistributionWeekDateRange');
+    expect(annualDistributionWeekDateRange('2026-09-21', 1, '2026-2027')).toBe(
+      '20/09/2026 - 24/09/2026'
+    );
   });
 
   it('uses pedagogical A/B labels without numerical meeting fractions', () => {
