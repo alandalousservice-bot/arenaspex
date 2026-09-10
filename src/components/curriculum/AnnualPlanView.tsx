@@ -18,7 +18,7 @@ import {
 } from '../../data/annualPlanReference';
 import type { User } from '../../types/spex';
 import { useCurriculumOverrides } from '../../hooks/useCurriculumOverrides';
-import { fetchAnnualPlans } from '../../services/api';
+import { fetchAnnualPlans, fetchTeacherLearningPlan } from '../../services/api';
 import { formatAcademicYearLabel, getCurrentAcademicYear } from '../../services/academicYear';
 import { AnnualPlanOfficialTable, type AnnualPlanEditValues } from './AnnualPlanOfficialTable';
 import { AnnualPlanPrintDocument } from './AnnualPlanPrintDocument';
@@ -32,6 +32,8 @@ import {
   resolveAnnualPlanReferenceReadModel,
   resolveAnnualPlanTeacherValue,
 } from '../../services/annualPlanReferenceReadModel';
+import { buildAnnualPlanExecutionSummary } from '../../lib/annualPlanExecutionSummary';
+import type { TeacherLearningPlanData } from '../../types/spex';
 
 interface AnnualPlanViewProps {
   currentUser: User;
@@ -89,6 +91,8 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editValues, setEditValues] = useState<AnnualPlanEditValues | null>(null);
   const [autoDetected, setAutoDetected] = useState(false);
+  const [teacherPlan, setTeacherPlan] = useState<TeacherLearningPlanData | null>(null);
+  const [teacherPlanInitialized, setTeacherPlanInitialized] = useState(false);
   const { record, values, isLoading, isSaving, saveAll, clearAll, restoreOriginal, reload } =
     useCurriculumOverrides({
       currentUser,
@@ -160,6 +164,15 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
       })
       .catch(() => setAutoDetected(true));
   }, [autoDetected, currentUser.id, currentUser.role, academicYearId]);
+  useEffect(() => {
+    if (currentUser.role !== 'teacher') return;
+    setTeacherPlan(null);
+    setTeacherPlanInitialized(false);
+    void fetchTeacherLearningPlan(selectedLevelId, academicYearId).then((result) => {
+      setTeacherPlan(result.plan || null);
+      setTeacherPlanInitialized(result.initialized !== false);
+    });
+  }, [academicYearId, currentUser.role, selectedLevelId]);
   const startEdit = () => {
     setEditValues(buildEditValues(referenceLevel, displayValue));
     setIsEditing(true);
@@ -340,6 +353,52 @@ export const AnnualPlanView: React.FC<AnnualPlanViewProps> = ({
           isEditing={isEditing}
           onDomainChange={updateDomain}
         />
+        {teacherPlanInitialized && teacherPlan && (
+          <section
+            className="annual-plan-execution-summary rounded-2xl border border-blue-200 bg-blue-50 p-4 print:hidden"
+            aria-label="الملخص التنفيذي المخطط"
+          >
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-black text-slate-900">ملخص التنفيذ المخطط</h2>
+                <p className="mt-1 text-xs text-slate-600">
+                  يُحسب من المقطع التعلمي الذي أعدّه الأستاذ، ولا يغيّر الحجم الساعي المرجعي.
+                </p>
+              </div>
+              <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-blue-700">
+                قراءة فقط
+              </span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {teacherPlan.domains.map((teacherDomain) => {
+                const summary = buildAnnualPlanExecutionSummary(selectedLevelId, teacherDomain);
+                const referenceDomain = presentation.domains.find(
+                  (item) => item.domainId === teacherDomain.fieldId
+                );
+                return (
+                  <div
+                    key={teacherDomain.fieldId}
+                    className="rounded-xl border border-blue-100 bg-white p-3 text-xs"
+                  >
+                    <p className="font-black text-slate-800">
+                      {referenceDomain?.domainLabel || teacherDomain.fieldId}
+                    </p>
+                    <p className="mt-2 text-slate-600">
+                      الحجم الساعي المرجعي:{' '}
+                      <strong>{referenceDomain?.allocatedHours ?? '—'} ساعة</strong>
+                    </p>
+                    <p className="text-slate-600">
+                      اللقاءات المخططة: <strong>{summary.plannedMeetingCount}</strong>
+                    </p>
+                    <p className="text-slate-600">
+                      الحجم التنفيذي المخطط: <strong>{summary.plannedExecutionHours} ساعة</strong>
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
         {isCleared && !isEditing && (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900 print:hidden">
             هذا المخطط مفرغ كتخصيص صالح. يمكنك استعادة النص المرجعي أو كتابة صياغة جديدة.
