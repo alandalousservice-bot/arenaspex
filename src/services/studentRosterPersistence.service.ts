@@ -43,7 +43,7 @@ export async function persistStudentRosterRows(
   const matricules = input.rows.map((row) => row.matricule);
   const existingStudents = matricules.length
     ? await tx.student.findMany({
-        where: { matricule: { in: matricules } },
+        where: { teacherId: input.teacherId, matricule: { in: matricules } },
         select: {
           id: true,
           teacherId: true,
@@ -78,23 +78,16 @@ export async function persistStudentRosterRows(
   for (const row of input.rows) {
     const allCandidates = existingByMatricule.get(row.matricule) || [];
     const candidates = allCandidates.filter(
-      (student) => student.institutionId === input.institutionId
+      (student) =>
+        student.teacherId === input.teacherId && student.institutionId === input.institutionId
     );
-    if (!candidates.length && allCandidates.length) {
-      reviewReasonCounts.institutionMismatch += 1;
-      continue;
-    }
     if (candidates.length > 1) {
       reviewReasonCounts.ambiguousMatch += 1;
       continue;
     }
-    const current = candidates.find((student) => student.teacherId === input.teacherId);
+    const current = candidates[0];
     if (!current) {
-      // A matricule already owned by another teacher is not a new student:
-      // report it for review instead of violating ownership or a unique key.
-      if (candidates.length) {
-        reviewReasonCounts.foreignOwner += 1;
-      } else missingRows.push(row);
+      missingRows.push(row);
       continue;
     }
     if (current.firstName !== row.firstName || current.lastName !== row.lastName) {

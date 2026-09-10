@@ -192,7 +192,7 @@ describe('existing student class reconciliation', () => {
     expect(students[0].classId).toBe('class-b');
   });
 
-  it('does not modify another teacher student and reports an ownership conflict', async () => {
+  it('allows another teacher to own the same matricule independently', async () => {
     const students = [
       existingStudent('student-1', '1001', 'محمد', 'بن علي', 'other-class', 'teacher-b'),
     ];
@@ -201,12 +201,12 @@ describe('existing student class reconciliation', () => {
       input([row('1001', 'محمد', 'بن علي')])
     );
 
-    expect(summary).toMatchObject({ created: 0, existing: 0, reassociated: 0, conflicts: 1 });
-    expect(summary.reviewReasonCounts).toMatchObject({ foreignOwner: 1 });
+    expect(summary).toMatchObject({ created: 1, existing: 0, conflicts: 0 });
+    expect(summary.reviewReasonCounts).toMatchObject({ foreignOwner: 0 });
     expect(students[0].classId).toBe('other-class');
   });
 
-  it('classifies a 152-like foreign-owner batch without exposing identities', async () => {
+  it('imports a same-matricule batch for a different teacher without exposing identities', async () => {
     const students = Array.from({ length: 152 }, (_, index) =>
       existingStudent(
         `student-${index}`,
@@ -222,9 +222,9 @@ describe('existing student class reconciliation', () => {
       input(students.map((student) => row(student.matricule, student.firstName, student.lastName)))
     );
 
-    expect(summary).toMatchObject({ created: 0, existing: 0, reassociated: 0, conflicts: 152 });
+    expect(summary).toMatchObject({ created: 152, existing: 0, conflicts: 0 });
     expect(summary.reviewReasonCounts).toEqual({
-      foreignOwner: 152,
+      foreignOwner: 0,
       ambiguousMatch: 0,
       duplicateWorkbookMembership: 0,
       invalidIdentity: 0,
@@ -240,7 +240,7 @@ describe('existing student class reconciliation', () => {
     expect(readFileSync('src/server/apiRouter.ts', 'utf8')).toContain('teacherId: req.user!.id');
   });
 
-  it('does not claim a matching matricule from another institution', async () => {
+  it('allows the same teacher to use the matricule in another institution', async () => {
     const students = [existingStudent('student-1', '1001', 'محمد', 'بن علي', 'other-class')];
     students[0].institutionId = 'institution-2';
     const summary = await persistStudentRosterRows(
@@ -248,8 +248,8 @@ describe('existing student class reconciliation', () => {
       input([row('1001', 'محمد', 'بن علي')])
     );
 
-    expect(summary).toMatchObject({ created: 0, existing: 0, reassociated: 0, conflicts: 1 });
-    expect(summary.reviewReasonCounts.institutionMismatch).toBe(1);
+    expect(summary).toMatchObject({ created: 1, existing: 0, conflicts: 0 });
+    expect(summary.reviewReasonCounts.institutionMismatch).toBe(0);
     expect(students[0].classId).toBe('other-class');
   });
 

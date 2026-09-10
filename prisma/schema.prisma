@@ -108,7 +108,7 @@ model Student {
   attendanceRecords StudentAttendance[]
   medicalExemptions MedicalExemption[]
 
-  @@unique([institutionId, matricule])
+  @@unique([teacherId, matricule])
   @@index([teacherId, classId])
   @@index([institutionId])
 }
