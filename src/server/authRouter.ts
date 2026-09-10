@@ -41,7 +41,7 @@ const registerSchema = z.object({
   municipality: z.string().optional(),
   phone: z.string().optional(),
   // PART A: هيكلية جغرافية وطنية + تسجيل بالقوائم المتراكبة
-  eduDirectorateId: z.string().trim().optional(),
+  eduDirectorateId: z.string().trim().min(1, 'يجب اختيار مديرية التربية'),
   eduDistrictId: z.string().trim().optional(),
   eduSchoolId: z.string().trim().optional(),
   municipalityId: z.string().trim().optional(),
@@ -94,6 +94,45 @@ authRouter.post('/register', async (req, res) => {
   const normalizedLegacyDir = normalizedEduDir || '';
 
   try {
+    const directorate = normalizedEduDir
+      ? await prisma.directorate.findUnique({ where: { id: normalizedEduDir } })
+      : null;
+    if (!directorate) {
+      return res.status(400).json({ error: 'مديرية التربية المحددة غير موجودة.' });
+    }
+
+    const [district, municipalityRecord, school] = await Promise.all([
+      eduDistrictId
+        ? prisma.inspectionDistrict.findUnique({ where: { id: eduDistrictId } })
+        : Promise.resolve(null),
+      municipalityId
+        ? prisma.municipality.findUnique({ where: { id: municipalityId } })
+        : Promise.resolve(null),
+      eduSchoolId
+        ? prisma.school.findUnique({ where: { id: eduSchoolId } })
+        : Promise.resolve(null),
+    ]);
+    if (eduDistrictId && !district) {
+      return res.status(400).json({ error: 'المقاطعة التفتيشية المحددة غير موجودة.' });
+    }
+    if (district && district.directorateId !== directorate.id) {
+      return res
+        .status(400)
+        .json({ error: 'المقاطعة التفتيشية المحددة لا تتبع مديرية التربية المختارة.' });
+    }
+    if (
+      municipalityId &&
+      (!municipalityRecord || municipalityRecord.directorateId !== directorate.id)
+    ) {
+      return res.status(400).json({ error: 'البلدية المحددة لا تتبع مديرية التربية المختارة.' });
+    }
+    if (eduSchoolId && !school) {
+      return res.status(400).json({ error: 'المؤسسة التعليمية المحددة غير موجودة.' });
+    }
+    if (school && (!municipalityRecord || school.municipalityId !== municipalityRecord.id)) {
+      return res.status(400).json({ error: 'المؤسسة التعليمية لا تتبع البلدية المختارة.' });
+    }
+
     const user = await prisma.user.create({
       data: {
         id: userId,
@@ -112,8 +151,8 @@ authRouter.post('/register', async (req, res) => {
         institutionId: eduSchoolId || null,
         municipalityId: municipalityId || null,
         eduDirectorateId: normalizedEduDir,
-        eduDistrictId: null,
-        eduSchoolId: null,
+        eduDistrictId: eduDistrictId || null,
+        eduSchoolId: eduSchoolId || null,
         specialization: 'أستاذ التربية البدنية والرياضية - الطور الابتدائي',
         yearsExperience: null,
         status: 'pending_approval',
@@ -154,12 +193,10 @@ authRouter.post('/login', async (req, res) => {
   }
 
   if (portal === 'admin' && user.role !== 'admin') {
-    return res
-      .status(403)
-      .json({
-        error: 'هذا الحساب غير مخول للدخول إلى إدارة المنظومة.',
-        code: 'AUTH_PORTAL_MISMATCH',
-      });
+    return res.status(403).json({
+      error: 'هذا الحساب غير مخول للدخول إلى إدارة المنظومة.',
+      code: 'AUTH_PORTAL_MISMATCH',
+    });
   }
   if (portal === 'professional' && user.role === 'admin') {
     return res
