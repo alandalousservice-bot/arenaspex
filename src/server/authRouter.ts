@@ -35,7 +35,7 @@ const registerSchema = z.object({
   lastName: z.string().trim().min(2, 'اللقب يجب أن يكون حرفين على الأقل'),
   email: z.string().trim().email('يرجى إدخال بريد إلكتروني صحيح'),
   password: z.string().min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
-  // Public registration is always a pending Teacher; Inspector provisioning is Admin-only.
+  // Public registration creates a pending pedagogical account; Admin remains separate.
   role: z.enum(['teacher', 'inspector']).optional().default('teacher'),
   schoolName: z.string().optional(),
   municipality: z.string().optional(),
@@ -75,7 +75,7 @@ authRouter.post('/register', async (req, res) => {
     eduSchoolId,
     municipalityId,
   } = parsed.data;
-  const role = 'teacher';
+  const role = requestedRole === 'inspector' ? 'inspector' : 'teacher';
   const lowerEmail = email.toLowerCase();
 
   const existingUser = await prisma.user.findUnique({ where: { email: lowerEmail } });

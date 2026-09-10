@@ -74,7 +74,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [resetDone, setResetDone] = useState(false);
-  const canRegister = selectedRole === 'teacher';
+  const canRegister = selectedRole === 'teacher' || selectedRole === 'inspector';
 
   useEffect(() => {
     if (!canRegister && activeForm === 'register') setActiveForm('login');
@@ -199,7 +199,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
       lastName: lastName.trim(),
       email: email.trim(),
       password,
-      role: 'teacher',
+      role: selectedRole,
       schoolName:
         schoolName.trim() ||
         (eduSchoolId ? geoSchools.find((s) => s.id === eduSchoolId)?.name : '') ||
@@ -501,8 +501,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
         {activeForm === 'register' && (
           <form onSubmit={handleRegister} className="space-y-3.5">
             <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-300 text-[11px] leading-relaxed">
-              <span className="font-extrabold text-white">📌 تلميح التسجيل:</span> اختر مديريتك ثم
-              مقاطعتك (اختيارية) ثم بلديتك ثم مدرستك — أو اكتبها يدوياً عند فراغ القوائم.
+              <span className="font-extrabold text-white">📌 تلميح التسجيل:</span> أدخل معلوماتك
+              الشخصية، ثم اختر مديريتك ومقاطعتك وبيانات مؤسستك من القوائم المتاحة.
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">

@@ -13,9 +13,11 @@ describe('public auth portal policy', () => {
     expect(authScreen).not.toMatch(/<option[^>]+value=["']admin["'][^>]*>[^<]*(إنشاء|تسجيل)/);
   });
 
-  it('forces public registration and unknown Google accounts to pending teachers', () => {
+  it('keeps public registration limited to pending pedagogical roles', () => {
     expect(authRouter).toContain("z.enum(['teacher', 'inspector'])");
-    expect(authRouter).toContain("const role = 'teacher';");
+    expect(authRouter).toContain(
+      "const role = requestedRole === 'inspector' ? 'inspector' : 'teacher';"
+    );
     expect(authRouter).toContain("const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher'])");
     expect(authRouter).toContain("status: 'pending_approval'");
     expect(authRouter).toContain('eduDirectorateId: z.string().trim().min(1');
