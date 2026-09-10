@@ -2,6 +2,7 @@ import {
   GRADE_ONE_DOMAIN_THREE_LEARNING_SECTION_REFERENCE,
   GRADE_TWO_DOMAIN_THREE_LEARNING_SECTION_REFERENCE,
   GRADE_THREE_DOMAIN_THREE_LEARNING_SECTION_REFERENCE,
+  GRADE_FOUR_DOMAIN_THREE_LEARNING_SECTION_REFERENCE,
 } from './domainThreeLearningSectionReference';
 
 export const DOMAIN_ONE_FIELD_ID = 'f_locomotion' as const;
@@ -168,6 +169,9 @@ export function getLearningSectionComponents(levelId: string, fieldId: string) {
     }
     if (levelId === 'lvl_p3') {
       return GRADE_THREE_DOMAIN_THREE_LEARNING_SECTION_REFERENCE.components as unknown as OfficialLearningSectionComponent[];
+    }
+    if (levelId === 'lvl_p4') {
+      return GRADE_FOUR_DOMAIN_THREE_LEARNING_SECTION_REFERENCE.components as unknown as OfficialLearningSectionComponent[];
     }
     return [];
   }

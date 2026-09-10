@@ -108,3 +108,36 @@ export const GRADE_THREE_DOMAIN_THREE_LEARNING_SECTION_REFERENCE = Object.freeze
     ]),
   }),
 });
+
+export const GRADE_FOUR_DOMAIN_THREE_LEARNING_SECTION_REFERENCE = Object.freeze({
+  levelId: 'lvl_p4',
+  fieldId: DOMAIN_THREE_FIELD_ID as never,
+  finalCompetency: 'يبني الحركات القاعدية التي تضمن مواجهة الموقف بما يتماشى وفضاء الممارسة.',
+  components: Object.freeze([
+    {
+      id: 'learning-section:lvl_p4:f_structuring:component:1',
+      title: 'يجند معارفه وقدرات جسمه للتنقل والرمي والوثب بما يتناسب وفضاء الممارسة.',
+    },
+    {
+      id: 'learning-section:lvl_p4:f_structuring:component:2',
+      title: 'يستغل الفضاء المتاح للتنقل والرمي والوثب.',
+    },
+    {
+      id: 'learning-section:lvl_p4:f_structuring:component:3',
+      title: 'يحترم ضوابط الممارسة في الفضاء المتاح.',
+    },
+  ]),
+  defaults: Object.freeze({
+    learningContent: 'تنظيم التنقل والرمي والوثب وفق الفضاء المتاح وانتشار الآخرين.',
+    pedagogicalKnowledge:
+      'علاقة التنقل بالفضاء المتاح؛ المسافات والأبعاد والمجالات؛ مسار الوثبة وهيئة الجسم والوثبات التبادلية.',
+    executionContent: 'ينظم أفعاله الحركية ويضبطها داخل الفضاء المتاح وفق متطلبات الوضعية.',
+    guidance: 'مراعاة أمان الفضاء وانتشار الزملاء والمنافسين واحترام ضوابط الممارسة.',
+    resources: Object.freeze([
+      'علاقة التنقل بالفضاء المتاح',
+      'انتشار الزملاء والمنافسين',
+      'ضبط فضاء الرمي',
+      'ضبط فضاء الوثب',
+    ]),
+  }),
+});
