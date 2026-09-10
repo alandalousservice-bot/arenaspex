@@ -18,6 +18,7 @@ import {
 } from '../src/domain/pedagogicalKnowledge/releases/p1fcCombinedSemanticRelease';
 import { OFFICIAL_CURRICULUM_2023 } from '../src/domain/pedagogicalKnowledge/source/officialCurriculum2023';
 import { projectTeacherPlanSemantics } from '../src/domain/pedagogicalKnowledge/teacherPlanSemanticAdapter';
+import { getRegisteredKnowledgeCoreRelease } from '../src/domain/pedagogicalKnowledge/runtime/knowledgeCoreReleaseRegistry';
 import type { PedagogicalKnowledgeCatalog } from '../src/domain/pedagogicalKnowledge/types';
 
 const walk = (dir: string): string[] =>
@@ -79,7 +80,26 @@ describe('P1F-C combined semantic activation candidate', () => {
     ).toEqual(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.objectiveConcepts.map((item) => item.id));
     expect(OFFICIAL_CURRICULUM_2023.contentHash).toBe('fnv1a32:cfe67657');
     expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.release.catalogHash).toBe('fnv1a32:a4f5de33');
-    expect(P1FB_DOMAIN_ONE_CORRECTION_CATALOG.release.catalogHash).toBe('fnv1a32:d352df5b');
+    expect(P1FB_DOMAIN_ONE_CORRECTION_CATALOG.release.catalogHash).toBe('fnv1a32:acafe987');
+  });
+
+  it('exposes the pilot criteria and indicators through the registered runtime catalog', () => {
+    const registered = getRegisteredKnowledgeCoreRelease(P1FC_RELEASE_ID);
+    expect(registered).not.toBeNull();
+    const pilotCriteria = registered?.catalog.criteria.filter(
+      (item) => item.gradeId === 'lvl_p1' && item.domainId === 'f_locomotion'
+    );
+    const pilotIndicators = registered?.catalog.indicators.filter(
+      (item) => item.gradeId === 'lvl_p1' && item.domainId === 'f_locomotion'
+    );
+    expect(pilotCriteria).toHaveLength(4);
+    expect(pilotIndicators).toHaveLength(4);
+    expect(
+      registered?.catalog.criteria.filter((item) => item.domainId !== 'f_locomotion')
+    ).toHaveLength(0);
+    expect(
+      registered?.catalog.indicators.filter((item) => item.domainId !== 'f_locomotion')
+    ).toHaveLength(0);
   });
 
   it('separates semantic completeness from runtime activation authority in every cell', () => {

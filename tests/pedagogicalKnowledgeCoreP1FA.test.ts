@@ -184,7 +184,7 @@ describe('P1F-A reviewed Domain 2 and Domain 3 semantic core', () => {
   });
 
   it('leaves Domain 1 releases byte-for-byte semantically unchanged', () => {
-    expect(P1A_GRADE_ONE_DOMAIN_ONE_CATALOG.release.catalogHash).toBe('fnv1a32:9bf22674');
+    expect(P1A_GRADE_ONE_DOMAIN_ONE_CATALOG.release.catalogHash).toBe('fnv1a32:cb85e286');
     expect(P1C_DOMAIN_ONE_GRADES_TWO_TO_FIVE_CATALOG.release.catalogHash).toBe('fnv1a32:f670fe91');
     expect(P1A_GRADE_ONE_DOMAIN_ONE_CATALOG.learningRequirements).toHaveLength(4);
     expect(P1A_GRADE_ONE_DOMAIN_ONE_CATALOG.objectiveConcepts).toHaveLength(7);

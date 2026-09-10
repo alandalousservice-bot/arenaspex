@@ -21,6 +21,11 @@ const approvedOfficial: KnowledgeProvenance = {
   reviewedAt: '2026-09-06',
 };
 
+const approvedOfficialCriteria: KnowledgeProvenance = {
+  ...approvedOfficial,
+  sourceRef: 'annual-plan-reference:lvl_p1:f_locomotion:evaluation-criteria',
+};
+
 const approvedDerived: KnowledgeProvenance = {
   originType: 'reviewed_derived',
   reviewStatus: 'approved',
@@ -70,6 +75,26 @@ const objectiveWordings = [
   'ينجز تنقلات جانبية وتغيير الاتجاه داخل فضاء محدد.',
   'يربط بين وضعيات الجسم والتنقلات في مسار حركي بسيط.',
   'ينجز سلسلة حركية تجمع بين عدة وضعيات وتنقلات.',
+] as const;
+
+const criterionIds = [1, 2, 3, 4].map(
+  (index) => `criterion:${P0_GRADE_ID}:${P0_DOMAIN_ID}:final-competency:${index}`
+);
+const indicatorIds = [1, 2, 3, 4].map(
+  (index) => `indicator:${P0_GRADE_ID}:${P0_DOMAIN_ID}:criterion:${index}:1`
+);
+
+const finalCompetencyCriteria = [
+  ['اتخاذ الوضعية والهيأةالمناسبة للموقف', 'تنفيذ وضعيات الوقوف والجلوس بشكل سليم'],
+  [
+    'استعمال أطراف جسمه المناسبة للوضعية والهيأة',
+    'يوظف تكامل أطرافه عند التنفيذ انبطاح انتصاب على أربع',
+  ],
+  ['المحافظة على توازنه خلال التنفيذ', 'يوظف تكامل أطرافه عند المشي العادي وثنائي'],
+  [
+    'تعديل الوضعيات الغير ملائمة للموقف وتصحيحها',
+    'أداء متدرج السرعة للمشي والهرولة فرديا وثنائيا بطريقة سليمة',
+  ],
 ] as const;
 
 const objectiveRequirementMap = [
@@ -257,8 +282,33 @@ const catalogWithoutHash = {
       }
     ),
   ],
-  criteria: [],
-  indicators: [],
+  criteria: finalCompetencyCriteria.map(([label], index) =>
+    node(
+      criterionIds[index],
+      label,
+      {
+        gradeId: P0_GRADE_ID,
+        domainId: P0_DOMAIN_ID,
+        finalCompetencyId: P0_FINAL_COMPETENCY_ID,
+        order: index + 1,
+      },
+      approvedOfficialCriteria
+    )
+  ),
+  indicators: finalCompetencyCriteria.map(([, label], index) =>
+    node(
+      indicatorIds[index],
+      label,
+      {
+        gradeId: P0_GRADE_ID,
+        domainId: P0_DOMAIN_ID,
+        criterionId: criterionIds[index],
+        learningRequirementIds: [requirementIds[Math.min(index, requirementIds.length - 1)]],
+        order: 1,
+      },
+      approvedOfficialCriteria
+    )
+  ),
   objectiveConcepts: objectiveWordings.map((wording, index) =>
     node(
       conceptIds[index],

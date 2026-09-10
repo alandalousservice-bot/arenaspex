@@ -76,6 +76,31 @@ describe('Pedagogical Knowledge Core full P1A Grade 1 / Domain 1', () => {
     expect(requirements.every((item) => item.description && item.sourceRef)).toBe(true);
   });
 
+  it('exposes the reviewed Grade 1 / Domain 1 criteria and indicators as canonical records', () => {
+    const catalog = P1A_GRADE_ONE_DOMAIN_ONE_CATALOG;
+    const criteria = catalog.criteria.filter(
+      (item) => item.gradeId === 'lvl_p1' && item.domainId === 'f_locomotion'
+    );
+    const indicators = catalog.indicators.filter(
+      (item) => item.gradeId === 'lvl_p1' && item.domainId === 'f_locomotion'
+    );
+    expect(criteria).toHaveLength(4);
+    expect(indicators).toHaveLength(4);
+    expect(new Set(criteria.map((item) => item.id)).size).toBe(4);
+    expect(new Set(indicators.map((item) => item.id)).size).toBe(4);
+    expect(criteria.every((item) => item.finalCompetencyId === 'fc_lvl_p1_f_locomotion')).toBe(
+      true
+    );
+    expect(
+      indicators.every((item) => criteria.some((criterion) => criterion.id === item.criterionId))
+    ).toBe(true);
+    expect(
+      indicators.every(
+        (item) => item.sourceRef === 'annual-plan-reference:lvl_p1:f_locomotion:evaluation-criteria'
+      )
+    ).toBe(true);
+  });
+
   it('keeps the three component identities and models N:M requirement coverage', () => {
     const catalog = P1A_GRADE_ONE_DOMAIN_ONE_CATALOG;
     expect(catalog.competencyComponents).toHaveLength(3);
