@@ -261,4 +261,68 @@ describe('academic-year annual distribution generation v2', () => {
     expect(router).toContain('plannedDate: seed.plannedDate');
     expect(router).toContain('annual_distribution');
   });
+
+  it('preserves operational notes and statuses when a stable reference is reconciled', () => {
+    const existing = {
+      id: 'cps-class-a-stable',
+      status: 'غير منجزة',
+      plannedDate: new Date('2026-10-04T00:00:00.000Z'),
+      operationalNote: 'ملاحظة تشغيلية محفوظة',
+    };
+    const decision = decideClassSessionRebuild(
+      existing,
+      new Date('2026-10-11T00:00:00.000Z'),
+      false,
+      true
+    );
+
+    expect(decision).toBe('update');
+    expect(existing.id).toBe('cps-class-a-stable');
+    expect(existing.status).toBe('غير منجزة');
+    expect(existing.operationalNote).toBe('ملاحظة تشغيلية محفوظة');
+  });
+
+  it('preserves executed notes and identity instead of replacing a protected row', () => {
+    const existing = {
+      id: 'cps-class-a-executed',
+      status: 'منجزة',
+      plannedDate: new Date('2026-10-04T00:00:00.000Z'),
+      operationalNote: 'تم التنفيذ وفق الخطة',
+    };
+    expect(
+      decideClassSessionRebuild(existing, new Date('2026-10-11T00:00:00.000Z'), true, true)
+    ).toBe('conflict');
+    expect(existing).toMatchObject({
+      id: 'cps-class-a-executed',
+      status: 'منجزة',
+      operationalNote: 'تم التنفيذ وفق الخطة',
+    });
+  });
+
+  it('scopes stable operational identity by class and teacher', () => {
+    const reference = 'lvl_p1:f_locomotion:objective:1';
+    const key = (teacherId: string, classId: string) =>
+      `${teacherId}|${classId}|2026-2027|${reference}`;
+    expect(key('teacher-a', 'class-a')).not.toBe(key('teacher-b', 'class-a'));
+    expect(key('teacher-a', 'class-a')).not.toBe(key('teacher-a', 'class-b'));
+    expect(key('teacher-a', 'class-a')).toBe(key('teacher-a', 'class-a'));
+  });
+
+  it('documents stale-reference handling: pre-launch removes unexecuted rows and preserves history', () => {
+    const router = fs.readFileSync('src/server/apiRouter.ts', 'utf8');
+    expect(router).toContain('const orphanRows = existingRows.filter');
+    expect(router).toContain('if (isProtected) {');
+    expect(router).toContain('orphaned-generated-session');
+    expect(router).toContain('sessionsRemovedOrRetired += 1');
+    expect(router).toContain('prisma.classPlannedSession.delete({ where: { id: row.id } })');
+    expect(router).toContain('if (!preLaunchRebuild) return [];');
+  });
+
+  it('keeps wording-only changes on the same canonical identity', () => {
+    const first = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
+    const session = first.levels[0].sessions[0];
+    const wordingChanged = { ...session, objective: `${session.objective} — صياغة الأستاذ` };
+    expect(wordingChanged.referenceSessionId).toBe(session.referenceSessionId);
+    expect(wordingChanged.objective).not.toBe(session.objective);
+  });
 });
