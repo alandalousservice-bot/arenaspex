@@ -27,6 +27,7 @@ import {
   googleLinkRequest,
   googleUnlinkRequest,
   fetchGeoDistricts,
+  createInspectorDistrict,
 } from '../../services/api';
 import { GoogleSignInButton } from '../auth/GoogleSignInButton';
 
@@ -92,6 +93,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
   const [districtId, setDistrictId] = useState(currentUser.districtId || '');
   const [districtName, setDistrictName] = useState('');
   const [customDistrictName, setCustomDistrictName] = useState('');
+  const [newDistrictNumber, setNewDistrictNumber] = useState('');
+  const [districtCreateError, setDistrictCreateError] = useState('');
+  const [districtCreateSuccess, setDistrictCreateSuccess] = useState('');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
   const isInspector = currentUser.role === 'inspector';
@@ -264,6 +268,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
     setNewPassword('');
     setConfirmPassword('');
     setTimeout(() => setSavedSuccess(false), 4000);
+  };
+
+  const handleCreateInspectorDistrict = async () => {
+    setDistrictCreateError('');
+    setDistrictCreateSuccess('');
+    if (!directorateId || !customDistrictName.trim()) {
+      setDistrictCreateError('اختر مديرية التربية وأدخل اسم المقاطعة التفتيشية.');
+      return;
+    }
+    const result = await createInspectorDistrict({
+      directorateId,
+      name: customDistrictName.trim(),
+      ...(newDistrictNumber.trim() ? { districtNumber: Number(newDistrictNumber) } : {}),
+    });
+    if (!result.success || !result.district) {
+      setDistrictCreateError(result.error || 'تعذر إنشاء المقاطعة التفتيشية.');
+      return;
+    }
+    setDistrictId(result.district.id);
+    setDistrictName(result.district.name);
+    setCustomDistrictName('');
+    setNewDistrictNumber('');
+    setDistrictCreateSuccess('تم إنشاء المقاطعة التفتيشية وربط حسابك بها.');
   };
 
   // Find current directorate display name
@@ -578,6 +605,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3 font-semibold">
                   يرجى التواصل مع مشرف المنظومة لاستكمال الانتساب الإداري.
                 </p>
+              )}
+              {!districtId && directorateId && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+                  <p className="text-xs font-bold text-emerald-800">
+                    إضافة معلومات المقاطعة التفتيشية
+                  </p>
+                  <p className="text-xs text-emerald-700">
+                    لا توجد مقاطعة مسجلة لهذه المديرية. يمكنك إضافة مقاطعتك الحقيقية.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      value={customDistrictName}
+                      onChange={(e) => setCustomDistrictName(e.target.value)}
+                      placeholder="اسم المقاطعة التفتيشية"
+                      className="w-full p-2 rounded-lg border border-emerald-200 bg-white"
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      value={newDistrictNumber}
+                      onChange={(e) => setNewDistrictNumber(e.target.value)}
+                      placeholder="رقم المقاطعة (اختياري)"
+                      className="w-full p-2 rounded-lg border border-emerald-200 bg-white"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateInspectorDistrict()}
+                    className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white"
+                  >
+                    إضافة المقاطعة
+                  </button>
+                  {districtCreateError && (
+                    <p className="text-xs font-semibold text-rose-700">{districtCreateError}</p>
+                  )}
+                  {districtCreateSuccess && (
+                    <p className="text-xs font-semibold text-emerald-700">
+                      {districtCreateSuccess}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}

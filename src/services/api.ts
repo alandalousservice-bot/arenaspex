@@ -1896,6 +1896,11 @@ export const fetchMunicipalities = (directorateId: string) =>
   getJSON(`/api/locations/directorates/${directorateId}/municipalities`);
 export const fetchInspectionDistricts = (directorateId: string) =>
   getJSON(`/api/locations/directorates/${directorateId}/districts`);
+export const createInspectorDistrict = (payload: {
+  directorateId: string;
+  name: string;
+  districtNumber?: number;
+}) => postJSON('/api/inspector/districts', payload);
 export const fetchSchools = (municipalityId: string) =>
   getJSON(`/api/locations/municipalities/${municipalityId}/schools`);
 

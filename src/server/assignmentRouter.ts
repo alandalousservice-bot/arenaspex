@@ -58,6 +58,87 @@ assignmentRouter.get('/locations/municipalities/:id/schools', async (req, res) =
   res.json({ success: true, schools });
 });
 
+const inspectorDistrictSchema = z.object({
+  directorateId: z.string().trim().min(1),
+  name: z.string().trim().min(2, 'اسم المقاطعة التفتيشية مطلوب.'),
+  districtNumber: z.number().int().positive().optional(),
+});
+
+assignmentRouter.post(
+  '/inspector/districts',
+  requireRole('inspector', 'admin'),
+  async (req, res) => {
+    const parsed = inspectorDistrictSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message });
+
+    const { directorateId, name, districtNumber } = parsed.data;
+    const directorate = await prisma.directorate.findUnique({ where: { id: directorateId } });
+    if (!directorate) return res.status(404).json({ error: 'مديرية التربية المحددة غير موجودة.' });
+
+    if (req.user!.role === 'inspector') {
+      const inspector = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { eduDirectorateId: true, directorateId: true },
+      });
+      const inspectorDirectorate = inspector?.eduDirectorateId || inspector?.directorateId;
+      if (!inspectorDirectorate || inspectorDirectorate !== directorateId) {
+        return res.status(403).json({ error: 'لا يمكنك إنشاء مقاطعة خارج مديريتك.' });
+      }
+    }
+
+    const normalizedName = name.replace(/\s+/g, ' ').trim().toLocaleLowerCase();
+    const existing = await prisma.inspectionDistrict.findMany({
+      where: { directorateId },
+      select: { id: true, name: true, districtNumber: true },
+    });
+    if (
+      existing.some(
+        (district) =>
+          district.name.replace(/\s+/g, ' ').trim().toLocaleLowerCase() === normalizedName
+      )
+    ) {
+      return res.status(409).json({ error: 'هذه المقاطعة موجودة بالفعل ضمن هذه المديرية.' });
+    }
+    if (
+      districtNumber !== undefined &&
+      existing.some((district) => district.districtNumber === districtNumber)
+    ) {
+      return res.status(409).json({ error: 'رقم المقاطعة مستخدم بالفعل ضمن هذه المديرية.' });
+    }
+
+    try {
+      const district = await prisma.$transaction(async (tx) => {
+        const created = await tx.inspectionDistrict.create({
+          data: { name, directorateId, districtNumber },
+        });
+        if (req.user!.role === 'inspector') {
+          await tx.user.update({
+            where: { id: req.user!.id },
+            data: {
+              eduDirectorateId: directorateId,
+              eduDistrictId: created.id,
+              districtId: created.id,
+            },
+          });
+        }
+        return created;
+      });
+      await bulkReassignAll();
+      return res.status(201).json({ success: true, district });
+    } catch (err: unknown) {
+      if (
+        typeof err === 'object' &&
+        err !== null &&
+        'code' in err &&
+        (err as { code: string }).code === 'P2002'
+      ) {
+        return res.status(409).json({ error: 'هذه المقاطعة موجودة بالفعل ضمن هذه المديرية.' });
+      }
+      return res.status(500).json({ error: 'تعذر إنشاء المقاطعة.' });
+    }
+  }
+);
+
 // -----------------------------------------------------------------------
 // 2. اقتراحات إضافة بلدية/مؤسسة غير موجودة — أي مستخدم يمكنه الاقتراح، ولا تظهر
 //    لبقية المستخدمين حتى تعتمدها الإدارة
@@ -1004,12 +1085,10 @@ assignmentRouter.post('/admin/assignments', requireRole('admin'), async (req, re
       .status(400)
       .json({ success: false, error: 'لا يمكن تحديد مديرية أو مقاطعة الأستاذ.' });
   if (teacherDirectorate !== inspectorDirectorate || teacherDistrict !== inspectorDistrict)
-    return res
-      .status(400)
-      .json({
-        success: false,
-        error: 'لا يمكن إسناد الأستاذ إلى مفتش من مديرية أو مقاطعة مختلفة.',
-      });
+    return res.status(400).json({
+      success: false,
+      error: 'لا يمكن إسناد الأستاذ إلى مفتش من مديرية أو مقاطعة مختلفة.',
+    });
   const district = await prisma.inspectionDistrict.findUnique({
     where: { id: inspectorDistrict },
     select: { directorateId: true },
