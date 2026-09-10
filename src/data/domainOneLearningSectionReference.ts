@@ -1,3 +1,5 @@
+import { GRADE_ONE_DOMAIN_THREE_LEARNING_SECTION_REFERENCE } from './domainThreeLearningSectionReference';
+
 export const DOMAIN_ONE_FIELD_ID = 'f_locomotion' as const;
 
 export interface OfficialLearningSectionComponent {
@@ -155,5 +157,8 @@ export function getDomainOneLearningSectionReference(
 }
 
 export function getLearningSectionComponents(levelId: string, fieldId: string) {
+  if (fieldId === 'f_structuring' && levelId === 'lvl_p1') {
+    return GRADE_ONE_DOMAIN_THREE_LEARNING_SECTION_REFERENCE.components;
+  }
   return getDomainOneLearningSectionReference(levelId, fieldId)?.components || [];
 }

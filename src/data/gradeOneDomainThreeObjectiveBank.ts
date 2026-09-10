@@ -26,6 +26,7 @@ const resource = (slug: string, label: string, selectionWeight: number): Objecti
 export const GRADE_ONE_DOMAIN_THREE_RESOURCES = deepFreeze([
   resource('practice-space', 'فضاء الممارسة', 110),
   resource('space-boundaries', 'حدود فضاء الممارسة', 105),
+  resource('space-landmarks', 'معالم فضاء الممارسة', 105),
   resource('space-sharing', 'مشاركة فضاء الممارسة', 100),
   resource('formations', 'التشكيلات والتنقلات المنتظمة', 110),
   resource('rows-and-counts', 'الأعداد والصفوف', 100),
@@ -87,7 +88,7 @@ export const GRADE_ONE_DOMAIN_THREE_OBJECTIVE_BANK = deepFreeze([
   makeObjective(
     2,
     'يتنقل داخل فضاء محدد مع احترام حدوده.',
-    [R('space-boundaries'), R('space-sharing')],
+    [R('space-boundaries'), R('space-landmarks'), R('space-sharing')],
     'التنقل في فضاء محدد.',
     'الحدود ومشاركة فضاء الممارسة.',
     'يتنقل بانتظام داخل المجال المتاح.',
@@ -131,7 +132,7 @@ export const GRADE_ONE_DOMAIN_THREE_OBJECTIVE_BANK = deepFreeze([
   makeObjective(
     6,
     'يحافظ على تنظيم فضاء الممارسة أثناء النشاط.',
-    [R('practice-space'), R('space-boundaries'), R('formations')],
+    [R('practice-space'), R('space-boundaries'), R('space-landmarks'), R('formations')],
     'المحافظة على فضاء الممارسة.',
     'المعالم والتشكيلات والتنقل المنتظم.',
     'يحافظ على مكانه وانتظام المجموعة.',

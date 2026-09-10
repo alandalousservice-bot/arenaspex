@@ -4,6 +4,7 @@ import {
   GRADE_ONE_DOMAIN_THREE_RESOURCES,
 } from '../src/data/gradeOneDomainThreeObjectiveBank';
 import { getObjectiveBank, getObjectiveBankResources } from '../src/data/objectiveBankRegistry';
+import { getLearningSectionComponents } from '../src/data/domainOneLearningSectionReference';
 
 describe('G1/D3 objective bank', () => {
   it('exposes six immutable, source-scoped objectives', () => {
@@ -26,6 +27,7 @@ describe('G1/D3 objective bank', () => {
     expect(GRADE_ONE_DOMAIN_THREE_RESOURCES.map((resource) => resource.label)).toEqual([
       'فضاء الممارسة',
       'حدود فضاء الممارسة',
+      'معالم فضاء الممارسة',
       'مشاركة فضاء الممارسة',
       'التشكيلات والتنقلات المنتظمة',
       'الأعداد والصفوف',
@@ -37,6 +39,7 @@ describe('G1/D3 objective bank', () => {
     expect(
       GRADE_ONE_DOMAIN_THREE_OBJECTIVE_BANK.every((item) => item.transversalResourceIds.length > 0)
     ).toBe(true);
+    expect(getLearningSectionComponents('lvl_p1', 'f_structuring')).toHaveLength(3);
   });
 
   it('does not introduce unsupported games or role concepts', () => {
