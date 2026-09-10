@@ -141,3 +141,37 @@ export const GRADE_FOUR_DOMAIN_THREE_LEARNING_SECTION_REFERENCE = Object.freeze(
     ]),
   }),
 });
+
+export const GRADE_FIVE_DOMAIN_THREE_LEARNING_SECTION_REFERENCE = Object.freeze({
+  levelId: 'lvl_p5',
+  fieldId: DOMAIN_THREE_FIELD_ID as never,
+  finalCompetency: 'يمارس بعض الرياضات الجماعية وفق مبادئ اللعبة والتقنيات الأساسية.',
+  components: Object.freeze([
+    {
+      id: 'learning-section:lvl_p5:f_structuring:component:1',
+      title: 'يجند معارفه الأساسية المتعلقة ببعض الألعاب الجماعية ويتعرف على قواعدها.',
+    },
+    {
+      id: 'learning-section:lvl_p5:f_structuring:component:2',
+      title: 'يوظف المفاهيم الأساسية للألعاب الجماعية ومبادئها الأولية.',
+    },
+    {
+      id: 'learning-section:lvl_p5:f_structuring:component:3',
+      title: 'يحترم قواعد اللعب الجماعي الأساسية ومبادئه.',
+    },
+  ]),
+  defaults: Object.freeze({
+    learningContent: 'مفاهيم الألعاب الجماعية وقواعدها ومبادئها الأولية.',
+    pedagogicalKnowledge:
+      'الملعب وأطواله؛ قواعد اللعبة والأخطاء؛ التوزيع المنظم؛ اللعب الجماعي؛ مبادئ الهجوم والدفاع.',
+    executionContent: 'يمارس لعباً جماعياً منظماً ويوظف المفاهيم والقواعد والمبادئ الأولية.',
+    guidance: 'التواصل والانسجام واحترام القواعد واللعب النزيه والسلامة.',
+    resources: Object.freeze([
+      'مفاهيم اللعبة',
+      'قواعد اللعبة',
+      'التوزيع المنظم',
+      'اللعب الجماعي',
+      'مبادئ الهجوم والدفاع',
+    ]),
+  }),
+});

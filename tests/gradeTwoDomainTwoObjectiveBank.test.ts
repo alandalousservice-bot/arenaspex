@@ -43,7 +43,7 @@ describe('Grade 2 / Domain 2 objective bank', () => {
   });
   it('registers G2/D2 and materializes objectives as A/B meetings', () => {
     expect(getObjectiveBank('lvl_p2', DOMAIN)).toBe(bank);
-    expect(getObjectiveBank('lvl_p5', 'f_structuring')).toEqual([]);
+    expect(getObjectiveBank('lvl_p5', 'f_structuring').length).toBeGreaterThan(0);
     const plan = generateTeacherLearningSectionStructure(
       seedTeacherLearningPlan('lvl_p2'),
       DOMAIN,

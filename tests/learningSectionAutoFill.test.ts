@@ -154,7 +154,7 @@ describe('Learning Section objective-bank auto-fill', () => {
           allowDestructiveReplacement: true,
         }
       )
-    ).toThrow('لا يتوفر بنك أهداف مقترحة لهذا المستوى والميدان بعد.');
+    ).toThrow('بنك الأهداف المقترحة لهذا الميدان يحتوي على 5 هدفًا فقط.');
     expect(getObjectiveBank('lvl_p2', DOMAIN).length).toBeGreaterThan(0);
   });
 
