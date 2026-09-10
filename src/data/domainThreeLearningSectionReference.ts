@@ -44,3 +44,34 @@ export const GRADE_ONE_DOMAIN_THREE_LEARNING_SECTION_REFERENCE = reference(
     resources: ['الفناء', 'الساحة', 'الملعب', 'الرواق', 'علامات تحديد الفضاء'],
   }
 );
+
+export const GRADE_TWO_DOMAIN_THREE_LEARNING_SECTION_REFERENCE = Object.freeze({
+  levelId: 'lvl_p2',
+  fieldId: DOMAIN_THREE_FIELD_ID as never,
+  finalCompetency: 'يحدد الأسلوب والفضاء المناسبين لاستعمال أداة',
+  components: Object.freeze([
+    {
+      id: 'learning-section:lvl_p2:f_structuring:component:1',
+      title: 'يتعرف على الوسائل وكيفيات توظيفها وحفظها ومجالات استعمالها.',
+    },
+    {
+      id: 'learning-section:lvl_p2:f_structuring:component:2',
+      title: 'يستخدم مختلف الوسائل بالكيفيات المناسبة ويحفظها.',
+    },
+    { id: 'learning-section:lvl_p2:f_structuring:component:3', title: 'يصون الوسائل ويحفظها.' },
+  ]),
+  defaults: Object.freeze({
+    learningContent: 'الوسائل وأساليب استعمالها وحفظها.',
+    pedagogicalKnowledge:
+      'الكور والشواهد والأقماع والجلة؛ التسليم والاستلام؛ الرمي والدحرجة؛ الترتيب والتنظيف والتخزين.',
+    executionContent: 'يختار الوسيلة والفضاء المناسبين ويستعملها ويحفظها.',
+    guidance: 'احترام ضوابط الاستعمال والمحافظة على الوسائل.',
+    resources: Object.freeze([
+      'وسائل الممارسة',
+      'الفضاء المناسب',
+      'التسليم والاستلام',
+      'استعمال الوسيلة',
+      'حفظ الأدوات',
+    ]),
+  }),
+});

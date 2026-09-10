@@ -1,4 +1,7 @@
-import { GRADE_ONE_DOMAIN_THREE_LEARNING_SECTION_REFERENCE } from './domainThreeLearningSectionReference';
+import {
+  GRADE_ONE_DOMAIN_THREE_LEARNING_SECTION_REFERENCE,
+  GRADE_TWO_DOMAIN_THREE_LEARNING_SECTION_REFERENCE,
+} from './domainThreeLearningSectionReference';
 
 export const DOMAIN_ONE_FIELD_ID = 'f_locomotion' as const;
 
@@ -157,8 +160,12 @@ export function getDomainOneLearningSectionReference(
 }
 
 export function getLearningSectionComponents(levelId: string, fieldId: string) {
-  if (fieldId === 'f_structuring' && levelId === 'lvl_p1') {
-    return GRADE_ONE_DOMAIN_THREE_LEARNING_SECTION_REFERENCE.components;
+  if (fieldId === 'f_structuring') {
+    if (levelId === 'lvl_p1') return GRADE_ONE_DOMAIN_THREE_LEARNING_SECTION_REFERENCE.components;
+    if (levelId === 'lvl_p2') {
+      return GRADE_TWO_DOMAIN_THREE_LEARNING_SECTION_REFERENCE.components as unknown as OfficialLearningSectionComponent[];
+    }
+    return [];
   }
   return getDomainOneLearningSectionReference(levelId, fieldId)?.components || [];
 }
