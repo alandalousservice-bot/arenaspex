@@ -124,11 +124,10 @@ describe('unified Teacher planning workspace', () => {
 
   it('uses the weekly pedagogical presentation without changing weekly planning', () => {
     const calendar = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
-    expect(calendar).toContain('التاريخ');
+    expect(calendar).toContain('الأسبوع / الفترة');
     expect(calendar).not.toContain('التعلمات / الهدف');
     expect(calendar).not.toContain('لقاءان: 1/2 و 2/2');
-    expect(calendar).toContain('الفترة / التاريخ');
-    expect(calendar).toContain('الشهر');
+    expect(calendar).not.toContain('الفترة / التاريخ');
     expect(calendar).toContain('نوع الحصة');
     expect(calendar).toContain('الميدان');
     expect(calendar).toContain('annual-distribution-weekly-table');

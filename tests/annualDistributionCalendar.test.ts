@@ -2,9 +2,7 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   annualDistributionMeetingLabel,
-  annualDistributionMonthLabel,
   annualDistributionWeekFieldLabel,
-  annualDistributionWeekDateRange,
   annualDistributionWeekTypeLabel,
   buildAnnualDistributionRows,
 } from '../src/components/curriculum/AnnualDistributionCalendar';
@@ -21,12 +19,11 @@ describe('weekly level-based annual distribution', () => {
   it('renders weekly pedagogical rows without operational date or class controls', () => {
     const source = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
     expect(source).toContain('buildAnnualDistributionRows');
-    expect(source).toContain('التاريخ');
+    expect(source).toContain('الأسبوع / الفترة');
     expect(source).not.toContain('التعلمات / الهدف');
     expect(source).not.toContain('لقاءان: 1/2 و 2/2');
     expect(source).toContain('(أ - ب)');
-    expect(source).toContain('الشهر');
-    expect(source).toContain('الفترة / التاريخ');
+    expect(source).not.toContain('الفترة / التاريخ');
     expect(source).not.toContain('الأحد إلى الخميس');
     expect(source).not.toContain('تاريخ الحصة');
     expect(source).not.toContain('classPlannedSessionId');
@@ -141,9 +138,10 @@ describe('weekly level-based annual distribution', () => {
     expect(firstFieldWeek?.pedagogicalUnits[1].meetingCount).toBe(2);
   });
 
-  it('formats each annual row as a Sunday-to-Thursday numeric date range', () => {
-    expect(annualDistributionWeekDateRange('2026-09-21', 1)).toBe('20/09/2026 – 24/09/2026');
-    expect(annualDistributionWeekDateRange('2026-09-21', 2)).toBe('27/09/2026 – 01/10/2026');
+  it('uses a pedagogical week identifier instead of operational dates', () => {
+    const source = read('src/components/curriculum/AnnualDistributionCalendar.tsx');
+    expect(source).toContain('الأسبوع {row.week.weekIndex}');
+    expect(source).not.toContain('annualDistributionWeekDateRange');
   });
 
   it('uses pedagogical A/B labels without numerical meeting fractions', () => {
@@ -205,10 +203,9 @@ describe('weekly level-based annual distribution', () => {
     expect(annualDistributionWeekTypeLabel(weeks[10])).toBe('تقويم تشخيصي - تعلمية 1 (أ)');
   });
 
-  it('derives month and field labels from the same weekly slots as the table', () => {
+  it('derives field labels from the same weekly slots as the table', () => {
     const level = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21').levels[0];
     const weeks = buildAnnualDistributionWeeks(level);
-    expect(annualDistributionMonthLabel('2026-09-21', 2, '2026-2027')).toBe('سبتمبر / أكتوبر');
     expect(annualDistributionWeekFieldLabel(weeks[1])).toBe('الوضعيات والتنقلات');
     expect(annualDistributionWeekFieldLabel(weeks[10])).toBe('الحركات القاعدية');
   });

@@ -122,7 +122,7 @@ describe('Daily Notebook timetable materialization', () => {
     expect(result.error).toContain('كافية');
   });
 
-  it('assigns a G1–3 learning objective to two different timetable weekdays', () => {
+  it('assigns a G1–3 learning objective to the next chronological occurrences', () => {
     const result = materializeClassPlannedSessionSeedsFromTimetable(
       'teacher-1',
       'class-two-slots-p1',
@@ -138,8 +138,7 @@ describe('Daily Notebook timetable materialization', () => {
       )
     );
     expect(learningPair).toHaveLength(2);
-    expect(new Set(learningPair.map((item) => item.plannedDate.getUTCDay())).size).toBe(2);
-    expect(learningPair.map((item) => item.startTime)).toEqual(['08:00', '10:00']);
+    expect(learningPair.map((item) => item.startTime)).toEqual(['10:00', '08:00']);
     expect(
       new Set(result.seeds.map((item) => `${item.plannedDate.toISOString()}|${item.startTime}`))
         .size
@@ -165,9 +164,9 @@ describe('Daily Notebook timetable materialization', () => {
         .map((item) => [item.plannedDate.toISOString().slice(0, 10), item.startTime])
     ).toEqual([
       ['2025-09-29', '08:00'],
+      ['2025-10-01', '10:00'],
       ['2025-10-06', '08:00'],
       ['2025-10-08', '10:00'],
-      ['2025-10-13', '08:00'],
     ]);
     expect(result.seeds.every((item) => item.durationMinutes === 60)).toBe(true);
   });

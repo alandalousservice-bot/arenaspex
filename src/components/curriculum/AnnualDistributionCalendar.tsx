@@ -103,12 +103,6 @@ function addUtcDays(value: string | Date, days: number): Date {
   return date;
 }
 
-function formatNumericDate(date: Date): string {
-  return [date.getUTCDate(), date.getUTCMonth() + 1, date.getUTCFullYear()]
-    .map((value, index) => (index === 2 ? String(value) : String(value).padStart(2, '0')))
-    .join('/');
-}
-
 function isFullySeasonalHolidayWeek(sunday: Date, holidays: AcademicCalendarEvent[]): boolean {
   return Array.from({ length: 5 }, (_, index) => formatISODate(addUtcDays(sunday, index))).every(
     (date) => holidays.some((holiday) => holiday.startDate <= date && date <= holiday.endDate)
@@ -133,32 +127,6 @@ function annualDistributionWeekStart(
 
 function formatISODate(date: Date): string {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
-}
-
-export function annualDistributionWeekDateRange(
-  planningStartDate: string,
-  weekIndex: number,
-  academicYearId?: string
-): string {
-  const sunday = new Date(
-    `${annualDistributionWeekStart(planningStartDate, weekIndex, academicYearId)}T00:00:00Z`
-  );
-  return `${formatNumericDate(sunday)} – ${formatNumericDate(addUtcDays(sunday, 4))}`;
-}
-
-export function annualDistributionMonthLabel(
-  planningStartDate: string,
-  weekIndex: number,
-  academicYearId?: string
-): string {
-  const sunday = new Date(
-    `${annualDistributionWeekStart(planningStartDate, weekIndex, academicYearId)}T00:00:00Z`
-  );
-  const thursday = addUtcDays(sunday, 4);
-  const formatter = new Intl.DateTimeFormat('ar-DZ', { month: 'long' });
-  const startMonth = formatter.format(sunday);
-  const endMonth = formatter.format(thursday);
-  return startMonth === endMonth ? startMonth : `${startMonth} / ${endMonth}`;
 }
 
 export function annualDistributionWeekTypeLabel(week: TeacherAnnualDistributionWeek): string {
@@ -203,10 +171,10 @@ function AnnualDistributionTable({
     <table className="w-full border-collapse text-right text-xs">
       <thead className="bg-emerald-800 text-white">
         <tr>
-          <th className="w-[15%] p-3">الشهر</th>
-          <th className="w-[22%] p-3">الفترة / التاريخ</th>
-          <th className="w-[35%] p-3">نوع الحصة</th>
+          <th className="w-[20%] p-3">الأسبوع / الفترة</th>
+          <th className="w-[36%] p-3">نوع الحصة</th>
           <th className="w-[28%] p-3">الميدان</th>
+          <th className="w-[16%] p-3">الترتيب</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-100">
@@ -218,11 +186,7 @@ function AnnualDistributionTable({
                   colSpan={4}
                   className="bg-amber-50 p-3 text-center font-extrabold text-amber-900"
                 >
-                  {row.holiday.name}:{' '}
-                  <span dir="ltr" className="font-mono">
-                    {row.holiday.startDate.split('-').reverse().join('/')} –{' '}
-                    {row.holiday.endDate.split('-').reverse().join('/')}
-                  </span>
+                  {row.holiday.name}
                 </td>
               </tr>
             );
@@ -233,22 +197,7 @@ function AnnualDistributionTable({
               key={`${row.week.weekIndex}-${firstSlot?.referenceSessionId}`}
               className="align-top"
             >
-              <td className="p-3 font-bold text-slate-700">
-                {annualDistributionMonthLabel(
-                  planningStartDate,
-                  row.week.weekIndex,
-                  academicYearId
-                )}
-              </td>
-              <td className="p-3 font-extrabold text-slate-800">
-                <span className="font-mono" dir="ltr">
-                  {annualDistributionWeekDateRange(
-                    planningStartDate,
-                    row.week.weekIndex,
-                    academicYearId
-                  )}
-                </span>
-              </td>
+              <td className="p-3 font-extrabold text-slate-800">الأسبوع {row.week.weekIndex}</td>
               <td className="p-3">
                 <span className={`rounded-lg px-2 py-1 font-bold ${typeTone(firstSlot)}`}>
                   {annualDistributionWeekTypeLabel(row.week)}
@@ -257,6 +206,7 @@ function AnnualDistributionTable({
               <td className="p-3 font-bold text-slate-700">
                 {annualDistributionWeekFieldLabel(row.week)}
               </td>
+              <td className="p-3 font-bold text-slate-700">{row.week.weekLabel}</td>
             </tr>
           );
         })}

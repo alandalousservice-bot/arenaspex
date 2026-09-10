@@ -1021,10 +1021,7 @@ export function materializeClassPlannedSessionSeedsFromTimetable(
     ) {
       const first = pedagogicalOccurrences[firstIndex];
       const secondIndex = pedagogicalOccurrences.findIndex(
-        (candidate, candidateIndex) =>
-          candidateIndex > firstIndex &&
-          candidate.weekStart === first.weekStart &&
-          candidate.weekday !== first.weekday
+        (candidate, candidateIndex) => candidateIndex > firstIndex
       );
       if (secondIndex >= 0) {
         pair = [first, pedagogicalOccurrences[secondIndex]];

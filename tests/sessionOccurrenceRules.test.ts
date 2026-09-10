@@ -107,6 +107,36 @@ describe('authoritative session occurrence rules', () => {
     }
   });
 
+  it('allows a Grade 1 learning pair to cross into the next timetable week', () => {
+    const canonical = canonicalPlanningSessions('lvl_p1', '2026-09-21', '2026-2027');
+    const result = materializeClassPlannedSessionSeedsFromTimetable(
+      'teacher-1',
+      'class-cross-week',
+      '2026-2027',
+      canonical.slice(0, 3),
+      [slot(1)]
+    );
+    expect(result.error).toBeUndefined();
+
+    const firstLearningGroup = canonical.find(
+      (session) => session.sessionType === 'تعلمية'
+    )!.objectiveGroupId;
+    const pair = seedsForCanonicalGroup(
+      pedagogicalSeeds(result.seeds),
+      canonical
+        .filter((session) => session.objectiveGroupId === firstLearningGroup)
+        .map((session) => session.referenceSessionId)
+    );
+    expect(pair).toHaveLength(2);
+    expect(basePlanningReferenceId(pair[0].referenceSessionId)).toBe(
+      basePlanningReferenceId(pair[1].referenceSessionId)
+    );
+    expect(pair[0].plannedDate.getTime()).toBeLessThan(pair[1].plannedDate.getTime());
+    expect(pair[1].plannedDate.getTime() - pair[0].plannedDate.getTime()).toBeGreaterThanOrEqual(
+      7 * 24 * 60 * 60 * 1000
+    );
+  });
+
   it('keeps diagnostic and integration sessions single, without artificial pairing', () => {
     for (const levelId of ['lvl_p1', 'lvl_p2', 'lvl_p3', 'lvl_p4']) {
       const canonical = canonicalPlanningSessions(levelId, '2026-09-21', '2026-2027');
