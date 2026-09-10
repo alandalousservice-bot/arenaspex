@@ -37,7 +37,7 @@ describe('Grade 1 / Domain 1 reference objective bank', () => {
     expect(getObjectiveBank('lvl_p2', DOMAIN).length).toBeGreaterThan(0);
     expect(getObjectiveBank('lvl_p1', 'f_fundamentals').length).toBeGreaterThan(0);
     expect(getObjectiveBank(LEVEL, 'f_fundamentals').length).toBeGreaterThan(0);
-    expect(getObjectiveBank(LEVEL, 'f_structuring')).toEqual([]);
+    expect(getObjectiveBank(LEVEL, 'f_structuring').length).toBeGreaterThan(0);
   });
 
   it('keeps every bank definition and nested relationship immutable', () => {
