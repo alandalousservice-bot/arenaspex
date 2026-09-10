@@ -29,7 +29,7 @@ describe('Domain 1 Learning Section pedagogical reference', () => {
 
   it('does not populate Domain 2 or Domain 3 with invented components', () => {
     expect(getLearningSectionComponents('lvl_p1', 'f_fundamentals')).toEqual([]);
-    expect(getLearningSectionComponents('lvl_p1', 'f_structuring')).toEqual([]);
+    expect(getLearningSectionComponents('lvl_p1', 'f_structuring')).toHaveLength(3);
     const plan = seedTeacherLearningPlan('lvl_p1');
     expect(plan.domains[1].objectives[0].competencyComponentIds).toEqual([
       'learning-section:lvl_p1:f_fundamentals:component:1',

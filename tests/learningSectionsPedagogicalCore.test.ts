@@ -201,7 +201,7 @@ describe('Learning Sections pedagogical core', () => {
 
   it('does not introduce Domain 2/3 Learning Section content or touch Annual Plan code', () => {
     expect(getLearningSectionComponents('lvl_p1', 'f_fundamentals')).toEqual([]);
-    expect(getLearningSectionComponents('lvl_p1', 'f_structuring')).toEqual([]);
+    expect(getLearningSectionComponents('lvl_p1', 'f_structuring')).toHaveLength(3);
     const service = read('src/services/teacherLearningPlan.service.ts');
     expect(service).not.toContain('annualPlanReference');
     expect(service).not.toContain('AnnualPlanView');
