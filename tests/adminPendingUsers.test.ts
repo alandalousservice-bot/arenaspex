@@ -30,7 +30,13 @@ describe('authoritative Admin pending accounts', () => {
     expect(router).toContain("OR: [{ status: 'pending_approval' }, { isApprovedByAdmin: false }]");
     expect(api).toContain("fetch('/api/admin/users/pending')");
     expect(legacy).not.toContain('حسابات بانتظار التفعيل');
-    expect(auth).toContain("const role = 'teacher';");
+    expect(auth).toContain("const role = requestedRole === 'inspector' ? 'inspector' : 'teacher';");
     expect(auth).toContain("const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher'])");
+  });
+
+  it('allows an Inspector without a district to activate and complete affiliation later', () => {
+    expect(router).toContain('allowUnassignedInspector: true');
+    expect(router).toContain('if (!districtId && options.allowUnassignedInspector)');
+    expect(router).toContain('مديرية التربية المحددة غير موجودة.');
   });
 });

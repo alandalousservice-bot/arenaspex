@@ -3541,7 +3541,7 @@ apiRouter.post('/admin/users/:id/activate', requireRole('admin'), async (req, re
       districtId: existing.districtId,
     };
     try {
-      await enforceRoleAssignment(assignment, existing);
+      await enforceRoleAssignment(assignment, existing, { allowUnassignedInspector: true });
     } catch (error) {
       return res.status(400).json({
         error: error instanceof Error ? error.message : 'يرجى استكمال مديرية ومقاطعة المفتش.',
@@ -3632,7 +3632,8 @@ async function enforceRoleAssignment(
     status: string;
     directorateId: string;
     districtId: string;
-  } | null
+  } | null,
+  options: { allowUnassignedInspector?: boolean } = {}
 ) {
   const role = String(data.role ?? existing?.role ?? 'teacher');
   const directorateId = String(data.directorateId ?? existing?.directorateId ?? '').trim();
@@ -3640,6 +3641,17 @@ async function enforceRoleAssignment(
 
   if (role === 'inspector') {
     if (!directorateId) throw new Error('يرجى اختيار مديرية التربية.');
+    if (!districtId && options.allowUnassignedInspector) {
+      const directorate = await prisma.directorate.findUnique({
+        where: { id: directorateId },
+        select: { id: true },
+      });
+      if (!directorate) throw new Error('مديرية التربية المحددة غير موجودة.');
+      data.institutionId = null;
+      data.schoolName = null;
+      data.municipality = null;
+      return data;
+    }
     if (!districtId) throw new Error('يرجى اختيار المقاطعة التفتيشية.');
     const district = await prisma.inspectionDistrict.findUnique({
       where: { id: districtId },
