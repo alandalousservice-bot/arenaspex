@@ -150,6 +150,6 @@ describe('Grade 3 / Domain 1 objective bank', () => {
     expect(getObjectiveBank(GRADE_THREE_LEVEL_ID, DOMAIN)).toBe(bank);
     expect(getObjectiveBankResources(GRADE_THREE_LEVEL_ID, DOMAIN)).toBe(resources);
     expect(getObjectiveBank('lvl_p5', 'f_structuring')).toEqual([]);
-    expect(getObjectiveBank(GRADE_THREE_LEVEL_ID, 'f_structuring')).toEqual([]);
+    expect(getObjectiveBank(GRADE_THREE_LEVEL_ID, 'f_structuring').length).toBeGreaterThan(0);
   });
 });

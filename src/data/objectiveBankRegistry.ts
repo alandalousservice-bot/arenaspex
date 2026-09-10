@@ -48,6 +48,10 @@ import {
   GRADE_TWO_DOMAIN_THREE_OBJECTIVE_BANK,
   GRADE_TWO_DOMAIN_THREE_RESOURCES,
 } from './gradeTwoDomainThreeObjectiveBank';
+import {
+  GRADE_THREE_DOMAIN_THREE_OBJECTIVE_BANK,
+  GRADE_THREE_DOMAIN_THREE_RESOURCES,
+} from './gradeThreeDomainThreeObjectiveBank';
 
 export function getObjectiveBank(
   gradeId: string,
@@ -58,6 +62,9 @@ export function getObjectiveBank(
   }
   if (gradeId === 'lvl_p2' && domainId === 'f_structuring') {
     return GRADE_TWO_DOMAIN_THREE_OBJECTIVE_BANK;
+  }
+  if (gradeId === 'lvl_p3' && domainId === 'f_structuring') {
+    return GRADE_THREE_DOMAIN_THREE_OBJECTIVE_BANK;
   }
   if (gradeId === 'lvl_p1' && domainId === 'f_fundamentals') {
     return GRADE_ONE_DOMAIN_TWO_OBJECTIVE_BANK;
@@ -101,6 +108,9 @@ export function getObjectiveBankResources(
   }
   if (gradeId === 'lvl_p2' && domainId === 'f_structuring') {
     return GRADE_TWO_DOMAIN_THREE_RESOURCES;
+  }
+  if (gradeId === 'lvl_p3' && domainId === 'f_structuring') {
+    return GRADE_THREE_DOMAIN_THREE_RESOURCES;
   }
   if (gradeId === 'lvl_p1' && domainId === 'f_fundamentals') {
     return GRADE_ONE_DOMAIN_TWO_RESOURCES;

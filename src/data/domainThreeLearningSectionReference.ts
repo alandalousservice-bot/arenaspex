@@ -75,3 +75,36 @@ export const GRADE_TWO_DOMAIN_THREE_LEARNING_SECTION_REFERENCE = Object.freeze({
     ]),
   }),
 });
+
+export const GRADE_THREE_DOMAIN_THREE_LEARNING_SECTION_REFERENCE = Object.freeze({
+  levelId: 'lvl_p3',
+  fieldId: DOMAIN_THREE_FIELD_ID as never,
+  finalCompetency: 'يبني تصرفاته القاعدية لتنظيم تدخلاته حسب الموقف',
+  components: Object.freeze([
+    {
+      id: 'learning-section:lvl_p3:f_structuring:component:1',
+      title:
+        'يتعرف على التصرفات القاعدية، وطرق التنقل بين المعالم، وعلى الرمي وقواعد المنافسة المناسبة.',
+    },
+    {
+      id: 'learning-section:lvl_p3:f_structuring:component:2',
+      title: 'يتنقل بين المعالم وفق قواعد المنافسة المناسبة.',
+    },
+    { id: 'learning-section:lvl_p3:f_structuring:component:3', title: 'يلتزم بقواعد المنافسة.' },
+  ]),
+  defaults: Object.freeze({
+    learningContent:
+      'التصرفات المناسبة للموقف، والتنقل بين المعالم، واجتياز الموانع، وقواعد المنافسة.',
+    pedagogicalKnowledge:
+      'التصرف المناسب، تغيير الاتجاه، الإفلات، اجتياز مانع بوسيلة، واستعمال أداة داخل مجال محدد.',
+    executionContent: 'ينظم تدخله بين المعالم وداخل المجال المحدد وفق الموقف والقواعد.',
+    guidance: 'أمن وسلامة الآخرين والالتزام بقواعد المنافسة.',
+    resources: Object.freeze([
+      'التصرف المناسب',
+      'التنقل بين المعالم',
+      'اجتياز الموانع',
+      'المجال المحدد',
+      'قواعد المنافسة',
+    ]),
+  }),
+});

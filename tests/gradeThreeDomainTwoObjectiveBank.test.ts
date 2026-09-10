@@ -60,7 +60,7 @@ describe('Grade 3 / Domain 2 objective bank', () => {
     expect(getObjectiveBank('lvl_p3', DOMAIN)).toBe(bank);
     expect(getObjectiveBankResources('lvl_p3', DOMAIN)).toBe(resources);
     expect(getObjectiveBank('lvl_p5', 'f_structuring')).toEqual([]);
-    expect(getObjectiveBank('lvl_p3', 'f_structuring')).toEqual([]);
+    expect(getObjectiveBank('lvl_p3', 'f_structuring').length).toBeGreaterThan(0);
   });
 
   it('materializes ordinary objectives as A/B meetings and specials once', () => {
