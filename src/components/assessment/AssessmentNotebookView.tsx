@@ -137,6 +137,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
   const [historyError, setHistoryError] = useState('');
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [individualGridOpen, setIndividualGridOpen] = useState(false);
   const [studentHistory, setStudentHistory] = useState<StudentAssessmentHistoryDto[]>([]);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualType, setManualType] = useState<TeacherAssessmentType>('تقويم تشخيصي');
@@ -524,6 +525,17 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
     updateDraft(studentId, { criteria: { ...current.criteria, [code]: value } });
   };
 
+  const openIndividualGrid = (studentId: string) => {
+    setSelectedStudentId(studentId);
+    setIndividualGridOpen(true);
+  };
+
+  const moveIndividualStudent = (offset: number) => {
+    const currentIndex = classStudents.findIndex((student) => student.id === selectedStudentId);
+    const nextStudent = classStudents[currentIndex + offset];
+    if (nextStudent) setSelectedStudentId(nextStudent.id);
+  };
+
   const saveStudent = async (student: Student, draftOverride?: Draft) => {
     if (!activeSession) return;
     const draft = draftOverride || drafts[student.id] || emptyDraft();
@@ -904,7 +916,13 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                     return (
                       <tr key={student.id} className="align-top">
                         <td className="p-3 font-extrabold">
-                          {student.firstName} {student.lastName}
+                          <button
+                            type="button"
+                            onClick={() => openIndividualGrid(student.id)}
+                            className="text-right font-extrabold text-emerald-800 underline-offset-4 hover:underline"
+                          >
+                            {student.firstName} {student.lastName}
+                          </button>
                           <span
                             className={`mt-1 block text-[10px] ${persisted ? 'text-emerald-700' : 'text-slate-400'}`}
                           >
@@ -960,6 +978,13 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                         </td>
                         <td className="p-2">
                           <button
+                            type="button"
+                            onClick={() => openIndividualGrid(student.id)}
+                            className="mb-2 block rounded-xl border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-700"
+                          >
+                            شبكة التلميذ
+                          </button>
+                          <button
                             onClick={() => void saveStudent(student)}
                             disabled={savingStudentId === student.id}
                             className="flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
@@ -975,6 +1000,147 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
               </tbody>
             </table>
           </div>
+          {individualGridOpen && selectedStudent && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4">
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="individual-competency-grid-title"
+                className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
+                  <div>
+                    <h3
+                      id="individual-competency-grid-title"
+                      className="text-lg font-extrabold text-slate-900"
+                    >
+                      شبكة تقويم الكفاءة الختامية للتلميذ
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {selectedStudent.firstName} {selectedStudent.lastName} ·{' '}
+                      {activeClass?.name || 'القسم'} · {activeClass?.levelId || 'المستوى'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIndividualGridOpen(false)}
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700"
+                  >
+                    العودة إلى دفتر القسم
+                  </button>
+                </div>
+                <div className="mt-4 rounded-2xl border border-purple-100 bg-purple-50 p-4">
+                  <p className="font-bold text-purple-900">الكفاءة الختامية</p>
+                  <p className="mt-1 text-sm text-purple-800">
+                    {assessmentCatalog?.finalCompetency.label}
+                  </p>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {canonicalCriteria.map((criterion, index) => {
+                    const draft = drafts[selectedStudent.id] || emptyDraft();
+                    const indicators = (assessmentCatalog?.indicators || []).filter(
+                      (item) => item.criterionId === criterion.id
+                    );
+                    return (
+                      <div key={criterion.id} className="rounded-2xl border border-slate-200 p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="font-bold text-slate-900">
+                              المعيار {index + 1}: {criterion.label}
+                            </p>
+                            <p className="mt-1 text-xs leading-6 text-slate-500">
+                              المؤشرات:{' '}
+                              {indicators.map((item) => item.label).join('، ') ||
+                                'لا توجد مؤشرات إضافية'}
+                            </p>
+                          </div>
+                          <select
+                            aria-label={`مستوى تمكن المعيار ${index + 1}`}
+                            value={draft.criteria[criterion.id] || ''}
+                            onChange={(event) =>
+                              updateCriterion(
+                                selectedStudent.id,
+                                criterion.id,
+                                event.target.value as AssessmentGrade | ''
+                              )
+                            }
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                          >
+                            <option value="">غير مقوّم</option>
+                            {MASTERY.map((level) => (
+                              <option key={level.value} value={level.value}>
+                                {level.value}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {(() => {
+                  const draft = drafts[selectedStudent.id] || emptyDraft();
+                  const complete = isAssessmentComplete(
+                    canonicalCriteria.map((item) => item.id),
+                    draft.criteria
+                  );
+                  return (
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-4">
+                      <div className="text-sm font-bold">
+                        الحالة:{' '}
+                        <span className={complete ? 'text-emerald-700' : 'text-amber-700'}>
+                          {complete ? 'مكتمل' : 'غير مكتمل'}
+                        </span>
+                        {complete && (
+                          <span className="mr-3 text-purple-700">
+                            التملك النهائي: {calculateAssessmentMastery(draft.criteria)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => moveIndividualStudent(-1)}
+                          disabled={
+                            !classStudents[
+                              classStudents.findIndex(
+                                (student) => student.id === selectedStudent.id
+                              ) - 1
+                            ]
+                          }
+                          className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold disabled:opacity-40"
+                        >
+                          السابق
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveIndividualStudent(1)}
+                          disabled={
+                            !classStudents[
+                              classStudents.findIndex(
+                                (student) => student.id === selectedStudent.id
+                              ) + 1
+                            ]
+                          }
+                          className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold disabled:opacity-40"
+                        >
+                          التالي
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void saveStudent(selectedStudent)}
+                          disabled={savingStudentId === selectedStudent.id}
+                          className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+                        >
+                          {savingStudentId === selectedStudent.id ? 'حفظ...' : 'حفظ الشبكة'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </section>
+            </div>
+          )}
           <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
               <h3 className="text-sm font-extrabold text-slate-900">توزيع حالات التملك</h3>

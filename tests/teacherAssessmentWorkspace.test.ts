@@ -81,4 +81,22 @@ describe('unified Teacher assessment notebook', () => {
     expect(router).toContain("requireRole('teacher')");
     expect(api).toContain('fetchTeacherStudentAssessmentHistory');
   });
+
+  it('provides an individual canonical competency grid over the persisted class results', () => {
+    const view = read('src/components/assessment/AssessmentNotebookView.tsx');
+    expect(view).toContain('شبكة تقويم الكفاءة الختامية للتلميذ');
+    expect(view).toContain('شبكة التلميذ');
+    expect(view).toContain('role="dialog"');
+    expect(view).toContain('aria-labelledby="individual-competency-grid-title"');
+    expect(view).toContain('canonicalCriteria.map');
+    expect(view).toContain('assessmentCatalog?.indicators');
+    expect(view).toContain('upsertTeacherCriterionResult');
+    expect(view).toContain('saveStudent(selectedStudent)');
+    expect(view).toContain('مكتمل');
+    expect(view).toContain('غير مكتمل');
+    expect(view).not.toContain('C1');
+    expect(view).not.toContain('C2');
+    expect(view).not.toContain('C3');
+    expect(view).not.toContain('C4');
+  });
 });
