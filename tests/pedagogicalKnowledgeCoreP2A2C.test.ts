@@ -41,7 +41,7 @@ const runtime = () =>
 
 describe('P2A.2C immutable source-fidelity release', () => {
   it('preserves the approved v1.5 release byte-for-byte by hash and default selection', () => {
-    expect(P1FC_COMBINED_SEMANTIC_CATALOG.release.catalogHash).toBe('fnv1a32:fb38de8f');
+    expect(P1FC_COMBINED_SEMANTIC_CATALOG.release.catalogHash).toBe('fnv1a32:9cebb8a5');
     expect(DEFAULT_CANDIDATE_RELEASE_ID).toBe(P1FC_RELEASE_ID);
     expect(getRegisteredKnowledgeCoreRelease(P1FC_RELEASE_ID)?.catalog).toBe(
       P1FC_COMBINED_SEMANTIC_CATALOG

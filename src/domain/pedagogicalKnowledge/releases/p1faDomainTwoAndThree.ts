@@ -81,6 +81,24 @@ const G1_D3_CRITERIA = [
   ['القيام بحركات لتمكين الزملاء من استثمار الفضاء', 'مشاركة الأقران'],
 ] as const;
 const G1_D3_CRITERIA_SOURCE = 'annual-plan-reference:lvl_p1:f_structuring:evaluation-criteria';
+const G2_CRITERIA_SOURCE = 'annual-plan-reference:lvl_p2:evaluation-criteria';
+const G2_CRITERIA: Record<P1FADomainId, readonly (readonly [string, string])[]> = {
+  f_fundamentals: [
+    ['المحافظة على التوازن خلال عملية التحول', 'تنفيذ حركات المشي والهرولة المختلفة بشكل سليم'],
+    ['استثمار الإرتكازات بطريقة سليمة لضمان عملية التحول', 'تكامل عمل الأطراف جثو - وثب'],
+    [
+      'استعمال الحركات المناسبة لعملية التحول',
+      'التنفيذ الصحيح– يوظف تكامل أطرافه في الجري المتعرج',
+    ],
+    ['حسن اختيار أسلوب أو مدة أو مسافة التحول', 'تنفيذ الجري جري في دائرة و في محور بطريقة سليمة'],
+  ],
+  f_structuring: [
+    ['التعرف على الوسائل واستخدامها بشكل الصحيح', 'استعمال مختلف الوسائل وتوظيفها'],
+    ['أداء سليم لتسليم واستلام أداة', 'التسليم و الإستلام من الثبات والحركة بشكل سليم'],
+    ['أداء رمي سليم من مختلف الوضعيات', 'الرمي الجانبي والامامي والخلفي بشكل سليم'],
+    ['الحفاظ على سلامة الوسائل و الأدوات', 'توظيف الوسائل مع الأقران والمحافظة عليها'],
+  ],
+};
 
 export const p1faRequirementId = (resourceGroupId: string): string =>
   resourceGroupId.replace('official-resource-group:', 'learning-requirement:');
@@ -95,6 +113,53 @@ const G1_D3_REQUIREMENT_IDS =
   sourceCells
     .find((cell) => cell.gradeId === G1_D3_GRADE_ID && cell.domainId === G1_D3_DOMAIN_ID)
     ?.resourceGroups.map((group) => p1faRequirementId(group.id)) || [];
+const g2RequirementIds = (domainId: P1FADomainId) =>
+  sourceCells
+    .find((cell) => cell.gradeId === 'lvl_p2' && cell.domainId === domainId)
+    ?.resourceGroups.map((group) => p1faRequirementId(group.id)) || [];
+const g2FinalCompetencyId = (domainId: P1FADomainId) => `fc_lvl_p2_${domainId}`;
+const g2CriterionId = (domainId: P1FADomainId, index: number) =>
+  `criterion:lvl_p2:${domainId}:final-competency:${index}`;
+const g2IndicatorId = (domainId: P1FADomainId, index: number) =>
+  `indicator:lvl_p2:${domainId}:criterion:${index}:1`;
+const G2_DOMAINS: readonly P1FADomainId[] = ['f_fundamentals', 'f_structuring'];
+const g2Criteria = G2_DOMAINS.flatMap((domainId) =>
+  G2_CRITERIA[domainId].map(([label], index) =>
+    node(
+      g2CriterionId(domainId as P1FADomainId, index + 1),
+      label,
+      {
+        gradeId: 'lvl_p2' as const,
+        domainId,
+        finalCompetencyId: g2FinalCompetencyId(domainId as P1FADomainId),
+        order: index + 1,
+      },
+      approvedOfficial(`${G2_CRITERIA_SOURCE}:${domainId}`)
+    )
+  )
+);
+const g2Indicators = G2_DOMAINS.flatMap((domainId) =>
+  G2_CRITERIA[domainId].map(([, label], index) =>
+    node(
+      g2IndicatorId(domainId as P1FADomainId, index + 1),
+      label,
+      {
+        gradeId: 'lvl_p2' as const,
+        domainId,
+        criterionId: g2CriterionId(domainId as P1FADomainId, index + 1),
+        learningRequirementIds: g2RequirementIds(domainId as P1FADomainId).length
+          ? [
+              g2RequirementIds(domainId as P1FADomainId)[
+                Math.min(index, g2RequirementIds(domainId as P1FADomainId).length - 1)
+              ],
+            ]
+          : [],
+        order: 1,
+      },
+      approvedOfficial(`${G2_CRITERIA_SOURCE}:${domainId}`)
+    )
+  )
+);
 
 const catalogWithoutHash = {
   release: {
@@ -236,6 +301,7 @@ const catalogWithoutHash = {
           )
         )
       ),
+    ...g2Criteria,
   ],
   indicators: [
     ...sourceCells
@@ -278,6 +344,7 @@ const catalogWithoutHash = {
           )
         )
       ),
+    ...g2Indicators,
   ],
   objectiveConcepts: sourceCells.flatMap((cell) =>
     cell.resourceGroups.map((group, index) => {

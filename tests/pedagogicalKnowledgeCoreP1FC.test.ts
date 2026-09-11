@@ -79,8 +79,8 @@ describe('P1F-C combined semantic activation candidate', () => {
         .map((item) => item.id)
     ).toEqual(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.objectiveConcepts.map((item) => item.id));
     expect(OFFICIAL_CURRICULUM_2023.contentHash).toBe('fnv1a32:cfe67657');
-    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.release.catalogHash).toBe('fnv1a32:f6c1c7a4');
-    expect(P1FB_DOMAIN_ONE_CORRECTION_CATALOG.release.catalogHash).toBe('fnv1a32:acafe987');
+    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.release.catalogHash).toBe('fnv1a32:20547097');
+    expect(P1FB_DOMAIN_ONE_CORRECTION_CATALOG.release.catalogHash).toBe('fnv1a32:15142f72');
   });
 
   it('exposes the canonical criteria and indicators through the registered runtime catalog', () => {
@@ -98,12 +98,18 @@ describe('P1F-C combined semantic activation candidate', () => {
         )
       ).toHaveLength(4);
     }
-    expect(registered?.catalog.criteria.filter((item) => item.gradeId !== 'lvl_p1')).toHaveLength(
-      0
-    );
-    expect(registered?.catalog.indicators.filter((item) => item.gradeId !== 'lvl_p1')).toHaveLength(
-      0
-    );
+    for (const domainId of ['f_locomotion', 'f_fundamentals', 'f_structuring']) {
+      expect(
+        registered?.catalog.criteria.filter(
+          (item) => item.gradeId === 'lvl_p2' && item.domainId === domainId
+        )
+      ).toHaveLength(4);
+      expect(
+        registered?.catalog.indicators.filter(
+          (item) => item.gradeId === 'lvl_p2' && item.domainId === domainId
+        )
+      ).toHaveLength(4);
+    }
   });
 
   it('separates semantic completeness from runtime activation authority in every cell', () => {

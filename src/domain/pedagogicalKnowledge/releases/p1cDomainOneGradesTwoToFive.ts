@@ -641,8 +641,51 @@ const catalogWithoutHash = {
       )
     )
   ),
-  criteria: [],
-  indicators: [],
+  criteria: specs.flatMap((spec) =>
+    spec.gradeId === 'lvl_p2'
+      ? [
+          ['المحافظة على التوازن خلال عملية التحول', 1],
+          ['استثمار الإرتكازات بطريقة سليمة لضمان عملية التحول', 2],
+          ['استعمال الحركات المناسبة لعملية التحول', 3],
+          ['حسن اختيار أسلوب أو مدة أو مسافة التحول', 4],
+        ].map(([label, index]) =>
+          node(
+            `criterion:lvl_p2:f_locomotion:final-competency:${index}`,
+            String(label),
+            {
+              gradeId: 'lvl_p2',
+              domainId: DOMAIN_ID,
+              finalCompetencyId: 'fc_lvl_p2_f_locomotion',
+              order: Number(index),
+            },
+            approvedOfficial('annual-plan-reference:lvl_p2:f_locomotion:evaluation-criteria')
+          )
+        )
+      : []
+  ),
+  indicators: specs.flatMap((spec) =>
+    spec.gradeId === 'lvl_p2'
+      ? [
+          ['تنفيذ حركات المشي والهرولة المختلفة بشكل سليم', 1],
+          ['تكامل عمل الأطراف جثو - وثب', 2],
+          ['التنفيذ الصحيح– يوظف تكامل أطرافه في الجري المتعرج', 3],
+          ['تنفيذ الجري جري في دائرة و في محور بطريقة سليمة', 4],
+        ].map(([label, index]) =>
+          node(
+            `indicator:lvl_p2:f_locomotion:criterion:${index}:1`,
+            String(label),
+            {
+              gradeId: 'lvl_p2',
+              domainId: DOMAIN_ID,
+              criterionId: `criterion:lvl_p2:f_locomotion:final-competency:${index}`,
+              learningRequirementIds: [],
+              order: 1,
+            },
+            approvedOfficial('annual-plan-reference:lvl_p2:f_locomotion:evaluation-criteria')
+          )
+        )
+      : []
+  ),
   objectiveConcepts: specs.flatMap((spec) =>
     spec.concepts.map((concept, index) =>
       node(
