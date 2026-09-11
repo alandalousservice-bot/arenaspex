@@ -1,13 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   authorizeImportEnvironment,
+  isDirectExecution,
   loadImportPayload,
   PRODUCTION_IMPORT_CONFIRMATION,
   validateImportPayload,
 } from '../scripts/importEducationalSituationBank';
 
 describe('educational situation importer validation', () => {
+  it('recognizes direct execution across Windows and POSIX path formats', () => {
+    expect(
+      isDirectExecution(
+        'file:///D:/arenaspex/scripts/importEducationalSituationBank.ts',
+        'D:\\arenaspex\\scripts\\importEducationalSituationBank.ts'
+      )
+    ).toBe(process.platform === 'win32');
+    const currentFile = path.resolve('scripts/importEducationalSituationBank.ts');
+    expect(isDirectExecution(pathToFileURL(currentFile).href, currentFile)).toBe(true);
+    expect(
+      isDirectExecution(pathToFileURL(currentFile).href, path.resolve('scripts/other.ts'))
+    ).toBe(false);
+    expect(isDirectExecution(pathToFileURL(currentFile).href)).toBe(false);
+  });
   const base = {
     ALLOW_EDUCATIONAL_SITUATION_IMPORT: 'true',
     ARENASPEX_IMPORT_ENVIRONMENT: 'staging',

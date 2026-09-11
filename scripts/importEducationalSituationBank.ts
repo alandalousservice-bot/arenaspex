@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   PrismaClient,
   SituationActivityType,
@@ -72,6 +73,15 @@ export function validateImportPayload(payload: ImportPayload): void {
 }
 
 export const PRODUCTION_IMPORT_CONFIRMATION = 'I_UNDERSTAND_THIS_WRITES_TO_ARENASPEX_PRODUCTION';
+
+export function isDirectExecution(importMetaUrl: string, argv1?: string): boolean {
+  if (!argv1) return false;
+  const currentFile = path.normalize(path.resolve(fileURLToPath(importMetaUrl)));
+  const invokedFile = path.normalize(path.resolve(argv1));
+  return process.platform === 'win32'
+    ? currentFile.toLowerCase() === invokedFile.toLowerCase()
+    : currentFile === invokedFile;
+}
 
 export function authorizeImportEnvironment(env: NodeJS.ProcessEnv = process.env): void {
   if (env.ALLOW_EDUCATIONAL_SITUATION_IMPORT !== 'true')
@@ -206,11 +216,29 @@ export async function importEducationalSituationBank(
   };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+async function main(): Promise<void> {
+  console.log('IMPORT_START');
+  authorizeImportEnvironment();
+  console.log('IMPORT_GUARD_OK');
+  const payload = loadImportPayload();
+  validateImportPayload(payload);
+  console.log('IMPORT_PAYLOAD_OK');
+  console.log('IMPORT_PREWRITE');
   const prisma = new PrismaClient();
-  importEducationalSituationBank(prisma)
-    .then((result) => {
-      console.log(JSON.stringify(result));
-    })
-    .finally(() => prisma.$disconnect());
+  try {
+    const result = await importEducationalSituationBank(prisma, payload);
+    console.log('IMPORT_COMMIT_OK');
+    console.log(JSON.stringify(result));
+    console.log('IMPORT_DONE');
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+if (isDirectExecution(import.meta.url, process.argv[1])) {
+  main().catch((error: unknown) => {
+    console.error('IMPORT_FAILED');
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
 }
