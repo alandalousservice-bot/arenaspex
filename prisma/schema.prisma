@@ -6,77 +6,111 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_DATABASE_URL")
+}
+
+enum SituationActivityType {
+  GAME
+  PEDAGOGICAL_ACTIVITY
+  OTHER
+  UNRESOLVED
+}
+
+enum SituationObjectiveRelationType {
+  DIRECT
+  SUPPORTIVE
+  INTEGRATIVE
+}
+
+enum SituationProductionEligibility {
+  AUTO_GENERATION_ELIGIBLE
+  REVIEW_ONLY
+  SOURCE_ARCHIVE_ONLY
+}
+
+enum SituationApprovalStatus {
+  PERSONAL
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum SituationMediaClassification {
+  SPECIFIC_GAME_IMAGE
+  SPECIFIC_SITUATION_IMAGE
+  GENERIC_DOMAIN_ILLUSTRATION
+  GENERIC_MOTOR_SKILL_ILLUSTRATION
+  UNRESOLVED
 }
 
 // -----------------------------------------------------------------------
 // المستخدمون — النموذج الوحيد الذي يحتاج أعمدة صارمة لأنه يحمل بيانات المصادقة
 // -----------------------------------------------------------------------
 model User {
-  id                String   @id
-  username          String   @unique
-  spexId            String   @unique
-  firstName         String
-  lastName          String
-  email             String   @unique
+  id                      String   @id
+  username                String   @unique
+  spexId                  String   @unique
+  firstName               String
+  lastName                String
+  email                   String   @unique
   // كلمة المرور لا تُخزَّن أبداً كنص عادي — فقط الهاش (bcrypt)
-  passwordHash      String
+  passwordHash            String
   // معرّف حساب Google المرتبط (Google "sub") — اختياري، يُستخدم لتسجيل الدخول عبر Google
   // بدل/بالإضافة إلى كلمة المرور. لا يزال الحساب نفسه يُنشأ حصرياً من طرف المشرف أو المفتش.
-  googleId          String?  @unique
-  role              String // teacher | inspector | director | admin
-  isPlatformOwner   Boolean  @default(false)
-  avatar            String?
-  phone             String?
-  directorateId     String
-  districtId        String
-  institutionId     String?
-  schoolName        String?
-  municipality      String?
-  specialization    String?
-  cycle             String?
-  yearsExperience   Int?
-  bio               String?
-  status            String   @default("active") // active | inactive
-  isApprovedByAdmin Boolean  @default(false)
-  followingIds      String[] @default([])
-  followersIds      String[] @default([])
-  publishedResourcesCount Int @default(0)
-  approvedResourcesCount  Int @default(0)
-  privacySettings   Json?
+  googleId                String?  @unique
+  role                    String // teacher | inspector | director | admin
+  isPlatformOwner         Boolean  @default(false)
+  avatar                  String?
+  phone                   String?
+  directorateId           String
+  districtId              String
+  institutionId           String?
+  schoolName              String?
+  municipality            String?
+  specialization          String?
+  cycle                   String?
+  yearsExperience         Int?
+  bio                     String?
+  status                  String   @default("active") // active | inactive
+  isApprovedByAdmin       Boolean  @default(false)
+  followingIds            String[] @default([])
+  followersIds            String[] @default([])
+  publishedResourcesCount Int      @default(0)
+  approvedResourcesCount  Int      @default(0)
+  privacySettings         Json?
   // مفتاح Gemini الخاص بالمستخدم (اختياري) — يُستخدم فقط من الخادم، لا يُعرض للعميل بعد الحفظ
-  customApiKey      String? // legacy only; no longer returned or used for AI calls
-  encryptedApiKey   String?
-  apiKeyStatus      String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  customApiKey            String? // legacy only; no longer returned or used for AI calls
+  encryptedApiKey         String?
+  apiKeyStatus            String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   // بلدية العمل كسجل مرتبط فعلياً بجدول Municipalities (municipality أعلاه يبقى كاسم نصي مخزَّن للعرض السريع فقط)
-  municipalityId    String?
+  municipalityId String?
 
   // الحقول الجغرافية الوطنية الجديدة (PART A) — اختيارية معكوسة للتوافق
   eduDirectorateId String?
-  eduDirectorate Directorate? @relation("EduDirectorate", fields: [eduDirectorateId], references: [id], onDelete: SetNull)
-  eduDistrictId String?
-  eduDistrict InspectionDistrict? @relation("EduDistrict", fields: [eduDistrictId], references: [id], onDelete: SetNull)
-  eduSchoolId String?
-  eduSchool School? @relation("EduSchool", fields: [eduSchoolId], references: [id], onDelete: SetNull)
-  birthDate DateTime?
+  eduDirectorate   Directorate?        @relation("EduDirectorate", fields: [eduDirectorateId], references: [id], onDelete: SetNull)
+  eduDistrictId    String?
+  eduDistrict      InspectionDistrict? @relation("EduDistrict", fields: [eduDistrictId], references: [id], onDelete: SetNull)
+  eduSchoolId      String?
+  eduSchool        School?             @relation("EduSchool", fields: [eduSchoolId], references: [id], onDelete: SetNull)
+  birthDate        DateTime?
 
-  resetTokens PasswordResetToken[]
-  pedagogicalGames PedagogicalGame[]
-  generationAccess UserGenerationAccess?
-  students Student[]
-  studentClasses StudentClass[]
-  plannedSessions ClassPlannedSession[] @relation("TeacherPlannedSessions")
+  resetTokens        PasswordResetToken[]
+  pedagogicalGames   PedagogicalGame[]
+  generationAccess   UserGenerationAccess?
+  students           Student[]
+  studentClasses     StudentClass[]
+  plannedSessions    ClassPlannedSession[] @relation("TeacherPlannedSessions")
   assessmentSessions AssessmentSession[]
-  attendanceRecords StudentAttendance[] @relation("TeacherAttendance")
-  medicalExemptions MedicalExemption[] @relation("TeacherMedicalExemptions")
-  weeklySlots       TeacherWeeklySlot[]
+  attendanceRecords  StudentAttendance[]   @relation("TeacherAttendance")
+  medicalExemptions  MedicalExemption[]    @relation("TeacherMedicalExemptions")
+  weeklySlots        TeacherWeeklySlot[]
 
-// نظام الإسناد التلقائي للأساتذة إلى المفتشين
+  // نظام الإسناد التلقائي للأساتذة إلى المفتشين
   teacherAssignment    InspectorAssignment?  @relation("TeacherAssignment")
   inspectorAssignments InspectorAssignment[] @relation("InspectorAssignments")
 
@@ -90,23 +124,23 @@ model User {
 }
 
 model Student {
-  id            String   @id
-  teacherId     String
-  institutionId String?
-  classId       String
-  matricule     String
-  firstName     String
-  lastName      String
-  birthDate     DateTime?
-  grade         Int?
-  groupName     String?
-  schoolYear    String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  teacher       User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  id                 String              @id
+  teacherId          String
+  institutionId      String?
+  classId            String
+  matricule          String
+  firstName          String
+  lastName           String
+  birthDate          DateTime?
+  grade              Int?
+  groupName          String?
+  schoolYear         String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  teacher            User                @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   studentAssessments StudentAssessment[]
-  attendanceRecords StudentAttendance[]
-  medicalExemptions MedicalExemption[]
+  attendanceRecords  StudentAttendance[]
+  medicalExemptions  MedicalExemption[]
 
   @@unique([teacherId, matricule])
   @@index([teacherId, classId])
@@ -114,27 +148,27 @@ model Student {
 }
 
 model StudentClass {
-  id            String   @id
-  teacherId     String
-  institutionId String?
-  levelId       String
-  name          String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  teacher       User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  plannedSessions ClassPlannedSession[]
-  attendanceRecords StudentAttendance[]
+  id                 String                @id
+  teacherId          String
+  institutionId      String?
+  levelId            String
+  name               String
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  teacher            User                  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  plannedSessions    ClassPlannedSession[]
+  attendanceRecords  StudentAttendance[]
   assessmentSessions AssessmentSession[]
-  weeklySlots TeacherWeeklySlot[]
+  weeklySlots        TeacherWeeklySlot[]
 
   @@index([teacherId])
   @@index([institutionId])
 }
 
 model ClassPlannedSession {
-  id                  String   @id
-  teacherId           String
-  classId             String
+  id                 String   @id
+  teacherId          String
+  classId            String
   academicYearId     String
   referenceSessionId String
   plannedDate        DateTime
@@ -146,8 +180,8 @@ model ClassPlannedSession {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  teacher User         @relation("TeacherPlannedSessions", fields: [teacherId], references: [id], onDelete: Cascade)
-  class   StudentClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher           User                @relation("TeacherPlannedSessions", fields: [teacherId], references: [id], onDelete: Cascade)
+  class             StudentClass        @relation(fields: [classId], references: [id], onDelete: Cascade)
   assessmentSession AssessmentSession?
   attendanceRecords StudentAttendance[]
 
@@ -159,7 +193,7 @@ model ClassPlannedSession {
 
 // -----------------------------------------------------------------------
 model StudentAttendance {
-  id                    String   @id
+  id                    String    @id
   teacherId             String
   classId               String
   studentId             String
@@ -169,8 +203,8 @@ model StudentAttendance {
   status                String?
   note                  String?
   recordedAt            DateTime?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   teacher             User                 @relation("TeacherAttendance", fields: [teacherId], references: [id], onDelete: Cascade)
   class               StudentClass         @relation(fields: [classId], references: [id], onDelete: Cascade)
@@ -184,17 +218,17 @@ model StudentAttendance {
 }
 
 model TeacherWeeklySlot {
-  id             String      @id
+  id             String   @id
   teacherId      String
   classId        String
   academicYearId String
   weekday        Int
   startTime      String
   endTime        String
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  teacher User        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacher User         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   class   StudentClass @relation(fields: [classId], references: [id], onDelete: Cascade)
 
   @@unique([teacherId, academicYearId, weekday, startTime])
@@ -203,15 +237,15 @@ model TeacherWeeklySlot {
 }
 
 model MedicalExemption {
-  id        String   @id
+  id        String    @id
   teacherId String
   studentId String
   issuedOn  DateTime
   expiresOn DateTime?
   reason    String?
   note      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   teacher User    @relation("TeacherMedicalExemptions", fields: [teacherId], references: [id], onDelete: Cascade)
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -219,6 +253,7 @@ model MedicalExemption {
   @@index([teacherId, studentId])
   @@index([studentId, issuedOn, expiresOn])
 }
+
 // نظام الإسناد التلقائي للأساتذة إلى المفتشين
 // Directorates / Municipalities / Schools / InspectionDistricts هي الهيكل
 // الإداري الرسمي، وتُدار من طرف الإدارة (admin) عبر مسارات مخصصة، بينما
@@ -234,13 +269,13 @@ model Directorate {
 
   municipalities Municipality[]
   districts      InspectionDistrict[]
-  eduUsers       User[] @relation("EduDirectorate")
+  eduUsers       User[]               @relation("EduDirectorate")
 
   @@index([name])
 }
 
 model Municipality {
-  id            String   @id @default(cuid())
+  id            String      @id @default(cuid())
   name          String
   directorateId String
   directorate   Directorate @relation(fields: [directorateId], references: [id], onDelete: Cascade)
@@ -255,7 +290,7 @@ model Municipality {
 }
 
 model School {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   name           String
   municipalityId String
   municipality   Municipality @relation(fields: [municipalityId], references: [id], onDelete: Cascade)
@@ -266,9 +301,9 @@ model School {
 
   // PART A additions
   inspectionDistrictId String?
-  inspectionDistrict InspectionDistrict? @relation("SchoolInspectionDistrict", fields: [inspectionDistrictId], references: [id], onDelete: SetNull)
-  wilayaCode String?
-  eduUsers User[] @relation("EduSchool")
+  inspectionDistrict   InspectionDistrict? @relation("SchoolInspectionDistrict", fields: [inspectionDistrictId], references: [id], onDelete: SetNull)
+  wilayaCode           String?
+  eduUsers             User[]              @relation("EduSchool")
 
   @@unique([municipalityId, name])
   @@index([municipalityId])
@@ -276,7 +311,7 @@ model School {
 }
 
 model InspectionDistrict {
-  id             String   @id @default(cuid())
+  id             String      @id @default(cuid())
   name           String // e.g. المقاطعة 07 - عين أزال
   directorateId  String
   directorate    Directorate @relation(fields: [directorateId], references: [id], onDelete: Cascade)
@@ -284,8 +319,8 @@ model InspectionDistrict {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  eduUsers User[] @relation("EduDistrict")
-  schools School[] @relation("SchoolInspectionDistrict")
+  eduUsers          User[]             @relation("EduDistrict")
+  schools           School[]           @relation("SchoolInspectionDistrict")
   schoolSuggestions SchoolSuggestion[]
 
   @@unique([directorateId, name])
@@ -295,16 +330,16 @@ model InspectionDistrict {
 // اقتراح إضافة بلدية غير موجودة في القائمة — يقدّمه الأستاذ أثناء استكمال بياناته،
 // ولا يظهر لبقية المستخدمين حتى تعتمده الإدارة (يتحول عندها إلى سجل Municipality حقيقي)
 model MunicipalitySuggestion {
-  id            String   @id @default(cuid())
-  name          String
-  directorateId String
-  municipality  Municipality? @relation(fields: [approvedMunicipalityId], references: [id], onDelete: SetNull)
+  id                     String        @id @default(cuid())
+  name                   String
+  directorateId          String
+  municipality           Municipality? @relation(fields: [approvedMunicipalityId], references: [id], onDelete: SetNull)
   approvedMunicipalityId String?
-  suggestedBy   String // User.id لصاحب الاقتراح
-  status        String   @default("pending") // pending | approved | rejected
-  reviewedBy    String?
-  reviewedAt    DateTime?
-  createdAt     DateTime @default(now())
+  suggestedBy            String // User.id لصاحب الاقتراح
+  status                 String        @default("pending") // pending | approved | rejected
+  reviewedBy             String?
+  reviewedAt             DateTime?
+  createdAt              DateTime      @default(now())
 
   @@index([directorateId])
   @@index([status])
@@ -312,20 +347,20 @@ model MunicipalitySuggestion {
 
 // اقتراح إضافة مؤسسة تعليمية غير موجودة في القائمة
 model SchoolSuggestion {
-  id             String   @id @default(cuid())
-  name           String
-  municipalityId String
-  school         School?  @relation(fields: [approvedSchoolId], references: [id], onDelete: SetNull)
+  id               String    @id @default(cuid())
+  name             String
+  municipalityId   String
+  school           School?   @relation(fields: [approvedSchoolId], references: [id], onDelete: SetNull)
   approvedSchoolId String?
-  suggestedBy    String
-  status         String   @default("pending") // pending | approved | rejected
-  reviewedBy     String?
-  reviewedAt     DateTime?
-  createdAt      DateTime @default(now())
+  suggestedBy      String
+  status           String    @default("pending") // pending | approved | rejected
+  reviewedBy       String?
+  reviewedAt       DateTime?
+  createdAt        DateTime  @default(now())
 
   // PART A addition
   inspectionDistrictId String?
-  inspectionDistrict InspectionDistrict? @relation(fields: [inspectionDistrictId], references: [id], onDelete: SetNull)
+  inspectionDistrict   InspectionDistrict? @relation(fields: [inspectionDistrictId], references: [id], onDelete: SetNull)
 
   @@index([municipalityId])
   @@index([status])
@@ -353,13 +388,13 @@ model InspectorAssignment {
 // رموز استرجاع كلمة المرور عبر البريد الإلكتروني — رمز واحد صالح لمرة واحدة فقط
 // نخزّن هاش الرمز فقط (وليس الرمز نفسه)، تماماً كما لا نخزّن كلمات المرور نص عادي
 model PasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String   @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([userId])
 }
@@ -385,25 +420,25 @@ model AssessmentSession {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
-  teacher               User                @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  class                 StudentClass        @relation(fields: [classId], references: [id], onDelete: Cascade)
-  classPlannedSession   ClassPlannedSession? @relation(fields: [classPlannedSessionId], references: [id], onDelete: SetNull)
-  studentAssessments    StudentAssessment[]
+  teacher             User                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class               StudentClass         @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classPlannedSession ClassPlannedSession? @relation(fields: [classPlannedSessionId], references: [id], onDelete: SetNull)
+  studentAssessments  StudentAssessment[]
 
   @@index([teacherId, classId, academicYearId])
   @@index([classPlannedSessionId])
 }
 
 model StudentAssessment {
-  id                  String   @id
+  id                  String    @id
   assessmentSessionId String
   studentId           String
   masteryLevel        String?
   numericMark         Float?
   note                String?
   assessedAt          DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   assessmentSession AssessmentSession @relation(fields: [assessmentSessionId], references: [id], onDelete: Cascade)
   student           Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -429,6 +464,7 @@ model CriterionResult {
   @@index([studentAssessmentId])
   @@index([criterionId])
 }
+
 model LessonPlan {
   id        String   @id
   ownerId   String?
@@ -440,64 +476,166 @@ model LessonPlan {
 }
 
 model EducationalSituation {
-  id                  String   @id
-  externalId          String?  @unique
-  name                String
-  grade               Int
-  fieldId             String
-  fieldName           String
-  objectiveIds        String[]
-  objectiveTexts      String[]
-  sourceGoal          String
-  organization        String
-  equipment           String[]
-  variations          String?
-  origin              String
-  status              String   @default("PRIVATE")
-  ownerId             String?
-  approvedById        String?
-  approvedByRole      String?
-  approvedAt          DateTime?
-  rejectedById        String?
-  rejectedByRole      String?
-  rejectedAt          DateTime?
-  rejectionReason     String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id              String    @id
+  externalId      String?   @unique
+  name            String
+  grade           Int
+  fieldId         String
+  fieldName       String
+  objectiveIds    String[]
+  objectiveTexts  String[]
+  sourceGoal      String
+  organization    String
+  equipment       String[]
+  variations      String?
+  origin          String
+  status          String    @default("PRIVATE")
+  ownerId         String?
+  approvedById    String?
+  approvedByRole  String?
+  approvedAt      DateTime?
+  rejectedById    String?
+  rejectedByRole  String?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // B2 additive canonical fields; legacy fields above remain for compatibility.
+  activityType          SituationActivityType?
+  approvalStatus        SituationApprovalStatus?
+  productionEligibility SituationProductionEligibility?
+  gradeId               String?
+  domainId              String?
+  lessonTypes           String[]                        @default([])
+  executionConditions   String?
+  successCriteria       String?
+  observationIndicators String?
+  motorActions          String[]                        @default([])
+  pedagogicalTags       String[]                        @default([])
+  difficulty            String?
+  progressionStage      String?
+  reviewedBy            String?
+  reviewedAt            DateTime?
+  resubmittedAt         DateTime?
+
+  objectives        SituationObjective[]
+  familyMemberships SituationFamilyMember[]
+  occurrences       SituationSourceOccurrence[]
+  media             SituationMedia[]
 
   @@index([grade, fieldId, status])
   @@index([ownerId, status])
+  @@index([gradeId, domainId, approvalStatus, productionEligibility])
+}
+
+model SituationObjective {
+  id           String                         @id
+  situationId  String
+  objectiveId  String
+  relationType SituationObjectiveRelationType
+  confidence   Float?
+  evidence     Json?
+  reviewStatus String?
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  situation    EducationalSituation           @relation(fields: [situationId], references: [id], onDelete: Cascade)
+
+  @@unique([situationId, objectiveId])
+  @@index([objectiveId, relationType])
+}
+
+model SituationFamily {
+  id              String                  @id
+  normalizedTitle String?
+  members         SituationFamilyMember[]
+  createdAt       DateTime                @default(now())
+
+  @@index([normalizedTitle])
+}
+
+model SituationFamilyMember {
+  familyId    String
+  situationId String
+  membership  String
+  family      SituationFamily      @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  situation   EducationalSituation @relation(fields: [situationId], references: [id], onDelete: Restrict)
+
+  @@id([familyId, situationId])
+  @@index([situationId, membership])
+}
+
+model SituationSourceOccurrence {
+  id                      String               @id
+  situationId             String
+  sourceFile              String
+  sourceDocumentId        String?
+  sourceLesson            String?
+  sourceLessonType        String
+  originalSourceObjective String?
+  originalTitle           String?
+  originalDescription     String?
+  sourceGrade             String?
+  sourceDomain            String?
+  sourceLocator           String?
+  normalizedHash          String?
+  sourceConsistencyFlag   String?
+  sourceConsistencyNote   String?
+  provenance              Json?
+  situation               EducationalSituation @relation(fields: [situationId], references: [id], onDelete: Restrict)
+  media                   SituationMedia[]
+  createdAt               DateTime             @default(now())
+
+  @@index([situationId, sourceLessonType])
+  @@index([normalizedHash])
+}
+
+model SituationMedia {
+  id                 String                       @id
+  situationId        String
+  sourceOccurrenceId String?
+  mediaRef           String
+  mediaType          String
+  classification     SituationMediaClassification
+  provenance         Json?
+  reviewStatus       String?
+  situation          EducationalSituation         @relation(fields: [situationId], references: [id], onDelete: Restrict)
+  sourceOccurrence   SituationSourceOccurrence?   @relation(fields: [sourceOccurrenceId], references: [id], onDelete: Restrict)
+  createdAt          DateTime                     @default(now())
+
+  @@index([situationId, classification])
+  @@index([sourceOccurrenceId])
 }
 
 model PedagogicalGame {
-  id                String   @id
-  ownerId           String
-  owner             User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  title             String
-  grade             Int
-  fieldId           String
-  fieldName         String
-  objectiveId       String?
-  objectiveText     String
+  id                 String    @id
+  ownerId            String
+  owner              User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title              String
+  grade              Int
+  fieldId            String
+  fieldName          String
+  objectiveId        String?
+  objectiveText      String
   pedagogicalPurpose String
-  organization      String
-  description       String
-  rules             String
-  equipment         String[] @default([])
-  executionGuidance String?
-  safetyGuidance    String?
-  progression       String?
-  origin            String   @default("TEACHER")
-  status            String   @default("DRAFT")
-  approved          Boolean  @default(false)
-  submittedAt      DateTime?
-  approvedAt       DateTime?
-  approvedById     String?
-  rejectedAt       DateTime?
-  rejectedById     String?
-  rejectionReason  String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  organization       String
+  description        String
+  rules              String
+  equipment          String[]  @default([])
+  executionGuidance  String?
+  safetyGuidance     String?
+  progression        String?
+  origin             String    @default("TEACHER")
+  status             String    @default("DRAFT")
+  approved           Boolean   @default(false)
+  submittedAt        DateTime?
+  approvedAt         DateTime?
+  approvedById       String?
+  rejectedAt         DateTime?
+  rejectedById       String?
+  rejectionReason    String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@index([ownerId])
   @@index([status])
@@ -528,37 +666,37 @@ model InspectorNote {
 }
 
 model InspectionVisitRecord {
-  id           String   @id
-  inspectorId  String
-  teacherId    String
+  id            String   @id
+  inspectorId   String
+  teacherId     String
   institutionId String?
-  data         Json
-  createdAt    DateTime @default(now())
+  data          Json
+  createdAt     DateTime @default(now())
 
   @@index([teacherId, createdAt])
   @@index([inspectorId, createdAt])
 }
 
 model DistrictMessage {
-  id        String   @id
-  authorId  String?
+  id         String   @id
+  authorId   String?
   districtId String?
-  content   String?
-  data      Json
-  createdAt DateTime @default(now())
+  content    String?
+  data       Json
+  createdAt  DateTime @default(now())
 
   @@index([authorId])
   @@index([districtId, createdAt])
 }
 
 model DirectMessage {
-  id           String   @id
-  senderId     String?
-  recipientId  String?
-  content      String?
-  readAt       DateTime?
-  data         Json
-  createdAt    DateTime @default(now())
+  id          String    @id
+  senderId    String?
+  recipientId String?
+  content     String?
+  readAt      DateTime?
+  data        Json
+  createdAt   DateTime  @default(now())
 
   @@index([senderId])
   @@index([recipientId])
@@ -577,16 +715,16 @@ model CommunityResource {
 }
 
 model CommunityNotification {
-  id         String   @id
-  userId     String?
-  senderId   String?
-  type       String?
-  title      String?
-  message    String?
-  read       Boolean  @default(false)
-  readAt     DateTime?
-  data       Json
-  createdAt  DateTime @default(now())
+  id        String    @id
+  userId    String?
+  senderId  String?
+  type      String?
+  title     String?
+  message   String?
+  read      Boolean   @default(false)
+  readAt    DateTime?
+  data      Json
+  createdAt DateTime  @default(now())
 
   @@index([userId])
   @@index([userId, read, createdAt])
@@ -599,17 +737,17 @@ model CommunityNotification {
 // كل سجل فريد بـ (الأستاذ، السنة الدراسية، المستوى، النوع: مخطط/توزيع)
 // -----------------------------------------------------------------------
 model AnnualPlan {
-  id                     String    @id
-  teacherId              String
-  academicYearId         String
-  levelId                String
-  kind                   String // 'plan' (المخطط السنوي) | 'schedule' (التوزيع السنوي)
-  status                 String    @default("draft") // draft | proposed | approved
-  proposedByInspectorId  String?
-  approvedAt             DateTime?
-  data                   Json // { overrides: { "<fieldId>__<sessionNumber>": { objective } }, note? }
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  id                    String    @id
+  teacherId             String
+  academicYearId        String
+  levelId               String
+  kind                  String // 'plan' (المخطط السنوي) | 'schedule' (التوزيع السنوي)
+  status                String    @default("draft") // draft | proposed | approved
+  proposedByInspectorId String?
+  approvedAt            DateTime?
+  data                  Json // { overrides: { "<fieldId>__<sessionNumber>": { objective } }, note? }
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@unique([teacherId, academicYearId, levelId, kind])
   @@index([teacherId])
@@ -624,16 +762,16 @@ model AnnualPlan {
 // البيئة (env) فقط حتى لا تتعطل المنصة.
 // -----------------------------------------------------------------------
 model AIProviderConfig {
-  id              String    @id @default(cuid())
+  id              String   @id @default(cuid())
   name            String // اسم العرض، مثال: "DeepSeek" أو "مزودي الخاص"
-  type            String    @default("openai-compatible") // openai-compatible | openai | nvidia | anthropic | gemini | ollama
+  type            String   @default("openai-compatible") // openai-compatible | openai | nvidia | anthropic | gemini | ollama
   baseUrl         String? // مطلوب للمزودات المتوافقة مع OpenAI و ollama
   encryptedApiKey String? // مُشفَّر باستخدام encryptApiKey (AES-256-GCM)
   model           String? // اسم النموذج
-  enabled         Boolean   @default(true)
-  sortOrder       Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  enabled         Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([enabled])
 }
@@ -647,19 +785,19 @@ model GenerationServiceConfig {
 }
 
 model UserGenerationAccess {
-  id                    String   @id @default(cuid())
-  userId                String   @unique
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  enabled               Boolean  @default(false)
-  assistantEnabled      Boolean  @default(false)
-  gameSuggestionsEnabled Boolean @default(false)
-  provider              String   @default("gemini")
-  encryptedApiKey       String?
-  credentialEnabled     Boolean  @default(false)
-  updatedByAdminId      String?
-  updatedById           String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enabled                Boolean  @default(false)
+  assistantEnabled       Boolean  @default(false)
+  gameSuggestionsEnabled Boolean  @default(false)
+  provider               String   @default("gemini")
+  encryptedApiKey        String?
+  credentialEnabled      Boolean  @default(false)
+  updatedByAdminId       String?
+  updatedById            String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   @@index([enabled])
 }
