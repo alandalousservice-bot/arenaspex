@@ -1,11 +1,69 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import {
+  authorizeImportEnvironment,
   loadImportPayload,
+  PRODUCTION_IMPORT_CONFIRMATION,
   validateImportPayload,
 } from '../scripts/importEducationalSituationBank';
 
 describe('educational situation importer validation', () => {
+  const base = {
+    ALLOW_EDUCATIONAL_SITUATION_IMPORT: 'true',
+    ARENASPEX_IMPORT_ENVIRONMENT: 'staging',
+    ARENASPEX_IMPORT_DATABASE_MARKER: 'arenaspex-staging',
+  } as NodeJS.ProcessEnv;
+
+  it('keeps staging authorization separate from production authorization', () => {
+    expect(() => authorizeImportEnvironment(base)).not.toThrow();
+    expect(() =>
+      authorizeImportEnvironment({ ...base, ARENASPEX_IMPORT_ENVIRONMENT: 'production' })
+    ).toThrow();
+    expect(() =>
+      authorizeImportEnvironment({
+        ...base,
+        ARENASPEX_IMPORT_DATABASE_MARKER: 'arenaspex-production',
+      })
+    ).toThrow();
+  });
+
+  it('requires every independent production authorization condition', () => {
+    const production = {
+      ...base,
+      ARENASPEX_IMPORT_ENVIRONMENT: 'production',
+      ARENASPEX_IMPORT_DATABASE_MARKER: 'arenaspex-production',
+      ALLOW_EDUCATIONAL_SITUATION_PRODUCTION_IMPORT: 'true',
+      ARENASPEX_PRODUCTION_IMPORT_CONFIRMATION: PRODUCTION_IMPORT_CONFIRMATION,
+      ARENASPEX_VERIFIED_NEON_PROJECT: 'mute-paper-46197165',
+      ARENASPEX_VERIFIED_NEON_BRANCH: 'production',
+      ARENASPEX_VERIFIED_NEON_DATABASE: 'neondb',
+    } as NodeJS.ProcessEnv;
+    expect(() => authorizeImportEnvironment(production)).not.toThrow();
+    for (const key of [
+      'ALLOW_EDUCATIONAL_SITUATION_PRODUCTION_IMPORT',
+      'ARENASPEX_PRODUCTION_IMPORT_CONFIRMATION',
+      'ARENASPEX_VERIFIED_NEON_PROJECT',
+      'ARENASPEX_VERIFIED_NEON_BRANCH',
+      'ARENASPEX_VERIFIED_NEON_DATABASE',
+    ]) {
+      const missing = { ...production };
+      delete missing[key];
+      expect(() => authorizeImportEnvironment(missing)).toThrow();
+    }
+    expect(() =>
+      authorizeImportEnvironment({
+        ...production,
+        ARENASPEX_PRODUCTION_IMPORT_CONFIRMATION: 'wrong',
+      })
+    ).toThrow();
+    expect(() =>
+      authorizeImportEnvironment({
+        ...production,
+        ARENASPEX_VERIFIED_NEON_BRANCH: 'arenaspex-staging',
+      })
+    ).toThrow();
+  });
+
   it('uses bounded transaction limits for the finite staging import', () => {
     const source = fs.readFileSync('scripts/importEducationalSituationBank.ts', 'utf8');
     expect(source).toContain('maxWait: 10_000');

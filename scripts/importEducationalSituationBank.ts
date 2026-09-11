@@ -71,17 +71,40 @@ export function validateImportPayload(payload: ImportPayload): void {
       throw new Error(`Invalid governance values for ${row.id}`);
 }
 
-function nonProductionGuard(): void {
-  if (process.env.ALLOW_EDUCATIONAL_SITUATION_IMPORT !== 'true')
+export const PRODUCTION_IMPORT_CONFIRMATION = 'I_UNDERSTAND_THIS_WRITES_TO_ARENASPEX_PRODUCTION';
+
+export function authorizeImportEnvironment(env: NodeJS.ProcessEnv = process.env): void {
+  if (env.ALLOW_EDUCATIONAL_SITUATION_IMPORT !== 'true')
     throw new Error('Import refused: ALLOW_EDUCATIONAL_SITUATION_IMPORT=true is required.');
-  const environment = process.env.ARENASPEX_IMPORT_ENVIRONMENT;
-  if (!environment || !['test', 'development', 'staging'].includes(environment.toLowerCase()))
-    throw new Error(
-      'Import refused: ARENASPEX_IMPORT_ENVIRONMENT must be test, development, or staging.'
-    );
-  const databaseMarker = process.env.ARENASPEX_IMPORT_DATABASE_MARKER;
-  if (!databaseMarker || /production|prod/i.test(databaseMarker))
+  const environment = env.ARENASPEX_IMPORT_ENVIRONMENT?.toLowerCase();
+  const databaseMarker = env.ARENASPEX_IMPORT_DATABASE_MARKER;
+  if (!environment || !['test', 'development', 'staging', 'production'].includes(environment))
+    throw new Error('Import refused: unsupported import environment.');
+  if (!databaseMarker)
     throw new Error('Import refused: non-production database identity is not proven.');
+
+  const verifiedProject = env.ARENASPEX_VERIFIED_NEON_PROJECT;
+  const verifiedBranch = env.ARENASPEX_VERIFIED_NEON_BRANCH;
+  const verifiedDatabase = env.ARENASPEX_VERIFIED_NEON_DATABASE;
+  if (environment === 'production') {
+    if (databaseMarker !== 'arenaspex-production')
+      throw new Error('Import refused: production database marker mismatch.');
+    if (env.ALLOW_EDUCATIONAL_SITUATION_PRODUCTION_IMPORT !== 'true')
+      throw new Error('Import refused: explicit production authorization is required.');
+    if (env.ARENASPEX_PRODUCTION_IMPORT_CONFIRMATION !== PRODUCTION_IMPORT_CONFIRMATION)
+      throw new Error('Import refused: production confirmation mismatch.');
+    if (
+      verifiedProject !== 'mute-paper-46197165' ||
+      verifiedBranch !== 'production' ||
+      verifiedDatabase !== 'neondb'
+    )
+      throw new Error('Import refused: verified production Neon identity is required.');
+    return;
+  }
+  if (/production|prod/i.test(databaseMarker))
+    throw new Error('Import refused: non-production environment cannot target production.');
+  if (verifiedBranch === 'production')
+    throw new Error('Import refused: non-production environment targets production.');
 }
 
 const domainNames: Record<string, string> = {
@@ -95,7 +118,7 @@ export async function importEducationalSituationBank(
   prisma: PrismaClient,
   payload = loadImportPayload()
 ): Promise<{ situations: number; objectives: number; occurrences: number }> {
-  nonProductionGuard();
+  authorizeImportEnvironment();
   validateImportPayload(payload);
   await prisma.$transaction(
     async (tx) => {
