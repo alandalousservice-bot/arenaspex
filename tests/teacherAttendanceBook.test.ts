@@ -33,7 +33,7 @@ describe('canonical Teacher Attendance Book', () => {
     );
     expect(app).toContain("params.delete('section')");
     expect(app).toContain("params.delete('workspace')");
-    expect(app).toContain("location.pathname === '/assessment-notebook'");
+    expect(app).toContain('assessment_notebook');
   });
 
   it('uses the independent date attendance API in the dedicated view', () => {

@@ -12,7 +12,7 @@ describe('Teacher workspace recovery route inventory', () => {
     '/assessment': 'gradebook',
     '/gradebook': 'gradebook',
     '/attendance': 'attendance',
-    '/assessment-notebook': 'gradebook',
+    '/assessment-notebook': 'assessment_notebook',
     '/community': 'professional_hub',
     '/reports': 'reports',
     '/settings': 'settings',

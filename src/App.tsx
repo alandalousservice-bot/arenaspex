@@ -67,6 +67,11 @@ const KnowledgeEngineView = lazy(() =>
 const GradebookView = lazy(() =>
   import('./components/gradebook/GradebookView').then((m) => ({ default: m.GradebookView }))
 );
+const AssessmentNotebookView = lazy(() =>
+  import('./components/assessment/AssessmentNotebookView').then((m) => ({
+    default: m.AssessmentNotebookView,
+  }))
+);
 const StudentsBookView = lazy(() =>
   import('./components/students/StudentsBookView').then((m) => ({ default: m.StudentsBookView }))
 );
@@ -252,19 +257,6 @@ export default function App() {
       params.delete('workspace');
       const query = params.toString();
       navigate('/attendance' + (query ? '?' + query : ''), { replace: true });
-      return;
-    }
-    if (location.pathname === '/assessment-notebook') {
-      const params = new URLSearchParams(location.search);
-      params.delete('workspace');
-      if (params.get('section') === 'attendance') {
-        params.delete('section');
-        const query = params.toString();
-        navigate('/attendance' + (query ? '?' + query : ''), { replace: true });
-        return;
-      }
-      const query = params.toString();
-      navigate('/gradebook' + (query ? '?' + query : ''), { replace: true });
       return;
     }
     const legacyPlanningSection = planningSectionForPath(location.pathname);
@@ -561,6 +553,14 @@ export default function App() {
                 classes={teacherClasses}
                 students={allStudents}
                 currentUser={currentUser}
+              />
+            )}
+
+            {activeTab === 'assessment_notebook' && (
+              <AssessmentNotebookView
+                currentUser={currentUser}
+                teacherClasses={teacherClasses}
+                students={allStudents}
               />
             )}
 

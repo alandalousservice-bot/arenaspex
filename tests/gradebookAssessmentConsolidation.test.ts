@@ -39,10 +39,10 @@ describe('canonical Gradebook competency assessment', () => {
 
   it('redirects legacy assessment links while preserving competency context', () => {
     expect(pathToTab('/assessment')).toBe('gradebook');
-    expect(pathToTab('/assessment-notebook')).toBe('gradebook');
-    expect(ROLE_TABS.teacher).not.toContain('competency_assessment');
+    expect(pathToTab('/assessment-notebook')).toBe('assessment_notebook');
+    expect(ROLE_TABS.teacher).toContain('assessment_notebook');
     expect(app).toContain("params.set('section', 'competency')");
-    expect(app).toContain("navigate('/gradebook' + (query ? '?' + query : ''), { replace: true })");
+    expect(app).toContain('AssessmentNotebookView');
   });
 
   it('does not expose attendance or roster administration through the embedded assessment view', () => {

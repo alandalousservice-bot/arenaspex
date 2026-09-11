@@ -41,6 +41,7 @@ export type NavTab =
   | 'educational_situations'
   | 'knowledge_engine'
   | 'gradebook'
+  | 'assessment_notebook'
   | 'attendance'
   | 'students'
   | 'professional_hub'
@@ -122,6 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
             },
             { id: 'knowledge_engine' as NavTab, label: 'بنك المعرفة التربوية', icon: BrainCircuit },
             { id: 'gradebook' as NavTab, label: 'دفتر التنقيط الذكي', icon: GraduationCap },
+            { id: 'assessment_notebook' as NavTab, label: 'دفتر تقويم الكفاءات', icon: Target },
             { id: 'attendance' as NavTab, label: 'دفتر الغياب والمواظبة', icon: UserCheck },
             { id: 'students' as NavTab, label: 'دفتر التلاميذ', icon: Users },
           ],

@@ -29,6 +29,7 @@ export const TAB_PATHS: Record<NavTab, string> = {
   educational_situations: '/educational-situations',
   knowledge_engine: '/knowledge-engine',
   gradebook: '/gradebook',
+  assessment_notebook: '/assessment-notebook',
   attendance: '/attendance',
   students: '/students',
   professional_hub: '/community',
@@ -75,7 +76,7 @@ export function pathToTab(pathname: string): NavTab | null {
   if (normalized === '/gradebook') return 'gradebook';
   if (normalized === '/attendance') return 'attendance';
   if (normalized === '/students' || /^\/students\/[^/]+$/.test(normalized)) return 'students';
-  if (normalized === '/assessment-notebook') return 'gradebook';
+  if (normalized === '/assessment-notebook') return 'assessment_notebook';
   if (
     ['/annual-plan', '/annual-schedule', '/weekly-schedule', '/learning-segments'].includes(
       normalized
@@ -121,6 +122,7 @@ export const ROLE_TABS: Record<UserRole, NavTab[]> = {
     'lesson_command_center',
     'knowledge_engine',
     'gradebook',
+    'assessment_notebook',
     'attendance',
     'students',
     'reports',

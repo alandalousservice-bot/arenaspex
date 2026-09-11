@@ -6,11 +6,11 @@ const read = (path: string) => readFileSync(path, 'utf8');
 
 describe('unified Teacher assessment notebook', () => {
   it('routes the unified notebook and preserves legacy assessment links', () => {
-    expect(pathToTab('/assessment-notebook')).toBe('gradebook');
+    expect(pathToTab('/assessment-notebook')).toBe('assessment_notebook');
     expect(pathToTab('/assessment')).toBe('gradebook');
     expect(pathToTab('/gradebook')).toBe('gradebook');
     expect(ROLE_TABS.teacher).toContain('gradebook');
-    expect(ROLE_TABS.teacher).not.toContain('competency_assessment');
+    expect(ROLE_TABS.teacher).toContain('assessment_notebook');
   });
 
   it('uses persisted sessions and explicit null/unassessed UI values', () => {
@@ -47,7 +47,8 @@ describe('unified Teacher assessment notebook', () => {
     const sidebar = read('src/components/layout/Sidebar.tsx');
     const gradebook = read('src/components/gradebook/SmartGradebookView.tsx');
     const app = read('src/App.tsx');
-    expect(sidebar).not.toContain("id: 'assessment_notebook'");
+    expect(sidebar).toContain("id: 'assessment_notebook'");
+    expect(sidebar).toContain('دفتر تقويم الكفاءات');
     expect(sidebar).not.toContain("id: 'competency_assessment'");
     expect(gradebook).not.toContain("workspaceSection === 'assessment'");
     expect(gradebook).not.toContain('AssessmentNotebookView');
@@ -60,18 +61,17 @@ describe('unified Teacher assessment notebook', () => {
     expect(app).not.toContain('CompetencyAssessmentView');
   });
 
-  it('redirects the legacy route to the canonical Gradebook without the retired workspace query', () => {
+  it('keeps the competency notebook as a first-class route while preserving legacy redirects', () => {
     const app = read('src/App.tsx');
-    expect(app).toContain("location.pathname === '/assessment-notebook'");
-    expect(app).toContain("location.pathname === '/gradebook'");
+    expect(app).toContain('AssessmentNotebookView');
     expect(app).toContain(
       "navigate('/attendance' + (query ? '?' + query : ''), { replace: true })"
     );
     expect(app).toContain("params.delete('section')");
     expect(app).toContain("params.delete('workspace')");
-    expect(app).toContain("navigate('/gradebook' + (query ? '?' + query : ''), { replace: true })");
-    expect(app).toContain("params.set('section', 'competency')");
-    expect(app).not.toContain("params.set('workspace', 'assessment')");
+    expect(app).not.toContain(
+      "navigate('/gradebook' + (query ? '?' + query : ''), { replace: true });\n      return;\n    }\n    const legacyPlanningSection"
+    );
   });
 
   it('uses one protected student history read for reports', () => {
