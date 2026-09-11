@@ -641,51 +641,100 @@ const catalogWithoutHash = {
       )
     )
   ),
-  criteria: specs.flatMap((spec) =>
-    spec.gradeId === 'lvl_p2'
-      ? [
-          ['المحافظة على التوازن خلال عملية التحول', 1],
-          ['استثمار الإرتكازات بطريقة سليمة لضمان عملية التحول', 2],
-          ['استعمال الحركات المناسبة لعملية التحول', 3],
-          ['حسن اختيار أسلوب أو مدة أو مسافة التحول', 4],
+  criteria: [
+    ...specs.flatMap((spec) =>
+      spec.gradeId === 'lvl_p2'
+        ? [
+            ['المحافظة على التوازن خلال عملية التحول', 1],
+            ['استثمار الإرتكازات بطريقة سليمة لضمان عملية التحول', 2],
+            ['استعمال الحركات المناسبة لعملية التحول', 3],
+            ['حسن اختيار أسلوب أو مدة أو مسافة التحول', 4],
+          ].map(([label, index]) =>
+            node(
+              `criterion:lvl_p2:f_locomotion:final-competency:${index}`,
+              String(label),
+              {
+                gradeId: 'lvl_p2',
+                domainId: DOMAIN_ID,
+                finalCompetencyId: 'fc_lvl_p2_f_locomotion',
+                order: Number(index),
+              },
+              approvedOfficial('annual-plan-reference:lvl_p2:f_locomotion:evaluation-criteria')
+            )
+          )
+        : []
+    ),
+    ...specs
+      .filter((spec) => spec.gradeId === 'lvl_p3')
+      .flatMap(() =>
+        [
+          ['انتقاء تصرفات مناسبة للموقف', 1],
+          ['ضبط و تنفيذ سليم للحركات المختارة', 2],
+          ['تكييف جملة التصرفات تجدد الموقف', 3],
+          ['التنفيذ باريحية وسلامة', 4],
         ].map(([label, index]) =>
           node(
-            `criterion:lvl_p2:f_locomotion:final-competency:${index}`,
+            `criterion:lvl_p3:f_locomotion:final-competency:${index}`,
             String(label),
             {
-              gradeId: 'lvl_p2',
+              gradeId: 'lvl_p3',
               domainId: DOMAIN_ID,
-              finalCompetencyId: 'fc_lvl_p2_f_locomotion',
+              finalCompetencyId: 'fc_lvl_p3_f_locomotion',
               order: Number(index),
             },
-            approvedOfficial('annual-plan-reference:lvl_p2:f_locomotion:evaluation-criteria')
+            approvedOfficial('annual-plan-reference:lvl_p3:f_locomotion:evaluation-criteria')
           )
         )
-      : []
-  ),
-  indicators: specs.flatMap((spec) =>
-    spec.gradeId === 'lvl_p2'
-      ? [
-          ['تنفيذ حركات المشي والهرولة المختلفة بشكل سليم', 1],
-          ['تكامل عمل الأطراف جثو - وثب', 2],
-          ['التنفيذ الصحيح– يوظف تكامل أطرافه في الجري المتعرج', 3],
-          ['تنفيذ الجري جري في دائرة و في محور بطريقة سليمة', 4],
+      ),
+  ],
+  indicators: [
+    ...specs.flatMap((spec) =>
+      spec.gradeId === 'lvl_p2'
+        ? [
+            ['تنفيذ حركات المشي والهرولة المختلفة بشكل سليم', 1],
+            ['تكامل عمل الأطراف جثو - وثب', 2],
+            ['التنفيذ الصحيح– يوظف تكامل أطرافه في الجري المتعرج', 3],
+            ['تنفيذ الجري جري في دائرة و في محور بطريقة سليمة', 4],
+          ].map(([label, index]) =>
+            node(
+              `indicator:lvl_p2:f_locomotion:criterion:${index}:1`,
+              String(label),
+              {
+                gradeId: 'lvl_p2',
+                domainId: DOMAIN_ID,
+                criterionId: `criterion:lvl_p2:f_locomotion:final-competency:${index}`,
+                learningRequirementIds: [],
+                order: 1,
+              },
+              approvedOfficial('annual-plan-reference:lvl_p2:f_locomotion:evaluation-criteria')
+            )
+          )
+        : []
+    ),
+    ...specs
+      .filter((spec) => spec.gradeId === 'lvl_p3')
+      .flatMap(() =>
+        [
+          ['المشي والهرولة بشكل سليم حسب الموقف', 1],
+          ['تكامل عمل الأطراف أثناء الجري الخفيف - السريع', 2],
+          ['التنفيذ الصحيح اثناء الرمي بيد واحدة من الثبات', 3],
+          ['تنفيذ الرمي بيدين معا من الثبات بشكل سليم و متسلسل', 4],
         ].map(([label, index]) =>
           node(
-            `indicator:lvl_p2:f_locomotion:criterion:${index}:1`,
+            `indicator:lvl_p3:f_locomotion:criterion:${index}:1`,
             String(label),
             {
-              gradeId: 'lvl_p2',
+              gradeId: 'lvl_p3',
               domainId: DOMAIN_ID,
-              criterionId: `criterion:lvl_p2:f_locomotion:final-competency:${index}`,
+              criterionId: `criterion:lvl_p3:f_locomotion:final-competency:${index}`,
               learningRequirementIds: [],
               order: 1,
             },
-            approvedOfficial('annual-plan-reference:lvl_p2:f_locomotion:evaluation-criteria')
+            approvedOfficial('annual-plan-reference:lvl_p3:f_locomotion:evaluation-criteria')
           )
         )
-      : []
-  ),
+      ),
+  ],
   objectiveConcepts: specs.flatMap((spec) =>
     spec.concepts.map((concept, index) =>
       node(

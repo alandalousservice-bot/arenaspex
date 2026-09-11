@@ -79,7 +79,7 @@ describe('P1F-C combined semantic activation candidate', () => {
         .map((item) => item.id)
     ).toEqual(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.objectiveConcepts.map((item) => item.id));
     expect(OFFICIAL_CURRICULUM_2023.contentHash).toBe('fnv1a32:cfe67657');
-    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.release.catalogHash).toBe('fnv1a32:20547097');
+    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.release.catalogHash).toBe('fnv1a32:d069f77a');
     expect(P1FB_DOMAIN_ONE_CORRECTION_CATALOG.release.catalogHash).toBe('fnv1a32:15142f72');
   });
 

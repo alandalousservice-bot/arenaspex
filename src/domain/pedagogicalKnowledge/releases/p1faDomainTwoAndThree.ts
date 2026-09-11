@@ -160,6 +160,57 @@ const g2Indicators = G2_DOMAINS.flatMap((domainId) =>
     )
   )
 );
+const G3_CRITERIA: Record<P1FADomainId, readonly (readonly [string, string])[]> = {
+  f_fundamentals: [
+    ['اختيار وتيرة الجري المناسبة للموقف', 'جري بوتيرة بطيئة متوسطة سريعة حسب الموقف'],
+    ['التحكم في وضعية وتنسيق الجسم خلال الجري', 'جري منعرج بوتيرة مناسبة والتنسيق بين اطراف الجسم'],
+    ['اختيار شكل الرمي المناسب للموقف', 'التنفيذ الصحيح أثناء الرمي الجانبي بيد وبيدين'],
+    ['المحافظة على تسلسل عملية الرمي', 'أداء متدرج أثتاء الرمي بيد وبيدين أمام وللخلف لأبعد مسافة'],
+  ],
+  f_structuring: [
+    ['تعديل التصرفات حسب تجدد الموقف', 'ضبط سرعة التنقل بين المعالم واللحاق'],
+    ['بناء جملة من التصرفات بما يناسب الموقف', 'اجتياز الموانع وتغيير الإتجاه بما يناسب الموقف'],
+    ['التنقل والرمي بطريقة صحيحة', 'التنفيذ الصحيح للرمي لأبعد مسافة وفق مجال'],
+    ['الالتزام بقواعد المنافسة عند الرمي لأبعد مسافة', 'التنفيذ الصحيح للرمي لأعلى وفق مجال'],
+  ],
+};
+const g3RequirementIds = (domainId: P1FADomainId) =>
+  sourceCells
+    .find((cell) => cell.gradeId === 'lvl_p3' && cell.domainId === domainId)
+    ?.resourceGroups.map((group) => p1faRequirementId(group.id)) || [];
+const g3Criteria = P1FA_DOMAIN_IDS.flatMap((domainId) =>
+  G3_CRITERIA[domainId].map(([label], index) =>
+    node(
+      `criterion:lvl_p3:${domainId}:final-competency:${index + 1}`,
+      label,
+      {
+        gradeId: 'lvl_p3' as const,
+        domainId,
+        finalCompetencyId: `fc_lvl_p3_${domainId}`,
+        order: index + 1,
+      },
+      approvedOfficial(`annual-plan-reference:lvl_p3:${domainId}:evaluation-criteria`)
+    )
+  )
+);
+const g3Indicators = P1FA_DOMAIN_IDS.flatMap((domainId) =>
+  G3_CRITERIA[domainId].map(([, label], index) =>
+    node(
+      `indicator:lvl_p3:${domainId}:criterion:${index + 1}:1`,
+      label,
+      {
+        gradeId: 'lvl_p3' as const,
+        domainId,
+        criterionId: `criterion:lvl_p3:${domainId}:final-competency:${index + 1}`,
+        learningRequirementIds: g3RequirementIds(domainId).length
+          ? [g3RequirementIds(domainId)[Math.min(index, g3RequirementIds(domainId).length - 1)]]
+          : [],
+        order: 1,
+      },
+      approvedOfficial(`annual-plan-reference:lvl_p3:${domainId}:evaluation-criteria`)
+    )
+  )
+);
 
 const catalogWithoutHash = {
   release: {
@@ -302,6 +353,7 @@ const catalogWithoutHash = {
         )
       ),
     ...g2Criteria,
+    ...g3Criteria,
   ],
   indicators: [
     ...sourceCells
@@ -345,6 +397,7 @@ const catalogWithoutHash = {
         )
       ),
     ...g2Indicators,
+    ...g3Indicators,
   ],
   objectiveConcepts: sourceCells.flatMap((cell) =>
     cell.resourceGroups.map((group, index) => {
