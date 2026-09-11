@@ -212,6 +212,61 @@ const g3Indicators = P1FA_DOMAIN_IDS.flatMap((domainId) =>
   )
 );
 
+const G5_CRITERIA: Record<P1FADomainId, readonly (readonly [string, string])[]> = {
+  f_fundamentals: [
+    ['اختيار نوعية الجري حسب الموقف', 'جري بركبتين مرفوعتين'],
+    ['اختيار نوعية الوثب حسب الموقف', 'تكامل عمل الأطراف أثناء وثبة الحجل والغزالة و برجلين معا'],
+    ['اختيار نوعية الرمي حسب الموقف', 'حركة نصف دورة وتوازن جانبي حركة دورة كاملة وتوازن أمامي'],
+    [
+      'التنسيق السليم بين الجري والوثب والرمي',
+      'أداء متدرج من مسافة اقتراب للرمي بيد واحدة ويدين لأبعد مسافة',
+    ],
+  ],
+  f_structuring: [
+    ['اختيار الوضعيات والحركات مناسبة للموقف', 'التعرف فهم مفاهيم وقواعد اللعبة'],
+    ['التحكم في التنفيذ والمحافظة على التوازن', 'التوزيع في الملعب فرديا وجماعيا'],
+    ['ضبط معالم فضاء الممارسة', 'التعرف وفهم تقنيات اللعبة'],
+    ['المساهمة الفعالة ضمن الفوج', 'فاعلية اللعب مع الجماعة'],
+  ],
+};
+const g5RequirementIds = (domainId: P1FADomainId) =>
+  sourceCells
+    .find((cell) => cell.gradeId === 'lvl_p5' && cell.domainId === domainId)
+    ?.resourceGroups.map((group) => p1faRequirementId(group.id)) || [];
+const g5Criteria = P1FA_DOMAIN_IDS.flatMap((domainId) =>
+  G5_CRITERIA[domainId].map(([label], index) =>
+    node(
+      `criterion:lvl_p5:${domainId}:final-competency:${index + 1}`,
+      label,
+      {
+        gradeId: 'lvl_p5' as const,
+        domainId,
+        finalCompetencyId: `fc_lvl_p5_${domainId}`,
+        order: index + 1,
+      },
+      approvedOfficial(`annual-plan-reference:lvl_p5:${domainId}:evaluation-criteria`)
+    )
+  )
+);
+const g5Indicators = P1FA_DOMAIN_IDS.flatMap((domainId) =>
+  G5_CRITERIA[domainId].map(([, label], index) =>
+    node(
+      `indicator:lvl_p5:${domainId}:criterion:${index + 1}:1`,
+      label,
+      {
+        gradeId: 'lvl_p5' as const,
+        domainId,
+        criterionId: `criterion:lvl_p5:${domainId}:final-competency:${index + 1}`,
+        learningRequirementIds: g5RequirementIds(domainId).length
+          ? [g5RequirementIds(domainId)[Math.min(index, g5RequirementIds(domainId).length - 1)]]
+          : [],
+        order: 1,
+      },
+      approvedOfficial(`annual-plan-reference:lvl_p5:${domainId}:evaluation-criteria`)
+    )
+  )
+);
+
 const catalogWithoutHash = {
   release: {
     id: P1FA_RELEASE_ID,
@@ -354,6 +409,7 @@ const catalogWithoutHash = {
       ),
     ...g2Criteria,
     ...g3Criteria,
+    ...g5Criteria,
   ],
   indicators: [
     ...sourceCells
@@ -398,6 +454,7 @@ const catalogWithoutHash = {
       ),
     ...g2Indicators,
     ...g3Indicators,
+    ...g5Indicators,
   ],
   objectiveConcepts: sourceCells.flatMap((cell) =>
     cell.resourceGroups.map((group, index) => {

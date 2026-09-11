@@ -686,6 +686,24 @@ const catalogWithoutHash = {
           )
         )
       ),
+    ...[
+      ['اختيار الوضعيات والتنقلات المناسبة للموقف', 1],
+      ['التنفيذ السليم للوضعيات والتنقلات المختارة', 2],
+      ['الإنتقال السلس من حركة لأخرى وفي الوقت المناسب', 3],
+      ['تنسيق جملة من الحركات يتطلبها الموقف', 4],
+    ].map(([label, index]) =>
+      node(
+        `criterion:lvl_p5:f_locomotion:final-competency:${index}`,
+        String(label),
+        {
+          gradeId: 'lvl_p5',
+          domainId: DOMAIN_ID,
+          finalCompetencyId: 'fc_lvl_p5_f_locomotion',
+          order: Number(index),
+        },
+        approvedOfficial('annual-plan-reference:lvl_p5:f_locomotion:evaluation-criteria')
+      )
+    ),
   ],
   indicators: [
     ...specs.flatMap((spec) =>
@@ -734,6 +752,25 @@ const catalogWithoutHash = {
           )
         )
       ),
+    ...[
+      ['تنفيذ حركات الوثب برجلين معا- قفز برجل واحدة', 1],
+      ['التنفيذ السليم في الجري متعرج', 2],
+      ['التنفيذ المتسلسل من الجري للقفز', 3],
+      ['أداء متدرج أثناء رمي الكرة', 4],
+    ].map(([label, index]) =>
+      node(
+        `indicator:lvl_p5:f_locomotion:criterion:${index}:1`,
+        String(label),
+        {
+          gradeId: 'lvl_p5',
+          domainId: DOMAIN_ID,
+          criterionId: `criterion:lvl_p5:f_locomotion:final-competency:${index}`,
+          learningRequirementIds: [],
+          order: 1,
+        },
+        approvedOfficial('annual-plan-reference:lvl_p5:f_locomotion:evaluation-criteria')
+      )
+    ),
   ],
   objectiveConcepts: specs.flatMap((spec) =>
     spec.concepts.map((concept, index) =>
