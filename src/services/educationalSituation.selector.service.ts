@@ -35,8 +35,20 @@ export const referenceSituations: EducationalSituation[] = (seed as SeedSituatio
     variations: item.variations,
     origin: 'REFERENCE_SEED',
     status: 'APPROVED',
+    approvalStatus: 'APPROVED',
+    productionEligibility: 'AUTO_GENERATION_ELIGIBLE',
   })
 );
+
+export function isAutoGenerationEligible(situation: EducationalSituation): boolean {
+  const productionEligibility =
+    situation.productionEligibility ??
+    (situation.origin === 'TEACHER' ? 'AUTO_GENERATION_ELIGIBLE' : undefined);
+  return (
+    (situation.approvalStatus ?? situation.status) === 'APPROVED' &&
+    productionEligibility === 'AUTO_GENERATION_ELIGIBLE'
+  );
+}
 
 export function findSuitableSituations(
   items: EducationalSituation[],
@@ -50,7 +62,7 @@ export function findSuitableSituations(
 ) {
   const matches = items.filter(
     (item) =>
-      item.status === 'APPROVED' &&
+      isAutoGenerationEligible(item) &&
       item.grade === params.grade &&
       item.fieldId === params.fieldId &&
       (params.objectiveId

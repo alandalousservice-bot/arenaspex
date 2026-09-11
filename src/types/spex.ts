@@ -610,6 +610,10 @@ export interface LessonPlanRow {
 }
 
 export type EducationalSituationStatus = 'PRIVATE' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+export type EducationalSituationApprovalStatus =
+  'PERSONAL' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+export type EducationalSituationProductionEligibility =
+  'AUTO_GENERATION_ELIGIBLE' | 'REVIEW_ONLY' | 'SOURCE_ARCHIVE_ONLY';
 export interface EducationalSituation {
   id: string;
   externalId?: string;
@@ -625,6 +629,8 @@ export interface EducationalSituation {
   variations?: string;
   origin: 'REFERENCE_SEED' | 'TEACHER';
   status: EducationalSituationStatus;
+  approvalStatus?: EducationalSituationApprovalStatus;
+  productionEligibility?: EducationalSituationProductionEligibility;
   ownerId?: string;
   approvedById?: string;
   approvedByRole?: string;

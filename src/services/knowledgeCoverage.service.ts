@@ -1,5 +1,8 @@
 import { COMPLETE_ANNUAL_CURRICULUM, PE_FIELDS, PE_LEVELS } from '../data/algerianCurriculum';
-import { referenceSituations } from './educationalSituation.selector.service';
+import {
+  isAutoGenerationEligible,
+  referenceSituations,
+} from './educationalSituation.selector.service';
 import { KnowledgeItem, EducationalSituation, UserRole } from '../types/spex';
 
 export type CoverageResourceType = 'games' | 'objectives' | 'remedial' | 'situations';
@@ -131,7 +134,7 @@ export function buildKnowledgeCoverage({
       const gamesCount = items.filter((item) => item.category === 'game').length;
       const remedialCount = items.filter((item) => item.category === 'remedial').length;
       const situationsCount = educationalSituations.filter(
-        (s) => s.status === 'APPROVED' && s.grade === grade && s.fieldId === field.id
+        (s) => isAutoGenerationEligible(s) && s.grade === grade && s.fieldId === field.id
       ).length;
       const counts = {
         gamesCount,
