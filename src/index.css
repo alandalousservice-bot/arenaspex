@@ -1116,6 +1116,106 @@
   display: none;
 }
 
+.individual-student-print-root {
+  display: none;
+}
+
+@media print {
+  @page individual-student-grid {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  body:has(.individual-student-print-root) {
+    page: individual-student-grid;
+    background: #fff;
+  }
+
+  body:has(.individual-student-print-root) #root > * {
+    display: none !important;
+  }
+
+  body:has(.individual-student-print-root) .individual-student-print-root {
+    display: block;
+    width: 100%;
+    color: #0f172a;
+    direction: rtl;
+    font-family: Alexandria, Tajawal, 'Noto Sans Arabic', system-ui, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body:has(.individual-student-print-root) [role='dialog'] {
+    display: contents !important;
+  }
+
+  body:has(.individual-student-print-root) [role='dialog'] > *:not(.individual-student-print-root) {
+    display: none !important;
+  }
+
+  body:has(.individual-student-print-root) .individual-student-print-header {
+    border-bottom: 2px solid #047857;
+    padding-bottom: 6mm;
+  }
+
+  body:has(.individual-student-print-root) .individual-student-print-header h1 {
+    margin: 3mm 0;
+    color: #064e3b;
+    font-size: 20pt;
+    text-align: center;
+  }
+
+  body:has(.individual-student-print-root) .individual-student-print-meta {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2mm 5mm;
+    font-size: 10pt;
+  }
+
+  body:has(.individual-student-print-root) .individual-student-print-competency {
+    margin-top: 4mm;
+    border: 1px solid #a7f3d0;
+    background: #ecfdf5;
+    padding: 3mm;
+    font-size: 10.5pt;
+  }
+
+  body:has(.individual-student-print-root) .individual-student-print-table {
+    width: 100%;
+    margin-top: 6mm;
+    border-collapse: collapse;
+    font-size: 10pt;
+  }
+
+  body:has(.individual-student-print-root) .individual-student-print-table th,
+  body:has(.individual-student-print-root) .individual-student-print-table td {
+    border: 1px solid #64748b;
+    padding: 3mm;
+    vertical-align: top;
+  }
+
+  body:has(.individual-student-print-root) .individual-student-print-table th {
+    background: #065f46;
+    color: #fff;
+    font-weight: 700;
+  }
+
+  body:has(.individual-student-print-root) .individual-student-print-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body:has(.individual-student-print-root) .individual-student-print-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 8mm;
+    margin-top: 6mm;
+    border-top: 2px solid #047857;
+    padding-top: 4mm;
+    font-size: 11pt;
+  }
+}
+
 @media print {
   @page weekly-timetable {
     size: A4 landscape;

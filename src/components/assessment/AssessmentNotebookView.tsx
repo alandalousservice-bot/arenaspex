@@ -1028,6 +1028,13 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                   >
                     العودة إلى دفتر القسم
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="individual-grid-print-action rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white"
+                  >
+                    طباعة الشبكة
+                  </button>
                 </div>
                 <div className="mt-4 rounded-2xl border border-purple-100 bg-purple-50 p-4">
                   <p className="font-bold text-purple-900">الكفاءة الختامية</p>
@@ -1138,6 +1145,73 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                     </div>
                   );
                 })()}
+                <div className="individual-student-print-root" dir="rtl">
+                  <header className="individual-student-print-header">
+                    <p>{currentUser.schoolName || ''}</p>
+                    <h1>شبكة تقويم الكفاءة الختامية للتلميذ</h1>
+                    <div className="individual-student-print-meta">
+                      <span>
+                        الأستاذ: {currentUser.firstName} {currentUser.lastName}
+                      </span>
+                      <span>السنة الدراسية: {formatAcademicYearLabel(academicYearId)}</span>
+                      <span>المستوى: {activeClass?.levelId || ''}</span>
+                      <span>القسم: {activeClass?.name || ''}</span>
+                      <span>
+                        التلميذ: {selectedStudent.firstName} {selectedStudent.lastName}
+                      </span>
+                      <span>الميدان: {activeSession.domainId}</span>
+                    </div>
+                    <p className="individual-student-print-competency">
+                      <strong>الكفاءة الختامية:</strong>{' '}
+                      {assessmentCatalog?.finalCompetency.label || ''}
+                    </p>
+                  </header>
+                  <table className="individual-student-print-table">
+                    <thead>
+                      <tr>
+                        <th>معيار التقويم</th>
+                        <th>مؤشرات الملاحظة</th>
+                        <th>مستوى التمكن</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {canonicalCriteria.map((criterion) => {
+                        const draft = drafts[selectedStudent.id] || emptyDraft();
+                        const indicators = (assessmentCatalog?.indicators || [])
+                          .filter((item) => item.criterionId === criterion.id)
+                          .map((item) => item.label)
+                          .join('، ');
+                        return (
+                          <tr key={criterion.id}>
+                            <td>{criterion.label}</td>
+                            <td>{indicators || '—'}</td>
+                            <td>{draft.criteria[criterion.id] || 'غير مقوّم'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {(() => {
+                    const draft = drafts[selectedStudent.id] || emptyDraft();
+                    const complete = isAssessmentComplete(
+                      canonicalCriteria.map((item) => item.id),
+                      draft.criteria
+                    );
+                    return (
+                      <footer className="individual-student-print-footer">
+                        <span>
+                          حالة التقويم: <strong>{complete ? 'مكتمل' : 'غير مكتمل'}</strong>
+                        </span>
+                        {complete && (
+                          <span>
+                            مستوى التمكن النهائي للكفاءة:{' '}
+                            <strong>{calculateAssessmentMastery(draft.criteria)}</strong>
+                          </span>
+                        )}
+                      </footer>
+                    );
+                  })()}
+                </div>
               </section>
             </div>
           )}
