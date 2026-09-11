@@ -1120,6 +1120,10 @@
   display: none;
 }
 
+.individual-batch-print-root {
+  display: none;
+}
+
 @media print {
   @page individual-student-grid {
     size: A4 portrait;
@@ -1151,6 +1155,37 @@
 
   body:has(.individual-student-print-root) [role='dialog'] > *:not(.individual-student-print-root) {
     display: none !important;
+  }
+
+  body:has(.individual-batch-print-root) {
+    page: individual-student-grid;
+    background: #fff;
+  }
+
+  body:has(.individual-batch-print-root) #root > * {
+    display: none !important;
+  }
+
+  body:has(.individual-batch-print-root) .individual-batch-print-root {
+    display: block;
+    width: 100%;
+    color: #0f172a;
+    direction: rtl;
+    font-family: Alexandria, Tajawal, 'Noto Sans Arabic', system-ui, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body:has(.individual-batch-print-root) .individual-student-print-page {
+    display: block;
+    min-height: 250mm;
+    break-before: page;
+    page-break-before: always;
+  }
+
+  body:has(.individual-batch-print-root) .individual-student-print-page:first-child {
+    break-before: auto;
+    page-break-before: auto;
   }
 
   body:has(.individual-student-print-root) .individual-student-print-header {

@@ -138,6 +138,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [individualGridOpen, setIndividualGridOpen] = useState(false);
+  const [batchPrintOpen, setBatchPrintOpen] = useState(false);
   const [studentHistory, setStudentHistory] = useState<StudentAssessmentHistoryDto[]>([]);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualType, setManualType] = useState<TeacherAssessmentType>('تقويم تشخيصي');
@@ -530,6 +531,11 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
     setIndividualGridOpen(true);
   };
 
+  const printClassGrids = () => {
+    setBatchPrintOpen(true);
+    window.setTimeout(() => window.print(), 0);
+  };
+
   const moveIndividualStudent = (offset: number) => {
     const currentIndex = classStudents.findIndex((student) => student.id === selectedStudentId);
     const nextStudent = classStudents[currentIndex + offset];
@@ -880,6 +886,14 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
               </button>
             ))}
             {bulkSaving && <span className="text-purple-700">جارٍ حفظ جميع النتائج...</span>}
+            <button
+              type="button"
+              onClick={printClassGrids}
+              disabled={!classStudents.length}
+              className="individual-batch-print-action rounded-xl border border-emerald-200 bg-white px-3 py-2 text-emerald-700 disabled:opacity-50"
+            >
+              طباعة شبكات القسم
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-[900px] w-full text-right text-xs">
@@ -1213,6 +1227,76 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                   })()}
                 </div>
               </section>
+            </div>
+          )}
+          {batchPrintOpen && activeSession && (
+            <div className="individual-batch-print-root" dir="rtl">
+              {classStudents.map((student) => {
+                const draft = drafts[student.id] || emptyDraft();
+                const complete = isAssessmentComplete(
+                  canonicalCriteria.map((item) => item.id),
+                  draft.criteria
+                );
+                return (
+                  <section className="individual-student-print-page" key={student.id}>
+                    <header className="individual-student-print-header">
+                      <p>{currentUser.schoolName || ''}</p>
+                      <h1>شبكة تقويم الكفاءة الختامية للتلميذ</h1>
+                      <div className="individual-student-print-meta">
+                        <span>
+                          الأستاذ: {currentUser.firstName} {currentUser.lastName}
+                        </span>
+                        <span>السنة الدراسية: {formatAcademicYearLabel(academicYearId)}</span>
+                        <span>المستوى: {activeClass?.levelId || ''}</span>
+                        <span>القسم: {activeClass?.name || ''}</span>
+                        <span>
+                          التلميذ: {student.firstName} {student.lastName}
+                        </span>
+                        <span>الميدان: {activeSession.domainId}</span>
+                      </div>
+                      <p className="individual-student-print-competency">
+                        <strong>الكفاءة الختامية:</strong>{' '}
+                        {assessmentCatalog?.finalCompetency.label || ''}
+                      </p>
+                    </header>
+                    <table className="individual-student-print-table">
+                      <thead>
+                        <tr>
+                          <th>معيار التقويم</th>
+                          <th>مؤشرات الملاحظة</th>
+                          <th>مستوى التمكن</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {canonicalCriteria.map((criterion) => {
+                          const indicators = (assessmentCatalog?.indicators || [])
+                            .filter((item) => item.criterionId === criterion.id)
+                            .map((item) => item.label)
+                            .join('، ');
+                          return (
+                            <tr key={criterion.id}>
+                              <td>{criterion.label}</td>
+                              <td>{indicators || '—'}</td>
+                              <td>{draft.criteria[criterion.id] || 'غير مقوّم'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    <footer className="individual-student-print-footer">
+                      <span>
+                        حالة التقويم: <strong>{complete ? 'مكتمل' : 'غير مكتمل'}</strong>
+                      </span>
+                      {complete && (
+                        <span>
+                          مستوى التمكن النهائي للكفاءة:{' '}
+                          <strong>{calculateAssessmentMastery(draft.criteria)}</strong>
+                        </span>
+                      )}
+                    </footer>
+                  </section>
+                );
+              })}
             </div>
           )}
           <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">

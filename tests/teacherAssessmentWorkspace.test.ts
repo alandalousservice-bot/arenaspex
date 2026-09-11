@@ -100,6 +100,10 @@ describe('unified Teacher assessment notebook', () => {
     expect(view).not.toContain('C4');
     expect(view).toContain('طباعة الشبكة');
     expect(view).toContain('window.print()');
+    expect(view).toContain('طباعة شبكات القسم');
+    expect(view).toContain('individual-batch-print-root');
+    expect(view).toContain('individual-student-print-page');
+    expect(view).toContain('classStudents.map');
     expect(view).toContain('individual-student-print-root');
     expect(view).toContain('individual-student-print-table');
     const styles = read('src/index.css');
@@ -107,5 +111,6 @@ describe('unified Teacher assessment notebook', () => {
     expect(styles).toContain('size: A4 portrait');
     expect(styles).toContain('individual-student-print-root');
     expect(styles).toContain('page-break-inside: avoid');
+    expect(styles).toContain('page-break-before: always');
   });
 });
