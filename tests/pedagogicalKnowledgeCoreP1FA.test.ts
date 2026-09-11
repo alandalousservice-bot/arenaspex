@@ -103,8 +103,45 @@ describe('P1F-A reviewed Domain 2 and Domain 3 semantic core', () => {
     expect(
       indicators.every((item) => criteria.some((criterion) => criterion.id === item.criterionId))
     ).toBe(true);
-    expect(catalog.criteria.filter((item) => item.domainId !== 'f_fundamentals')).toHaveLength(0);
-    expect(catalog.indicators.filter((item) => item.domainId !== 'f_fundamentals')).toHaveLength(0);
+    expect(
+      catalog.criteria.filter(
+        (item) => !['f_fundamentals', 'f_structuring'].includes(item.domainId)
+      )
+    ).toHaveLength(0);
+    expect(
+      catalog.indicators.filter(
+        (item) => !['f_fundamentals', 'f_structuring'].includes(item.domainId)
+      )
+    ).toHaveLength(0);
+  });
+
+  it('exposes the reviewed Grade 1 / Domain 3 criteria and indicators only for that cell', () => {
+    const criteria = P1FA_DOMAIN_TWO_AND_THREE_CATALOG.criteria.filter(
+      (item) => item.gradeId === 'lvl_p1' && item.domainId === 'f_structuring'
+    );
+    const indicators = P1FA_DOMAIN_TWO_AND_THREE_CATALOG.indicators.filter(
+      (item) => item.gradeId === 'lvl_p1' && item.domainId === 'f_structuring'
+    );
+    expect(criteria).toHaveLength(4);
+    expect(indicators).toHaveLength(4);
+    expect(criteria.every((item) => item.finalCompetencyId === 'fc_lvl_p1_f_structuring')).toBe(
+      true
+    );
+    expect(
+      indicators.every((item) => criteria.some((criterion) => criterion.id === item.criterionId))
+    ).toBe(true);
+    expect(criteria.map((item) => item.label)).toEqual([
+      'ضبط مسار الحركات تماشيا مع الفضاء المتاح',
+      'ترتيب الحركات حسب أولويتها بالنسبة للعملية',
+      'التنفيذ المناسب للفضاء المتاح',
+      'القيام بحركات لتمكين الزملاء من استثمار الفضاء',
+    ]);
+    expect(indicators.map((item) => item.label)).toEqual([
+      'التنقل في فضاء الممارسة بشكل منظم',
+      'مشاركة فضاء الممارسة',
+      'التفاعل مع التشكيلات والصفوف',
+      'مشاركة الأقران',
+    ]);
   });
 
   describe.each(P1FA_DOMAIN_IDS)('%s coverage', (domainId) => {
@@ -224,7 +261,7 @@ describe('P1F-A reviewed Domain 2 and Domain 3 semantic core', () => {
     expect(imports).toEqual([
       join('domain', 'pedagogicalKnowledge', 'releases', 'p1fcCombinedSemanticRelease.ts'),
     ]);
-    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.criteria).toHaveLength(4);
-    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.indicators).toHaveLength(4);
+    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.criteria).toHaveLength(8);
+    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.indicators).toHaveLength(8);
   });
 });

@@ -79,27 +79,31 @@ describe('P1F-C combined semantic activation candidate', () => {
         .map((item) => item.id)
     ).toEqual(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.objectiveConcepts.map((item) => item.id));
     expect(OFFICIAL_CURRICULUM_2023.contentHash).toBe('fnv1a32:cfe67657');
-    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.release.catalogHash).toBe('fnv1a32:8166c866');
+    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.release.catalogHash).toBe('fnv1a32:f6c1c7a4');
     expect(P1FB_DOMAIN_ONE_CORRECTION_CATALOG.release.catalogHash).toBe('fnv1a32:acafe987');
   });
 
-  it('exposes the pilot criteria and indicators through the registered runtime catalog', () => {
+  it('exposes the canonical criteria and indicators through the registered runtime catalog', () => {
     const registered = getRegisteredKnowledgeCoreRelease(P1FC_RELEASE_ID);
     expect(registered).not.toBeNull();
-    const pilotCriteria = registered?.catalog.criteria.filter(
-      (item) => item.gradeId === 'lvl_p1' && item.domainId === 'f_locomotion'
+    for (const domainId of ['f_fundamentals', 'f_structuring']) {
+      expect(
+        registered?.catalog.criteria.filter(
+          (item) => item.gradeId === 'lvl_p1' && item.domainId === domainId
+        )
+      ).toHaveLength(4);
+      expect(
+        registered?.catalog.indicators.filter(
+          (item) => item.gradeId === 'lvl_p1' && item.domainId === domainId
+        )
+      ).toHaveLength(4);
+    }
+    expect(registered?.catalog.criteria.filter((item) => item.gradeId !== 'lvl_p1')).toHaveLength(
+      0
     );
-    const pilotIndicators = registered?.catalog.indicators.filter(
-      (item) => item.gradeId === 'lvl_p1' && item.domainId === 'f_locomotion'
+    expect(registered?.catalog.indicators.filter((item) => item.gradeId !== 'lvl_p1')).toHaveLength(
+      0
     );
-    expect(pilotCriteria).toHaveLength(4);
-    expect(pilotIndicators).toHaveLength(4);
-    expect(
-      registered?.catalog.criteria.filter((item) => item.domainId !== 'f_locomotion')
-    ).toHaveLength(0);
-    expect(
-      registered?.catalog.indicators.filter((item) => item.domainId !== 'f_locomotion')
-    ).toHaveLength(0);
   });
 
   it('separates semantic completeness from runtime activation authority in every cell', () => {

@@ -69,8 +69,14 @@ const catalogWithoutHash = {
     ...d1.resources.map((item) => reScope(item, P1FB_RELEASE_ID)),
     ...d23.resources.map((item) => reScope(item, P1FA_RELEASE_ID)),
   ],
-  criteria: d1.criteria.map((item) => reScope(item, P1FB_RELEASE_ID)),
-  indicators: d1.indicators.map((item) => reScope(item, P1FB_RELEASE_ID)),
+  criteria: [
+    ...d1.criteria.map((item) => reScope(item, P1FB_RELEASE_ID)),
+    ...d23.criteria.map((item) => reScope(item, P1FA_RELEASE_ID)),
+  ],
+  indicators: [
+    ...d1.indicators.map((item) => reScope(item, P1FB_RELEASE_ID)),
+    ...d23.indicators.map((item) => reScope(item, P1FA_RELEASE_ID)),
+  ],
   objectiveConcepts: [
     ...d1.objectiveConcepts.map((item) => reScope(item, P1FB_RELEASE_ID)),
     ...d23.objectiveConcepts.map((item) => reScope(item, P1FA_RELEASE_ID)),
