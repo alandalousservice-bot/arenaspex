@@ -37,6 +37,11 @@ import { canReadDistrictMessage, normalizeMessageText } from '../services/commun
 import { providerIsUsable } from './generationAccess.policy.js';
 import { teacherAttendanceRouter } from './attendanceRouter.js';
 import { findActiveMedicalExemption } from './medicalExemption.service.js';
+import { calculateAssessmentMastery, isAssessmentComplete } from '../services/assessmentMastery.js';
+import {
+  DEFAULT_CANDIDATE_RELEASE_ID,
+  getRegisteredKnowledgeCoreRelease,
+} from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreReleaseRegistry.js';
 import {
   buildClassPlannedSessionSeedsFromCanonicalSessions,
   canonicalPlanningSessions,
@@ -1880,13 +1885,43 @@ function studentAssessmentView(
 }
 function criterionIdForSession(raw: string, session: AssessmentSessionRow): string | null {
   const value = raw.trim();
-  if (/^C[1-4]$/.test(value))
-    return `criterion:${session.gradeLevelId}:${session.domainId}:${session.finalCompetencyId || 'none'}:${value}`;
-  const prefix = `criterion:${session.gradeLevelId}:${session.domainId}:${session.finalCompetencyId || 'none'}:`;
-  return value.startsWith(prefix) && /^criterion:[^:]+:[^:]+:[^:]+:C[1-4]$/.test(value)
-    ? value
-    : null;
+  const catalog = getRegisteredKnowledgeCoreRelease(DEFAULT_CANDIDATE_RELEASE_ID)?.catalog;
+  const criterion = catalog?.criteria.find(
+    (item) =>
+      item.id === value &&
+      item.gradeId === session.gradeLevelId &&
+      item.domainId === session.domainId &&
+      item.finalCompetencyId === session.finalCompetencyId
+  );
+  return criterion?.id || null;
 }
+const assessmentKnowledgeCatalog = getRegisteredKnowledgeCoreRelease(
+  DEFAULT_CANDIDATE_RELEASE_ID
+)?.catalog;
+
+apiRouter.get('/teacher/assessment-catalog', requireRole('teacher'), async (req, res) => {
+  const gradeLevelId = String(req.query.gradeLevelId || '');
+  const domainId = String(req.query.domainId || '');
+  const finalCompetencyId = String(req.query.finalCompetencyId || '');
+  const finalCompetency = assessmentKnowledgeCatalog?.finalCompetencies.find(
+    (item) =>
+      item.id === finalCompetencyId && item.gradeId === gradeLevelId && item.domainId === domainId
+  );
+  if (!finalCompetency) return res.status(400).json({ error: 'الكفاءة الختامية غير معتمدة.' });
+  const criteria = assessmentKnowledgeCatalog.criteria.filter(
+    (item) =>
+      item.gradeId === gradeLevelId &&
+      item.domainId === domainId &&
+      item.finalCompetencyId === finalCompetencyId
+  );
+  const indicators = assessmentKnowledgeCatalog.indicators.filter(
+    (item) =>
+      item.gradeId === gradeLevelId &&
+      item.domainId === domainId &&
+      criteria.some((criterion) => criterion.id === item.criterionId)
+  );
+  res.json({ success: true, finalCompetency, criteria, indicators });
+});
 async function ownedAssessmentSession(sessionId: string, teacherId: string) {
   return prisma.assessmentSession.findFirst({ where: { id: sessionId, teacherId } });
 }
@@ -1919,6 +1954,15 @@ apiRouter.post('/teacher/assessment-sessions', requireRole('teacher'), async (re
   if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
   if (classRecord.levelId !== input.gradeLevelId)
     return res.status(400).json({ error: 'المستوى الدراسي لا يطابق القسم.' });
+  const catalog = getRegisteredKnowledgeCoreRelease(DEFAULT_CANDIDATE_RELEASE_ID)?.catalog;
+  const finalCompetency = catalog?.finalCompetencies.find(
+    (item) =>
+      item.id === input.finalCompetencyId &&
+      item.gradeId === input.gradeLevelId &&
+      item.domainId === input.domainId
+  );
+  if (!finalCompetency)
+    return res.status(400).json({ error: 'الكفاءة الختامية لا تطابق المستوى والميدان.' });
   let planned = null;
   if (input.classPlannedSessionId) {
     planned = await prisma.classPlannedSession.findFirst({
@@ -2144,6 +2188,38 @@ apiRouter.put(
           : {}),
       },
     });
+    const requiredCriteria =
+      assessmentKnowledgeCatalog?.criteria.filter(
+        (item) =>
+          item.gradeId === session.gradeLevelId &&
+          item.domainId === session.domainId &&
+          item.finalCompetencyId === session.finalCompetencyId
+      ) || [];
+    const allResults = await prisma.criterionResult.findMany({
+      where: { studentAssessmentId: studentAssessment.id },
+    });
+    if (
+      isAssessmentComplete(
+        requiredCriteria.map((item) => item.id),
+        Object.fromEntries(
+          allResults.map((result) => [
+            result.criterionId,
+            result.masteryLevel as 'أ' | 'ب' | 'ج' | 'د' | null,
+          ])
+        )
+      )
+    ) {
+      const values = Object.fromEntries(
+        allResults.map((result) => [
+          result.criterionId,
+          result.masteryLevel as 'أ' | 'ب' | 'ج' | 'د' | null,
+        ])
+      );
+      await prisma.studentAssessment.update({
+        where: { id: studentAssessment.id },
+        data: { masteryLevel: calculateAssessmentMastery(values) },
+      });
+    }
     res.json({ success: true, created: !existing, result: criterionResultView(saved) });
   }
 );

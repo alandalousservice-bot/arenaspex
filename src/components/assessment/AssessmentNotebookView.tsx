@@ -9,10 +9,11 @@ import {
   Target,
   Users,
 } from 'lucide-react';
-import { calculateAssessmentMastery } from '../../services/assessmentMastery';
+import { calculateAssessmentMastery, isAssessmentComplete } from '../../services/assessmentMastery';
 import {
   createOrReuseTeacherAssessmentSession,
   fetchTeacherAssessmentSession,
+  fetchTeacherAssessmentCatalog,
   fetchTeacherAssessmentSessions,
   fetchTeacherAttendance,
   fetchTeacherMedicalExemptions,
@@ -24,6 +25,11 @@ import {
   upsertTeacherStudentAssessment,
   type TeacherPlanningSession,
 } from '../../services/api';
+import type {
+  CriterionDefinition,
+  IndicatorDefinition,
+  FinalCompetency,
+} from '../../domain/pedagogicalKnowledge/types';
 import {
   formatAcademicYearLabel,
   getCurrentAcademicYear,
@@ -53,19 +59,12 @@ interface AssessmentNotebookViewProps {
 }
 
 type NotebookSection = 'competency' | 'marks' | 'attendance' | 'exemptions' | 'results' | 'reports';
-type CriterionCode = 'C1' | 'C2' | 'C3' | 'C4';
 type Draft = {
-  criteria: Record<CriterionCode, AssessmentGrade | ''>;
+  criteria: Record<string, AssessmentGrade | ''>;
   numericMark: string;
   note: string;
 };
 
-const CRITERIA: Array<{ code: CriterionCode; label: string }> = [
-  { code: 'C1', label: 'C1 — الملاءمة' },
-  { code: 'C2', label: 'C2 — الأداء الحركي' },
-  { code: 'C3', label: 'C3 — الفضاء والتوازن' },
-  { code: 'C4', label: 'C4 — التنسيق والمجموعة' },
-];
 const MASTERY: Array<{ value: AssessmentGrade; label: string }> = [
   { value: 'أ', label: 'أ — تملك أقصى' },
   { value: 'ب', label: 'ب — تملك مقبول' },
@@ -83,15 +82,8 @@ const ASSESSMENT_REFERENCE_TYPES = new Set(['تقويم تشخيصي', 'تقوي
 function isAssessmentReference(type?: string): boolean {
   return Boolean(type && ASSESSMENT_REFERENCE_TYPES.has(type));
 }
-function criterionId(session: AssessmentSessionDto, code: CriterionCode): string {
-  return `criterion:${session.gradeLevelId}:${session.domainId}:${session.finalCompetencyId || 'none'}:${code}`;
-}
 function emptyDraft(): Draft {
-  return { criteria: { C1: '', C2: '', C3: '', C4: '' }, numericMark: '', note: '' };
-}
-function criterionCodeFromId(value: string): CriterionCode | null {
-  const code = value.split(':').at(-1);
-  return code === 'C1' || code === 'C2' || code === 'C3' || code === 'C4' ? code : null;
+  return { criteria: {}, numericMark: '', note: '' };
 }
 
 export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
@@ -132,6 +124,11 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
   const [sessions, setSessions] = useState<AssessmentSessionDto[]>([]);
   const [activeSession, setActiveSession] = useState<AssessmentSessionDto | null>(null);
   const [results, setResults] = useState<StudentAssessmentDto[]>([]);
+  const [assessmentCatalog, setAssessmentCatalog] = useState<{
+    finalCompetency: FinalCompetency;
+    criteria: CriterionDefinition[];
+    indicators: IndicatorDefinition[];
+  } | null>(null);
   const [plannedSession, setPlannedSession] = useState<TeacherPlanningSession | null>(null);
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -177,6 +174,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
     [results]
   );
   const selectedStudent = classStudents.find((student) => student.id === selectedStudentId) || null;
+  const canonicalCriteria = assessmentCatalog?.criteria || [];
 
   useEffect(() => {
     if (controlledClassId !== undefined && controlledClassId !== selectedClassId) {
@@ -256,7 +254,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                 assessmentType: reference.sessionType as TeacherAssessmentType,
                 gradeLevelId: activeClass?.levelId || '',
                 domainId: reference.domainId,
-                finalCompetencyId: null,
+                finalCompetencyId: `fc_${activeClass?.levelId}_${reference.domainId}`,
                 title: reference.objective,
                 assessedAt: `${scheduled.plannedDate.slice(0, 10)}T00:00:00.000Z`,
               });
@@ -287,6 +285,20 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
     selectedClassId,
     reloadNonce,
   ]);
+
+  useEffect(() => {
+    if (!activeSession?.finalCompetencyId) {
+      setAssessmentCatalog(null);
+      return;
+    }
+    fetchTeacherAssessmentCatalog(
+      activeSession.gradeLevelId,
+      activeSession.domainId,
+      activeSession.finalCompetencyId
+    )
+      .then(setAssessmentCatalog)
+      .catch(() => setAssessmentCatalog(null));
+  }, [activeSession?.domainId, activeSession?.finalCompetencyId, activeSession?.gradeLevelId]);
 
   useEffect(() => {
     if (!selectedClassId) return;
@@ -422,8 +434,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
       const result = resultsByStudent.get(student.id);
       const draft = emptyDraft();
       result?.criterionResults.forEach((criterion) => {
-        const code = criterionCodeFromId(criterion.criterionId);
-        if (code) draft.criteria[code] = criterion.masteryLevel || '';
+        draft.criteria[criterion.criterionId] = criterion.masteryLevel || '';
       });
       draft.numericMark =
         result?.numericMark === null || result?.numericMark === undefined
@@ -483,7 +494,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
         assessmentType: manualType,
         gradeLevelId: activeClass.levelId,
         domainId: manualDomainId,
-        finalCompetencyId: null,
+        finalCompetencyId: `fc_${activeClass.levelId}_${manualDomainId}`,
         title: 'تقويم يدوي',
         assessedAt: new Date().toISOString(),
       });
@@ -508,7 +519,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
       [studentId]: { ...(current[studentId] || emptyDraft()), ...update },
     }));
   };
-  const updateCriterion = (studentId: string, code: CriterionCode, value: AssessmentGrade | '') => {
+  const updateCriterion = (studentId: string, code: string, value: AssessmentGrade | '') => {
     const current = drafts[studentId] || emptyDraft();
     updateDraft(studentId, { criteria: { ...current.criteria, [code]: value } });
   };
@@ -534,26 +545,26 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
     setSaveError('');
     try {
       await upsertTeacherStudentAssessment(activeSession.id, student.id, {
-        masteryLevel: null,
+        masteryLevel: isAssessmentComplete(
+          canonicalCriteria.map((item) => item.id),
+          draft.criteria
+        )
+          ? calculateAssessmentMastery(draft.criteria)
+          : null,
         numericMark,
         note: draft.note.trim() || null,
         assessedAt: new Date().toISOString(),
       });
       const existing = resultsByStudent.get(student.id);
-      for (const item of CRITERIA) {
-        const value = draft.criteria[item.code];
+      for (const item of canonicalCriteria) {
+        const value = draft.criteria[item.id];
         const previous = existing?.criterionResults.some(
-          (result) => criterionCodeFromId(result.criterionId) === item.code
+          (result) => result.criterionId === item.id
         );
         if (value || previous) {
-          await upsertTeacherCriterionResult(
-            activeSession.id,
-            student.id,
-            criterionId(activeSession, item.code),
-            {
-              masteryLevel: value || null,
-            }
-          );
+          await upsertTeacherCriterionResult(activeSession.id, student.id, item.id, {
+            masteryLevel: value || null,
+          });
         }
       }
       const refreshed = await fetchTeacherAssessmentSession(activeSession.id);
@@ -573,7 +584,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
       const current = nextDrafts[student.id] || emptyDraft();
       nextDrafts[student.id] = {
         ...current,
-        criteria: { C1: grade, C2: grade, C3: grade, C4: grade },
+        criteria: Object.fromEntries(canonicalCriteria.map((item) => [item.id, grade])),
       };
     });
     setDrafts(nextDrafts);
@@ -779,7 +790,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2"
                 >
                   <option value="f_locomotion">الميدان الأول</option>
-                  <option value="f_basic_moves">الميدان الثاني</option>
+                  <option value="f_fundamentals">الميدان الثاني</option>
                   <option value="f_structuring">الميدان الثالث</option>
                 </select>
               </label>
@@ -823,9 +834,26 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
               تقويم الكفاءات
             </h2>
             <p className="mt-1 text-xs text-slate-500">
-              القيم غير المختارة تبقى غير مقوّمة ولا تُنشئ نتيجة تلقائية.
+              {assessmentCatalog?.finalCompetency.label || 'جارٍ تحميل الكفاءة الختامية...'}
             </p>
           </div>
+          {canonicalCriteria.length > 0 && (
+            <div className="grid gap-2 rounded-2xl border border-purple-100 bg-purple-50 p-3 text-xs">
+              {canonicalCriteria.map((criterion, index) => (
+                <div key={criterion.id}>
+                  <strong>المعيار {index + 1}: </strong>
+                  {criterion.label}
+                  <span className="mr-2 text-slate-500">
+                    المؤشرات:{' '}
+                    {(assessmentCatalog?.indicators || [])
+                      .filter((item) => item.criterionId === criterion.id)
+                      .map((item) => item.label)
+                      .join('، ') || 'لا توجد مؤشرات إضافية'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-slate-50 p-3 text-xs font-bold">
             <span className="text-slate-600">تقييم جماعي محفوظ:</span>
             {(['أ', 'ب'] as AssessmentGrade[]).map((grade) => (
@@ -847,9 +875,9 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                 <tr className="bg-slate-100">
                   {' '}
                   <th className="p-3">التلميذ</th>
-                  {CRITERIA.map((item) => (
-                    <th key={item.code} className="p-3 text-center">
-                      {item.label}
+                  {canonicalCriteria.map((item, index) => (
+                    <th key={item.id} className="p-3 text-center">
+                      المعيار {index + 1}: {item.label}
                     </th>
                   ))}
                   <th className="p-3">العلامة / الملاحظة</th>
@@ -867,7 +895,12 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                   classStudents.map((student) => {
                     const draft = drafts[student.id] || emptyDraft();
                     const persisted = resultsByStudent.has(student.id);
-                    const mastery = calculateAssessmentMastery(draft.criteria);
+                    const mastery = isAssessmentComplete(
+                      canonicalCriteria.map((item) => item.id),
+                      draft.criteria
+                    )
+                      ? calculateAssessmentMastery(draft.criteria)
+                      : null;
                     return (
                       <tr key={student.id} className="align-top">
                         <td className="p-3 font-extrabold">
@@ -878,17 +911,17 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                             {persisted ? 'نتيجة محفوظة' : 'غير مقوّم'}
                           </span>
                           <span className="mt-1 block text-[10px] font-bold text-purple-700">
-                            {mastery ? `التملك العام: ${mastery}` : 'التملك العام: غير مقوّم'}
+                            {mastery ? `التملك العام: ${mastery}` : 'الحالة: غير مكتمل'}
                           </span>
                         </td>
-                        {CRITERIA.map((item) => (
-                          <td key={item.code} className="p-2 text-center">
+                        {canonicalCriteria.map((item) => (
+                          <td key={item.id} className="p-2 text-center">
                             <select
-                              value={draft.criteria[item.code]}
+                              value={draft.criteria[item.id] || ''}
                               onChange={(event) =>
                                 updateCriterion(
                                   student.id,
-                                  item.code,
+                                  item.id,
                                   event.target.value as AssessmentGrade | ''
                                 )
                               }
@@ -1343,8 +1376,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                     <div className="mt-3 flex flex-wrap gap-2 text-xs">
                       {item.result.criterionResults.map((criterion) => (
                         <span key={criterion.id} className="rounded-lg bg-slate-100 px-2 py-1">
-                          {criterionCodeFromId(criterion.criterionId) || criterion.criterionId}:{' '}
-                          {criterion.masteryLevel || 'غير مقوّم'}
+                          {criterion.criterionId}: {criterion.masteryLevel || 'غير مقوّم'}
                         </span>
                       ))}
                       <span className="rounded-lg bg-amber-50 px-2 py-1">

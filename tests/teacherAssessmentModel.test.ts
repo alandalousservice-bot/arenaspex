@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { calculateAssessmentMastery } from '../src/services/assessmentMastery';
+import {
+  calculateAssessmentMastery,
+  isAssessmentComplete,
+} from '../src/services/assessmentMastery';
+import { getRegisteredKnowledgeCoreRelease } from '../src/domain/pedagogicalKnowledge/runtime/knowledgeCoreReleaseRegistry';
+import { P1FC_RELEASE_ID } from '../src/domain/pedagogicalKnowledge/releases/p1fcCombinedSemanticRelease';
 
 const read = (file: string) => readFileSync(file, 'utf8');
 const schema = read('prisma/schema.prisma');
@@ -83,7 +88,39 @@ describe('persisted Teacher assessment foundation', () => {
     expect(calculateAssessmentMastery({ C1: 'ج', C2: 'ج', C3: 'ج', C4: 'ج' })).toBe('ج');
     expect(calculateAssessmentMastery({})).toBeNull();
     expect(notebook).toContain('calculateAssessmentMastery');
-    expect(notebook).toContain('التملك العام: غير مقوّم');
+    expect(notebook).toContain('الحالة: غير مكتمل');
+  });
+
+  it('loads canonical criteria and indicators for every production runtime cell', () => {
+    const catalog = getRegisteredKnowledgeCoreRelease(P1FC_RELEASE_ID)!.catalog;
+    for (const gradeId of ['lvl_p1', 'lvl_p2', 'lvl_p3', 'lvl_p4', 'lvl_p5']) {
+      for (const domainId of ['f_locomotion', 'f_fundamentals', 'f_structuring']) {
+        const criteria = catalog.criteria.filter(
+          (item) => item.gradeId === gradeId && item.domainId === domainId
+        );
+        const indicators = catalog.indicators.filter(
+          (item) => item.gradeId === gradeId && item.domainId === domainId
+        );
+        expect(criteria).toHaveLength(4);
+        expect(
+          indicators.every((item) =>
+            criteria.some((criterion) => criterion.id === item.criterionId)
+          )
+        ).toBe(true);
+        expect(
+          isAssessmentComplete(
+            criteria.map((item) => item.id),
+            Object.fromEntries(criteria.map((item) => [item.id, 'أ']))
+          )
+        ).toBe(true);
+        expect(
+          isAssessmentComplete(
+            criteria.map((item) => item.id),
+            {}
+          )
+        ).toBe(false);
+      }
+    }
   });
 
   it('keeps attendance and exemption persistence additive and separate', () => {

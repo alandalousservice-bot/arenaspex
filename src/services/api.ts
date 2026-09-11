@@ -29,6 +29,11 @@ import type {
   AnnualPlanObjectiveOverride,
   TeacherLearningPlanData,
 } from '../types/spex';
+import type {
+  CriterionDefinition,
+  FinalCompetency,
+  IndicatorDefinition,
+} from '../domain/pedagogicalKnowledge/types';
 import { offlinePost, offlineDelete } from '../lib/offline';
 
 export interface AuthResult {
@@ -1021,6 +1026,23 @@ export interface AssessmentSessionResponse {
   success: boolean;
   session: AssessmentSessionDto;
   reused?: boolean;
+}
+export interface TeacherAssessmentCatalog {
+  success: boolean;
+  finalCompetency: FinalCompetency;
+  criteria: CriterionDefinition[];
+  indicators: IndicatorDefinition[];
+}
+export async function fetchTeacherAssessmentCatalog(
+  gradeLevelId: string,
+  domainId: string,
+  finalCompetencyId: string
+): Promise<TeacherAssessmentCatalog> {
+  const query = new URLSearchParams({ gradeLevelId, domainId, finalCompetencyId });
+  const res = await fetch(`/api/teacher/assessment-catalog?${query.toString()}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل معايير الكفاءة.');
+  return data as TeacherAssessmentCatalog;
 }
 
 export async function fetchTeacherAttendance(sessionId: string): Promise<TeacherAttendanceDto> {

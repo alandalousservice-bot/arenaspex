@@ -21,10 +21,12 @@ describe('canonical Gradebook competency assessment', () => {
   });
 
   it('keeps four official criteria and derives status from their saved values', () => {
-    for (const code of ['C1', 'C2', 'C3', 'C4']) expect(notebook).toContain(`code: '${code}'`);
+    expect(notebook).toContain('canonicalCriteria.map');
+    expect(notebook).toContain('item.id');
     expect(notebook).toContain('calculateAssessmentMastery(draft.criteria)');
     expect(notebook).toContain('upsertTeacherCriterionResult');
     expect(notebook).toContain('upsertTeacherStudentAssessment');
+    expect(notebook).toContain('غير مكتمل');
   });
 
   it('keeps marks, results, history, exemption enforcement, and teacher isolation on the API', () => {

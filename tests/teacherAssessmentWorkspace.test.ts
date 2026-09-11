@@ -20,7 +20,7 @@ describe('unified Teacher assessment notebook', () => {
     expect(view).toContain('upsertTeacherStudentAssessment');
     expect(view).toContain('upsertTeacherCriterionResult');
     expect(view).toContain('غير مقوّم');
-    expect(view).toContain('masteryLevel: null');
+    expect(view).toContain('calculateAssessmentMastery(draft.criteria)');
     expect(view).not.toContain("|| 'جيد'");
     expect(view).not.toContain("|| 'ممتاز'");
   });
@@ -30,7 +30,7 @@ describe('unified Teacher assessment notebook', () => {
     expect(view).toContain('classPlannedSessionId');
     expect(view).toContain('تقويم يدوي');
     expect(view).toContain('sessionType');
-    expect(view).toContain('criterion:${session.gradeLevelId}');
+    expect(view).toContain('canonicalCriteria');
     expect(view).toContain('academicYearId');
   });
 

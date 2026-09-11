@@ -26,3 +26,12 @@ export function calculateAssessmentMastery(
   if (average >= 1.8) return 'ج';
   return 'د';
 }
+
+export function isAssessmentComplete(
+  requiredCriterionIds: readonly string[],
+  criteria: Partial<Record<string, AssessmentGrade | '' | null | undefined>>
+): boolean {
+  return (
+    requiredCriterionIds.length > 0 && requiredCriterionIds.every((id) => Boolean(criteria[id]))
+  );
+}
