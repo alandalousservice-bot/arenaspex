@@ -40,10 +40,41 @@ const sourceCells = OFFICIAL_CURRICULUM_2023.grades
     P1FA_DOMAIN_IDS.includes(cell.domainId as P1FADomainId)
   );
 
+const G1_D2_GRADE_ID = 'lvl_p1' as const;
+const G1_D2_DOMAIN_ID = 'f_fundamentals' as const;
+const G1_D2_FINAL_COMPETENCY_ID = 'fc_lvl_p1_f_fundamentals' as const;
+const G1_D2_CRITERION_IDS = [1, 2, 3, 4].map(
+  (index) => `criterion:${G1_D2_GRADE_ID}:${G1_D2_DOMAIN_ID}:final-competency:${index}`
+);
+const G1_D2_INDICATOR_IDS = [1, 2, 3, 4].map(
+  (index) => `indicator:${G1_D2_GRADE_ID}:${G1_D2_DOMAIN_ID}:criterion:${index}:1`
+);
+const G1_D2_CRITERIA = [
+  [
+    'اختيار الحركات القاعدية المناسبة للموقف',
+    'تنفيذ وضعيات الوقوف المختلفة بشكل سليمو ربط بعض الوضعيات بشكل صحيح',
+  ],
+  ['تنسيق وظائف جسمه حسب نوع الحركة المطلوبة', 'تكامل عمل الأطراف – أداء جملة من الوضعيات'],
+  [
+    'التنفيذ المناسب في الوقت المناسب',
+    'التنفيذ الصحيح لمختلف الوضعيات – يوظف تكامل أطرافه عند التنفيذ',
+  ],
+  [
+    'المحافظة على التوازن خلال التنفيذ',
+    'أداء متدرج السرعة للمشي فرديا وثنائيا بشكل صحيح- تنفيذ الهرولة فرديا وثنائيا بطريقة سليمة',
+  ],
+] as const;
+const G1_D2_CRITERIA_SOURCE = 'annual-plan-reference:lvl_p1:f_fundamentals:evaluation-criteria';
+
 export const p1faRequirementId = (resourceGroupId: string): string =>
   resourceGroupId.replace('official-resource-group:', 'learning-requirement:');
 export const p1faConceptId = (resourceGroupId: string): string =>
   resourceGroupId.replace('official-resource-group:', 'objective-concept:');
+
+const G1_D2_REQUIREMENT_IDS =
+  sourceCells
+    .find((cell) => cell.gradeId === G1_D2_GRADE_ID && cell.domainId === G1_D2_DOMAIN_ID)
+    ?.resourceGroups.map((group) => p1faRequirementId(group.id)) || [];
 
 const catalogWithoutHash = {
   release: {
@@ -150,8 +181,43 @@ const catalogWithoutHash = {
     })
   ),
   resources: [],
-  criteria: [],
-  indicators: [],
+  criteria: sourceCells
+    .filter((cell) => cell.gradeId === G1_D2_GRADE_ID && cell.domainId === G1_D2_DOMAIN_ID)
+    .flatMap(() =>
+      G1_D2_CRITERIA.map(([label], index) =>
+        node(
+          G1_D2_CRITERION_IDS[index],
+          label,
+          {
+            gradeId: G1_D2_GRADE_ID,
+            domainId: G1_D2_DOMAIN_ID,
+            finalCompetencyId: G1_D2_FINAL_COMPETENCY_ID,
+            order: index + 1,
+          },
+          approvedOfficial(G1_D2_CRITERIA_SOURCE)
+        )
+      )
+    ),
+  indicators: sourceCells
+    .filter((cell) => cell.gradeId === G1_D2_GRADE_ID && cell.domainId === G1_D2_DOMAIN_ID)
+    .flatMap(() =>
+      G1_D2_CRITERIA.map(([, label], index) =>
+        node(
+          G1_D2_INDICATOR_IDS[index],
+          label,
+          {
+            gradeId: G1_D2_GRADE_ID,
+            domainId: G1_D2_DOMAIN_ID,
+            criterionId: G1_D2_CRITERION_IDS[index],
+            learningRequirementIds: [
+              G1_D2_REQUIREMENT_IDS[Math.min(index, G1_D2_REQUIREMENT_IDS.length - 1)],
+            ],
+            order: 1,
+          },
+          approvedOfficial(G1_D2_CRITERIA_SOURCE)
+        )
+      )
+    ),
   objectiveConcepts: sourceCells.flatMap((cell) =>
     cell.resourceGroups.map((group, index) => {
       const component = cell.competencyComponents[index % cell.competencyComponents.length];

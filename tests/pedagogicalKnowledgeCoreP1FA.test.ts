@@ -87,6 +87,26 @@ describe('P1F-A reviewed Domain 2 and Domain 3 semantic core', () => {
     }
   });
 
+  it('exposes the reviewed Grade 1 / Domain 2 criteria and indicators only for that cell', () => {
+    const catalog = P1FA_DOMAIN_TWO_AND_THREE_CATALOG;
+    const criteria = catalog.criteria.filter(
+      (item) => item.gradeId === 'lvl_p1' && item.domainId === 'f_fundamentals'
+    );
+    const indicators = catalog.indicators.filter(
+      (item) => item.gradeId === 'lvl_p1' && item.domainId === 'f_fundamentals'
+    );
+    expect(criteria).toHaveLength(4);
+    expect(indicators).toHaveLength(4);
+    expect(criteria.every((item) => item.finalCompetencyId === 'fc_lvl_p1_f_fundamentals')).toBe(
+      true
+    );
+    expect(
+      indicators.every((item) => criteria.some((criterion) => criterion.id === item.criterionId))
+    ).toBe(true);
+    expect(catalog.criteria.filter((item) => item.domainId !== 'f_fundamentals')).toHaveLength(0);
+    expect(catalog.indicators.filter((item) => item.domainId !== 'f_fundamentals')).toHaveLength(0);
+  });
+
   describe.each(P1FA_DOMAIN_IDS)('%s coverage', (domainId) => {
     it.each(P1FA_GRADE_IDS)('%s supports complete, partial, and unmapped plans', (gradeId) => {
       const concepts = p1faCellConcepts(gradeId, domainId);
@@ -195,7 +215,7 @@ describe('P1F-A reviewed Domain 2 and Domain 3 semantic core', () => {
     ).toBe(false);
   });
 
-  it('has no production import or P1E/runtime activation', () => {
+  it('keeps production activation separate from this canonical criteria data', () => {
     const root = join(process.cwd(), 'src');
     const imports = sourceFiles(root)
       .filter((file) => !file.endsWith('p1faDomainTwoAndThree.ts'))
@@ -204,7 +224,7 @@ describe('P1F-A reviewed Domain 2 and Domain 3 semantic core', () => {
     expect(imports).toEqual([
       join('domain', 'pedagogicalKnowledge', 'releases', 'p1fcCombinedSemanticRelease.ts'),
     ]);
-    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.criteria).toEqual([]);
-    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.indicators).toEqual([]);
+    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.criteria).toHaveLength(4);
+    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.indicators).toHaveLength(4);
   });
 });
