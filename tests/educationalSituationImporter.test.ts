@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
 import {
   loadImportPayload,
   validateImportPayload,
 } from '../scripts/importEducationalSituationBank';
 
 describe('educational situation importer validation', () => {
+  it('uses bounded transaction limits for the finite staging import', () => {
+    const source = fs.readFileSync('scripts/importEducationalSituationBank.ts', 'utf8');
+    expect(source).toContain('maxWait: 10_000');
+    expect(source).toContain('timeout: 120_000');
+  });
   it('accepts the hardened payload shape and approved counts', () =>
     expect(() => validateImportPayload(loadImportPayload())).not.toThrow());
   it('rejects duplicate situation IDs and duplicate relation keys', () => {

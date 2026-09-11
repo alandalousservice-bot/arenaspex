@@ -97,79 +97,85 @@ export async function importEducationalSituationBank(
 ): Promise<{ situations: number; objectives: number; occurrences: number }> {
   nonProductionGuard();
   validateImportPayload(payload);
-  await prisma.$transaction(async (tx) => {
-    for (const row of payload.situations)
-      await tx.educationalSituation.upsert({
-        where: { id: row.id },
-        update: {
-          name: row.title,
-          approvalStatus: row.approvalStatus as SituationApprovalStatus,
-          productionEligibility: row.productionEligibility as SituationProductionEligibility,
-          activityType: row.activityType as SituationActivityType,
-          lessonTypes: row.lessonTypes ?? [],
-          executionConditions: row.executionConditions,
-          successCriteria: row.successCriteria,
-          observationIndicators: row.observationIndicators,
-          motorActions: row.motorActions ?? [],
-          pedagogicalTags: row.pedagogicalTags ?? [],
-          gradeId: row.gradeId,
-          domainId: row.domainId,
-        },
-        create: {
-          id: row.id,
-          externalId: row.id,
-          name: row.title,
-          grade: gradeNumber(row.gradeId),
-          fieldId: row.domainId,
-          fieldName: domainNames[row.domainId] ?? row.domainId,
-          objectiveIds: [],
-          objectiveTexts: [],
-          sourceGoal: row.title,
-          organization: row.description ?? '',
-          equipment: [],
-          origin: 'REFERENCE_SEED',
-          status: 'APPROVED',
-          approvalStatus: row.approvalStatus as SituationApprovalStatus,
-          productionEligibility: row.productionEligibility as SituationProductionEligibility,
-          activityType: row.activityType as SituationActivityType,
-          lessonTypes: row.lessonTypes ?? [],
-          executionConditions: row.executionConditions,
-          successCriteria: row.successCriteria,
-          observationIndicators: row.observationIndicators,
-          motorActions: row.motorActions ?? [],
-          pedagogicalTags: row.pedagogicalTags ?? [],
-          gradeId: row.gradeId,
-          domainId: row.domainId,
-        },
-      });
-    for (const row of payload.objectives)
-      await tx.situationObjective.upsert({
-        where: {
-          situationId_objectiveId: { situationId: row.situationId, objectiveId: row.objectiveId },
-        },
-        update: { relationType: row.relationType as SituationObjectiveRelationType },
-        create: {
-          id: row.id,
-          situationId: row.situationId,
-          objectiveId: row.objectiveId,
-          relationType: row.relationType as SituationObjectiveRelationType,
-        },
-      });
-    for (const row of payload.occurrences)
-      await tx.situationSourceOccurrence.upsert({
-        where: { id: row.id },
-        update: {
-          sourceFile: row.sourceFile,
-          sourceLesson: row.sourceLesson,
-          sourceLessonType: row.sourceLessonType,
-          originalSourceObjective: row.originalSourceObjective,
-          originalTitle: row.originalTitle,
-          originalDescription: row.originalDescription,
-          provenance: row.provenance,
-        },
-        create: row,
-      });
-  });
+  await prisma.$transaction(
+    async (tx) => {
+      for (const row of payload.situations)
+        await tx.educationalSituation.upsert({
+          where: { id: row.id },
+          update: {
+            name: row.title,
+            approvalStatus: row.approvalStatus as SituationApprovalStatus,
+            productionEligibility: row.productionEligibility as SituationProductionEligibility,
+            activityType: row.activityType as SituationActivityType,
+            lessonTypes: row.lessonTypes ?? [],
+            executionConditions: row.executionConditions,
+            successCriteria: row.successCriteria,
+            observationIndicators: row.observationIndicators,
+            motorActions: row.motorActions ?? [],
+            pedagogicalTags: row.pedagogicalTags ?? [],
+            gradeId: row.gradeId,
+            domainId: row.domainId,
+          },
+          create: {
+            id: row.id,
+            externalId: row.id,
+            name: row.title,
+            grade: gradeNumber(row.gradeId),
+            fieldId: row.domainId,
+            fieldName: domainNames[row.domainId] ?? row.domainId,
+            objectiveIds: [],
+            objectiveTexts: [],
+            sourceGoal: row.title,
+            organization: row.description ?? '',
+            equipment: [],
+            origin: 'REFERENCE_SEED',
+            status: 'APPROVED',
+            approvalStatus: row.approvalStatus as SituationApprovalStatus,
+            productionEligibility: row.productionEligibility as SituationProductionEligibility,
+            activityType: row.activityType as SituationActivityType,
+            lessonTypes: row.lessonTypes ?? [],
+            executionConditions: row.executionConditions,
+            successCriteria: row.successCriteria,
+            observationIndicators: row.observationIndicators,
+            motorActions: row.motorActions ?? [],
+            pedagogicalTags: row.pedagogicalTags ?? [],
+            gradeId: row.gradeId,
+            domainId: row.domainId,
+          },
+        });
+      for (const row of payload.objectives)
+        await tx.situationObjective.upsert({
+          where: {
+            situationId_objectiveId: { situationId: row.situationId, objectiveId: row.objectiveId },
+          },
+          update: { relationType: row.relationType as SituationObjectiveRelationType },
+          create: {
+            id: row.id,
+            situationId: row.situationId,
+            objectiveId: row.objectiveId,
+            relationType: row.relationType as SituationObjectiveRelationType,
+          },
+        });
+      for (const row of payload.occurrences)
+        await tx.situationSourceOccurrence.upsert({
+          where: { id: row.id },
+          update: {
+            sourceFile: row.sourceFile,
+            sourceLesson: row.sourceLesson,
+            sourceLessonType: row.sourceLessonType,
+            originalSourceObjective: row.originalSourceObjective,
+            originalTitle: row.originalTitle,
+            originalDescription: row.originalDescription,
+            provenance: row.provenance,
+          },
+          create: row,
+        });
+    },
+    {
+      maxWait: 10_000,
+      timeout: 120_000,
+    }
+  );
   return {
     situations: payload.situations.length,
     objectives: payload.objectives.length,
