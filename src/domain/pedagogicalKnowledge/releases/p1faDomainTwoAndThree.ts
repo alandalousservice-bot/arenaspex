@@ -212,6 +212,58 @@ const g3Indicators = P1FA_DOMAIN_IDS.flatMap((domainId) =>
   )
 );
 
+const G4_CRITERIA: Record<P1FADomainId, readonly (readonly [string, string])[]> = {
+  f_fundamentals: [
+    ['تحديد نوعية حركة الوثب حسب الموقف', 'التعرف على حركة الوثب برجل احدة ورجلين ضما وفتحا'],
+    ['تسلسل سريان الحركة خلال التنفيذ', 'الرمي بيد وبيدين لأبعد مسافة'],
+    ['تحديد نوعية الرمي حسب الموقف', 'حركة نصف دورة ودورة كاملة'],
+    ['تسلسل في الحركات حسب الموقف', 'توازن نجمة وتوازن جانبي'],
+  ],
+  f_structuring: [
+    ['ضبط التصرفات حسب فضاء الممارسة', 'التنقل والانتشار في فضاء الممارسة'],
+    ['اختيار الحركات القاعدية المناسبة للموقف', 'الوثب برجل واحدة وبتبادل الرجلين لأبعد مسافة'],
+    ['تعديل التصرفات حسب تغير الموقف', 'رمي لمسافة محددة وفق مجال'],
+    ['التنفيذ السليم للحركات المختارة', 'رمي لأبعد مسافة وفق مجال'],
+  ],
+};
+const g4RequirementIds = (domainId: P1FADomainId) =>
+  sourceCells
+    .find((cell) => cell.gradeId === 'lvl_p4' && cell.domainId === domainId)
+    ?.resourceGroups.map((group) => p1faRequirementId(group.id)) || [];
+const g4Criteria = P1FA_DOMAIN_IDS.flatMap((domainId) =>
+  G4_CRITERIA[domainId].map(([label], index) =>
+    node(
+      `criterion:lvl_p4:${domainId}:final-competency:${index + 1}`,
+      label,
+      {
+        gradeId: 'lvl_p4' as const,
+        domainId,
+        finalCompetencyId: `fc_lvl_p4_${domainId}`,
+        order: index + 1,
+      },
+      approvedOfficial(`annual-plan-reference:lvl_p4:${domainId}:evaluation-criteria`)
+    )
+  )
+);
+const g4Indicators = P1FA_DOMAIN_IDS.flatMap((domainId) =>
+  G4_CRITERIA[domainId].map(([, label], index) =>
+    node(
+      `indicator:lvl_p4:${domainId}:criterion:${index + 1}:1`,
+      label,
+      {
+        gradeId: 'lvl_p4' as const,
+        domainId,
+        criterionId: `criterion:lvl_p4:${domainId}:final-competency:${index + 1}`,
+        learningRequirementIds: g4RequirementIds(domainId).length
+          ? [g4RequirementIds(domainId)[Math.min(index, g4RequirementIds(domainId).length - 1)]]
+          : [],
+        order: 1,
+      },
+      approvedOfficial(`annual-plan-reference:lvl_p4:${domainId}:evaluation-criteria`)
+    )
+  )
+);
+
 const G5_CRITERIA: Record<P1FADomainId, readonly (readonly [string, string])[]> = {
   f_fundamentals: [
     ['اختيار نوعية الجري حسب الموقف', 'جري بركبتين مرفوعتين'],
@@ -409,6 +461,7 @@ const catalogWithoutHash = {
       ),
     ...g2Criteria,
     ...g3Criteria,
+    ...g4Criteria,
     ...g5Criteria,
   ],
   indicators: [
@@ -454,6 +507,7 @@ const catalogWithoutHash = {
       ),
     ...g2Indicators,
     ...g3Indicators,
+    ...g4Indicators,
     ...g5Indicators,
   ],
   objectiveConcepts: sourceCells.flatMap((cell) =>

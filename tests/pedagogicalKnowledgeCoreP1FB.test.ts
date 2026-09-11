@@ -203,7 +203,7 @@ describe('P1F-B reviewed Domain 1 correction release', () => {
 
   it('does not mutate the closed source, D2/D3 release, or P1E status', () => {
     expect(OFFICIAL_CURRICULUM_2023.contentHash).toBe('fnv1a32:cfe67657');
-    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.release.catalogHash).toBe('fnv1a32:f6c1c7a4');
+    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.release.catalogHash).toBe('fnv1a32:d0015de5');
     expect(DOMAIN_ONE_LEGACY_P1E_MIGRATION_MANIFEST.status).toBe('reviewed_not_activated');
   });
 

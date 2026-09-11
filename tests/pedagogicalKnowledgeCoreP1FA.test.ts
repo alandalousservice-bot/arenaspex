@@ -242,7 +242,7 @@ describe('P1F-A reviewed Domain 2 and Domain 3 semantic core', () => {
 
   it('keeps the existing Domain 1 releases and their approved structure', () => {
     expect(P1A_GRADE_ONE_DOMAIN_ONE_CATALOG.release.catalogHash).toBe('fnv1a32:cb85e286');
-    expect(P1C_DOMAIN_ONE_GRADES_TWO_TO_FIVE_CATALOG.release.catalogHash).toBe('fnv1a32:4fff771d');
+    expect(P1C_DOMAIN_ONE_GRADES_TWO_TO_FIVE_CATALOG.release.catalogHash).toBe('fnv1a32:16e3a47a');
     expect(P1A_GRADE_ONE_DOMAIN_ONE_CATALOG.learningRequirements).toHaveLength(4);
     expect(P1A_GRADE_ONE_DOMAIN_ONE_CATALOG.objectiveConcepts).toHaveLength(7);
     expect(P1C_DOMAIN_ONE_GRADES_TWO_TO_FIVE_CATALOG.learningRequirements).toHaveLength(16);
@@ -261,7 +261,7 @@ describe('P1F-A reviewed Domain 2 and Domain 3 semantic core', () => {
     expect(imports).toEqual([
       join('domain', 'pedagogicalKnowledge', 'releases', 'p1fcCombinedSemanticRelease.ts'),
     ]);
-    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.criteria).toHaveLength(32);
-    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.indicators).toHaveLength(32);
+    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.criteria).toHaveLength(40);
+    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.indicators).toHaveLength(40);
   });
 });

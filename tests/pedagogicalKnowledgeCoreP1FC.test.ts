@@ -79,8 +79,8 @@ describe('P1F-C combined semantic activation candidate', () => {
         .map((item) => item.id)
     ).toEqual(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.objectiveConcepts.map((item) => item.id));
     expect(OFFICIAL_CURRICULUM_2023.contentHash).toBe('fnv1a32:cfe67657');
-    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.release.catalogHash).toBe('fnv1a32:06e0cffa');
-    expect(P1FB_DOMAIN_ONE_CORRECTION_CATALOG.release.catalogHash).toBe('fnv1a32:62d7f56f');
+    expect(P1FA_DOMAIN_TWO_AND_THREE_CATALOG.release.catalogHash).toBe('fnv1a32:d0015de5');
+    expect(P1FB_DOMAIN_ONE_CORRECTION_CATALOG.release.catalogHash).toBe('fnv1a32:f8196168');
   });
 
   it('exposes the canonical criteria and indicators through the registered runtime catalog', () => {
@@ -110,6 +110,49 @@ describe('P1F-C combined semantic activation candidate', () => {
         )
       ).toHaveLength(4);
     }
+    for (const domainId of ['f_locomotion', 'f_fundamentals', 'f_structuring']) {
+      expect(
+        registered?.catalog.criteria.filter(
+          (item) => item.gradeId === 'lvl_p4' && item.domainId === domainId
+        )
+      ).toHaveLength(4);
+      expect(
+        registered?.catalog.indicators.filter(
+          (item) => item.gradeId === 'lvl_p4' && item.domainId === domainId
+        )
+      ).toHaveLength(4);
+    }
+  });
+
+  it('derives complete 15-cell runtime coverage with grade/domain-safe indicator links', () => {
+    const registered = getRegisteredKnowledgeCoreRelease(P1FC_RELEASE_ID)!;
+    const cells = ['lvl_p1', 'lvl_p2', 'lvl_p3', 'lvl_p4', 'lvl_p5'].flatMap((gradeId) =>
+      ['f_locomotion', 'f_fundamentals', 'f_structuring'].map((domainId) => ({
+        gradeId,
+        domainId,
+        criteria: registered.catalog.criteria.filter(
+          (item) => item.gradeId === gradeId && item.domainId === domainId
+        ),
+        indicators: registered.catalog.indicators.filter(
+          (item) => item.gradeId === gradeId && item.domainId === domainId
+        ),
+      }))
+    );
+    expect(cells).toHaveLength(15);
+    expect(cells.every((cell) => cell.criteria.length === 4 && cell.indicators.length === 4)).toBe(
+      true
+    );
+    const criteria = new Map(registered.catalog.criteria.map((item) => [item.id, item]));
+    expect(new Set(criteria.keys()).size).toBe(registered.catalog.criteria.length);
+    expect(new Set(registered.catalog.indicators.map((item) => item.id)).size).toBe(
+      registered.catalog.indicators.length
+    );
+    expect(
+      registered.catalog.indicators.every((item) => {
+        const criterion = criteria.get(item.criterionId);
+        return criterion?.gradeId === item.gradeId && criterion.domainId === item.domainId;
+      })
+    ).toBe(true);
   });
 
   it('separates semantic completeness from runtime activation authority in every cell', () => {

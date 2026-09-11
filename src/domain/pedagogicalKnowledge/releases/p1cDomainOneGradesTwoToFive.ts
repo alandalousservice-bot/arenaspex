@@ -686,6 +686,28 @@ const catalogWithoutHash = {
           )
         )
       ),
+    ...specs
+      .filter((spec) => spec.gradeId === 'lvl_p4')
+      .flatMap(() =>
+        [
+          ['اختيار التنقلات المناسبة للموقف', 1],
+          ['التحكم في الجسم خلال التنقل فرديا وجماعيا', 2],
+          ['التنسيق بين أطراف الجسم خلال التنقل', 3],
+          ['التحكم في تغيير وتيرة تجدد الموقف', 4],
+        ].map(([label, index]) =>
+          node(
+            `criterion:lvl_p4:f_locomotion:final-competency:${index}`,
+            String(label),
+            {
+              gradeId: 'lvl_p4',
+              domainId: DOMAIN_ID,
+              finalCompetencyId: 'fc_lvl_p4_f_locomotion',
+              order: Number(index),
+            },
+            approvedOfficial('annual-plan-reference:lvl_p4:f_locomotion:evaluation-criteria')
+          )
+        )
+      ),
     ...[
       ['اختيار الوضعيات والتنقلات المناسبة للموقف', 1],
       ['التنفيذ السليم للوضعيات والتنقلات المختارة', 2],
@@ -749,6 +771,29 @@ const catalogWithoutHash = {
               order: 1,
             },
             approvedOfficial('annual-plan-reference:lvl_p3:f_locomotion:evaluation-criteria')
+          )
+        )
+      ),
+    ...specs
+      .filter((spec) => spec.gradeId === 'lvl_p4')
+      .flatMap(() =>
+        [
+          ['تنفيذ مختلف وضعيات الإنطلاق تربيةالخطوة الخطوة', 1],
+          ['تكامل عمل الأطراف أثناء الجري المتعرج', 2],
+          ['تكامل عمل الأطراف أثناء الجري على منحنى', 3],
+          ['الجري السريع على محور بعدة وتائر', 4],
+        ].map(([label, index]) =>
+          node(
+            `indicator:lvl_p4:f_locomotion:criterion:${index}:1`,
+            String(label),
+            {
+              gradeId: 'lvl_p4',
+              domainId: DOMAIN_ID,
+              criterionId: `criterion:lvl_p4:f_locomotion:final-competency:${index}`,
+              learningRequirementIds: [],
+              order: 1,
+            },
+            approvedOfficial('annual-plan-reference:lvl_p4:f_locomotion:evaluation-criteria')
           )
         )
       ),
