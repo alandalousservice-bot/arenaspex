@@ -452,6 +452,51 @@ async function resolvePlanningReferences(
   );
 }
 
+async function grade4WeeklyScheduleModeForClass(classId: string, academicYearId: string) {
+  const configuration = await getClassPlanningConfiguration(classId, academicYearId, prisma);
+  return resolveGrade4WeeklyScheduleMode(configuration?.grade4WeeklyScheduleMode);
+}
+
+type PlanningReference = {
+  referenceSessionId: string;
+  grade: number;
+  domainId: string;
+  fieldName: string;
+  finalCompetency: string;
+  learningSectionId: string;
+  objectiveId: string | null;
+  objectiveGroupId: string | null;
+  objective: string;
+  sessionType: string;
+  sessionTypeLabel: string;
+  sequenceIndex: number;
+  fieldSessionNumber: number;
+  isIntro?: boolean;
+};
+
+function pedagogicalPartsForOperationalSession(
+  reference: PlanningReference | null,
+  references: Map<string, PlanningReference>,
+  grade4WeeklyScheduleMode: 'TWO_45' | 'ONE_90'
+): PlanningReference[] {
+  if (
+    !reference ||
+    reference.grade !== 4 ||
+    grade4WeeklyScheduleMode === 'TWO_45' ||
+    reference.sessionType !== 'تعلمية' ||
+    !reference.objectiveGroupId
+  ) {
+    return reference ? [reference] : [];
+  }
+  const paired = [...references.values()].find(
+    (candidate) =>
+      candidate.sequenceIndex === reference.sequenceIndex + 1 &&
+      candidate.sessionType === 'تعلمية' &&
+      candidate.objectiveGroupId === reference.objectiveGroupId
+  );
+  return paired ? [reference, paired] : [reference];
+}
+
 function buildPlanningReferenceMap(
   levelId: string,
   wordingData: unknown,
@@ -819,12 +864,17 @@ apiRouter.post(
       }
       const timetableSlots = await weeklySlotsForTeacher(req.user!.id, academicYearId);
       const classSlots = timetableSlots.filter((slot) => slot.classId === existing.classId);
+      const grade4WeeklyScheduleMode = await grade4WeeklyScheduleModeForClass(
+        existing.classId,
+        academicYearId
+      );
       const materialized = materializeClassPlannedSessionSeedsFromTimetable(
         req.user!.id,
         existing.classId,
         academicYearId,
         distribution.sessions,
-        classSlots
+        classSlots,
+        grade4WeeklyScheduleMode
       );
       if (materialized.error) {
         throw new ProtectedPlanningMoveError('missing-canonical-slot', materialized.error, 400);
@@ -974,6 +1024,17 @@ apiRouter.get('/teacher/planning/sessions', requireRole('teacher'), async (req, 
     current.push(slot);
     timetableSlotsByClass.set(slot.classId, current);
   }
+  const grade4ModesByClass = new Map(
+    await Promise.all(
+      classes.map(
+        async (classRecord) =>
+          [
+            classRecord.id,
+            await grade4WeeklyScheduleModeForClass(classRecord.id, parsed.data.academicYearId),
+          ] as const
+      )
+    )
+  );
   const rows = await prisma.classPlannedSession.findMany({
     where: {
       teacherId: req.user!.id,
@@ -985,24 +1046,29 @@ apiRouter.get('/teacher/planning/sessions', requireRole('teacher'), async (req, 
   res.json({
     success: true,
     classes,
-    sessions: rows.map((row) => ({
-      ...classPlannedSessionView(
-        row,
-        timetableSlotForSession(row, timetableSlotsByClass.get(row.classId) || [])
-      ),
-      reference:
-        referenceByLevel
-          .get(classesById.get(row.classId)?.levelId || '')
-          ?.get(row.referenceSessionId) ||
-        referenceByLevel
-          .get(classesById.get(row.classId)?.levelId || '')
-          ?.get(basePlanningReferenceId(row.referenceSessionId)) ||
-        introPlanningReference(
-          classesById.get(row.classId)?.levelId || '',
-          row.referenceSessionId
-        ) ||
-        null,
-    })),
+    sessions: rows.map((row) => {
+      const levelId = classesById.get(row.classId)?.levelId || '';
+      const references = referenceByLevel.get(levelId) || new Map<string, PlanningReference>();
+      const reference =
+        references.get(row.referenceSessionId) ||
+        references.get(basePlanningReferenceId(row.referenceSessionId)) ||
+        introPlanningReference(levelId, row.referenceSessionId) ||
+        null;
+      const mode = grade4ModesByClass.get(row.classId) || 'ONE_90';
+      return {
+        ...classPlannedSessionView(
+          row,
+          timetableSlotForSession(row, timetableSlotsByClass.get(row.classId) || [])
+        ),
+        reference,
+        grade4WeeklyScheduleMode: mode,
+        pedagogicalPartReferences: pedagogicalPartsForOperationalSession(
+          reference,
+          references,
+          mode
+        ),
+      };
+    }),
   });
 });
 
@@ -1017,6 +1083,10 @@ apiRouter.get(
     });
     if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
     const timetableSlots = await weeklySlotsForTeacher(req.user!.id, parsed.data.academicYearId);
+    const grade4WeeklyScheduleMode = await grade4WeeklyScheduleModeForClass(
+      classRecord.id,
+      parsed.data.academicYearId
+    );
     const rows = await prisma.classPlannedSession.findMany({
       where: {
         classId: classRecord.id,
@@ -1038,14 +1108,23 @@ apiRouter.get(
         levelId: classRecord.levelId,
         institutionId: classRecord.institutionId,
       },
-      sessions: rows.map((row) => ({
-        ...classPlannedSessionView(row, timetableSlotForSession(row, timetableSlots)),
-        reference:
+      sessions: rows.map((row) => {
+        const reference =
           references.get(row.referenceSessionId) ||
           references.get(basePlanningReferenceId(row.referenceSessionId)) ||
           introPlanningReference(classRecord.levelId, row.referenceSessionId) ||
-          null,
-      })),
+          null;
+        return {
+          ...classPlannedSessionView(row, timetableSlotForSession(row, timetableSlots)),
+          reference,
+          grade4WeeklyScheduleMode,
+          pedagogicalPartReferences: pedagogicalPartsForOperationalSession(
+            reference,
+            references,
+            grade4WeeklyScheduleMode
+          ),
+        };
+      }),
     });
   }
 );
@@ -1178,12 +1257,17 @@ apiRouter.post(
     const materializationErrors: Array<{ classId: string; className: string; error: string }> = [];
     for (const link of classLinks.filter((item) => item.status === 'linked')) {
       const distribution = distributionsByLevel.get(link.normalizedLevelId!);
+      const grade4WeeklyScheduleMode = await grade4WeeklyScheduleModeForClass(
+        link.classId,
+        academicYearId
+      );
       const materialized = materializeClassPlannedSessionSeedsFromTimetable(
         req.user!.id,
         link.classId,
         academicYearId,
         distribution!.sessions,
-        timetableSlotsByClass.get(link.classId) || []
+        timetableSlotsByClass.get(link.classId) || [],
+        grade4WeeklyScheduleMode
       );
       if (materialized.error) {
         materializationErrors.push({
@@ -1532,16 +1616,19 @@ apiRouter.patch(
       requestedDate: string;
       reason: 'execution-dependency' | 'completed-session';
     }> = [];
-    const seedsByClass = matchingClasses.map((classRecord) => ({
-      classRecord,
-      materialized: materializeClassPlannedSessionSeedsFromTimetable(
-        req.user!.id,
-        classRecord.id,
-        academicYearId,
-        effectiveLevel.sessions,
-        timetableSlotsByClass.get(classRecord.id) || []
-      ),
-    }));
+    const seedsByClass = await Promise.all(
+      matchingClasses.map(async (classRecord) => ({
+        classRecord,
+        materialized: materializeClassPlannedSessionSeedsFromTimetable(
+          req.user!.id,
+          classRecord.id,
+          academicYearId,
+          effectiveLevel.sessions,
+          timetableSlotsByClass.get(classRecord.id) || [],
+          await grade4WeeklyScheduleModeForClass(classRecord.id, academicYearId)
+        ),
+      }))
+    );
     for (const { classRecord, materialized } of seedsByClass) {
       if (materialized.error) {
         materializationErrors.push({
@@ -1697,12 +1784,17 @@ apiRouter.post(
         0,
         teacherLearningPlans.get(normalizePrimaryLevelId(classRecord.levelId) || '')
       );
+      const grade4WeeklyScheduleMode = await grade4WeeklyScheduleModeForClass(
+        classRecord.id,
+        parsed.data.academicYearId
+      );
       const materialized = materializeClassPlannedSessionSeedsFromTimetable(
         req.user!.id,
         classRecord.id,
         parsed.data.academicYearId,
         canonicalSessions,
-        timetableSlots.filter((slot) => slot.classId === classRecord.id)
+        timetableSlots.filter((slot) => slot.classId === classRecord.id),
+        grade4WeeklyScheduleMode
       );
       if (materialized.error) return res.status(400).json({ error: materialized.error });
       seeds = materialized.seeds;

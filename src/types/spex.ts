@@ -652,6 +652,8 @@ export interface EducationalSituation {
   pedagogicalTags?: string[];
   requirements?: string[];
   executionConditions?: string | null;
+  sourceDescription?: string | null;
+  instructions?: string | null;
   successCriteria?: string | null;
   observationIndicators?: string | string[] | null;
   ownerId?: string;
@@ -671,6 +673,14 @@ export interface EducationalSituationSnapshot {
   organization: string;
   equipment: string[];
   variations?: string;
+  sourceGoal?: string;
+  sourceDescription?: string;
+  executionContent?: string;
+  instructions?: string;
+  successCriteria?: string;
+  observationIndicators?: string | string[] | null;
+  objectiveIds?: string[];
+  objectiveRelations?: EducationalSituationObjectiveRelation[];
 }
 
 // Lesson Plan (مذكرة الحصة البيداغوجية الرسمية)
@@ -700,6 +710,17 @@ export interface LessonPlan {
   sessionGlobalNumber?: number; // رقم الحصة في التوزيع السنوي (1 إلى 30)
   annualSessionRef?: string; // مرجع الحصة بالتوزيع السنوي (مثل: "الأسبوع 02 / الحصة 02")
   segmentGoal?: string; // الهدف البيداغوجي / التعلمي للمقطع البيداغوجي
+  pedagogicalPartReferences?: Array<{
+    referenceSessionId: string;
+    objectiveId?: string | null;
+    objectiveGroupId?: string | null;
+    objective: string;
+    sessionType?: string;
+    sequenceIndex?: number;
+    fieldName?: string;
+  }>;
+  manualEdits?: boolean;
+  generatedAt?: string;
   learningGoal?: string;
   evaluation?: string;
   duration?: string;

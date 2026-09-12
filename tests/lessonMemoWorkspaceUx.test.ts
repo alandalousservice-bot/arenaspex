@@ -47,7 +47,8 @@ describe('Lesson Memo session-first workspace presentation', () => {
     );
     expect(view).toContain('nextSessions.find((item) => item.referenceSessionId === requested)');
     expect(view).toContain("const nextId = resolvedRequested?.id || nextSessions[0]?.id || ''");
-    expect(view).toContain('classPlannedSessionId: operationalContext?.session.id');
+    expect(view).toContain('generateLessonMemoDraft({');
+    expect(view).toContain('classPlannedSessionId: operationalContext.session.id');
     expect(view).toContain('createOperationalMemo(session.id)');
     expect(view).toContain('openOperationalMemo(session, memo)');
     expect(view).toContain('setSelectedId(memo.id)');
@@ -79,8 +80,11 @@ describe('Lesson Memo session-first workspace presentation', () => {
     const app = read('src/App.tsx');
 
     expect(view).toContain("query.get('classPlannedSessionId')");
-    expect(view).toContain('classPlannedSessionId: operationalContext?.session.id');
-    expect(view).toContain('referenceSessionId: operationalContext?.session.referenceSessionId');
+    expect(view).toContain('generateLessonMemoDraft({');
+    expect(view).toContain('classPlannedSessionId: operationalContext.session.id');
+    expect(view).not.toContain(
+      'referenceSessionId: operationalContext?.session.referenceSessionId'
+    );
     expect(workflow).toContain('plan.classPlannedSessionId === session.id');
     expect(dailyNotebook).toContain('/lesson-plans?classId=');
     expect(dailyNotebook).toContain('classPlannedSessionId=${encodeURIComponent(session.id)}');
@@ -205,7 +209,7 @@ describe('Lesson Memo session-first workspace presentation', () => {
 
     expect(curriculum).toContain('generateAnnualTimeDistribution');
     expect(planning).toContain('buildClassPlannedSessionSeedsFromCanonicalSessions');
-    expect(view).toContain('classPlannedSessionId: operationalContext?.session.id');
+    expect(view).toContain('classPlannedSessionId: operationalContext.session.id');
     expect(view).toContain('onSaveLessonPlan(plan);');
   });
 });

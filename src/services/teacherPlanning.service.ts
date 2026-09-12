@@ -925,8 +925,18 @@ function pedagogicalOperationalUnits(
   return units;
 }
 
-function operationalReferenceIdsForUnit(unit: PedagogicalOperationalUnit): string[] {
+function operationalReferenceIdsForUnit(
+  unit: PedagogicalOperationalUnit,
+  grade: number,
+  grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null
+): string[] {
   if (unit.meetingCount === 1) return [unit.session.referenceSessionId];
+  if (grade === 4 && grade4WeeklyScheduleMode !== 'TWO_45') {
+    // ONE_90 keeps the first canonical reference as the stable operational
+    // identity; the memo context resolves the paired second reference from
+    // the same canonical objective group.
+    return [unit.session.referenceSessionId];
+  }
   if (unit.canonicalSessions.length >= 2) {
     return unit.canonicalSessions.slice(0, 2).map((session) => session.referenceSessionId);
   }
@@ -1077,8 +1087,14 @@ export function materializeClassPlannedSessionSeedsFromTimetable(
         };
       }),
       ...assignments.flatMap(({ unit, occurrences }) => {
-        const referenceSessionIds = operationalReferenceIdsForUnit(unit);
-        return occurrences.map((occurrence, meetingIndex) => {
+        const referenceSessionIds = operationalReferenceIdsForUnit(
+          unit,
+          gradeFromLevelId(levelId),
+          grade4WeeklyScheduleMode
+        );
+        const operationalOccurrences =
+          referenceSessionIds.length === 1 ? occurrences.slice(0, 1) : occurrences;
+        return operationalOccurrences.map((occurrence, meetingIndex) => {
           const referenceSessionId = referenceSessionIds[meetingIndex];
           return {
             id: `cps_${classId}_${academicYearId}_${referenceSessionId}`,

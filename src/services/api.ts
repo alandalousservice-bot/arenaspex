@@ -659,6 +659,8 @@ export interface TeacherPlanningSession {
   createdAt: string;
   updatedAt: string;
   reference?: TeacherPlanningReference | null;
+  grade4WeeklyScheduleMode?: 'TWO_45' | 'ONE_90';
+  pedagogicalPartReferences?: TeacherPlanningReference[];
 }
 
 export interface TeacherAnnualDistributionSession {

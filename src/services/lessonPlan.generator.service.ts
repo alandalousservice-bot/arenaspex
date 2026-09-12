@@ -3,6 +3,7 @@ import { EducationalSituation } from '../types/spex';
 import {
   findSuitableSituations,
   referenceSituations,
+  selectEducationalSituations,
   snapshotSituation,
 } from './educationalSituation.selector.service';
 import {
@@ -11,6 +12,7 @@ import {
 } from './lessonTiming.service';
 
 export interface AutoGenerateSessionSource {
+  referenceSessionId?: string;
   fieldId: string;
   fieldName: string;
   finalCompetency: string;
@@ -22,6 +24,8 @@ export interface AutoGenerateSessionSource {
   typeLabel: string;
   /** الهدف المعتمد في التوزيع السنوي؛ لا يعاد توليده أو استبداله هنا. */
   objective: string;
+  objectiveId?: string | null;
+  objectiveGroupId?: string | null;
   tools: string[];
 }
 
@@ -42,6 +46,7 @@ export interface AutoGenerateContext {
   previousSituationIds?: string[];
   situations?: EducationalSituation[];
   grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null;
+  pedagogicalParts?: AutoGenerateSessionSource[];
 }
 
 export const lessonDurationForLevel = (
@@ -93,6 +98,11 @@ function buildMainRows(
   mainMinutes: number,
   ctx: AutoGenerateContext
 ): LessonPlanRow[] {
+  const pedagogicalParts = ctx.pedagogicalParts?.length ? ctx.pedagogicalParts : [session];
+  const objectiveIds = pedagogicalParts
+    .map((part) => part.objectiveId)
+    .filter((value): value is string => Boolean(value));
+  const objectiveTexts = pedagogicalParts.map((part) => part.objective).filter(Boolean);
   const grade =
     Number(
       (ctx.levelName.match(/(الأولى|الثانية|الثالثة|الرابعة|الخامسة)/)?.[1] || '')
@@ -102,12 +112,28 @@ function buildMainRows(
         .replace('الرابعة', '4')
         .replace('الخامسة', '5')
     ) || 0;
-  const bank = findSuitableSituations(ctx.situations || referenceSituations, {
-    grade,
-    fieldId: session.fieldId,
-    objectiveText: session.objective,
-    previousSituationIds: ctx.previousSituationIds,
-  });
+  const availableSituations = ctx.situations || referenceSituations;
+  const bank =
+    pedagogicalParts.length > 1
+      ? selectEducationalSituations(availableSituations, {
+          gradeId: grade,
+          domainId: session.fieldId,
+          lessonType: 'LEARNING',
+          objectiveIds,
+          objectiveText: session.objective,
+          durationMinutes: mainMinutes,
+          previousSituationIds: ctx.previousSituationIds,
+          maxSituations: 3,
+        }).selectedSituations
+      : findSuitableSituations(availableSituations, {
+          grade,
+          fieldId: session.fieldId,
+          objectiveId: session.objectiveId || undefined,
+          objectiveIds,
+          objectiveText: session.objective,
+          objectiveTexts,
+          previousSituationIds: ctx.previousSituationIds,
+        });
   if (bank.length) {
     const selected = bank.slice(
       0,
@@ -153,6 +179,18 @@ export function autoGenerateLessonPlan(
   session: AutoGenerateSessionSource,
   ctx: AutoGenerateContext
 ): LessonPlan {
+  const pedagogicalParts = ctx.pedagogicalParts?.length ? ctx.pedagogicalParts : [session];
+  const lessonTypes = new Set(pedagogicalParts.map((part) => part.type));
+  if (lessonTypes.size > 1) {
+    const error = new Error('Combined pedagogical parts must use one lesson type.') as Error & {
+      code?: string;
+    };
+    error.code = 'COMBINED_SESSION_LESSON_TYPE_CONFLICT';
+    throw error;
+  }
+  const combinedObjective = [
+    ...new Set(pedagogicalParts.map((part) => part.objective).filter(Boolean)),
+  ].join('؛ ');
   const durationMinutes =
     Number.isFinite(ctx.durationMinutes) && (ctx.durationMinutes || 0) > 0
       ? Math.round(ctx.durationMinutes as number)
@@ -214,18 +252,28 @@ export function autoGenerateLessonPlan(
     fieldName: session.fieldName,
     competencyTitle: session.finalCompetency,
     segmentTitle: session.fieldName,
-    sessionTitle: session.objective,
+    sessionTitle: combinedObjective || session.objective,
     sessionType: session.type,
     sessionTypeNumber: session.typeLabel,
     sessionGlobalNumber: session.globalNumber,
     annualSessionRef: `التوزيع السنوي - الأسبوع ${String(session.weekNumber).padStart(2, '0')} / الحصة ${String(session.globalNumber).padStart(2, '0')}`,
     segmentGoal: session.segmentGoal,
+    pedagogicalPartReferences: pedagogicalParts.map((part) => ({
+      referenceSessionId: part.referenceSessionId || '',
+      objectiveId: part.objectiveId,
+      objectiveGroupId: part.objectiveGroupId,
+      objective: part.objective,
+      sessionType: part.type,
+      sequenceIndex: part.globalNumber,
+      fieldName: part.fieldName,
+    })),
+    generatedAt: new Date().toISOString(),
     date: ctx.date || new Date().toISOString().split('T')[0],
     durationMinutes,
     equipmentNeeded,
     equipmentChecklist: equipmentNeeded.map((name) => ({ name, available: true })),
     lessonRows,
-    generalObjective: session.objective,
+    generalObjective: combinedObjective || session.objective,
     proceduralObjectives: { motor: '', cognitive: '' },
     warmupPhase: {
       duration: `${preparationMinutes} دقيقة`,

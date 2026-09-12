@@ -59,7 +59,7 @@ describe('authoritative session occurrence rules', () => {
     );
   });
 
-  it('materializes every Grade 1–4 learning objective as two weekday meetings', () => {
+  it('materializes learning objectives as pairs for Grades 1–3 and Grade 4 TWO_45', () => {
     for (const levelId of ['lvl_p1', 'lvl_p2', 'lvl_p3', 'lvl_p4']) {
       const canonical = canonicalPlanningSessions(levelId, '2026-09-21', '2026-2027');
       const result = materializeClassPlannedSessionSeedsFromTimetable(
@@ -67,7 +67,8 @@ describe('authoritative session occurrence rules', () => {
         `class-${levelId}`,
         '2026-2027',
         canonical,
-        [slot(1), slot(3, '10:00', '11:00')]
+        [slot(1), slot(3, '10:00', '11:00')],
+        levelId === 'lvl_p4' ? 'TWO_45' : undefined
       );
       expect(result.error).toBeUndefined();
 

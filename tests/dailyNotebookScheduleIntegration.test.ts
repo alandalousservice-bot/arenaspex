@@ -67,8 +67,8 @@ describe('Daily Notebook timetable materialization', () => {
     const classBPedagogical = classB.seeds.filter(
       (item) => !item.referenceSessionId.includes(':intro:')
     );
-    expect(classAPedagogical).toHaveLength(54);
-    expect(classBPedagogical).toHaveLength(54);
+    expect(classAPedagogical).toHaveLength(33);
+    expect(classBPedagogical).toHaveLength(33);
     expect(classA.seeds[0].plannedDate.toISOString().slice(0, 10)).toBe(
       classB.seeds[0].plannedDate.toISOString().slice(0, 10)
     );
@@ -189,7 +189,7 @@ describe('Daily Notebook timetable materialization', () => {
 
     const g4Pedagogical = g4.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
     const g5Pedagogical = g5.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
-    expect(g4Pedagogical).toHaveLength(54);
+    expect(g4Pedagogical).toHaveLength(33);
     expect(g4Pedagogical.every((item) => item.durationMinutes === 90)).toBe(true);
     expect(g5Pedagogical).toHaveLength(33);
     expect(g5Pedagogical.every((item) => item.durationMinutes === 60)).toBe(true);
@@ -232,7 +232,7 @@ describe('Daily Notebook timetable materialization', () => {
     );
 
     const pedagogical = result.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
-    expect(pedagogical).toHaveLength(54);
+    expect(pedagogical).toHaveLength(33);
     expect(
       result.seeds.every((item) => item.plannedDate.toISOString().endsWith('T00:00:00.000Z'))
     ).toBe(true);
@@ -243,7 +243,7 @@ describe('Daily Notebook timetable materialization', () => {
       result.seeds.some((item) => item.plannedDate.toISOString().slice(0, 10) === '2025-12-23')
     ).toBe(false);
     expect(
-      result.seeds.some((item) => item.plannedDate.toISOString().slice(0, 10) === '2026-01-05')
+      result.seeds.some((item) => item.plannedDate.toISOString().slice(0, 10) === '2026-01-07')
     ).toBe(true);
   });
 
@@ -260,11 +260,14 @@ describe('Daily Notebook timetable materialization', () => {
       'teacher-1',
       'class-safe',
       '2025-2026',
-      canonical
+      canonical,
+      [slot(2, '08:00', '09:30'), slot(4, '08:00', '09:30')],
+      'ONE_90'
     );
 
     const pedagogical = result.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
-    expect(pedagogical.map((item) => item.id)).toEqual(legacy.map((item) => item.id));
+    const legacyPedagogical = legacy.filter((item) => !item.referenceSessionId.includes(':intro:'));
+    expect(pedagogical.map((item) => item.id)).toEqual(legacyPedagogical.map((item) => item.id));
     expect(
       new Set(pedagogical.map((item) => item.referenceSessionId.replace(/:meeting:[12]$/, '')))
     ).toEqual(

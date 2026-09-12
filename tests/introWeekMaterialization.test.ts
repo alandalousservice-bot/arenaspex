@@ -88,7 +88,7 @@ describe('official entry week operational materialization', () => {
     expect(result.seeds.filter((seed) => seed.referenceSessionId.includes(':intro:'))).toHaveLength(
       2
     );
-    expect(result.seeds).toHaveLength(56);
+    expect(result.seeds).toHaveLength(35);
   });
 
   it('supports different same-level timetables without changing pedagogical identity order', () => {

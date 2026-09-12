@@ -13,6 +13,7 @@ import {
   getUnifiedLessonRows,
   rebalanceLessonRows,
 } from '../../services/lessonPlan.generator.service';
+import { generateLessonMemoDraft } from '../../services/lessonMemoGeneration.service';
 import {
   fetchAnnualPlans,
   fetchTeacherPlanningSessions,
@@ -104,6 +105,29 @@ function displayFieldName(domainId?: string, fieldName?: string): string {
 }
 
 type SourceSession = Parameters<typeof autoGenerateLessonPlan>[0];
+
+function sourceFromPlanningReference(
+  reference: NonNullable<TeacherPlanningSession['reference']>,
+  classRoom: ClassRoom
+): SourceSession {
+  const field = COMPLETE_ANNUAL_CURRICULUM[classRoom.levelId]?.fields[reference.domainId];
+  return {
+    fieldId: reference.domainId,
+    fieldName: displayFieldName(reference.domainId, field?.fieldName || reference.fieldName),
+    finalCompetency: reference.finalCompetency || field?.finalCompetency || '',
+    segmentGoal: reference.objective,
+    sessionNumber: reference.fieldSessionNumber,
+    globalNumber: reference.sequenceIndex,
+    weekNumber: Math.ceil(reference.sequenceIndex / 2),
+    type: reference.sessionType as LessonPlan['sessionType'],
+    typeLabel: reference.sessionTypeLabel,
+    objective: reference.objective,
+    objectiveId: reference.objectiveId,
+    objectiveGroupId: reference.objectiveGroupId,
+    referenceSessionId: reference.referenceSessionId,
+    tools: field?.suggestedTools || [],
+  };
+}
 
 function sessionsForLevel(levelName: string): SourceSession[] {
   const level = COMPLETE_ANNUAL_CURRICULUM[LEVEL_KEYS[levelName]];
@@ -212,30 +236,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const generatorSessions = useMemo<SourceSession[]>(
     () =>
       memoMode === 'operational' && scheduledContext
-        ? [
-            {
-              fieldId: scheduledContext.reference.domainId,
-              fieldName: displayFieldName(
-                scheduledContext.reference.domainId,
-                PE_FIELDS.find((field) => field.id === scheduledContext.reference.domainId)?.name
-              ),
-              finalCompetency:
-                COMPLETE_ANNUAL_CURRICULUM[operationalClass.levelId]?.fields[
-                  scheduledContext.reference.domainId
-                ]?.finalCompetency || '',
-              segmentGoal: scheduledContext.reference.objective,
-              sessionNumber: scheduledContext.reference.fieldSessionNumber,
-              globalNumber: scheduledContext.reference.sequenceIndex,
-              weekNumber: Math.ceil(scheduledContext.reference.sequenceIndex / 2),
-              type: scheduledContext.reference.sessionType as LessonPlan['sessionType'],
-              typeLabel: scheduledContext.reference.sessionTypeLabel,
-              objective: scheduledContext.reference.objective,
-              tools:
-                COMPLETE_ANNUAL_CURRICULUM[operationalClass.levelId]?.fields[
-                  scheduledContext.reference.domainId
-                ]?.suggestedTools || [],
-            },
-          ]
+        ? [sourceFromPlanningReference(scheduledContext.reference, operationalClass)]
         : scheduledLessons.map((scheduled) => ({
             fieldId: scheduled.fieldId,
             fieldName: displayFieldName(scheduled.fieldId, scheduled.fieldName),
@@ -444,20 +445,46 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       return;
     }
     try {
-      const plan = autoGenerateLessonPlan(source, {
-        levelName: operationalContext?.classRoom.levelName || levelName,
-        teacher: currentUser,
-        className: operationalContext?.classRoom.name || '',
-        classPlannedSessionId: operationalContext?.session.id,
-        referenceSessionId: operationalContext?.session.referenceSessionId,
-        academicYearId: operationalContext?.session.academicYearId,
-        classId: operationalContext?.session.classId,
-        plannedStartTime: operationalContext?.session.startTime,
-        venue: operationalContext?.session.venue,
-        inspectorName,
-        date: operationalContext?.session.plannedDate.slice(0, 10),
-        durationMinutes: operationalContext?.session.durationMinutes,
-      });
+      const previousSituationIds = operationalContext
+        ? lessonPlans
+            .filter(
+              (item) =>
+                item.teacherId === currentUser?.id &&
+                item.classId === operationalContext.session.classId &&
+                item.academicYearId === operationalContext.session.academicYearId &&
+                (item.sessionGlobalNumber || 0) < source.globalNumber
+            )
+            .flatMap((item) =>
+              (item.lessonRows || []).flatMap((row) =>
+                row.situationSnapshot?.situationId ? [row.situationSnapshot.situationId] : []
+              )
+            )
+        : undefined;
+      const plan =
+        operationalContext && currentUser
+          ? generateLessonMemoDraft({
+              levelName: operationalContext.classRoom.levelName || levelName,
+              teacher: currentUser,
+              className: operationalContext.classRoom.name,
+              classPlannedSessionId: operationalContext.session.id,
+              academicYearId: operationalContext.session.academicYearId,
+              classId: operationalContext.session.classId,
+              plannedStartTime: operationalContext.session.startTime,
+              venue: operationalContext.session.venue,
+              inspectorName,
+              plannedDate: operationalContext.session.plannedDate.slice(0, 10),
+              durationMinutes: operationalContext.session.durationMinutes,
+              source,
+              situations: bankSituations.length ? bankSituations : undefined,
+              previousSituationIds,
+              pedagogicalParts: operationalContext.session.pedagogicalPartReferences?.map(
+                (reference) => sourceFromPlanningReference(reference, operationalContext.classRoom)
+              ),
+            })
+          : autoGenerateLessonPlan(source, {
+              levelName,
+              teacher: currentUser,
+            });
       if (!plan.lessonRows?.length) throw new Error('empty memo');
       onSaveLessonPlan(plan);
       setSelectedId(plan.id);
@@ -496,6 +523,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       equipmentNeeded,
       equipmentChecklist: equipmentNeeded.map((name) => ({ name, available: true })),
       version: Math.max(draft.version || 1, 2),
+      manualEdits: true,
     });
     setEditing(false);
     setDraft(null);
@@ -1075,7 +1103,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     if (editing) {
       setDraft((previous) => previous && { ...previous, lessonRows: next, equipmentNeeded });
     } else {
-      onSaveLessonPlan({ ...plan, lessonRows: next, equipmentNeeded });
+      onSaveLessonPlan({ ...plan, lessonRows: next, equipmentNeeded, manualEdits: true });
     }
     setReplaceRowId(null);
   };
@@ -1090,7 +1118,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     ];
     if (editing)
       setDraft((previous) => previous && { ...previous, lessonRows: next, equipmentNeeded });
-    else onSaveLessonPlan({ ...plan, lessonRows: next, equipmentNeeded });
+    else onSaveLessonPlan({ ...plan, lessonRows: next, equipmentNeeded, manualEdits: true });
   };
 
   return (

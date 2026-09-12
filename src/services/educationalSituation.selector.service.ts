@@ -476,20 +476,31 @@ export function findSuitableSituations(
     grade: number;
     fieldId: string;
     objectiveId?: string;
-    objectiveText: string;
+    objectiveText?: string;
+    objectiveIds?: string[];
+    objectiveTexts?: string[];
     previousSituationIds?: string[];
   }
 ) {
+  const objectiveIds = new Set([
+    ...(params.objectiveIds || []),
+    ...(params.objectiveId ? [params.objectiveId] : []),
+  ]);
+  const objectiveTexts = new Set(
+    [params.objectiveText, ...(params.objectiveTexts || [])].filter((value): value is string =>
+      Boolean(value)
+    )
+  );
   const matches = items.filter(
     (item) =>
       isAutoGenerationEligible(item) &&
       hasOrdinaryLearningRelation(item) &&
       item.grade === params.grade &&
       item.fieldId === params.fieldId &&
-      (params.objectiveId
-        ? item.objectiveIds.includes(params.objectiveId) ||
-          item.objectiveTexts.includes(params.objectiveText)
-        : item.objectiveTexts.includes(params.objectiveText))
+      (objectiveIds.size || objectiveTexts.size
+        ? item.objectiveIds.some((id) => objectiveIds.has(id)) ||
+          item.objectiveTexts.some((text) => objectiveTexts.has(text))
+        : true)
   );
   const previous = new Set(params.previousSituationIds || []);
   return [...matches].sort(
@@ -499,11 +510,27 @@ export function findSuitableSituations(
 }
 
 export function snapshotSituation(item: EducationalSituation): EducationalSituationSnapshot {
+  const objectiveRelations = item.objectiveRelations?.length
+    ? item.objectiveRelations.map((relation) => ({ ...relation }))
+    : item.relationTypes?.length
+      ? item.objectiveIds.map((objectiveId, index) => ({
+          objectiveId,
+          relationType: item.relationTypes?.[index] || item.relationTypes?.[0] || 'DIRECT',
+        }))
+      : undefined;
   return {
     situationId: item.id,
     name: item.name,
     organization: item.organization,
     equipment: [...item.equipment],
     variations: item.variations,
+    sourceGoal: item.sourceGoal,
+    sourceDescription: item.sourceDescription || item.executionConditions || undefined,
+    executionContent: item.executionConditions || undefined,
+    instructions: item.instructions || undefined,
+    successCriteria: item.successCriteria || undefined,
+    observationIndicators: item.observationIndicators,
+    objectiveIds: [...item.objectiveIds],
+    objectiveRelations,
   };
 }
