@@ -15,7 +15,10 @@ import {
   G4_B3_BUNDLE_SHA256,
   G4_PAYLOAD_PATH,
   G4_PAYLOAD_SHA256,
+  G4_V2_PAYLOAD_PATH,
+  G4_V2_PAYLOAD_SHA256,
   buildG3ImportPlan,
+  buildG4V2PayloadFromV1,
   g2DomainForObjective,
   importBatch,
   isDirectExecution,
@@ -31,7 +34,10 @@ import {
   validateG3ImportPayload,
   loadG3ImportPayload,
   loadG4ImportPayload,
+  loadG4V2ImportPayload,
   validateG4ImportPayload,
+  validateG4V2ImportPayload,
+  toG4V2SituationObjectiveWriteInput,
 } from '../scripts/importEducationalSituationBank';
 import {
   findSuitableSituations,
@@ -721,6 +727,89 @@ describe('G3 production importer mode', () => {
       ),
     };
     expect(() => validateG3ImportPayload(invalid)).toThrow(/Unknown G3 relation situation/i);
+  });
+});
+
+describe('G4 relation metadata contract v2', () => {
+  const v1 = JSON.parse(fs.readFileSync(G4_PAYLOAD_PATH, 'utf8')) as Record<string, any>;
+  const v2 = loadG4V2ImportPayload();
+
+  it('loads the versioned payload and preserves the frozen v1 artifact', () => {
+    expect(G4_V2_PAYLOAD_PATH).toBe(
+      'tmp/g4-c6-relation-contract/G4_C6_FINAL_IMPORT_PAYLOAD_V2.json'
+    );
+    expect(v2.payloadSha256).toBe(G4_V2_PAYLOAD_SHA256);
+    expect(() => validateG4V2ImportPayload(v2, G4_V2_PAYLOAD_SHA256)).not.toThrow();
+    expect(v2.situations).toHaveLength(79);
+    expect(v2.objectives).toHaveLength(165);
+    expect(v2.occurrences).toHaveLength(58);
+    expect(v2.metadata).toMatchObject({
+      payloadVersion: 'g4-production-v2',
+      derivedFromPayloadSha256: G4_PAYLOAD_SHA256,
+    });
+    expect(fs.readFileSync(G4_PAYLOAD_PATH, 'utf8')).toContain('g4-production-v1');
+  });
+
+  it('uses null only for non-quantitative confidence and preserves categorical semantics in evidence', () => {
+    expect(v2.objectives.every((row) => row.confidence === null)).toBe(true);
+    expect(
+      v2.objectives.filter((row) => row.evidence.adjudicationBasis === 'ADJUDICATED')
+    ).toHaveLength(144);
+    expect(
+      v2.objectives.filter((row) => row.evidence.adjudicationBasis === 'AUTHORED_DIRECT')
+    ).toHaveLength(21);
+    expect(v2.objectives.every((row) => typeof row.evidence.rationale === 'string')).toBe(true);
+    expect(() => toG4V2SituationObjectiveWriteInput(v1.relations[0])).toThrow(
+      /numeric.*confidence/i
+    );
+  });
+
+  it('accepts numeric confidence and JSON evidence without coercion', () => {
+    const row = {
+      ...v2.objectives[0],
+      confidence: 0.875,
+      evidence: { nested: { source: 'review' }, values: [1, true, null] },
+    };
+    expect(toG4V2SituationObjectiveWriteInput(row)).toMatchObject(row);
+    expect(() => toG4V2SituationObjectiveWriteInput({ ...row, confidence: 'ADJUDICATED' })).toThrow(
+      /numeric.*confidence/i
+    );
+  });
+
+  it('keeps relation identity, counts, split, and order stable from v1 to v2', () => {
+    expect(v2.objectives.map((row) => row.id)).toEqual(v1.relations.map((row) => row.id));
+    expect(v2.objectives.map((row) => `${row.situationId}|${row.objectiveId}`)).toEqual(
+      v1.relations.map((row) => `${row.situationId}|${row.objectiveId}`)
+    );
+    expect(v2.objectives.filter((row) => row.relationType === 'DIRECT')).toHaveLength(72);
+    expect(v2.objectives.filter((row) => row.relationType === 'INTEGRATIVE')).toHaveLength(29);
+    expect(v2.objectives.filter((row) => row.relationType === 'ASSESSMENT')).toHaveLength(64);
+    const first = `${JSON.stringify(buildG4V2PayloadFromV1(v1), null, 2)}\n`;
+    const second = `${JSON.stringify(buildG4V2PayloadFromV1(v1), null, 2)}\n`;
+    expect(first).toBe(second);
+    expect(first).toBe(fs.readFileSync(G4_V2_PAYLOAD_PATH, 'utf8'));
+  });
+
+  it('plans exact v2 relations as no-ops and detects metadata conflicts', () => {
+    const fields = ['id', 'situationId', 'objectiveId', 'relationType', 'confidence', 'evidence'];
+    const plan = buildG3ImportPlan(
+      { situations: v2.situations, relations: v2.objectives, occurrences: v2.occurrences },
+      v2,
+      fields
+    );
+    expect(plan).toMatchObject({ relations: { create: 0, noOp: 165, conflict: 0 } });
+    const conflict = buildG3ImportPlan(
+      {
+        situations: v2.situations,
+        relations: v2.objectives.map((row, index) =>
+          index === 0 ? { ...row, evidence: { changed: true } } : row
+        ),
+        occurrences: v2.occurrences,
+      },
+      v2,
+      fields
+    );
+    expect(conflict.relations.conflict).toBe(1);
   });
 });
 

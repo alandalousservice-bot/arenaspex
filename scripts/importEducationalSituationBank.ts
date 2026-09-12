@@ -3,6 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
+  Prisma,
   PrismaClient,
   SituationActivityType,
   SituationApprovalStatus,
@@ -23,7 +24,11 @@ export type ImportPayload = {
 };
 
 export type ImportBatch =
-  'b3-source-bank' | 'g2-authored-enrichment-v1' | 'g3-production-v1' | 'g4-production-v1';
+  | 'b3-source-bank'
+  | 'g2-authored-enrichment-v1'
+  | 'g3-production-v1'
+  | 'g4-production-v1'
+  | 'g4-production-v2';
 export const G2_PAYLOAD_SHA256 = 'C6A7CF2471D502311C820F8F7C4EC0A55E855FBD52621C1BC7D0893BBFACEC7E';
 export const G2_PAYLOAD_PATH = 'tmp/g2-b6-1-4-import-payload/G2_B6_1_4_FINAL_IMPORT_PAYLOAD.json';
 export const G3_PAYLOAD_SHA256 = '2037D7409887853E89DD7A15F3C0E10817D988258F2FAC087456FED54D4DE129';
@@ -32,6 +37,9 @@ export const G3_B1_BUNDLE_SHA256 =
   '50BBC3F95498F5E2AEB895183BD32AA2F34D482B8DBE54D5C5643619BF1E301F';
 export const G4_PAYLOAD_SHA256 = '72491397E3B8354D668BA5094E00F9D6C43DB5734ED04B7FF4CF1419D51C1960';
 export const G4_PAYLOAD_PATH = 'tmp/g4-end-to-end/G4_B4_FINAL_IMPORT_PAYLOAD.json';
+export const G4_V2_PAYLOAD_PATH = 'tmp/g4-c6-relation-contract/G4_C6_FINAL_IMPORT_PAYLOAD_V2.json';
+export const G4_V2_PAYLOAD_SHA256 =
+  '8DEE0B7B3E880BFF1A3A2CA749153568BB2E148B9CDC05F67DD93D32B977D6A6';
 export const G4_B3_BUNDLE_SHA256 =
   '0E54C8DAD138A859012AE0A6ACA8B944601DCB17A389C5015C8FB4E29B933747';
 const g2DomainByCode: Record<string, string> = {
@@ -56,6 +64,13 @@ export type SituationObjectiveWriteInput = {
   situationId: string;
   objectiveId: string;
   relationType: SituationObjectiveRelationType;
+  confidence?: number | null;
+  evidence?: Prisma.InputJsonValue | null;
+};
+
+export type G4V2SituationObjectiveWriteInput = SituationObjectiveWriteInput & {
+  confidence: number | null;
+  evidence: Prisma.InputJsonValue | null;
 };
 
 /** Existing B3 relation identity convention, reused for authored batches. */
@@ -83,6 +98,34 @@ export function toSituationObjectiveWriteInput(
     situationId: row.situationId,
     objectiveId: row.objectiveId,
     relationType: row.relationType as SituationObjectiveRelationType,
+  };
+}
+
+function numericConfidence(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'number' || !Number.isFinite(value))
+    throw new Error('Invalid numeric SituationObjective confidence.');
+  return value;
+}
+
+function jsonEvidence(value: unknown): Prisma.InputJsonValue | null {
+  if (value === null || value === undefined) return null;
+  try {
+    if (JSON.stringify(value) === undefined) throw new Error('undefined JSON');
+    return value as Prisma.InputJsonValue;
+  } catch {
+    throw new Error('Invalid SituationObjective evidence JSON.');
+  }
+}
+
+export function toG4V2SituationObjectiveWriteInput(
+  row: Record<string, unknown>
+): G4V2SituationObjectiveWriteInput {
+  const base = toSituationObjectiveWriteInput(row);
+  return {
+    ...base,
+    confidence: numericConfidence(row.confidence),
+    evidence: jsonEvidence(row.evidence),
   };
 }
 
@@ -156,6 +199,7 @@ export function importBatch(env: NodeJS.ProcessEnv = process.env): ImportBatch {
   if (value === 'g2-authored-enrichment-v1') return value;
   if (value === 'g3-production-v1') return value;
   if (value === 'g4-production-v1') return value;
+  if (value === 'g4-production-v2') return value;
   throw new Error(`Import refused: unsupported batch ${value}.`);
 }
 
@@ -223,6 +267,45 @@ export function loadG4ImportPayload(): ImportPayload {
   const rawText = fs.readFileSync(path.join(root, G4_PAYLOAD_PATH), 'utf8');
   const actualHash = crypto.createHash('sha256').update(rawText).digest('hex').toUpperCase();
   if (actualHash !== G4_PAYLOAD_SHA256) throw new Error('G4 payload SHA-256 mismatch.');
+  const raw = JSON.parse(rawText) as Record<string, any>;
+  return {
+    metadata: raw.metadata,
+    payloadSha256: actualHash,
+    situations: raw.situations ?? [],
+    objectives: (raw.relations ?? []).map((row: any) => ({
+      ...row,
+      relationType: row.relationType ?? row.relationship,
+    })),
+    occurrences: raw.sourceOccurrences ?? [],
+    families: raw.families ?? [],
+    familyMembers: raw.familyMembers ?? [],
+    media: raw.media ?? [],
+  };
+}
+
+export function buildG4V2PayloadFromV1(raw: Record<string, any>): Record<string, any> {
+  return {
+    ...raw,
+    metadata: {
+      ...raw.metadata,
+      payloadVersion: 'g4-production-v2',
+      derivedFromPayloadSha256: G4_PAYLOAD_SHA256,
+    },
+    relations: raw.relations.map((row: Record<string, any>) => ({
+      ...row,
+      confidence: null,
+      evidence: {
+        ...(row.evidence ?? {}),
+        adjudicationBasis: row.confidence,
+      },
+    })),
+  };
+}
+
+export function loadG4V2ImportPayload(): ImportPayload {
+  const rawText = fs.readFileSync(path.join(root, G4_V2_PAYLOAD_PATH), 'utf8');
+  const actualHash = crypto.createHash('sha256').update(rawText).digest('hex').toUpperCase();
+  if (actualHash !== G4_V2_PAYLOAD_SHA256) throw new Error('G4 V2 payload SHA-256 mismatch.');
   const raw = JSON.parse(rawText) as Record<string, any>;
   return {
     metadata: raw.metadata,
@@ -543,6 +626,81 @@ export function validateG4ImportPayload(payload: ImportPayload, actualHash?: str
     throw new Error('G4 governance counts do not match the locked contract.');
 }
 
+export function validateG4V2ImportPayload(payload: ImportPayload, actualHash?: string): void {
+  if (actualHash && actualHash !== G4_V2_PAYLOAD_SHA256)
+    throw new Error('G4 V2 payload SHA-256 mismatch.');
+  if (payload.payloadSha256 && payload.payloadSha256 !== G4_V2_PAYLOAD_SHA256)
+    throw new Error('G4 V2 payload SHA-256 mismatch.');
+  const metadata = payload.metadata;
+  if (
+    metadata?.payloadVersion !== 'g4-production-v2' ||
+    metadata.payloadKind !== 'G4_EDUCATIONAL_SITUATION_IMPORT' ||
+    metadata.gradeId !== 'lvl_p4' ||
+    metadata.derivedFromPayloadSha256 !== G4_PAYLOAD_SHA256 ||
+    metadata.expectedCounts?.situations !== 79 ||
+    metadata.expectedCounts?.relations !== 165 ||
+    metadata.expectedCounts?.sourceOccurrences !== 58 ||
+    metadata.expectedCounts?.families !== 0 ||
+    metadata.expectedCounts?.familyMembers !== 0 ||
+    metadata.expectedCounts?.media !== 0 ||
+    !sameCounts(metadata.relationTypes ?? {}, G4_RELATION_COUNTS) ||
+    !sameCounts(metadata.governanceCounts ?? {}, G4_GOVERNANCE_COUNTS)
+  )
+    throw new Error('G4 V2 payload metadata mismatch.');
+  if (
+    payload.situations.length !== 79 ||
+    payload.objectives.length !== 165 ||
+    payload.occurrences.length !== 58 ||
+    payload.families.length !== 0 ||
+    payload.familyMembers.length !== 0 ||
+    payload.media.length !== 0
+  )
+    throw new Error('G4 V2 payload counts do not match the locked 79/165/58/0/0/0 contract.');
+  validateG4SituationWriteInputs(payload.situations);
+  validateSituationObjectiveWriteInputs(payload.objectives);
+  const situationIds = new Set(payload.situations.map((x) => x.id));
+  const relationIds = new Set<string>();
+  const relationKeys = new Set<string>();
+  const relationCounts: Record<string, number> = {};
+  for (const row of payload.objectives) {
+    if (!situationIds.has(row.situationId))
+      throw new Error(`Unknown G4 V2 relation situation: ${row.situationId}.`);
+    if (row.id !== deterministicSituationObjectiveId(row.situationId, row.objectiveId))
+      throw new Error(`Invalid deterministic G4 V2 relation ID: ${row.id}.`);
+    if (relationIds.has(row.id)) throw new Error('Duplicate deterministic G4 V2 relation ID.');
+    const key = `${row.situationId}|${row.objectiveId}`;
+    if (relationKeys.has(key)) throw new Error('Duplicate G4 V2 relation key.');
+    relationIds.add(row.id);
+    relationKeys.add(key);
+    relationCounts[row.relationType] = (relationCounts[row.relationType] ?? 0) + 1;
+    if (
+      row.confidence !== null &&
+      (typeof row.confidence !== 'number' || !Number.isFinite(row.confidence))
+    )
+      throw new Error(`G4 V2 confidence must be numeric or null: ${row.id}.`);
+    if (!row.evidence || typeof row.evidence !== 'object' || Array.isArray(row.evidence))
+      throw new Error(`G4 V2 evidence must be a JSON object: ${row.id}.`);
+    if (!['ADJUDICATED', 'AUTHORED_DIRECT'].includes(row.evidence.adjudicationBasis))
+      throw new Error(`G4 V2 adjudication basis missing: ${row.id}.`);
+  }
+  if (!sameCounts(relationCounts, G4_RELATION_COUNTS))
+    throw new Error('G4 V2 relation type counts do not match the locked contract.');
+  const occurrenceIds = new Set<string>();
+  const authoredIds = new Set(
+    payload.situations.filter((row) => row.kind === 'AUTHORED').map((row) => row.id)
+  );
+  for (const row of payload.occurrences) {
+    if (authoredIds.has(row.situationId))
+      throw new Error(`Authored G4 V2 source occurrence is not allowed: ${row.id}.`);
+    if (!situationIds.has(row.situationId))
+      throw new Error(`Unknown G4 V2 occurrence situation: ${row.id}.`);
+    if (row.id !== `occurrence:lvl_p4:${row.sourceDomain}:${row.situationId}`)
+      throw new Error(`Invalid deterministic G4 V2 occurrence ID: ${row.id}.`);
+    if (occurrenceIds.has(row.id)) throw new Error('Duplicate deterministic G4 V2 occurrence ID.');
+    occurrenceIds.add(row.id);
+  }
+}
+
 const g3SituationMaterialFields = [
   'id',
   'name',
@@ -570,6 +728,7 @@ const g3SituationMaterialFields = [
   'difficulty',
 ];
 const g3RelationMaterialFields = ['id', 'situationId', 'objectiveId', 'relationType'];
+const g4V2RelationMaterialFields = [...g3RelationMaterialFields, 'confidence', 'evidence'];
 const g3OccurrenceMaterialFields = [
   'id',
   'situationId',
@@ -611,7 +770,8 @@ export function buildG3ImportPlan(
     relations: Array<Record<string, any>>;
     occurrences: Array<Record<string, any>>;
   },
-  payload: ImportPayload
+  payload: ImportPayload,
+  relationMaterialFields: string[] = g3RelationMaterialFields
 ): G3ImportPlan {
   const plan: G3ImportPlan = {
     situations: { create: 0, noOp: 0, conflict: 0 },
@@ -644,7 +804,7 @@ export function buildG3ImportPlan(
       plan.relations.conflict++;
       plan.conflicts.push(`relation:${row.id}`);
     } else if (!current) plan.relations.create++;
-    else if (g3RelationMaterialFields.every((field) => equalField(current, row, field)))
+    else if (relationMaterialFields.every((field) => equalField(current, row, field)))
       plan.relations.noOp++;
     else {
       plan.relations.conflict++;
@@ -798,9 +958,14 @@ export async function importEducationalSituationBank(
   batch: ImportBatch = importBatch()
 ): Promise<{ situations: number; objectives: number; occurrences: number }> {
   authorizeImportEnvironment();
-  if (batch === 'g3-production-v1' || batch === 'g4-production-v1') {
+  if (
+    batch === 'g3-production-v1' ||
+    batch === 'g4-production-v1' ||
+    batch === 'g4-production-v2'
+  ) {
     if (batch === 'g3-production-v1') validateG3ImportPayload(payload, payload.payloadSha256);
-    else validateG4ImportPayload(payload, payload.payloadSha256);
+    else if (batch === 'g4-production-v1') validateG4ImportPayload(payload, payload.payloadSha256);
+    else validateG4V2ImportPayload(payload, payload.payloadSha256);
     const ids = payload.situations.map((row) => row.id);
     const relationSituationIds = [...new Set(payload.objectives.map((row) => row.situationId))];
     const existingSituations = await prisma.educationalSituation.findMany({
@@ -834,7 +999,14 @@ export async function importEducationalSituationBank(
     });
     const existingRelations = await prisma.situationObjective.findMany({
       where: { situationId: { in: relationSituationIds } },
-      select: { id: true, situationId: true, objectiveId: true, relationType: true },
+      select: {
+        id: true,
+        situationId: true,
+        objectiveId: true,
+        relationType: true,
+        confidence: true,
+        evidence: true,
+      },
     });
     const occurrenceIds = payload.occurrences.map((row) => row.id);
     const existingOccurrences = await prisma.situationSourceOccurrence.findMany({
@@ -864,7 +1036,8 @@ export async function importEducationalSituationBank(
         relations: existingRelations,
         occurrences: existingOccurrences,
       },
-      payload
+      payload,
+      batch === 'g4-production-v2' ? g4V2RelationMaterialFields : g3RelationMaterialFields
     );
     if (plan.conflicts.length)
       throw new Error(
@@ -882,7 +1055,12 @@ export async function importEducationalSituationBank(
         );
         for (const row of payload.objectives) {
           if (existingRelationKeys.has(`${row.situationId}|${row.objectiveId}`)) continue;
-          await tx.situationObjective.create({ data: toSituationObjectiveWriteInput(row) });
+          await tx.situationObjective.create({
+            data:
+              batch === 'g4-production-v2'
+                ? toG4V2SituationObjectiveWriteInput(row)
+                : toSituationObjectiveWriteInput(row),
+          });
         }
         const existingOccurrenceIds = new Set(existingOccurrences.map((row) => row.id));
         for (const row of payload.occurrences) {
@@ -1070,8 +1248,16 @@ async function main(): Promise<void> {
       ? JSON.parse(fs.readFileSync(path.join(root, G2_PAYLOAD_PATH), 'utf8'))
       : batch === 'g3-production-v1'
         ? JSON.parse(fs.readFileSync(path.join(root, G3_PAYLOAD_PATH), 'utf8'))
-        : batch === 'g4-production-v1'
-          ? JSON.parse(fs.readFileSync(path.join(root, G4_PAYLOAD_PATH), 'utf8'))
+        : batch === 'g4-production-v1' || batch === 'g4-production-v2'
+          ? JSON.parse(
+              fs.readFileSync(
+                path.join(
+                  root,
+                  batch === 'g4-production-v2' ? G4_V2_PAYLOAD_PATH : G4_PAYLOAD_PATH
+                ),
+                'utf8'
+              )
+            )
           : null;
   if (batch === 'g2-authored-enrichment-v1' && canonicalPayloadHash(raw) !== G2_PAYLOAD_SHA256)
     throw new Error('G2 payload SHA-256 mismatch.');
@@ -1080,10 +1266,14 @@ async function main(): Promise<void> {
     const actualHash = crypto.createHash('sha256').update(rawText).digest('hex').toUpperCase();
     if (actualHash !== G3_PAYLOAD_SHA256) throw new Error('G3 payload SHA-256 mismatch.');
   }
-  if (batch === 'g4-production-v1') {
-    const rawText = fs.readFileSync(path.join(root, G4_PAYLOAD_PATH), 'utf8');
+  if (batch === 'g4-production-v1' || batch === 'g4-production-v2') {
+    const rawText = fs.readFileSync(
+      path.join(root, batch === 'g4-production-v2' ? G4_V2_PAYLOAD_PATH : G4_PAYLOAD_PATH),
+      'utf8'
+    );
     const actualHash = crypto.createHash('sha256').update(rawText).digest('hex').toUpperCase();
-    if (actualHash !== G4_PAYLOAD_SHA256) throw new Error('G4 payload SHA-256 mismatch.');
+    const expectedHash = batch === 'g4-production-v2' ? G4_V2_PAYLOAD_SHA256 : G4_PAYLOAD_SHA256;
+    if (actualHash !== expectedHash) throw new Error('G4 payload SHA-256 mismatch.');
   }
   const payload =
     batch === 'g2-authored-enrichment-v1'
@@ -1092,10 +1282,13 @@ async function main(): Promise<void> {
         ? loadG3ImportPayload()
         : batch === 'g4-production-v1'
           ? loadG4ImportPayload()
-          : loadImportPayload();
+          : batch === 'g4-production-v2'
+            ? loadG4V2ImportPayload()
+            : loadImportPayload();
   if (batch === 'g2-authored-enrichment-v1') validateG2ImportPayload(payload, G2_PAYLOAD_SHA256);
   else if (batch === 'g3-production-v1') validateG3ImportPayload(payload, G3_PAYLOAD_SHA256);
   else if (batch === 'g4-production-v1') validateG4ImportPayload(payload, G4_PAYLOAD_SHA256);
+  else if (batch === 'g4-production-v2') validateG4V2ImportPayload(payload, G4_V2_PAYLOAD_SHA256);
   else validateImportPayload(payload);
   console.log('IMPORT_PAYLOAD_OK');
   const planned =
