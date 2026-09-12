@@ -17,6 +17,8 @@ import {
   G4_PAYLOAD_SHA256,
   G4_V2_PAYLOAD_PATH,
   G4_V2_PAYLOAD_SHA256,
+  G5_PAYLOAD_PATH,
+  G5_PAYLOAD_SHA256,
   buildG3ImportPlan,
   buildG4V2PayloadFromV1,
   g2DomainForObjective,
@@ -35,8 +37,10 @@ import {
   loadG3ImportPayload,
   loadG4ImportPayload,
   loadG4V2ImportPayload,
+  loadG5ImportPayload,
   validateG4ImportPayload,
   validateG4V2ImportPayload,
+  validateG5ImportPayload,
   toG4V2SituationObjectiveWriteInput,
 } from '../scripts/importEducationalSituationBank';
 import {
@@ -959,5 +963,323 @@ describe('importer lifecycle markers', () => {
     expect(output.indexOf('IMPORT_GUARD_OK')).toBeLessThan(output.indexOf('IMPORT_PAYLOAD_OK'));
     expect(output.indexOf('IMPORT_PAYLOAD_OK')).toBeLessThan(output.indexOf('IMPORT_PREWRITE'));
     expect(output.indexOf('IMPORT_PREWRITE')).toBeLessThan(output.indexOf('IMPORT_DONE'));
+  });
+});
+
+describe('G5 production importer contract', () => {
+  const payload = loadG5ImportPayload();
+  const source = fs.readFileSync('scripts/importEducationalSituationBank.ts', 'utf8');
+  const replaceRelation = (patch: Record<string, unknown>) => ({
+    ...payload,
+    objectives: payload.objectives.map((row, index) => (index === 0 ? { ...row, ...patch } : row)),
+  });
+
+  it('recognizes g5-production-v1 and loads the exact payload path', () => {
+    expect(importBatch({ ARENASPEX_SITUATION_IMPORT_BATCH: 'g5-production-v1' })).toBe(
+      'g5-production-v1'
+    );
+    expect(G5_PAYLOAD_PATH).toBe('tmp/g5-end-to-end/G5_FINAL_IMPORT_PAYLOAD.json');
+    expect(payload.metadata).toMatchObject({
+      payloadVersion: 'g5-production-v1',
+      payloadKind: 'G5_EDUCATIONAL_SITUATION_IMPORT',
+      gradeId: 'lvl_p5',
+    });
+  });
+
+  it('rejects a wrong payload version', () => {
+    expect(() =>
+      validateG5ImportPayload({
+        ...payload,
+        metadata: { ...payload.metadata, payloadVersion: 'g4-production-v1' },
+      })
+    ).toThrow(/metadata/i);
+  });
+
+  it('rejects a wrong grade', () => {
+    expect(() =>
+      validateG5ImportPayload({ ...payload, metadata: { ...payload.metadata, gradeId: 'lvl_p4' } })
+    ).toThrow(/metadata/i);
+  });
+
+  it('rejects a SHA mismatch', () => {
+    expect(() => validateG5ImportPayload(payload, 'WRONG')).toThrow(/SHA-256/i);
+    expect(G5_PAYLOAD_SHA256).toMatch(/^[A-F0-9]{64}$/);
+  });
+
+  it('validates deterministic situation and relation IDs', () => {
+    expect(() => validateG5ImportPayload(payload, G5_PAYLOAD_SHA256)).not.toThrow();
+    expect(payload.situations.every((row) => row.id)).toBe(true);
+    expect(
+      payload.objectives.every((row) => row.id === `relation:${row.situationId}:${row.objectiveId}`)
+    ).toBe(true);
+  });
+
+  it('accepts every canonical G5 objective ID in the frozen payload', () => {
+    expect(new Set(payload.objectives.map((row) => row.objectiveId)).size).toBe(35);
+  });
+
+  it('rejects foreign objective IDs', () => {
+    expect(() => validateG5ImportPayload(replaceRelation({ objectiveId: 'G4-D1-OBJ-01' }))).toThrow(
+      /canonical objective/i
+    );
+  });
+
+  it('rejects legacy session objective IDs', () => {
+    expect(() =>
+      validateG5ImportPayload(replaceRelation({ objectiveId: 'session:G5-D1-OBJ-01' }))
+    ).toThrow(/canonical objective/i);
+  });
+
+  it('preserves DIRECT relations', () => {
+    expect(payload.objectives.every((row) => row.relationType === 'DIRECT')).toBe(true);
+  });
+
+  it('supports SUPPORTIVE relations without coercion', () => {
+    const modified = replaceRelation({ relationType: 'SUPPORTIVE' });
+    modified.metadata = { ...modified.metadata, relationTypes: { DIRECT: 71, SUPPORTIVE: 1 } };
+    expect(() => validateG5ImportPayload(modified)).not.toThrow();
+    expect(modified.objectives[0].relationType).toBe('SUPPORTIVE');
+  });
+
+  it('supports INTEGRATIVE relations without coercion', () => {
+    const modified = replaceRelation({ relationType: 'INTEGRATIVE' });
+    modified.metadata = { ...modified.metadata, relationTypes: { DIRECT: 71, INTEGRATIVE: 1 } };
+    expect(() => validateG5ImportPayload(modified)).not.toThrow();
+    expect(modified.objectives[0].relationType).toBe('INTEGRATIVE');
+  });
+
+  it('supports ASSESSMENT relations without coercion', () => {
+    const modified = replaceRelation({ relationType: 'ASSESSMENT' });
+    modified.metadata = { ...modified.metadata, relationTypes: { DIRECT: 71, ASSESSMENT: 1 } };
+    expect(() => validateG5ImportPayload(modified)).not.toThrow();
+    expect(modified.objectives[0].relationType).toBe('ASSESSMENT');
+  });
+
+  it('preserves null confidence', () => {
+    expect(payload.objectives.every((row) => row.confidence === null)).toBe(true);
+  });
+
+  it('supports numeric confidence', () => {
+    expect(
+      toG4V2SituationObjectiveWriteInput({ ...payload.objectives[0], confidence: 0.9 })
+    ).toMatchObject({ confidence: 0.9 });
+  });
+
+  it('rejects string confidence', () => {
+    expect(() =>
+      toG4V2SituationObjectiveWriteInput({ ...payload.objectives[0], confidence: 'ADJUDICATED' })
+    ).toThrow(/numeric.*confidence/i);
+  });
+
+  it('requires evidence as an object and preserves it exactly', () => {
+    const evidence = { adjudicationBasis: 'ADJUDICATED', nested: { reviewed: true } };
+    const row = toG4V2SituationObjectiveWriteInput({ ...payload.objectives[0], evidence });
+    expect(row.evidence).toEqual(evidence);
+    expect(() => validateG5ImportPayload(replaceRelation({ evidence: 'stringified' }))).toThrow(
+      /evidence/i
+    );
+  });
+
+  it('preserves evidence.adjudicationBasis', () => {
+    expect(payload.objectives.map((row) => row.evidence.adjudicationBasis)).toEqual(
+      expect.arrayContaining(['ADJUDICATED', 'AUTHORED_DIRECT'])
+    );
+  });
+
+  it('detects exact evidence conflicts in import planning', () => {
+    const fields = ['id', 'situationId', 'objectiveId', 'relationType', 'confidence', 'evidence'];
+    const exact = buildG3ImportPlan(
+      {
+        situations: payload.situations,
+        relations: payload.objectives,
+        occurrences: payload.occurrences,
+      },
+      payload,
+      fields
+    );
+    expect(exact.relations.conflict).toBe(0);
+    const conflict = buildG3ImportPlan(
+      {
+        situations: payload.situations,
+        relations: payload.objectives.map((row, index) =>
+          index === 0 ? { ...row, evidence: { changed: true } } : row
+        ),
+        occurrences: payload.occurrences,
+      },
+      payload,
+      fields
+    );
+    expect(conflict.relations.conflict).toBe(1);
+  });
+
+  it('round-trips observationIndicators without double stringification', () => {
+    const authored = payload.situations.find((row) => row.kind === 'AUTHORED')!;
+    expect(typeof authored.observationIndicators).toBe('string');
+    expect(authored.observationIndicators).not.toMatch(/^\s*"\[/);
+    expect(
+      payload.situations
+        .filter((row) => row.kind === 'SOURCE')
+        .every((row) => row.observationIndicators === null)
+    ).toBe(true);
+  });
+
+  it('round-trips source and authored difficulty according to contract', () => {
+    expect(
+      payload.situations
+        .filter((row) => row.kind === 'SOURCE')
+        .every((row) => row.difficulty === null)
+    ).toBe(true);
+    expect(
+      payload.situations
+        .filter((row) => row.kind === 'AUTHORED')
+        .every((row) => typeof row.difficulty === 'string')
+    ).toBe(true);
+  });
+
+  it('preserves exact fieldId and domainId', () => {
+    expect(payload.situations.every((row) => row.fieldId === row.domainId)).toBe(true);
+    expect(new Set(payload.situations.map((row) => row.fieldId))).toEqual(
+      new Set(['f_locomotion', 'f_fundamentals', 'f_structuring'])
+    );
+  });
+
+  it('preserves source and authored provenance', () => {
+    expect(
+      payload.situations
+        .filter((row) => row.kind === 'SOURCE')
+        .every((row) => row.provenance === 'EXTRACTED_FROM_PROJECT_REFERENCE_DATASET')
+    ).toBe(true);
+    expect(
+      payload.situations
+        .filter((row) => row.kind === 'AUTHORED')
+        .every((row) => row.provenance === 'AUTHORED_FOR_ARENASPEX')
+    ).toBe(true);
+  });
+
+  it('preserves governance and activity type', () => {
+    expect(payload.metadata.governanceCounts).toEqual({
+      AUTO_GENERATION_ELIGIBLE: 42,
+      SOURCE_ARCHIVE_ONLY: 30,
+    });
+    expect(
+      payload.situations
+        .filter((row) => row.kind === 'SOURCE')
+        .every((row) => row.activityType === 'GAME')
+    ).toBe(true);
+    expect(
+      payload.situations
+        .filter((row) => row.kind === 'AUTHORED')
+        .every((row) => row.activityType === 'PEDAGOGICAL_ACTIVITY')
+    ).toBe(true);
+  });
+
+  it('validates deterministic source occurrence IDs and excludes authored occurrences', () => {
+    expect(
+      payload.occurrences.every(
+        (row) => row.id === `occurrence:lvl_p5:${row.sourceDomain}:${row.situationId}`
+      )
+    ).toBe(true);
+    expect(
+      payload.occurrences.every(
+        (row) =>
+          !payload.situations.find((s) => s.id === row.situationId)?.kind ||
+          payload.situations.find((s) => s.id === row.situationId)?.kind === 'SOURCE'
+      )
+    ).toBe(true);
+  });
+
+  it('gives authored situations no fabricated source occurrence', () => {
+    const authoredIds = new Set(
+      payload.situations.filter((row) => row.kind === 'AUTHORED').map((row) => row.id)
+    );
+    expect(payload.occurrences.some((row) => authoredIds.has(row.situationId))).toBe(false);
+  });
+
+  it('runs g5 dry-run with zero writes', () => {
+    const output = runLocalDryRun('g5-production-v1');
+    expect(output).not.toContain('IMPORT_COMMIT_OK');
+    expect(output).toContain('"dryRun":true');
+  });
+
+  it('emits the required dry-run lifecycle in order', () => {
+    expect(
+      runLocalDryRun('g5-production-v1')
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith('IMPORT_'))
+    ).toEqual([
+      'IMPORT_START',
+      'IMPORT_BATCH=g5-production-v1',
+      'IMPORT_GUARD_OK',
+      'IMPORT_PAYLOAD_OK',
+      'IMPORT_PREWRITE',
+      'IMPORT_DONE',
+    ]);
+  });
+
+  it('keeps the transaction boundary in the real import path', () => {
+    expect(source).toContain('await prisma.$transaction');
+    expect(source).toContain("console.log('IMPORT_COMMIT_OK')");
+  });
+
+  it('plans an exact existing payload as no-ops', () => {
+    const fields = ['id', 'situationId', 'objectiveId', 'relationType', 'confidence', 'evidence'];
+    expect(
+      buildG3ImportPlan(
+        {
+          situations: payload.situations,
+          relations: payload.objectives,
+          occurrences: payload.occurrences,
+        },
+        payload,
+        fields
+      )
+    ).toMatchObject({
+      situations: { noOp: 72, conflict: 0 },
+      relations: { noOp: 72, conflict: 0 },
+      occurrences: { noOp: 30, conflict: 0 },
+    });
+  });
+
+  it('detects situation conflicts before writing', () => {
+    const fields = ['id', 'name', 'gradeId', 'domainId', 'activityType'];
+    const conflict = buildG3ImportPlan(
+      {
+        situations: payload.situations.map((row, index) =>
+          index === 0 ? { ...row, name: 'changed' } : row
+        ),
+        relations: [],
+        occurrences: [],
+      },
+      payload,
+      fields
+    );
+    expect(conflict.situations.conflict).toBe(1);
+  });
+
+  it('retains G4 v2 regression coverage', () => {
+    expect(loadG4V2ImportPayload().metadata.payloadVersion).toBe('g4-production-v2');
+    expect(() =>
+      validateG4V2ImportPayload(loadG4V2ImportPayload(), G4_V2_PAYLOAD_SHA256)
+    ).not.toThrow();
+  });
+
+  it('retains G4 v1 regression coverage', () => {
+    expect(loadG4ImportPayload().metadata.payloadVersion).toBe('g4-production-v1');
+    expect(() => validateG4ImportPayload(loadG4ImportPayload(), G4_PAYLOAD_SHA256)).not.toThrow();
+  });
+
+  it('retains G3 regression coverage', () => {
+    expect(loadG3ImportPayload().metadata.payloadVersion).toBe('g3-production-v1');
+    expect(() => validateG3ImportPayload(loadG3ImportPayload(), G3_PAYLOAD_SHA256)).not.toThrow();
+  });
+
+  it('retains G2 regression coverage', () => {
+    expect(loadG2ImportPayload().situations).toHaveLength(32);
+    expect(() => validateG2ImportPayload(loadG2ImportPayload(), G2_PAYLOAD_SHA256)).not.toThrow();
+  });
+
+  it('retains B3 source-bank regression coverage', () => {
+    expect(loadImportPayload().situations.length).toBeGreaterThan(0);
+    expect(() => validateImportPayload(loadImportPayload())).not.toThrow();
   });
 });

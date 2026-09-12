@@ -28,7 +28,8 @@ export type ImportBatch =
   | 'g2-authored-enrichment-v1'
   | 'g3-production-v1'
   | 'g4-production-v1'
-  | 'g4-production-v2';
+  | 'g4-production-v2'
+  | 'g5-production-v1';
 export const G2_PAYLOAD_SHA256 = 'C6A7CF2471D502311C820F8F7C4EC0A55E855FBD52621C1BC7D0893BBFACEC7E';
 export const G2_PAYLOAD_PATH = 'tmp/g2-b6-1-4-import-payload/G2_B6_1_4_FINAL_IMPORT_PAYLOAD.json';
 export const G3_PAYLOAD_SHA256 = '2037D7409887853E89DD7A15F3C0E10817D988258F2FAC087456FED54D4DE129';
@@ -40,6 +41,8 @@ export const G4_PAYLOAD_PATH = 'tmp/g4-end-to-end/G4_B4_FINAL_IMPORT_PAYLOAD.jso
 export const G4_V2_PAYLOAD_PATH = 'tmp/g4-c6-relation-contract/G4_C6_FINAL_IMPORT_PAYLOAD_V2.json';
 export const G4_V2_PAYLOAD_SHA256 =
   '8DEE0B7B3E880BFF1A3A2CA749153568BB2E148B9CDC05F67DD93D32B977D6A6';
+export const G5_PAYLOAD_PATH = 'tmp/g5-end-to-end/G5_FINAL_IMPORT_PAYLOAD.json';
+export const G5_PAYLOAD_SHA256 = 'AA18C3B9E8EA84726C1202DEC3CFDD7691E390D0DDCE05428AAAA1C74716CAD6';
 export const G4_B3_BUNDLE_SHA256 =
   '0E54C8DAD138A859012AE0A6ACA8B944601DCB17A389C5015C8FB4E29B933747';
 const g2DomainByCode: Record<string, string> = {
@@ -200,6 +203,7 @@ export function importBatch(env: NodeJS.ProcessEnv = process.env): ImportBatch {
   if (value === 'g3-production-v1') return value;
   if (value === 'g4-production-v1') return value;
   if (value === 'g4-production-v2') return value;
+  if (value === 'g5-production-v1') return value;
   throw new Error(`Import refused: unsupported batch ${value}.`);
 }
 
@@ -306,6 +310,26 @@ export function loadG4V2ImportPayload(): ImportPayload {
   const rawText = fs.readFileSync(path.join(root, G4_V2_PAYLOAD_PATH), 'utf8');
   const actualHash = crypto.createHash('sha256').update(rawText).digest('hex').toUpperCase();
   if (actualHash !== G4_V2_PAYLOAD_SHA256) throw new Error('G4 V2 payload SHA-256 mismatch.');
+  const raw = JSON.parse(rawText) as Record<string, any>;
+  return {
+    metadata: raw.metadata,
+    payloadSha256: actualHash,
+    situations: raw.situations ?? [],
+    objectives: (raw.relations ?? []).map((row: any) => ({
+      ...row,
+      relationType: row.relationType ?? row.relationship,
+    })),
+    occurrences: raw.sourceOccurrences ?? [],
+    families: raw.families ?? [],
+    familyMembers: raw.familyMembers ?? [],
+    media: raw.media ?? [],
+  };
+}
+
+export function loadG5ImportPayload(): ImportPayload {
+  const rawText = fs.readFileSync(path.join(root, G5_PAYLOAD_PATH), 'utf8');
+  const actualHash = crypto.createHash('sha256').update(rawText).digest('hex').toUpperCase();
+  if (actualHash !== G5_PAYLOAD_SHA256) throw new Error('G5 payload SHA-256 mismatch.');
   const raw = JSON.parse(rawText) as Record<string, any>;
   return {
     metadata: raw.metadata,
@@ -701,6 +725,145 @@ export function validateG4V2ImportPayload(payload: ImportPayload, actualHash?: s
   }
 }
 
+const G5_FIELDS = new Set(['f_locomotion', 'f_fundamentals', 'f_structuring']);
+const G5_OBJECTIVE_PATTERN = /^G5-(D[123])-OBJ-(0[1-9]|1[0-5])$/;
+const isG5CanonicalObjective = (objectiveId: unknown): boolean => {
+  if (typeof objectiveId !== 'string') return false;
+  const match = G5_OBJECTIVE_PATTERN.exec(objectiveId);
+  if (!match) return false;
+  return match[1] !== 'D3' || Number(match[2]) <= 5;
+};
+
+export function validateG5SituationWriteInputs(rows: Array<Record<string, unknown>>): void {
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (
+      typeof row.id !== 'string' ||
+      !row.id ||
+      row.gradeId !== 'lvl_p5' ||
+      !G5_FIELDS.has(String(row.fieldId)) ||
+      row.domainId !== row.fieldId ||
+      typeof row.title !== 'string' ||
+      typeof row.name !== 'string' ||
+      typeof row.description !== 'string' ||
+      !Array.isArray(row.equipment) ||
+      !Array.isArray(row.objectiveIds) ||
+      !Array.isArray(row.objectiveTexts) ||
+      typeof row.sourceGoal !== 'string' ||
+      typeof row.organization !== 'string' ||
+      typeof row.origin !== 'string' ||
+      typeof row.status !== 'string'
+    )
+      throw new Error(`Invalid G5 EducationalSituation write input: ${row.id ?? 'unknown'}.`);
+    if (ids.has(row.id)) throw new Error('Duplicate deterministic G5 situation ID.');
+    ids.add(row.id);
+    if (
+      !['GAME', 'PEDAGOGICAL_ACTIVITY', 'OTHER', 'UNRESOLVED'].includes(String(row.activityType)) ||
+      !['PERSONAL', 'PENDING_REVIEW', 'APPROVED', 'REJECTED'].includes(
+        String(row.approvalStatus)
+      ) ||
+      !['AUTO_GENERATION_ELIGIBLE', 'REVIEW_ONLY', 'SOURCE_ARCHIVE_ONLY'].includes(
+        String(row.productionEligibility)
+      )
+    )
+      throw new Error(`Invalid G5 governance or activity type: ${row.id}.`);
+    if (row.kind === 'AUTHORED' && (typeof row.difficulty !== 'string' || !row.difficulty))
+      throw new Error(`Missing authored G5 difficulty: ${row.id}.`);
+    if (row.kind === 'SOURCE' && row.difficulty !== null)
+      throw new Error(`Fabricated source G5 difficulty: ${row.id}.`);
+    if (row.observationIndicators !== null && typeof row.observationIndicators !== 'string')
+      throw new Error(`G5 observationIndicators must already be String/null: ${row.id}.`);
+    if (typeof row.observationIndicators === 'string' && /^\s*"\[/.test(row.observationIndicators))
+      throw new Error(`G5 observationIndicators are double-stringified: ${row.id}.`);
+    if (
+      (row.kind === 'SOURCE' && row.provenance !== 'EXTRACTED_FROM_PROJECT_REFERENCE_DATASET') ||
+      (row.kind === 'AUTHORED' && row.provenance !== 'AUTHORED_FOR_ARENASPEX')
+    )
+      throw new Error(`Invalid G5 provenance: ${row.id}.`);
+  }
+}
+
+export function validateG5ImportPayload(payload: ImportPayload, actualHash?: string): void {
+  if (actualHash && actualHash !== G5_PAYLOAD_SHA256)
+    throw new Error('G5 payload SHA-256 mismatch.');
+  if (payload.payloadSha256 && payload.payloadSha256 !== G5_PAYLOAD_SHA256)
+    throw new Error('G5 payload SHA-256 mismatch.');
+  const metadata = payload.metadata;
+  const expected = metadata?.expectedCounts;
+  if (
+    metadata?.payloadVersion !== 'g5-production-v1' ||
+    metadata.payloadKind !== 'G5_EDUCATIONAL_SITUATION_IMPORT' ||
+    metadata.gradeId !== 'lvl_p5' ||
+    !expected ||
+    expected.situations !== payload.situations.length ||
+    expected.relations !== payload.objectives.length ||
+    expected.sourceOccurrences !== payload.occurrences.length ||
+    expected.families !== payload.families.length ||
+    expected.familyMembers !== payload.familyMembers.length ||
+    expected.media !== payload.media.length
+  )
+    throw new Error('G5 payload metadata mismatch.');
+  validateG5SituationWriteInputs(payload.situations);
+  validateSituationObjectiveWriteInputs(payload.objectives);
+  const situationIds = new Set(payload.situations.map((row) => row.id));
+  const situationById = new Map(payload.situations.map((row) => [row.id, row]));
+  const relationIds = new Set<string>();
+  const relationKeys = new Set<string>();
+  const relationCounts: Record<string, number> = {};
+  for (const row of payload.objectives) {
+    if (!situationIds.has(row.situationId))
+      throw new Error(`Unknown G5 relation situation: ${row.situationId}.`);
+    if (!isG5CanonicalObjective(row.objectiveId))
+      throw new Error(`Unknown G5 canonical objective: ${row.objectiveId}.`);
+    if (row.id !== deterministicSituationObjectiveId(row.situationId, row.objectiveId))
+      throw new Error(`Invalid deterministic G5 relation ID: ${row.id}.`);
+    if (relationIds.has(row.id)) throw new Error('Duplicate deterministic G5 relation ID.');
+    const key = `${row.situationId}|${row.objectiveId}`;
+    if (relationKeys.has(key)) throw new Error('Duplicate G5 situation/objective relation key.');
+    const situation = situationById.get(row.situationId);
+    const domainCode = /^G5-(D[123])-/.exec(row.objectiveId)?.[1];
+    const expectedDomain = { D1: 'f_locomotion', D2: 'f_fundamentals', D3: 'f_structuring' }[
+      domainCode ?? ''
+    ];
+    if (situation?.domainId !== expectedDomain)
+      throw new Error(`G5 relation domain mismatch: ${row.id}.`);
+    if (!['DIRECT', 'SUPPORTIVE', 'INTEGRATIVE', 'ASSESSMENT'].includes(String(row.relationType)))
+      throw new Error(`Invalid G5 relation type: ${row.id}.`);
+    if (
+      row.confidence !== null &&
+      (typeof row.confidence !== 'number' || !Number.isFinite(row.confidence))
+    )
+      throw new Error(`G5 confidence must be numeric or null: ${row.id}.`);
+    if (!row.evidence || typeof row.evidence !== 'object' || Array.isArray(row.evidence))
+      throw new Error(`G5 evidence must be a JSON object: ${row.id}.`);
+    relationIds.add(row.id);
+    relationKeys.add(key);
+    relationCounts[row.relationType] = (relationCounts[row.relationType] ?? 0) + 1;
+  }
+  if (!sameCounts(relationCounts, metadata.relationTypes ?? {}))
+    throw new Error('G5 relation type counts do not match metadata.');
+  const governanceCounts: Record<string, number> = {};
+  for (const row of payload.situations)
+    governanceCounts[row.productionEligibility] =
+      (governanceCounts[row.productionEligibility] ?? 0) + 1;
+  if (!sameCounts(governanceCounts, metadata.governanceCounts ?? {}))
+    throw new Error('G5 governance counts do not match metadata.');
+  const authoredIds = new Set(
+    payload.situations.filter((row) => row.kind === 'AUTHORED').map((row) => row.id)
+  );
+  const occurrenceIds = new Set<string>();
+  for (const row of payload.occurrences) {
+    if (authoredIds.has(row.situationId))
+      throw new Error(`Authored G5 source occurrence is not allowed: ${row.id}.`);
+    if (!situationIds.has(row.situationId))
+      throw new Error(`Unknown G5 occurrence situation: ${row.situationId}.`);
+    if (row.id !== `occurrence:lvl_p5:${row.sourceDomain}:${row.situationId}`)
+      throw new Error(`Invalid deterministic G5 occurrence ID: ${row.id}.`);
+    if (occurrenceIds.has(row.id)) throw new Error('Duplicate deterministic G5 occurrence ID.');
+    occurrenceIds.add(row.id);
+  }
+}
+
 const g3SituationMaterialFields = [
   'id',
   'name',
@@ -961,11 +1124,14 @@ export async function importEducationalSituationBank(
   if (
     batch === 'g3-production-v1' ||
     batch === 'g4-production-v1' ||
-    batch === 'g4-production-v2'
+    batch === 'g4-production-v2' ||
+    batch === 'g5-production-v1'
   ) {
     if (batch === 'g3-production-v1') validateG3ImportPayload(payload, payload.payloadSha256);
     else if (batch === 'g4-production-v1') validateG4ImportPayload(payload, payload.payloadSha256);
-    else validateG4V2ImportPayload(payload, payload.payloadSha256);
+    else if (batch === 'g4-production-v2')
+      validateG4V2ImportPayload(payload, payload.payloadSha256);
+    else validateG5ImportPayload(payload, payload.payloadSha256);
     const ids = payload.situations.map((row) => row.id);
     const relationSituationIds = [...new Set(payload.objectives.map((row) => row.situationId))];
     const existingSituations = await prisma.educationalSituation.findMany({
@@ -1037,11 +1203,13 @@ export async function importEducationalSituationBank(
         occurrences: existingOccurrences,
       },
       payload,
-      batch === 'g4-production-v2' ? g4V2RelationMaterialFields : g3RelationMaterialFields
+      batch === 'g4-production-v2' || batch === 'g5-production-v1'
+        ? g4V2RelationMaterialFields
+        : g3RelationMaterialFields
     );
     if (plan.conflicts.length)
       throw new Error(
-        `${batch === 'g4-production-v1' ? 'G4' : 'G3'} import conflict: ${plan.conflicts[0]}.`
+        `${batch.startsWith('g5-') ? 'G5' : batch.startsWith('g4-') ? 'G4' : 'G3'} import conflict: ${plan.conflicts[0]}.`
       );
     await prisma.$transaction(
       async (tx) => {
@@ -1057,7 +1225,7 @@ export async function importEducationalSituationBank(
           if (existingRelationKeys.has(`${row.situationId}|${row.objectiveId}`)) continue;
           await tx.situationObjective.create({
             data:
-              batch === 'g4-production-v2'
+              batch === 'g4-production-v2' || batch === 'g5-production-v1'
                 ? toG4V2SituationObjectiveWriteInput(row)
                 : toSituationObjectiveWriteInput(row),
           });
@@ -1258,7 +1426,9 @@ async function main(): Promise<void> {
                 'utf8'
               )
             )
-          : null;
+          : batch === 'g5-production-v1'
+            ? JSON.parse(fs.readFileSync(path.join(root, G5_PAYLOAD_PATH), 'utf8'))
+            : null;
   if (batch === 'g2-authored-enrichment-v1' && canonicalPayloadHash(raw) !== G2_PAYLOAD_SHA256)
     throw new Error('G2 payload SHA-256 mismatch.');
   if (batch === 'g3-production-v1') {
@@ -1275,6 +1445,11 @@ async function main(): Promise<void> {
     const expectedHash = batch === 'g4-production-v2' ? G4_V2_PAYLOAD_SHA256 : G4_PAYLOAD_SHA256;
     if (actualHash !== expectedHash) throw new Error('G4 payload SHA-256 mismatch.');
   }
+  if (batch === 'g5-production-v1') {
+    const rawText = fs.readFileSync(path.join(root, G5_PAYLOAD_PATH), 'utf8');
+    const actualHash = crypto.createHash('sha256').update(rawText).digest('hex').toUpperCase();
+    if (actualHash !== G5_PAYLOAD_SHA256) throw new Error('G5 payload SHA-256 mismatch.');
+  }
   const payload =
     batch === 'g2-authored-enrichment-v1'
       ? loadG2ImportPayload()
@@ -1284,16 +1459,19 @@ async function main(): Promise<void> {
           ? loadG4ImportPayload()
           : batch === 'g4-production-v2'
             ? loadG4V2ImportPayload()
-            : loadImportPayload();
+            : batch === 'g5-production-v1'
+              ? loadG5ImportPayload()
+              : loadImportPayload();
   if (batch === 'g2-authored-enrichment-v1') validateG2ImportPayload(payload, G2_PAYLOAD_SHA256);
   else if (batch === 'g3-production-v1') validateG3ImportPayload(payload, G3_PAYLOAD_SHA256);
   else if (batch === 'g4-production-v1') validateG4ImportPayload(payload, G4_PAYLOAD_SHA256);
   else if (batch === 'g4-production-v2') validateG4V2ImportPayload(payload, G4_V2_PAYLOAD_SHA256);
+  else if (batch === 'g5-production-v1') validateG5ImportPayload(payload, G5_PAYLOAD_SHA256);
   else validateImportPayload(payload);
   console.log('IMPORT_PAYLOAD_OK');
   const planned =
     process.env.ARENASPEX_IMPORT_DRY_RUN === 'true' &&
-    (batch === 'g3-production-v1' || batch === 'g4-production-v1')
+    (batch === 'g3-production-v1' || batch === 'g4-production-v1' || batch === 'g5-production-v1')
       ? buildG3ImportPlan({ situations: [], relations: [], occurrences: [] }, payload)
       : undefined;
   console.log('IMPORT_PREWRITE');
