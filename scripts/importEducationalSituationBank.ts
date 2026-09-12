@@ -40,6 +40,81 @@ export function serializeObservationIndicators(value: unknown): string | null {
   return typeof value === 'string' ? value : String(value);
 }
 
+export type SituationObjectiveWriteInput = {
+  id: string;
+  situationId: string;
+  objectiveId: string;
+  relationType: SituationObjectiveRelationType;
+};
+
+/** Existing B3 relation identity convention, reused for authored batches. */
+export const deterministicSituationObjectiveId = (
+  situationId: string,
+  objectiveId: string
+): string => `relation:${situationId}:${objectiveId}`;
+
+export function toSituationObjectiveWriteInput(
+  row: Record<string, unknown>
+): SituationObjectiveWriteInput {
+  if (
+    typeof row.id !== 'string' ||
+    !row.id ||
+    typeof row.situationId !== 'string' ||
+    !row.situationId ||
+    typeof row.objectiveId !== 'string' ||
+    !row.objectiveId ||
+    typeof row.relationType !== 'string' ||
+    !['DIRECT', 'SUPPORTIVE', 'INTEGRATIVE'].includes(row.relationType)
+  )
+    throw new Error('Invalid SituationObjective write input.');
+  return {
+    id: row.id,
+    situationId: row.situationId,
+    objectiveId: row.objectiveId,
+    relationType: row.relationType as SituationObjectiveRelationType,
+  };
+}
+
+export function validateSituationObjectiveWriteInputs(rows: Array<Record<string, unknown>>): void {
+  const ids = new Set<string>();
+  const keys = new Set<string>();
+  for (const row of rows) {
+    const input = toSituationObjectiveWriteInput(row);
+    if (ids.has(input.id)) throw new Error('Duplicate SituationObjective id.');
+    ids.add(input.id);
+    const key = `${input.situationId}|${input.objectiveId}`;
+    if (keys.has(key)) throw new Error('Duplicate SituationObjective relation key.');
+    keys.add(key);
+  }
+}
+
+export function validateG2SituationWriteInputs(rows: Array<Record<string, unknown>>): void {
+  if (rows.length !== 32) throw new Error('G2 situation write input count mismatch.');
+  for (const row of rows) {
+    if (
+      typeof row.id !== 'string' ||
+      !row.id ||
+      row.gradeId !== 'lvl_p2' ||
+      typeof row.domainId !== 'string' ||
+      !row.domainId ||
+      typeof row.fieldId !== 'string' ||
+      !row.fieldId ||
+      typeof row.title !== 'string' ||
+      typeof row.description !== 'string' ||
+      typeof row.canonicalObjectiveId !== 'string' ||
+      typeof row.canonicalObjectiveText !== 'string' ||
+      !Array.isArray(row.lessonTypes ?? []) ||
+      !Array.isArray(row.equipment) ||
+      !Array.isArray(row.motorActions ?? []) ||
+      !Array.isArray(row.pedagogicalTags ?? [])
+    )
+      throw new Error(`Invalid G2 EducationalSituation write input: ${row.id ?? 'unknown'}.`);
+    const observationIndicators = serializeObservationIndicators(row.observationIndicators);
+    if (observationIndicators !== null && typeof observationIndicators !== 'string')
+      throw new Error(`Invalid G2 observationIndicators: ${row.id}.`);
+  }
+}
+
 const stable = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(stable);
   if (value && typeof value === 'object') {
@@ -95,6 +170,7 @@ export function loadG2ImportPayload(): ImportPayload {
     })),
     objectives: raw.objectiveRelations.map((row: any) => ({
       ...row,
+      id: deterministicSituationObjectiveId(row.situationId, row.objectiveId),
       relationType: row.relationship,
     })),
     occurrences: raw.sourceOccurrences,
@@ -120,6 +196,11 @@ export function validateG2ImportPayload(payload: ImportPayload, actualHash?: str
   if (ids.size !== 32) throw new Error('Duplicate deterministic G2 situation ID.');
   const keys = new Set(payload.objectives.map((x) => `${x.situationId}|${x.objectiveId}`));
   if (keys.size !== 32) throw new Error('Duplicate G2 objective relation identity.');
+  const situationsById = new Map(payload.situations.map((row) => [row.id, row]));
+  validateG2SituationWriteInputs(payload.situations);
+  validateSituationObjectiveWriteInputs(payload.objectives);
+  const relationIds = new Set(payload.objectives.map((row) => row.id));
+  if (relationIds.size !== 32) throw new Error('Duplicate deterministic G2 relation ID.');
   for (const row of payload.situations) {
     if (
       row.approvalStatus !== 'APPROVED' ||
@@ -132,6 +213,11 @@ export function validateG2ImportPayload(payload: ImportPayload, actualHash?: str
   for (const row of payload.objectives) {
     if (!ids.has(row.situationId))
       throw new Error(`Unknown G2 relation situation: ${row.situationId}`);
+    const situation = situationsById.get(row.situationId);
+    if (row.id !== deterministicSituationObjectiveId(row.situationId, row.objectiveId))
+      throw new Error(`Invalid deterministic G2 relation ID: ${row.situationId}.`);
+    if (row.objectiveId !== situation?.canonicalObjectiveId)
+      throw new Error(`Unresolved G2 canonical objective: ${row.objectiveId}.`);
     if (row.relationType !== 'DIRECT')
       throw new Error(`G2 relation is not DIRECT: ${row.situationId}.`);
   }
@@ -340,19 +426,16 @@ export async function importEducationalSituationBank(
             domainId: row.domainId,
           },
         });
-      for (const row of payload.objectives)
+      for (const row of payload.objectives) {
+        const relation = toSituationObjectiveWriteInput(row);
         await tx.situationObjective.upsert({
           where: {
             situationId_objectiveId: { situationId: row.situationId, objectiveId: row.objectiveId },
           },
-          update: { relationType: row.relationType as SituationObjectiveRelationType },
-          create: {
-            id: row.id,
-            situationId: row.situationId,
-            objectiveId: row.objectiveId,
-            relationType: row.relationType as SituationObjectiveRelationType,
-          },
+          update: { relationType: relation.relationType },
+          create: relation,
         });
+      }
       for (const row of payload.occurrences)
         await tx.situationSourceOccurrence.upsert({
           where: { id: row.id },

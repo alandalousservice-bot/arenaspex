@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import {
   authorizeImportEnvironment,
   canonicalPayloadHash,
+  deterministicSituationObjectiveId,
   G2_PAYLOAD_SHA256,
   g2DomainForObjective,
   importBatch,
@@ -12,6 +13,8 @@ import {
   loadG2ImportPayload,
   loadImportPayload,
   serializeObservationIndicators,
+  validateG2SituationWriteInputs,
+  validateSituationObjectiveWriteInputs,
   PRODUCTION_IMPORT_CONFIRMATION,
   validateImportPayload,
   validateG2ImportPayload,
@@ -109,6 +112,90 @@ describe('educational situation importer validation', () => {
     expect(g2DomainForObjective('G2-D2-OBJ-05')).toBe('f_fundamentals');
     expect(g2DomainForObjective('G2-D3-OBJ-02')).toBe('f_structuring');
     expect(loadG2ImportPayload().situations.every((row) => row.fieldId && row.domainId)).toBe(true);
+  });
+
+  it('generates the existing deterministic relation-id convention for all G2 links', () => {
+    const payload = loadG2ImportPayload();
+    const relationIds = payload.objectives.map((row) => row.id);
+    const situationIds = new Set(payload.situations.map((row) => row.id));
+
+    expect(relationIds).toHaveLength(32);
+    expect(relationIds.every((id) => typeof id === 'string' && id.length > 0)).toBe(true);
+    expect(new Set(relationIds).size).toBe(32);
+    expect(relationIds.some((id) => situationIds.has(id))).toBe(false);
+    expect(
+      payload.objectives.every(
+        (row) => row.id === deterministicSituationObjectiveId(row.situationId, row.objectiveId)
+      )
+    ).toBe(true);
+    expect(payload.objectives.every((row) => row.relationType === 'DIRECT')).toBe(true);
+  });
+
+  it('keeps G2 relation ids deterministic and independent of input order', () => {
+    const first = loadG2ImportPayload().objectives;
+    const second = loadG2ImportPayload().objectives;
+    const reordered = [...first].reverse();
+    const key = (row: (typeof first)[number]) => `${row.situationId}|${row.objectiveId}`;
+    const ids = (rows: typeof first) => new Map(rows.map((row) => [key(row), row.id]));
+
+    expect(ids(first)).toEqual(ids(second));
+    expect(ids(first)).toEqual(ids(reordered));
+  });
+
+  it('rejects relation inputs without ids before the importer prewrite marker', () => {
+    const payload = loadG2ImportPayload();
+    const invalid = payload.objectives.map((row, index) =>
+      index === 0 ? { ...row, id: undefined } : row
+    );
+
+    expect(() => validateSituationObjectiveWriteInputs(invalid)).toThrow(
+      /Invalid SituationObjective write input/
+    );
+    expect(() => validateG2ImportPayload({ ...payload, objectives: invalid })).toThrow(
+      /Invalid SituationObjective write input/
+    );
+  });
+
+  it('validates every generated G2 relation against the Prisma write contract', () => {
+    const payload = loadG2ImportPayload();
+
+    expect(() => validateG2SituationWriteInputs(payload.situations)).not.toThrow();
+    expect(() => validateSituationObjectiveWriteInputs(payload.objectives)).not.toThrow();
+    expect(payload.objectives).toHaveLength(32);
+    expect(payload.objectives.filter((row) => !row.id)).toHaveLength(0);
+    expect(new Set(payload.objectives.map((row) => row.id)).size).toBe(32);
+    expect(
+      payload.objectives.filter(
+        (row) => !payload.situations.some((situation) => situation.id === row.situationId)
+      )
+    ).toHaveLength(0);
+    expect(
+      payload.objectives.filter(
+        (row) =>
+          !payload.situations.some(
+            (situation) =>
+              situation.id === row.situationId && situation.canonicalObjectiveId === row.objectiveId
+          )
+      )
+    ).toHaveLength(0);
+  });
+
+  it('preserves B3 relation ids and the locked G2 payload hash/counts', () => {
+    const b3 = loadImportPayload();
+    const g2 = loadG2ImportPayload();
+    const rawG2 = JSON.parse(
+      fs.readFileSync('tmp/g2-b6-1-4-import-payload/G2_B6_1_4_FINAL_IMPORT_PAYLOAD.json', 'utf8')
+    );
+
+    expect(b3.objectives[0].id).toBe(
+      `relation:${b3.objectives[0].situationId}:${b3.objectives[0].objectiveId}`
+    );
+    expect(g2.situations).toHaveLength(32);
+    expect(g2.objectives).toHaveLength(32);
+    expect(g2.occurrences).toHaveLength(0);
+    expect(g2.families).toHaveLength(0);
+    expect(g2.media).toHaveLength(0);
+    expect(canonicalPayloadHash(rawG2)).toBe(G2_PAYLOAD_SHA256);
   });
 
   it('serializes observation indicators losslessly for the existing String field', () => {
