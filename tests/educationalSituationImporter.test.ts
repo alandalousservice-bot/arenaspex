@@ -8,6 +8,10 @@ import {
   canonicalPayloadHash,
   deterministicSituationObjectiveId,
   G2_PAYLOAD_SHA256,
+  G3_B1_BUNDLE_SHA256,
+  G3_PAYLOAD_PATH,
+  G3_PAYLOAD_SHA256,
+  buildG3ImportPlan,
   g2DomainForObjective,
   importBatch,
   isDirectExecution,
@@ -20,6 +24,8 @@ import {
   PRODUCTION_IMPORT_CONFIRMATION,
   validateImportPayload,
   validateG2ImportPayload,
+  validateG3ImportPayload,
+  loadG3ImportPayload,
 } from '../scripts/importEducationalSituationBank';
 import {
   findSuitableSituations,
@@ -300,7 +306,7 @@ describe('educational situation importer validation', () => {
         (row) => row.domainId === 'f_structuring' && row.difficulty === 'basic'
       )
     ).toHaveLength(2);
-    expect((source.match(/difficulty: row\.difficulty \?\? null/g) ?? []).length).toBe(2);
+    expect((source.match(/difficulty: row\.difficulty \?\? null/g) ?? []).length).toBe(3);
     expect(() => validateG2SituationWriteInputs(payload.situations)).not.toThrow();
     expect(() =>
       validateG2SituationWriteInputs(
@@ -397,5 +403,254 @@ describe('educational situation importer validation', () => {
         ),
       })
     ).toThrow(/Duplicate situation\/objective relation key/);
+  });
+});
+
+describe('G3 production importer mode', () => {
+  const payload = loadG3ImportPayload();
+
+  it('resolves the exact locked payload path and SHA', () => {
+    expect(G3_PAYLOAD_PATH).toBe('tmp/g3-b2-production-payload/G3_B2_FINAL_IMPORT_PAYLOAD.json');
+    expect(importBatch({ ARENASPEX_SITUATION_IMPORT_BATCH: 'g3-production-v1' })).toBe(
+      'g3-production-v1'
+    );
+    expect(payload.payloadSha256).toBe(G3_PAYLOAD_SHA256);
+    expect(payload.metadata?.generatedFromBundleSha256).toBe(G3_B1_BUNDLE_SHA256);
+  });
+
+  it('accepts the exact metadata, counts, governance, and all four relation types', () => {
+    expect(() => validateG3ImportPayload(payload, G3_PAYLOAD_SHA256)).not.toThrow();
+    expect(payload.metadata).toMatchObject({
+      payloadVersion: 'g3-production-v1',
+      payloadKind: 'G3_EDUCATIONAL_SITUATION_IMPORT',
+      gradeId: 'lvl_p3',
+    });
+    expect(payload.situations).toHaveLength(117);
+    expect(payload.objectives).toHaveLength(273);
+    expect(payload.occurrences).toHaveLength(90);
+    expect(payload.objectives.filter((row) => row.relationType === 'DIRECT')).toHaveLength(93);
+    expect(payload.objectives.filter((row) => row.relationType === 'SUPPORTIVE')).toHaveLength(76);
+    expect(payload.objectives.filter((row) => row.relationType === 'INTEGRATIVE')).toHaveLength(62);
+    expect(payload.objectives.filter((row) => row.relationType === 'ASSESSMENT')).toHaveLength(42);
+    expect(payload.families).toHaveLength(0);
+    expect(payload.familyMembers).toHaveLength(0);
+    expect(payload.media).toHaveLength(0);
+  });
+
+  it('rejects wrong SHA, metadata, counts, and governance before prewrite', () => {
+    expect(() => validateG3ImportPayload(payload, 'WRONG')).toThrow(/SHA-256/);
+    expect(() =>
+      validateG3ImportPayload({ ...payload, metadata: { ...payload.metadata, gradeId: 'lvl_p2' } })
+    ).toThrow(/metadata/);
+    expect(() =>
+      validateG3ImportPayload({
+        ...payload,
+        metadata: { ...payload.metadata, payloadKind: 'WRONG' },
+      })
+    ).toThrow(/metadata/);
+    expect(() =>
+      validateG3ImportPayload({ ...payload, situations: payload.situations.slice(0, 116) })
+    ).toThrow(/117\/273\/90/);
+    expect(() =>
+      validateG3ImportPayload({
+        ...payload,
+        situations: payload.situations.map((row, index) =>
+          index === 0 ? { ...row, productionEligibility: 'REVIEW_ONLY' } : row
+        ),
+      })
+    ).toThrow(/governance/);
+  });
+
+  it('rejects invalid situation fields, difficulty, and double-stringified indicators', () => {
+    expect(() =>
+      validateG3ImportPayload({
+        ...payload,
+        situations: payload.situations.map((row, index) =>
+          index === 0 ? { ...row, fieldId: undefined } : row
+        ),
+      })
+    ).toThrow(/Invalid G3 EducationalSituation/);
+    expect(() =>
+      validateG3ImportPayload({
+        ...payload,
+        situations: payload.situations.map((row, index) =>
+          index === 0 ? { ...row, fieldId: 'invalid-field' } : row
+        ),
+      })
+    ).toThrow(/Invalid G3 EducationalSituation/);
+    const authoredIndex = payload.situations.findIndex((row) => row.kind === 'AUTHORED');
+    expect(() =>
+      validateG3ImportPayload({
+        ...payload,
+        situations: payload.situations.map((row, index) =>
+          index === authoredIndex ? { ...row, difficulty: null } : row
+        ),
+      })
+    ).toThrow(/difficulty/);
+    const indicatorIndex = payload.situations.findIndex(
+      (row) => typeof row.observationIndicators === 'string'
+    );
+    expect(() =>
+      validateG3ImportPayload({
+        ...payload,
+        situations: payload.situations.map((row, index) =>
+          index === indicatorIndex
+            ? { ...row, observationIndicators: JSON.stringify(row.observationIndicators) }
+            : row
+        ),
+      })
+    ).toThrow(/double-stringified/);
+    expect(() => validateG3ImportPayload(payload)).not.toThrow();
+    expect(
+      payload.situations.filter((row) => row.kind === 'SOURCE' && row.difficulty === null)
+    ).toHaveLength(90);
+  });
+
+  it('preserves ASSESSMENT without coercion and rejects relation identity errors', () => {
+    expect(payload.objectives.filter((row) => row.relationType === 'ASSESSMENT')).toHaveLength(42);
+    expect(payload.objectives.filter((row) => row.relationship !== row.relationType)).toHaveLength(
+      0
+    );
+    expect(() =>
+      validateG3ImportPayload({
+        ...payload,
+        objectives: payload.objectives.map((row, index) =>
+          index === 0 ? { ...row, id: 'wrong-id' } : row
+        ),
+      })
+    ).toThrow(/deterministic G3 relation ID/);
+    expect(() =>
+      validateG3ImportPayload({
+        ...payload,
+        objectives: payload.objectives.map((row, index) =>
+          index === 1
+            ? {
+                ...row,
+                situationId: payload.objectives[0].situationId,
+                objectiveId: payload.objectives[0].objectiveId,
+              }
+            : row
+        ),
+      })
+    ).toThrow(/Duplicate (G3|SituationObjective)/);
+  });
+
+  it('rejects occurrence identity errors and authored occurrences', () => {
+    expect(() =>
+      validateG3ImportPayload({
+        ...payload,
+        occurrences: payload.occurrences.map((row, index) =>
+          index === 0 ? { ...row, id: 'wrong-occurrence' } : row
+        ),
+      })
+    ).toThrow(/deterministic G3 occurrence ID/);
+    const authored = payload.situations.find((row) => row.kind === 'AUTHORED');
+    expect(authored).toBeDefined();
+    expect(() =>
+      validateG3ImportPayload({
+        ...payload,
+        occurrences: payload.occurrences.map((row, index) =>
+          index === 0
+            ? {
+                ...row,
+                id: `occurrence:lvl_p3:${authored!.domainId}:${authored!.id}`,
+                situationId: authored!.id,
+              }
+            : row
+        ),
+      })
+    ).toThrow(/Authored G3/);
+    expect(() => validateG3ImportPayload({ ...payload, families: [{}] })).toThrow(/117\/273\/90/);
+  });
+
+  it('plans isolated dry-run creates, exact no-ops, and conflicts without writes', () => {
+    const empty = buildG3ImportPlan({ situations: [], relations: [], occurrences: [] }, payload);
+    expect(empty).toMatchObject({
+      situations: { create: 117, noOp: 0, conflict: 0 },
+      relations: { create: 273, noOp: 0, conflict: 0 },
+      occurrences: { create: 90, noOp: 0, conflict: 0 },
+      conflicts: [],
+    });
+    const exact = buildG3ImportPlan(
+      {
+        situations: payload.situations,
+        relations: payload.objectives,
+        occurrences: payload.occurrences,
+      },
+      payload
+    );
+    expect(exact).toMatchObject({
+      situations: { create: 0, noOp: 117, conflict: 0 },
+      relations: { create: 0, noOp: 273, conflict: 0 },
+      occurrences: { create: 0, noOp: 90, conflict: 0 },
+    });
+    const conflict = buildG3ImportPlan(
+      {
+        situations: [{ ...payload.situations[0], name: 'conflict' }],
+        relations: [],
+        occurrences: [],
+      },
+      payload
+    );
+    expect(conflict.situations.conflict).toBe(1);
+    expect(conflict.conflicts[0]).toContain(payload.situations[0].id);
+  });
+
+  it('keeps the production guard and transaction safety requirements', () => {
+    const source = fs.readFileSync('scripts/importEducationalSituationBank.ts', 'utf8');
+    expect(source).toContain("batch === 'g3-production-v1'");
+    expect(source).toContain('await prisma.$transaction');
+    expect(source).toContain('IMPORT_PREWRITE');
+    expect(source).toContain('IMPORT_COMMIT_OK');
+    expect(() =>
+      authorizeImportEnvironment({
+        ALLOW_EDUCATIONAL_SITUATION_IMPORT: 'true',
+        ARENASPEX_IMPORT_ENVIRONMENT: 'production',
+        ARENASPEX_IMPORT_DATABASE_MARKER: 'arenaspex-production',
+      } as NodeJS.ProcessEnv)
+    ).toThrow();
+  });
+
+  it('leaves the established B3 and G2 mode contracts unchanged', () => {
+    expect(importBatch({ ARENASPEX_SITUATION_IMPORT_BATCH: 'b3-source-bank' })).toBe(
+      'b3-source-bank'
+    );
+    expect(importBatch({ ARENASPEX_SITUATION_IMPORT_BATCH: 'g2-authored-enrichment-v1' })).toBe(
+      'g2-authored-enrichment-v1'
+    );
+    expect(() => validateImportPayload(loadImportPayload())).not.toThrow();
+    expect(() => validateG2ImportPayload(loadG2ImportPayload(), G2_PAYLOAD_SHA256)).not.toThrow();
+  });
+
+  it('keeps source and authored provenance counts exact', () => {
+    expect(payload.situations.filter((row) => row.kind === 'SOURCE')).toHaveLength(90);
+    expect(payload.situations.filter((row) => row.kind === 'AUTHORED')).toHaveLength(27);
+    expect(
+      payload.occurrences.every(
+        (row) =>
+          payload.situations.find((situation) => situation.id === row.situationId)?.kind ===
+          'SOURCE'
+      )
+    ).toBe(true);
+  });
+
+  it('rejects an unknown relation type without coercion', () => {
+    const invalid = {
+      ...payload,
+      objectives: payload.objectives.map((row, index) =>
+        index === 0 ? { ...row, relationType: 'UNKNOWN' } : row
+      ),
+    };
+    expect(() => validateG3ImportPayload(invalid)).toThrow(/SituationObjective|relation/i);
+  });
+
+  it('rejects relations that reference an unknown situation', () => {
+    const invalid = {
+      ...payload,
+      objectives: payload.objectives.map((row, index) =>
+        index === 0 ? { ...row, situationId: 'missing-g3-situation' } : row
+      ),
+    };
+    expect(() => validateG3ImportPayload(invalid)).toThrow(/Unknown G3 relation situation/i);
   });
 });
