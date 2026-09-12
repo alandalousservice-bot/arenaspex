@@ -12,8 +12,14 @@ import {
   generateLessonMemoDocument,
   getUnifiedLessonRows,
   rebalanceLessonRows,
+  validateLessonPlanTiming,
 } from '../../services/lessonPlan.generator.service';
-import { generateLessonMemoDraft } from '../../services/lessonMemoGeneration.service';
+import {
+  generateLessonMemoDraft,
+  regenerateLessonMemo,
+  saveLessonMemo,
+} from '../../services/lessonMemoGeneration.service';
+import type { LessonMemoGenerationContext } from '../../services/lessonMemoGeneration.service';
 import {
   fetchAnnualPlans,
   fetchTeacherPlanningSessions,
@@ -180,6 +186,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [scheduledLessons, setScheduledLessons] = useState<MergedScheduledLesson[]>([]);
   const [sourceLabel, setSourceLabel] = useState<'actual' | 'fallback'>('fallback');
   const [generationError, setGenerationError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [showRegenerationConfirm, setShowRegenerationConfirm] = useState(false);
   const [draft, setDraft] = useState<LessonPlan | null>(null);
   const [memoMode, setMemoMode] = useState<LessonMemoMode>('operational');
   const [screenMode, setScreenMode] = useState<'list' | 'generator' | 'saved'>(
@@ -406,6 +414,47 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       });
   }, [showGenerator, levelName, currentUser?.id, memoMode, scheduledContext]);
 
+  const operationalGenerationContext = (): LessonMemoGenerationContext | null => {
+    if (!scheduledContext || !currentUser) return null;
+    const source = sourceFromPlanningReference(
+      scheduledContext.reference,
+      scheduledContext.classRoom
+    );
+    const previousSituationIds = lessonPlans
+      .filter(
+        (item) =>
+          item.teacherId === currentUser.id &&
+          item.classId === scheduledContext.session.classId &&
+          item.academicYearId === scheduledContext.session.academicYearId &&
+          (item.sessionGlobalNumber || 0) < source.globalNumber
+      )
+      .flatMap((item) =>
+        (item.lessonRows || []).flatMap((row) =>
+          row.situationSnapshot?.situationId ? [row.situationSnapshot.situationId] : []
+        )
+      );
+    return {
+      levelName: scheduledContext.classRoom.levelName || levelName,
+      teacher: currentUser,
+      className: scheduledContext.classRoom.name,
+      classPlannedSessionId: scheduledContext.session.id,
+      academicYearId: scheduledContext.session.academicYearId,
+      classId: scheduledContext.session.classId,
+      plannedStartTime: scheduledContext.session.startTime,
+      venue: scheduledContext.session.venue,
+      inspectorName,
+      plannedDate: scheduledContext.session.plannedDate.slice(0, 10),
+      durationMinutes: scheduledContext.session.durationMinutes,
+      grade4WeeklyScheduleMode: scheduledContext.session.grade4WeeklyScheduleMode,
+      source,
+      situations: bankSituations.length ? bankSituations : undefined,
+      previousSituationIds,
+      pedagogicalParts: scheduledContext.session.pedagogicalPartReferences?.map((reference) =>
+        sourceFromPlanningReference(reference, scheduledContext.classRoom)
+      ),
+    };
+  };
+
   const createPlan = () => {
     if (memoMode === 'operational') {
       if (
@@ -445,52 +494,22 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       return;
     }
     try {
-      const previousSituationIds = operationalContext
-        ? lessonPlans
-            .filter(
-              (item) =>
-                item.teacherId === currentUser?.id &&
-                item.classId === operationalContext.session.classId &&
-                item.academicYearId === operationalContext.session.academicYearId &&
-                (item.sessionGlobalNumber || 0) < source.globalNumber
-            )
-            .flatMap((item) =>
-              (item.lessonRows || []).flatMap((row) =>
-                row.situationSnapshot?.situationId ? [row.situationSnapshot.situationId] : []
-              )
-            )
-        : undefined;
-      const plan =
-        operationalContext && currentUser
-          ? generateLessonMemoDraft({
-              levelName: operationalContext.classRoom.levelName || levelName,
-              teacher: currentUser,
-              className: operationalContext.classRoom.name,
-              classPlannedSessionId: operationalContext.session.id,
-              academicYearId: operationalContext.session.academicYearId,
-              classId: operationalContext.session.classId,
-              plannedStartTime: operationalContext.session.startTime,
-              venue: operationalContext.session.venue,
-              inspectorName,
-              plannedDate: operationalContext.session.plannedDate.slice(0, 10),
-              durationMinutes: operationalContext.session.durationMinutes,
-              source,
-              situations: bankSituations.length ? bankSituations : undefined,
-              previousSituationIds,
-              pedagogicalParts: operationalContext.session.pedagogicalPartReferences?.map(
-                (reference) => sourceFromPlanningReference(reference, operationalContext.classRoom)
-              ),
-            })
-          : autoGenerateLessonPlan(source, {
-              levelName,
-              teacher: currentUser,
-            });
+      const operationalContextForGeneration = operationalContext
+        ? operationalGenerationContext()
+        : null;
+      const plan = operationalContextForGeneration
+        ? generateLessonMemoDraft(operationalContextForGeneration)
+        : autoGenerateLessonPlan(source, {
+            levelName,
+            teacher: currentUser,
+          });
       if (!plan.lessonRows?.length) throw new Error('empty memo');
-      onSaveLessonPlan(plan);
+      onSaveLessonPlan(saveLessonMemo(plan, existingOperationalMemo));
       setSelectedId(plan.id);
       setActiveLessonPlanId(plan.id);
       setScreenMode('saved');
       setGenerationError('');
+      setSaveError('');
       setShowGenerator(false);
     } catch {
       setGenerationError('تعذر توليد المذكرة. حاول إعادة فتح الحصة.');
@@ -499,6 +518,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
 
   const beginEdit = () => {
     if (!selected) return;
+    setSaveError('');
     setDraft({
       ...selected,
       lessonRows: getUnifiedLessonRows(selected).map((row) => ({ ...row })),
@@ -508,16 +528,22 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   };
   const saveEdit = () => {
     if (!draft) return;
-    const lessonRows = rebalanceLessonRows(
-      draft.lessonRows || [],
+    const expectedDuration =
       draft.classPlannedSessionId && scheduledContext
         ? scheduledContext.session.durationMinutes
-        : draft.durationMinutes
-    );
+        : draft.durationMinutes;
+    const lessonRows = draft.lessonRows || [];
+    const timing = validateLessonPlanTiming(lessonRows, expectedDuration);
+    if (!timing.valid) {
+      setSaveError(
+        `لا يمكن حفظ المذكرة: مجموع أزمنة الصفوف ${timing.actualMinutes} دقيقة، والمطلوب ${timing.expectedMinutes} دقيقة.`
+      );
+      return;
+    }
     const equipmentNeeded = [
       ...new Set(draft.equipmentNeeded.map((item) => item.trim()).filter(Boolean)),
     ];
-    onSaveLessonPlan({
+    const savedPlan = saveLessonMemo({
       ...draft,
       lessonRows,
       equipmentNeeded,
@@ -525,8 +551,39 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       version: Math.max(draft.version || 1, 2),
       manualEdits: true,
     });
+    onSaveLessonPlan(savedPlan);
+    setSaveError('');
     setEditing(false);
     setDraft(null);
+  };
+
+  const regenerateSelectedMemo = (confirmed = false) => {
+    if (!selected || !isScheduled) return;
+    if (editing) {
+      setSaveError('احفظ التعديلات الحالية أو ألغِها قبل إعادة التوليد.');
+      return;
+    }
+    const context = operationalGenerationContext();
+    if (!context) {
+      setGenerationError('تعذر تحديد الحصة التشغيلية لإعادة التوليد.');
+      return;
+    }
+    if (!confirmed && selected.manualEdits) {
+      setShowRegenerationConfirm(true);
+      return;
+    }
+    try {
+      const regenerated = regenerateLessonMemo(context, selected, confirmed);
+      onSaveLessonPlan(saveLessonMemo(regenerated, selected));
+      setSelectedId(regenerated.id);
+      setActiveLessonPlanId(regenerated.id);
+      setShowRegenerationConfirm(false);
+      setGenerationError('');
+      setSaveError('');
+      setScreenMode('saved');
+    } catch {
+      setGenerationError('تعذر إعادة توليد المذكرة. لم يتم تغيير النسخة المحفوظة.');
+    }
   };
 
   const closeSavedMemo = () => {
@@ -1093,17 +1150,30 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       guidance: situation.variations || 'احترام التعليمات.',
       situationSnapshot: snapshotSituation(situation),
     };
+    const pendingRow = rows.find(
+      (row) =>
+        row.phase === 'المرحلة الرئيسية' &&
+        !row.situationSnapshot &&
+        row.learningContent.startsWith('اختيار موقف تربوي يدويًا')
+    );
     const candidateRows = replaceRowId
       ? rows.map((row) => (row.id === replaceRowId ? { ...main, id: replaceRowId } : row))
-      : [...rows, main];
+      : pendingRow
+        ? rows.map((row) => (row.id === pendingRow.id ? { ...main, id: pendingRow.id } : row))
+        : [...rows, main];
     const next = rebalanceLessonRows(candidateRows, effectiveDuration);
     const equipmentNeeded = [
-      ...new Set(next.flatMap((row) => row.situationSnapshot?.equipment || [])),
+      ...new Set([
+        ...plan.equipmentNeeded,
+        ...next.flatMap((row) => row.situationSnapshot?.equipment || []),
+      ]),
     ];
     if (editing) {
       setDraft((previous) => previous && { ...previous, lessonRows: next, equipmentNeeded });
     } else {
-      onSaveLessonPlan({ ...plan, lessonRows: next, equipmentNeeded, manualEdits: true });
+      onSaveLessonPlan(
+        saveLessonMemo({ ...plan, lessonRows: next, equipmentNeeded, manualEdits: true })
+      );
     }
     setReplaceRowId(null);
   };
@@ -1118,7 +1188,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     ];
     if (editing)
       setDraft((previous) => previous && { ...previous, lessonRows: next, equipmentNeeded });
-    else onSaveLessonPlan({ ...plan, lessonRows: next, equipmentNeeded, manualEdits: true });
+    else
+      onSaveLessonPlan(
+        saveLessonMemo({ ...plan, lessonRows: next, equipmentNeeded, manualEdits: true })
+      );
   };
 
   return (
@@ -1140,6 +1213,9 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${isScheduled ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-800'}`}
           >
             {isScheduled ? 'مذكرة حصة مبرمجة' : 'مذكرة مستقلة'}
+          </span>
+          <span className="mr-2 mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">
+            {plan.manualEdits ? 'معدلة' : plan.generatedAt ? 'مسودة مولدة' : 'محفوظة'}
           </span>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1209,6 +1285,15 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                 <PenSquare className="h-4 w-4" />
                 تعديل
               </button>
+              {isScheduled && (
+                <button
+                  type="button"
+                  onClick={() => regenerateSelectedMemo()}
+                  className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900"
+                >
+                  إعادة توليد المذكرة
+                </button>
+              )}
               <button
                 onClick={() => exportLessonPlanToPdf(plan)}
                 className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold"
@@ -1268,6 +1353,39 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">
           {wordExportError}
         </p>
+      )}
+      {saveError && (
+        <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">
+          {saveError}
+        </p>
+      )}
+      {plan.generationWarnings && plan.generationWarnings.length > 0 && (
+        <aside
+          role="status"
+          className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"
+        >
+          <h3 className="font-bold">تنبيهات إعداد المذكرة</h3>
+          <ul className="mt-2 list-disc space-y-1 pr-5">
+            {plan.generationWarnings.map((warning) => (
+              <li key={warning.code}>
+                <span>{warning.message}</span>
+                {warning.action && <span className="mr-1">{warning.action}</span>}
+              </li>
+            ))}
+          </ul>
+          {!editing && (
+            <button
+              type="button"
+              onClick={() => {
+                setReplaceRowId(null);
+                setShowBank(true);
+              }}
+              className="mt-3 rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-amber-900"
+            >
+              اختيار المواقف يدويًا
+            </button>
+          )}
+        </aside>
       )}
 
       {!editing && !scheduledMode && lessonPlans.length > 1 && (
@@ -1341,6 +1459,25 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               />
             ) : (
               <p className="mt-2 text-sm font-bold text-purple-950">{memoModel.header.objective}</p>
+            )}
+          </section>
+          <section className="rounded-xl border border-slate-200 bg-slate-50 p-3 md:col-span-2">
+            <h3 className="text-xs font-black text-slate-800">ملاحظات الأستاذ</h3>
+            {editing ? (
+              <textarea
+                value={draft?.teacherNotes || ''}
+                onChange={(event) =>
+                  setDraft((previous) =>
+                    previous ? { ...previous, teacherNotes: event.target.value } : previous
+                  )
+                }
+                placeholder="أضف ملاحظاتك حول تنفيذ الحصة..."
+                className="mt-1 min-h-16 w-full rounded-lg border border-slate-200 bg-white p-2 outline-none"
+              />
+            ) : (
+              <p className="mt-1 min-h-6 whitespace-pre-line text-sm text-slate-700">
+                {plan.teacherNotes || 'لا توجد ملاحظات محفوظة.'}
+              </p>
             )}
           </section>
         </div>
@@ -1556,6 +1693,39 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         </div>
       )}
 
+      {showRegenerationConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="regeneration-confirmation-title"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+          >
+            <h3 id="regeneration-confirmation-title" className="text-base font-extrabold">
+              إعادة توليد المذكرة
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-slate-700">
+              سيؤدي ذلك إلى استبدال التعديلات الحالية في هذه المذكرة. هل تريد المتابعة؟
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowRegenerationConfirm(false)}
+                className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => regenerateSelectedMemo(true)}
+                className="rounded-xl bg-amber-600 px-3 py-2 text-xs font-bold text-white"
+              >
+                متابعة وإعادة التوليد
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {generatorModal}
       {showBank && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">

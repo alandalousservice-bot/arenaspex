@@ -94,6 +94,8 @@ const lessonContent = (plan?: LessonPlan) =>
     ?.map((row) => (typeof row?.learningContent === 'string' ? row.learningContent.trim() : ''))
     .filter(Boolean)
     .filter((value, index, values) => values.indexOf(value) === index) || [];
+const memoStatusLabel = (plan?: LessonPlan) =>
+  plan?.manualEdits ? 'المذكرة جاهزة — معدلة يدويًا' : plan ? 'المذكرة جاهزة' : 'لم تُنشأ بعد';
 
 export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   currentUser,
@@ -823,7 +825,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
                         <p
                           className={`text-sm font-bold ${memoExists ? 'text-emerald-700' : 'text-amber-700'}`}
                         >
-                          {memoExists ? 'المذكرة جاهزة' : 'لم تُنشأ بعد'}
+                          {memoStatusLabel(memoPlan)}
                         </p>
                         <div className="flex flex-wrap gap-2">
                           {memoExists ? (

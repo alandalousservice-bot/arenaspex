@@ -721,6 +721,11 @@ export interface LessonPlan {
   }>;
   manualEdits?: boolean;
   generatedAt?: string;
+  generationWarnings?: Array<{
+    code: string;
+    message: string;
+    action?: string;
+  }>;
   learningGoal?: string;
   evaluation?: string;
   duration?: string;

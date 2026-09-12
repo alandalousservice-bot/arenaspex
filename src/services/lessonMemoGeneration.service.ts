@@ -1,4 +1,4 @@
-import { LessonPlan, User } from '../types/spex';
+import { Grade4WeeklyScheduleMode, LessonPlan, User } from '../types/spex';
 import {
   autoGenerateLessonPlan,
   AutoGenerateContext,
@@ -13,6 +13,7 @@ export interface LessonMemoGenerationContext {
   classPlannedSessionId: string;
   source: AutoGenerateSessionSource;
   pedagogicalParts?: AutoGenerateSessionSource[];
+  grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null;
   className?: string;
   levelName: string;
   plannedDate: string;
@@ -56,10 +57,29 @@ export function generateLessonMemoDraft(context: LessonMemoGenerationContext): L
     inspectorName: resolved.inspectorName,
     situations: resolved.situations,
     previousSituationIds: resolved.previousSituationIds,
-    grade4WeeklyScheduleMode: resolved.pedagogicalParts?.length ? 'ONE_90' : undefined,
+    grade4WeeklyScheduleMode:
+      resolved.grade4WeeklyScheduleMode ||
+      (resolved.pedagogicalParts && resolved.pedagogicalParts.length > 1 ? 'ONE_90' : undefined),
     pedagogicalParts: resolved.pedagogicalParts,
   };
   return autoGenerateLessonPlan(resolved.source, generationContext);
+}
+
+/**
+ * Keeps the UI's save boundary explicit without replacing the server's
+ * ownership checks. A planned memo cannot be reassigned to another session.
+ */
+export function saveLessonMemo(plan: LessonPlan, existing?: LessonPlan): LessonPlan {
+  if (
+    existing?.classPlannedSessionId &&
+    plan.classPlannedSessionId !== existing.classPlannedSessionId
+  ) {
+    throw new Error('MEMO_PERSISTENCE_IDENTITY_CONFLICT');
+  }
+  return {
+    ...plan,
+    manualEdits: plan.manualEdits ?? existing?.manualEdits,
+  };
 }
 
 export function regenerationRequiresConfirmation(

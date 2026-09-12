@@ -1,4 +1,10 @@
-import { Grade4WeeklyScheduleMode, LessonPlan, LessonPlanRow, User } from '../types/spex';
+import {
+  Grade4WeeklyScheduleMode,
+  LessonPhaseName,
+  LessonPlan,
+  LessonPlanRow,
+  User,
+} from '../types/spex';
 import { EducationalSituation } from '../types/spex';
 import {
   findSuitableSituations,
@@ -58,6 +64,37 @@ export const lessonDurationForLevel = (
     classPlanningMode: grade4WeeklyScheduleMode,
   });
 
+export interface LessonPlanTimingValidation {
+  valid: boolean;
+  expectedMinutes: number;
+  actualMinutes: number;
+  phaseTotals: Record<LessonPhaseName, number>;
+}
+
+export function validateLessonPlanTiming(
+  rows: LessonPlanRow[],
+  expectedMinutes: number
+): LessonPlanTimingValidation {
+  const phaseTotals: Record<LessonPhaseName, number> = {
+    'المرحلة التحضيرية': 0,
+    'المرحلة الرئيسية': 0,
+    'المرحلة الختامية': 0,
+  };
+  let validRows = true;
+  for (const row of rows) {
+    const duration = Number(row.durationMinutes);
+    if (!Number.isFinite(duration) || duration < 1) validRows = false;
+    phaseTotals[row.phase] += Number.isFinite(duration) ? duration : 0;
+  }
+  const actualMinutes = Object.values(phaseTotals).reduce((sum, value) => sum + value, 0);
+  return {
+    valid: validRows && actualMinutes === expectedMinutes,
+    expectedMinutes,
+    actualMinutes,
+    phaseTotals,
+  };
+}
+
 /** يوزع الزمن المتاح على صفوف المرحلة الرئيسية مع إبقاء التحضيرية والختامية كما هي. */
 export function rebalanceLessonRows(rows: LessonPlanRow[], totalMinutes: number): LessonPlanRow[] {
   const main = rows.filter((row) => row.phase === 'المرحلة الرئيسية');
@@ -86,6 +123,61 @@ function situationEquipment(fieldId: string): string[] {
   return ['أقماع', 'شواخص', 'سلم أرضي'];
 }
 
+export type LessonMemoGenerationWarningCode =
+  | 'NO_ELIGIBLE_SITUATION'
+  | 'INTEGRATIVE_COVERAGE_INCOMPLETE'
+  | 'ASSESSMENT_COVERAGE_MISSING'
+  | 'PHASE_BUDGET_UNFILLED'
+  | 'NO_MAIN_DIRECT_ACTIVITY'
+  | 'DURATION_UNKNOWN'
+  | 'REQUIREMENT_COVERAGE_INCOMPLETE';
+
+export interface LessonMemoGenerationWarning {
+  code: LessonMemoGenerationWarningCode;
+  message: string;
+  action?: string;
+}
+
+export const LESSON_MEMO_WARNING_MESSAGES: Record<
+  LessonMemoGenerationWarningCode,
+  { message: string; action?: string }
+> = {
+  NO_ELIGIBLE_SITUATION: {
+    message: 'لم يتوفر موقف تربوي معتمد ومطابق لهذه الحصة.',
+    action: 'يمكنك اختيار موقف مناسب يدويًا من بنك المواقف.',
+  },
+  INTEGRATIVE_COVERAGE_INCOMPLETE: {
+    message: 'المواقف المتاحة لا تغطي جميع الأهداف الإدماجية المطلوبة.',
+    action: 'راجع المواقف المقترحة أو اختر مواقفًا إضافية يدويًا.',
+  },
+  ASSESSMENT_COVERAGE_MISSING: {
+    message: 'لم تتوفر مواقف تقويمية كافية لسياق التقويم المحدد.',
+    action: 'اختر موقفًا تقويميًا مناسبًا يدويًا قبل الحفظ النهائي.',
+  },
+  PHASE_BUDGET_UNFILLED: {
+    message: 'التسلسل المولد لا يستعمل كامل زمن الحصة.',
+    action: 'راجع أزمنة المواقف قبل الحفظ.',
+  },
+  NO_MAIN_DIRECT_ACTIVITY: {
+    message: 'لا يوجد موقف رئيسي مباشر يطابق الهدف التعلمي.',
+    action: 'اختر موقفًا مباشرًا مطابقًا من البنك.',
+  },
+  DURATION_UNKNOWN: {
+    message: 'زمن أحد المواقف غير محدد، لذلك يحتاج التوزيع إلى مراجعة.',
+  },
+  REQUIREMENT_COVERAGE_INCOMPLETE: {
+    message: 'لا يغطي التسلسل كل المتطلبات الحركية المطلوبة.',
+    action: 'راجع المواقف المختارة وأضف ما يلزم يدويًا.',
+  },
+};
+
+function generationWarnings(codes: string[]): LessonMemoGenerationWarning[] {
+  return [...new Set(codes)].flatMap((code) => {
+    const descriptor = LESSON_MEMO_WARNING_MESSAGES[code as LessonMemoGenerationWarningCode];
+    return descriptor ? [{ code: code as LessonMemoGenerationWarningCode, ...descriptor }] : [];
+  });
+}
+
 export function formatSituationExecution(situation: EducationalSituation): string {
   const equipment = situation.equipment.length
     ? ` الوسائل المستعملة: ${situation.equipment.join('، ')}.`
@@ -97,7 +189,7 @@ function buildMainRows(
   session: AutoGenerateSessionSource,
   mainMinutes: number,
   ctx: AutoGenerateContext
-): LessonPlanRow[] {
+): { rows: LessonPlanRow[]; warnings: LessonMemoGenerationWarning[] } {
   const pedagogicalParts = ctx.pedagogicalParts?.length ? ctx.pedagogicalParts : [session];
   const objectiveIds = pedagogicalParts
     .map((part) => part.objectiveId)
@@ -113,18 +205,25 @@ function buildMainRows(
         .replace('الخامسة', '5')
     ) || 0;
   const availableSituations = ctx.situations || referenceSituations;
+  let selectionWarningCodes: string[] = [];
+  let selectionFailureCode: string | undefined;
   const bank =
     pedagogicalParts.length > 1
-      ? selectEducationalSituations(availableSituations, {
-          gradeId: grade,
-          domainId: session.fieldId,
-          lessonType: 'LEARNING',
-          objectiveIds,
-          objectiveText: session.objective,
-          durationMinutes: mainMinutes,
-          previousSituationIds: ctx.previousSituationIds,
-          maxSituations: 3,
-        }).selectedSituations
+      ? (() => {
+          const selection = selectEducationalSituations(availableSituations, {
+            gradeId: grade,
+            domainId: session.fieldId,
+            lessonType: 'LEARNING',
+            objectiveIds,
+            objectiveText: session.objective,
+            durationMinutes: mainMinutes,
+            previousSituationIds: ctx.previousSituationIds,
+            maxSituations: 3,
+          });
+          selectionWarningCodes = selection.warnings;
+          selectionFailureCode = selection.failureCode;
+          return selection.selectedSituations;
+        })()
       : findSuitableSituations(availableSituations, {
           grade,
           fieldId: session.fieldId,
@@ -134,6 +233,11 @@ function buildMainRows(
           objectiveTexts,
           previousSituationIds: ctx.previousSituationIds,
         });
+  if (!bank.length && !selectionFailureCode) selectionFailureCode = 'NO_ELIGIBLE_SITUATION';
+  const warnings = generationWarnings([
+    ...selectionWarningCodes,
+    ...(selectionFailureCode ? [selectionFailureCode] : []),
+  ]);
   if (bank.length) {
     const selected = bank.slice(
       0,
@@ -143,15 +247,18 @@ function buildMainRows(
       (_, index) =>
         Math.floor(mainMinutes / selected.length) + (index < mainMinutes % selected.length ? 1 : 0)
     );
-    return selected.map((situation, index) => ({
-      id: `main-${index + 1}`,
-      phase: 'المرحلة الرئيسية',
-      learningContent: situation.name,
-      executionContent: formatSituationExecution(situation),
-      durationMinutes: minutes[index],
-      guidance: situation.variations || 'احترام التنظيم والتعليمات.',
-      situationSnapshot: snapshotSituation(situation),
-    }));
+    return {
+      rows: selected.map((situation, index) => ({
+        id: `main-${index + 1}`,
+        phase: 'المرحلة الرئيسية',
+        learningContent: situation.name,
+        executionContent: formatSituationExecution(situation),
+        durationMinutes: minutes[index],
+        guidance: situation.variations || 'احترام التنظيم والتعليمات.',
+        situationSnapshot: snapshotSituation(situation),
+      })),
+      warnings,
+    };
   }
   const count = hasComplexObjective(session.objective) ? 2 : 1;
   const minutes = Array.from(
@@ -160,18 +267,17 @@ function buildMainRows(
   );
   const tools = session.tools.length ? session.tools : situationEquipment(session.fieldId);
 
-  return minutes.map((durationMinutes, index) => ({
-    id: `main-${index + 1}`,
-    phase: 'المرحلة الرئيسية',
-    learningContent: `تطبيق حركي موجه ${String(index + 1).padStart(2, '0')}`,
-    executionContent:
-      'ينظم الأستاذ المتعلمين في أفواج متوازية عند نقطة البداية. ' +
-      `عند سماع إشارة الانطلاق، ينفذ كل متعلم الحركة عبر مسار محدد باستعمال ${tools.join('، ')}، ` +
-      `ثم يعود إلى نهاية فوجه لإتاحة التناوب. يلاحظ الأستاذ التنفيذ ويصحح الأداء، مع اعتماد النجاح عند إنجاز الحركة المطلوبة باحترام المسار والتعليمات.`,
-    durationMinutes,
-    guidance:
-      'احترام نقطة البداية والمسافة الآمنة، الإصغاء للإشارة، والتناوب المنظم بين أفراد الفوج.',
-  }));
+  return {
+    rows: minutes.map((durationMinutes, index) => ({
+      id: `main-${index + 1}`,
+      phase: 'المرحلة الرئيسية',
+      learningContent: `اختيار موقف تربوي يدويًا ${String(index + 1).padStart(2, '0')}`,
+      executionContent: `لم يتوفر موقف معتمد مطابق تلقائيًا. اختر موقفًا مناسبًا من بنك المواقف قبل اعتماد هذه المسودة. الوسائل المتوقعة: ${tools.join('، ')}.`,
+      durationMinutes,
+      guidance: 'تظل هذه الخانة معلقة إلى حين اختيار موقف مطابق والتحقق من التعليمات والسلامة.',
+    })),
+    warnings,
+  };
 }
 
 /** ينشئ قالباً واحداً مطابقاً لجدول المذكرة المرجعي. */
@@ -199,7 +305,8 @@ export function autoGenerateLessonPlan(
   const preparationMinutes = phaseBudgets.warmup;
   const closingMinutes = phaseBudgets.final;
   const mainMinutes = phaseBudgets.main;
-  const mainRows = buildMainRows(session, mainMinutes, ctx);
+  const mainResult = buildMainRows(session, mainMinutes, ctx);
+  const mainRows = mainResult.rows;
   const equipmentNeeded = [
     ...new Set([
       ...session.tools,
@@ -268,6 +375,7 @@ export function autoGenerateLessonPlan(
       fieldName: part.fieldName,
     })),
     generatedAt: new Date().toISOString(),
+    generationWarnings: mainResult.warnings,
     date: ctx.date || new Date().toISOString().split('T')[0],
     durationMinutes,
     equipmentNeeded,
