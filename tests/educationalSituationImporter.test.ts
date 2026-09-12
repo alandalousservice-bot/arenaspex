@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SituationObjectiveRelationType } from '@prisma/client';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -31,6 +32,24 @@ import {
   findSuitableSituations,
   hasOrdinaryLearningRelation,
 } from '../src/services/educationalSituation.selector.service';
+
+const runLocalDryRun = (batch: string) =>
+  execFileSync(
+    process.execPath,
+    ['node_modules/tsx/dist/cli.mjs', 'scripts/importEducationalSituationBank.ts'],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        ALLOW_EDUCATIONAL_SITUATION_IMPORT: 'true',
+        ARENASPEX_IMPORT_ENVIRONMENT: 'staging',
+        ARENASPEX_IMPORT_DATABASE_MARKER: 'arenaspex-test',
+        ARENASPEX_SITUATION_IMPORT_BATCH: batch,
+        ARENASPEX_IMPORT_DRY_RUN: 'true',
+      },
+      encoding: 'utf8',
+    }
+  );
 
 describe('educational situation importer validation', () => {
   it('accepts and preserves the first-class ASSESSMENT relation without coercion', () => {
@@ -652,5 +671,133 @@ describe('G3 production importer mode', () => {
       ),
     };
     expect(() => validateG3ImportPayload(invalid)).toThrow(/Unknown G3 relation situation/i);
+  });
+});
+
+describe('importer lifecycle markers', () => {
+  const importerSource = fs.readFileSync('scripts/importEducationalSituationBank.ts', 'utf8');
+  const mainSource = importerSource.slice(importerSource.indexOf('async function main'));
+  const markerLines = (output: string) =>
+    output.split(/\r?\n/).filter((line) => line.startsWith('IMPORT_'));
+
+  it('emits one PREWRITE marker in the G3 dry-run', () => {
+    const lines = markerLines(runLocalDryRun('g3-production-v1'));
+    expect(lines).toEqual([
+      'IMPORT_START',
+      'IMPORT_BATCH=g3-production-v1',
+      'IMPORT_GUARD_OK',
+      'IMPORT_PAYLOAD_OK',
+      'IMPORT_PREWRITE',
+      'IMPORT_DONE',
+    ]);
+  });
+
+  it('does not emit COMMIT_OK in the G3 dry-run', () => {
+    expect(runLocalDryRun('g3-production-v1')).not.toContain('IMPORT_COMMIT_OK');
+  });
+
+  it('reports the G3 dry-run plan with zero writes', () => {
+    const output = runLocalDryRun('g3-production-v1');
+    const result = JSON.parse(output.split(/\r?\n/).find((line) => line.startsWith('{'))!);
+    expect(result.dryRun).toBe(true);
+    expect(result.planned).toMatchObject({
+      situations: { create: 117, noOp: 0, conflict: 0 },
+      relations: { create: 273, noOp: 0, conflict: 0 },
+      occurrences: { create: 90, noOp: 0, conflict: 0 },
+    });
+    expect(result).not.toHaveProperty('writes');
+  });
+
+  it('keeps PREWRITE before the mocked real-write call and COMMIT_OK after it', () => {
+    const prewrite = mainSource.indexOf("console.log('IMPORT_PREWRITE')");
+    const dryRun = mainSource.indexOf("if (process.env.ARENASPEX_IMPORT_DRY_RUN === 'true')");
+    const writeCall = mainSource.indexOf('importEducationalSituationBank(prisma, payload)');
+    const commit = mainSource.indexOf("console.log('IMPORT_COMMIT_OK')");
+    const done = mainSource.lastIndexOf("console.log('IMPORT_DONE')");
+    expect(prewrite).toBeGreaterThanOrEqual(0);
+    expect(prewrite).toBeLessThan(dryRun);
+    expect(dryRun).toBeLessThan(writeCall);
+    expect(writeCall).toBeLessThan(commit);
+    expect(commit).toBeLessThan(done);
+  });
+
+  it('rejects an invalid SHA before the lifecycle write boundary', () => {
+    const payload = loadG3ImportPayload();
+    expect(() => validateG3ImportPayload(payload, 'WRONG')).toThrow(/SHA-256/);
+    expect(importerSource.indexOf('validateG3ImportPayload')).toBeLessThan(
+      importerSource.indexOf("console.log('IMPORT_PREWRITE')")
+    );
+  });
+
+  it('rejects an invalid payload before PREWRITE can be reached', () => {
+    const payload = loadG3ImportPayload();
+    expect(() =>
+      validateG3ImportPayload({ ...payload, situations: payload.situations.slice(0, 116) })
+    ).toThrow(/117\/273\/90/);
+    expect(mainSource.indexOf('validateG3ImportPayload')).toBeLessThan(
+      mainSource.indexOf("console.log('IMPORT_PREWRITE')")
+    );
+  });
+
+  it('keeps guard failure before PREWRITE', () => {
+    expect(() =>
+      authorizeImportEnvironment({
+        ALLOW_EDUCATIONAL_SITUATION_IMPORT: 'true',
+        ARENASPEX_IMPORT_ENVIRONMENT: 'production',
+        ARENASPEX_IMPORT_DATABASE_MARKER: 'wrong-marker',
+      } as NodeJS.ProcessEnv)
+    ).toThrow();
+    expect(mainSource.indexOf('authorizeImportEnvironment()')).toBeLessThan(
+      mainSource.indexOf("console.log('IMPORT_PREWRITE')")
+    );
+  });
+
+  it('does not place COMMIT_OK on a failed post-PREWRITE path', () => {
+    const writeCall = mainSource.indexOf('importEducationalSituationBank(prisma, payload)');
+    const commit = mainSource.indexOf("console.log('IMPORT_COMMIT_OK')");
+    expect(mainSource).toMatch(
+      /try\s*\{\s*const result = await importEducationalSituationBank\(prisma, payload\)/
+    );
+    expect(mainSource).toContain('finally');
+    expect(commit).toBeGreaterThan(writeCall);
+  });
+
+  it('keeps the B3 source-bank dry-run lifecycle compatible', () => {
+    expect(markerLines(runLocalDryRun('b3-source-bank'))).toEqual([
+      'IMPORT_START',
+      'IMPORT_BATCH=b3-source-bank',
+      'IMPORT_GUARD_OK',
+      'IMPORT_PAYLOAD_OK',
+      'IMPORT_PREWRITE',
+      'IMPORT_DONE',
+    ]);
+  });
+
+  it('keeps the G2 authored dry-run lifecycle compatible', () => {
+    expect(markerLines(runLocalDryRun('g2-authored-enrichment-v1'))).toEqual([
+      'IMPORT_START',
+      'IMPORT_BATCH=g2-authored-enrichment-v1',
+      'IMPORT_GUARD_OK',
+      'IMPORT_PAYLOAD_OK',
+      'IMPORT_PREWRITE',
+      'IMPORT_DONE',
+    ]);
+  });
+
+  it('emits PREWRITE exactly once in the direct execution flow', () => {
+    expect(mainSource.match(/console\.log\('IMPORT_PREWRITE'\)/g)).toHaveLength(1);
+  });
+
+  it('keeps lifecycle marker ordering deterministic', () => {
+    const output = markerLines(runLocalDryRun('g3-production-v1'));
+    expect(output.indexOf('IMPORT_START')).toBeLessThan(
+      output.indexOf('IMPORT_BATCH=g3-production-v1')
+    );
+    expect(output.indexOf('IMPORT_BATCH=g3-production-v1')).toBeLessThan(
+      output.indexOf('IMPORT_GUARD_OK')
+    );
+    expect(output.indexOf('IMPORT_GUARD_OK')).toBeLessThan(output.indexOf('IMPORT_PAYLOAD_OK'));
+    expect(output.indexOf('IMPORT_PAYLOAD_OK')).toBeLessThan(output.indexOf('IMPORT_PREWRITE'));
+    expect(output.indexOf('IMPORT_PREWRITE')).toBeLessThan(output.indexOf('IMPORT_DONE'));
   });
 });

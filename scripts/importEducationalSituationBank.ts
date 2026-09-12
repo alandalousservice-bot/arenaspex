@@ -932,18 +932,18 @@ async function main(): Promise<void> {
   else if (batch === 'g3-production-v1') validateG3ImportPayload(payload, G3_PAYLOAD_SHA256);
   else validateImportPayload(payload);
   console.log('IMPORT_PAYLOAD_OK');
+  const planned =
+    process.env.ARENASPEX_IMPORT_DRY_RUN === 'true' && batch === 'g3-production-v1'
+      ? buildG3ImportPlan({ situations: [], relations: [], occurrences: [] }, payload)
+      : undefined;
+  console.log('IMPORT_PREWRITE');
   if (process.env.ARENASPEX_IMPORT_DRY_RUN === 'true') {
-    const planned =
-      batch === 'g3-production-v1'
-        ? buildG3ImportPlan({ situations: [], relations: [], occurrences: [] }, payload)
-        : undefined;
     console.log(
       JSON.stringify({ dryRun: true, ...payloadCounts(payload), ...(planned ? { planned } : {}) })
     );
     console.log('IMPORT_DONE');
     return;
   }
-  console.log('IMPORT_PREWRITE');
   const prisma = new PrismaClient();
   try {
     const result = await importEducationalSituationBank(prisma, payload);
