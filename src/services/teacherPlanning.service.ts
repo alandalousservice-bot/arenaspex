@@ -8,10 +8,12 @@ import type { AnnualPlanObjectiveOverride } from '../types/spex';
 import { normalizePrimaryLevelId, type PrimaryLevelId } from './primaryLevel.service';
 import { getAcademicCalendar, isValidAcademicSchoolDate } from '../data/academicCalendars';
 import type { TeacherLearningPlanData } from '../types/spex';
+import type { Grade4WeeklyScheduleMode } from '../types/spex';
 import {
   resolveTeacherLearningPlan,
   type TeacherLearningPlan,
 } from './teacherLearningPlan.service';
+import { resolveOperationalLessonDuration } from './lessonTiming.service';
 
 export { normalizePrimaryLevelId } from './primaryLevel.service';
 
@@ -832,14 +834,16 @@ export function buildClassPlannedSessionSeeds(
   levelId: unknown,
   planningStartDate: string,
   weeklySlots?: WeeklyTimetablePlanningSlot[],
-  teacherLearningPlan?: TeacherLearningPlanData | TeacherLearningPlan
+  teacherLearningPlan?: TeacherLearningPlanData | TeacherLearningPlan,
+  grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null
 ): ClassPlannedSessionSeed[] {
   return buildClassPlannedSessionSeedsFromCanonicalSessions(
     teacherId,
     classId,
     academicYearId,
     canonicalPlanningSessions(levelId, planningStartDate, academicYearId, 0, teacherLearningPlan),
-    weeklySlots
+    weeklySlots,
+    grade4WeeklyScheduleMode
   );
 }
 
@@ -848,7 +852,8 @@ export function buildClassPlannedSessionSeedsFromCanonicalSessions(
   classId: string,
   academicYearId: string,
   sessions: CanonicalPlanningSession[],
-  weeklySlots?: WeeklyTimetablePlanningSlot[]
+  weeklySlots?: WeeklyTimetablePlanningSlot[],
+  grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null
 ): ClassPlannedSessionSeed[] {
   if (weeklySlots) {
     return materializeClassPlannedSessionSeedsFromTimetable(
@@ -856,7 +861,8 @@ export function buildClassPlannedSessionSeedsFromCanonicalSessions(
       classId,
       academicYearId,
       sessions,
-      weeklySlots
+      weeklySlots,
+      grade4WeeklyScheduleMode
     ).seeds;
   }
   return sessions.map((session) => ({
@@ -866,7 +872,10 @@ export function buildClassPlannedSessionSeedsFromCanonicalSessions(
     academicYearId,
     referenceSessionId: session.referenceSessionId,
     plannedDate: toDate(session.plannedDate),
-    durationMinutes: session.durationMinutes,
+    durationMinutes: resolveOperationalLessonDuration({
+      gradeId: session.levelId,
+      classPlanningMode: grade4WeeklyScheduleMode,
+    }),
     status: 'مبرمجة',
     startTime: null,
     venue: null,
@@ -938,7 +947,8 @@ export function materializeClassPlannedSessionSeedsFromTimetable(
   classId: string,
   academicYearId: string,
   sessions: CanonicalPlanningSession[],
-  weeklySlots: WeeklyTimetablePlanningSlot[]
+  weeklySlots: WeeklyTimetablePlanningSlot[],
+  grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null
 ): TimetableMaterializationResult {
   const slots = weeklySlots
     .filter(
@@ -1056,7 +1066,10 @@ export function materializeClassPlannedSessionSeedsFromTimetable(
           academicYearId,
           referenceSessionId,
           plannedDate: toDate(occurrence.plannedDate),
-          durationMinutes: sessions[0]?.durationMinutes || 60,
+          durationMinutes: resolveOperationalLessonDuration({
+            gradeId: levelId,
+            classPlanningMode: grade4WeeklyScheduleMode,
+          }),
           status: 'مبرمجة' as const,
           startTime: occurrence.startTime,
           venue: null,
@@ -1074,7 +1087,10 @@ export function materializeClassPlannedSessionSeedsFromTimetable(
             academicYearId,
             referenceSessionId,
             plannedDate: toDate(occurrence.plannedDate),
-            durationMinutes: unit.session.durationMinutes,
+            durationMinutes: resolveOperationalLessonDuration({
+              gradeId: levelId,
+              classPlanningMode: grade4WeeklyScheduleMode,
+            }),
             status: 'مبرمجة' as const,
             startTime: occurrence.startTime,
             venue: null,

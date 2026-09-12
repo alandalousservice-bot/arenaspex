@@ -73,6 +73,11 @@ import {
 } from './generationAccess.js';
 import { validateWeeklyTime, type WeeklyDay, WEEKDAYS } from '../services/weeklyTimetable.js';
 import {
+  getClassPlanningConfiguration,
+  resolveGrade4WeeklyScheduleMode,
+  setGrade4WeeklyScheduleMode,
+} from '../services/classPlanningConfiguration.service.js';
+import {
   canonicalClassIdentityKey,
   normalizeExcelMatricule,
   parseStudentRosterWorkbook,
@@ -186,6 +191,11 @@ const weeklySlotSchema = z.object({
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
 });
 
+const classPlanningConfigurationSchema = z.object({
+  academicYearId: academicYearIdSchema,
+  grade4WeeklyScheduleMode: z.enum(['TWO_45', 'ONE_90']).nullable(),
+});
+
 function weeklySlotView(row: any) {
   return {
     id: row.id,
@@ -220,6 +230,64 @@ apiRouter.get('/teacher/weekly-timetable', requireRole('teacher'), async (req, r
   const slots = await weeklySlotsForTeacher(req.user!.id, academicYearId.data);
   res.json({ success: true, slots: slots.map(weeklySlotView) });
 });
+
+apiRouter.get(
+  '/teacher/planning/classes/:classId/configuration',
+  requireRole('teacher'),
+  async (req, res) => {
+    const academicYearId = academicYearIdSchema.safeParse(req.query.academicYearId);
+    if (!academicYearId.success) return res.status(400).json({ error: 'السنة الدراسية مطلوبة.' });
+    const classRecord = await prisma.studentClass.findFirst({
+      where: { id: req.params.classId, teacherId: req.user!.id },
+      select: { id: true, levelId: true },
+    });
+    if (!classRecord) return res.status(403).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+    const configuration = await getClassPlanningConfiguration(
+      classRecord.id,
+      academicYearId.data,
+      prisma
+    );
+    res.json({
+      success: true,
+      configuration,
+      effectiveGrade4WeeklyScheduleMode: resolveGrade4WeeklyScheduleMode(
+        configuration?.grade4WeeklyScheduleMode
+      ),
+      explicitlySelected: Boolean(configuration?.grade4WeeklyScheduleMode),
+    });
+  }
+);
+
+apiRouter.put(
+  '/teacher/planning/classes/:classId/configuration',
+  requireRole('teacher'),
+  async (req, res) => {
+    const parsed = classPlanningConfigurationSchema.safeParse(req.body);
+    if (!parsed.success)
+      return res.status(400).json({ error: 'إعداد جدولة السنة الدراسية غير صحيح.' });
+    const classRecord = await prisma.studentClass.findFirst({
+      where: { id: req.params.classId, teacherId: req.user!.id },
+      select: { id: true, levelId: true },
+    });
+    if (!classRecord) return res.status(403).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+    const configuration = await setGrade4WeeklyScheduleMode(
+      {
+        classId: classRecord.id,
+        academicYearId: parsed.data.academicYearId,
+        grade4WeeklyScheduleMode: parsed.data.grade4WeeklyScheduleMode,
+      },
+      prisma
+    );
+    res.json({
+      success: true,
+      configuration,
+      effectiveGrade4WeeklyScheduleMode: resolveGrade4WeeklyScheduleMode(
+        configuration.grade4WeeklyScheduleMode
+      ),
+      explicitlySelected: Boolean(configuration.grade4WeeklyScheduleMode),
+    });
+  }
+);
 
 apiRouter.get(
   '/inspector/teachers/:teacherId/weekly-timetable',

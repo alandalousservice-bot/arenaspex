@@ -5,6 +5,7 @@ import {
   EducationalSituationRelationType,
   EducationalSituationSnapshot,
 } from '../types/spex';
+import { lessonPhaseBudgetsForDuration } from './lessonTiming.service';
 
 type SeedSituation = {
   id: string;
@@ -194,7 +195,7 @@ export function lessonMainWorkBudgetMinutes(
 ): number | null {
   if (durationMinutes == null) return null;
   const grade = asGrade(gradeId);
-  if (grade === 4 && durationMinutes >= 90) return 65;
+  if (grade === 4) return lessonPhaseBudgetsForDuration(durationMinutes).main;
   if (durationMinutes >= 60) return durationMinutes - 20;
   return Math.max(0, durationMinutes);
 }

@@ -9,6 +9,7 @@ import type {
   SituationSelectionCandidate,
 } from './educationalSituation.selector.service';
 import { snapshotSituation } from './educationalSituation.selector.service';
+import { lessonPhaseBudgetsForDuration } from './lessonTiming.service';
 
 export type SequencingWarning =
   | 'NO_MAIN_DIRECT_ACTIVITY'
@@ -104,20 +105,12 @@ function normalize(value: string): string {
     .trim();
 }
 
-function gradeNumber(value: string | number): number {
-  const match = String(value).match(/\d+/);
-  return match ? Number(match[0]) : 0;
-}
-
 export function lessonPhaseBudgets(
   gradeId: string | number,
   lessonDurationMinutes: number
 ): LessonPhaseBudgets {
-  if (lessonDurationMinutes === 90 || gradeNumber(gradeId) === 4)
-    return { warmup: 15, main: 65, final: 10 };
-  if (lessonDurationMinutes === 60) return { warmup: 10, main: 40, final: 10 };
-  const edge = Math.min(10, Math.max(1, Math.floor(lessonDurationMinutes / 5)));
-  return { warmup: edge, main: Math.max(1, lessonDurationMinutes - edge * 2), final: edge };
+  void gradeId;
+  return lessonPhaseBudgetsForDuration(lessonDurationMinutes);
 }
 
 function unwrap(

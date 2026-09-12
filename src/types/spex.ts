@@ -1011,6 +1011,8 @@ export interface WeeklyScheduleSlot {
   note?: string;
 }
 
+export type Grade4WeeklyScheduleMode = 'TWO_45' | 'ONE_90';
+
 export interface AttendanceEntry {
   id: string;
   classId: string;

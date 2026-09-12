@@ -1,10 +1,14 @@
-import { LessonPlan, LessonPlanRow, User } from '../types/spex';
+import { Grade4WeeklyScheduleMode, LessonPlan, LessonPlanRow, User } from '../types/spex';
 import { EducationalSituation } from '../types/spex';
 import {
   findSuitableSituations,
   referenceSituations,
   snapshotSituation,
 } from './educationalSituation.selector.service';
+import {
+  lessonPhaseBudgetsForDuration,
+  resolveOperationalLessonDuration,
+} from './lessonTiming.service';
 
 export interface AutoGenerateSessionSource {
   fieldId: string;
@@ -37,10 +41,17 @@ export interface AutoGenerateContext {
   durationMinutes?: number;
   previousSituationIds?: string[];
   situations?: EducationalSituation[];
+  grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null;
 }
 
-export const lessonDurationForLevel = (levelName: string): number =>
-  levelName.includes('الرابعة') ? 90 : 60;
+export const lessonDurationForLevel = (
+  levelName: string,
+  grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null
+): number =>
+  resolveOperationalLessonDuration({
+    gradeId: levelName,
+    classPlanningMode: grade4WeeklyScheduleMode,
+  });
 
 /** يوزع الزمن المتاح على صفوف المرحلة الرئيسية مع إبقاء التحضيرية والختامية كما هي. */
 export function rebalanceLessonRows(rows: LessonPlanRow[], totalMinutes: number): LessonPlanRow[] {
@@ -145,10 +156,11 @@ export function autoGenerateLessonPlan(
   const durationMinutes =
     Number.isFinite(ctx.durationMinutes) && (ctx.durationMinutes || 0) > 0
       ? Math.round(ctx.durationMinutes as number)
-      : lessonDurationForLevel(ctx.levelName);
-  const preparationMinutes = durationMinutes === 90 ? 15 : 10;
-  const closingMinutes = 10;
-  const mainMinutes = durationMinutes - preparationMinutes - closingMinutes;
+      : lessonDurationForLevel(ctx.levelName, ctx.grade4WeeklyScheduleMode);
+  const phaseBudgets = lessonPhaseBudgetsForDuration(durationMinutes);
+  const preparationMinutes = phaseBudgets.warmup;
+  const closingMinutes = phaseBudgets.final;
+  const mainMinutes = phaseBudgets.main;
   const mainRows = buildMainRows(session, mainMinutes, ctx);
   const equipmentNeeded = [
     ...new Set([

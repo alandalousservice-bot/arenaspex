@@ -46,6 +46,11 @@ enum SituationMediaClassification {
   UNRESOLVED
 }
 
+enum Grade4WeeklyScheduleMode {
+  TWO_45
+  ONE_90
+}
+
 // -----------------------------------------------------------------------
 // المستخدمون — النموذج الوحيد الذي يحتاج أعمدة صارمة لأنه يحمل بيانات المصادقة
 // -----------------------------------------------------------------------
@@ -161,9 +166,24 @@ model StudentClass {
   attendanceRecords  StudentAttendance[]
   assessmentSessions AssessmentSession[]
   weeklySlots        TeacherWeeklySlot[]
+  planningConfigurations ClassPlanningConfiguration[]
 
   @@index([teacherId])
   @@index([institutionId])
+}
+
+model ClassPlanningConfiguration {
+  id                       String                   @id @default(cuid())
+  classId                  String
+  academicYearId           String
+  grade4WeeklyScheduleMode Grade4WeeklyScheduleMode?
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+
+  class StudentClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, academicYearId])
+  @@index([academicYearId])
 }
 
 model ClassPlannedSession {
