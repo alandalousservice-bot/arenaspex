@@ -64,7 +64,7 @@ export function toSituationObjectiveWriteInput(
     typeof row.objectiveId !== 'string' ||
     !row.objectiveId ||
     typeof row.relationType !== 'string' ||
-    !['DIRECT', 'SUPPORTIVE', 'INTEGRATIVE'].includes(row.relationType)
+    !['DIRECT', 'SUPPORTIVE', 'INTEGRATIVE', 'ASSESSMENT'].includes(row.relationType)
   )
     throw new Error('Invalid SituationObjective write input.');
   return {

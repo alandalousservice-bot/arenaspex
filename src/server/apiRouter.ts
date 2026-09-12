@@ -2936,11 +2936,16 @@ apiRouter.get('/educational-situations', async (req, res) => {
       ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
     },
     orderBy: { name: 'asc' },
+    include: { objectives: { select: { relationType: true } } },
   });
+  const visibleRows = rows.filter(
+    (row) => row.status === 'APPROVED' || row.ownerId === user.id || canReviewSituation(user.role)
+  );
   res.json({
-    situations: rows.filter(
-      (row) => row.status === 'APPROVED' || row.ownerId === user.id || canReviewSituation(user.role)
-    ),
+    situations: visibleRows.map(({ objectives, ...row }) => ({
+      ...row,
+      relationTypes: objectives.map((objective) => objective.relationType),
+    })),
   });
 });
 apiRouter.post('/educational-situations', async (req, res) => {

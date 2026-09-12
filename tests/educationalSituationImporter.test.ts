@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SituationObjectiveRelationType } from '@prisma/client';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -13,14 +14,72 @@ import {
   loadG2ImportPayload,
   loadImportPayload,
   serializeObservationIndicators,
+  toSituationObjectiveWriteInput,
   validateG2SituationWriteInputs,
   validateSituationObjectiveWriteInputs,
   PRODUCTION_IMPORT_CONFIRMATION,
   validateImportPayload,
   validateG2ImportPayload,
 } from '../scripts/importEducationalSituationBank';
+import {
+  findSuitableSituations,
+  hasOrdinaryLearningRelation,
+} from '../src/services/educationalSituation.selector.service';
 
 describe('educational situation importer validation', () => {
+  it('accepts and preserves the first-class ASSESSMENT relation without coercion', () => {
+    const row = {
+      id: 'relation:assessment-situation:G3-D1-OBJ-01',
+      situationId: 'assessment-situation',
+      objectiveId: 'G3-D1-OBJ-01',
+      relationType: 'ASSESSMENT',
+    };
+    expect(SituationObjectiveRelationType.ASSESSMENT).toBe('ASSESSMENT');
+    expect(toSituationObjectiveWriteInput(row).relationType).toBe('ASSESSMENT');
+    expect(validateSituationObjectiveWriteInputs([row])).toBeUndefined();
+  });
+
+  it('excludes assessment-only situations from ordinary learning selection while retaining mixed evidence', () => {
+    const base = {
+      name: 'test',
+      grade: 3,
+      fieldId: 'f_locomotion',
+      fieldName: 'field',
+      objectiveIds: ['G3-D1-OBJ-01'],
+      objectiveTexts: ['objective'],
+      sourceGoal: '',
+      organization: '',
+      equipment: [],
+      origin: 'REFERENCE_SEED' as const,
+      status: 'APPROVED' as const,
+      productionEligibility: 'AUTO_GENERATION_ELIGIBLE' as const,
+    };
+    expect(
+      hasOrdinaryLearningRelation({ ...base, id: 'assessment-only', relationTypes: ['ASSESSMENT'] })
+    ).toBe(false);
+    expect(
+      hasOrdinaryLearningRelation({
+        ...base,
+        id: 'mixed-evidence',
+        relationTypes: ['ASSESSMENT', 'DIRECT'],
+      })
+    ).toBe(true);
+    expect(hasOrdinaryLearningRelation({ ...base, id: 'legacy-without-relations' })).toBe(true);
+    expect(
+      findSuitableSituations(
+        [
+          { ...base, id: 'assessment-only', relationTypes: ['ASSESSMENT'] },
+          { ...base, id: 'direct', relationTypes: ['DIRECT'] },
+        ],
+        {
+          grade: 3,
+          fieldId: 'f_locomotion',
+          objectiveId: 'G3-D1-OBJ-01',
+          objectiveText: 'objective',
+        }
+      ).map((item) => item.id)
+    ).toEqual(['direct']);
+  });
   it('recognizes direct execution across Windows and POSIX path formats', () => {
     expect(
       isDirectExecution(

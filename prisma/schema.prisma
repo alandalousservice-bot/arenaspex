@@ -22,6 +22,7 @@ enum SituationObjectiveRelationType {
   DIRECT
   SUPPORTIVE
   INTEGRATIVE
+  ASSESSMENT
 }
 
 enum SituationProductionEligibility {

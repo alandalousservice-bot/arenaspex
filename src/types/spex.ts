@@ -614,6 +614,8 @@ export type EducationalSituationApprovalStatus =
   'PERSONAL' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
 export type EducationalSituationProductionEligibility =
   'AUTO_GENERATION_ELIGIBLE' | 'REVIEW_ONLY' | 'SOURCE_ARCHIVE_ONLY';
+export type EducationalSituationRelationType =
+  'DIRECT' | 'SUPPORTIVE' | 'INTEGRATIVE' | 'ASSESSMENT';
 export interface EducationalSituation {
   id: string;
   externalId?: string;
@@ -631,6 +633,7 @@ export interface EducationalSituation {
   status: EducationalSituationStatus;
   approvalStatus?: EducationalSituationApprovalStatus;
   productionEligibility?: EducationalSituationProductionEligibility;
+  relationTypes?: EducationalSituationRelationType[];
   ownerId?: string;
   approvedById?: string;
   approvedByRole?: string;

@@ -1,5 +1,9 @@
 import seed from '../../arenaspex_situations_mapped_to_objectives (1).json';
-import { EducationalSituation, EducationalSituationSnapshot } from '../types/spex';
+import {
+  EducationalSituation,
+  EducationalSituationRelationType,
+  EducationalSituationSnapshot,
+} from '../types/spex';
 
 type SeedSituation = {
   id: string;
@@ -50,6 +54,15 @@ export function isAutoGenerationEligible(situation: EducationalSituation): boole
   );
 }
 
+/** Assessment links are valid evidence, but never ordinary learning selection input. */
+export function hasOrdinaryLearningRelation(situation: EducationalSituation): boolean {
+  const relationTypes = situation.relationTypes;
+  if (!relationTypes?.length) return true;
+  return relationTypes.some(
+    (relationType: EducationalSituationRelationType) => relationType !== 'ASSESSMENT'
+  );
+}
+
 export function findSuitableSituations(
   items: EducationalSituation[],
   params: {
@@ -63,6 +76,7 @@ export function findSuitableSituations(
   const matches = items.filter(
     (item) =>
       isAutoGenerationEligible(item) &&
+      hasOrdinaryLearningRelation(item) &&
       item.grade === params.grade &&
       item.fieldId === params.fieldId &&
       (params.objectiveId
