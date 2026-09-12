@@ -11,6 +11,7 @@ import {
   isDirectExecution,
   loadG2ImportPayload,
   loadImportPayload,
+  serializeObservationIndicators,
   PRODUCTION_IMPORT_CONFIRMATION,
   validateImportPayload,
   validateG2ImportPayload,
@@ -108,6 +109,25 @@ describe('educational situation importer validation', () => {
     expect(g2DomainForObjective('G2-D2-OBJ-05')).toBe('f_fundamentals');
     expect(g2DomainForObjective('G2-D3-OBJ-02')).toBe('f_structuring');
     expect(loadG2ImportPayload().situations.every((row) => row.fieldId && row.domainId)).toBe(true);
+  });
+
+  it('serializes observation indicators losslessly for the existing String field', () => {
+    const indicators = ['أول مؤشر', 'ثاني مؤشر'];
+    const serialized = serializeObservationIndicators(indicators);
+    expect(serialized).toBe(JSON.stringify(indicators));
+    expect(JSON.parse(serialized!)).toEqual(indicators);
+    expect(serializeObservationIndicators([])).toBeNull();
+    expect(serializeObservationIndicators('legacy text')).toBe('legacy text');
+    expect(
+      loadG2ImportPayload().situations.every(
+        (row) => typeof row.observationIndicators === 'string' || row.observationIndicators === null
+      )
+    ).toBe(false);
+    expect(
+      loadG2ImportPayload().situations.every(
+        (row) => typeof serializeObservationIndicators(row.observationIndicators) === 'string'
+      )
+    ).toBe(true);
   });
 
   it('rejects G2 governance, relation, count, and duplicate violations', () => {

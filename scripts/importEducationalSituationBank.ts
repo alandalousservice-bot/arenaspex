@@ -34,6 +34,11 @@ export function g2DomainForObjective(objectiveId: string): string {
   if (!domain) throw new Error(`Unknown G2 canonical objective domain: ${objectiveId}`);
   return domain;
 }
+export function serializeObservationIndicators(value: unknown): string | null {
+  if (value == null) return null;
+  if (Array.isArray(value)) return value.length ? JSON.stringify(value) : null;
+  return typeof value === 'string' ? value : String(value);
+}
 
 const stable = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(stable);
@@ -302,7 +307,7 @@ export async function importEducationalSituationBank(
             lessonTypes: row.lessonTypes ?? [],
             executionConditions: row.executionConditions,
             successCriteria: row.successCriteria,
-            observationIndicators: row.observationIndicators,
+            observationIndicators: serializeObservationIndicators(row.observationIndicators),
             motorActions: row.motorActions ?? [],
             pedagogicalTags: row.pedagogicalTags ?? [],
             gradeId: row.gradeId,
@@ -328,7 +333,7 @@ export async function importEducationalSituationBank(
             lessonTypes: row.lessonTypes ?? [],
             executionConditions: row.executionConditions,
             successCriteria: row.successCriteria,
-            observationIndicators: row.observationIndicators,
+            observationIndicators: serializeObservationIndicators(row.observationIndicators),
             motorActions: row.motorActions ?? [],
             pedagogicalTags: row.pedagogicalTags ?? [],
             gradeId: row.gradeId,
