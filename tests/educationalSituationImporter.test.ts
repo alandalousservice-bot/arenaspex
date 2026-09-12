@@ -217,6 +217,69 @@ describe('educational situation importer validation', () => {
     ).toBe(true);
   });
 
+  it('preserves the authoritative G2 difficulty through both write paths', () => {
+    const payload = loadG2ImportPayload();
+    const source = fs.readFileSync('scripts/importEducationalSituationBank.ts', 'utf8');
+    const difficulties = payload.situations.map((row) => row.difficulty);
+
+    expect(difficulties).toHaveLength(32);
+    expect(difficulties.filter((value) => typeof value === 'string')).toHaveLength(32);
+    expect(difficulties.filter((value) => value == null)).toHaveLength(0);
+    expect(new Set(difficulties)).toEqual(new Set(['basic', 'controlled']));
+    expect(
+      payload.situations.filter(
+        (row) => row.domainId === 'f_locomotion' && row.difficulty === 'basic'
+      )
+    ).toHaveLength(9);
+    expect(
+      payload.situations.filter(
+        (row) => row.domainId === 'f_fundamentals' && row.difficulty === 'basic'
+      )
+    ).toHaveLength(4);
+    expect(
+      payload.situations.filter(
+        (row) => row.domainId === 'f_structuring' && row.difficulty === 'basic'
+      )
+    ).toHaveLength(2);
+    expect((source.match(/difficulty: row\.difficulty \?\? null/g) ?? []).length).toBe(2);
+    expect(() => validateG2SituationWriteInputs(payload.situations)).not.toThrow();
+    expect(() =>
+      validateG2SituationWriteInputs(
+        payload.situations.map((row, index) => (index === 0 ? { ...row, difficulty: 12 } : row))
+      )
+    ).toThrow(/difficulty/);
+  });
+
+  it('keeps the complete authored-field preservation audit closed', () => {
+    const source = fs.readFileSync('scripts/importEducationalSituationBank.ts', 'utf8');
+    for (const mapping of [
+      'name: row.title',
+      'grade: gradeNumber(row.gradeId)',
+      'fieldId: row.fieldId ?? row.domainId',
+      'fieldName: domainNames[row.domainId] ?? row.domainId',
+      'objectiveIds: row.canonicalObjectiveId ? [row.canonicalObjectiveId] : []',
+      'objectiveTexts: row.canonicalObjectiveText ? [row.canonicalObjectiveText] : []',
+      'sourceGoal: row.title',
+      "organization: row.description ?? ''",
+      'equipment: row.equipment ?? []',
+      "origin: row.provenance ?? 'REFERENCE_SEED'",
+      'activityType: row.activityType',
+      'approvalStatus: row.approvalStatus',
+      'productionEligibility: row.productionEligibility',
+      'lessonTypes: row.lessonTypes ?? []',
+      'executionConditions: row.executionConditions',
+      'successCriteria: row.successCriteria',
+      'observationIndicators: serializeObservationIndicators(row.observationIndicators)',
+      'motorActions: row.motorActions ?? []',
+      'pedagogicalTags: row.pedagogicalTags ?? []',
+      'difficulty: row.difficulty ?? null',
+      'gradeId: row.gradeId',
+      'domainId: row.domainId',
+    ])
+      expect(source).toContain(mapping);
+    expect([]).toHaveLength(0);
+  });
+
   it('rejects G2 governance, relation, count, and duplicate violations', () => {
     const payload = loadG2ImportPayload();
     expect(() =>

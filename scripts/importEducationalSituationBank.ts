@@ -112,6 +112,12 @@ export function validateG2SituationWriteInputs(rows: Array<Record<string, unknow
     const observationIndicators = serializeObservationIndicators(row.observationIndicators);
     if (observationIndicators !== null && typeof observationIndicators !== 'string')
       throw new Error(`Invalid G2 observationIndicators: ${row.id}.`);
+    if (
+      row.difficulty !== null &&
+      row.difficulty !== undefined &&
+      typeof row.difficulty !== 'string'
+    )
+      throw new Error(`Invalid G2 difficulty: ${row.id}.`);
   }
 }
 
@@ -396,6 +402,7 @@ export async function importEducationalSituationBank(
             observationIndicators: serializeObservationIndicators(row.observationIndicators),
             motorActions: row.motorActions ?? [],
             pedagogicalTags: row.pedagogicalTags ?? [],
+            difficulty: row.difficulty ?? null,
             gradeId: row.gradeId,
             domainId: row.domainId,
           },
@@ -422,6 +429,7 @@ export async function importEducationalSituationBank(
             observationIndicators: serializeObservationIndicators(row.observationIndicators),
             motorActions: row.motorActions ?? [],
             pedagogicalTags: row.pedagogicalTags ?? [],
+            difficulty: row.difficulty ?? null,
             gradeId: row.gradeId,
             domainId: row.domainId,
           },
