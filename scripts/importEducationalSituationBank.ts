@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
   PrismaClient,
@@ -19,6 +20,35 @@ export type ImportPayload = {
   media: any[];
 };
 
+export type ImportBatch = 'b3-source-bank' | 'g2-authored-enrichment-v1';
+export const G2_PAYLOAD_SHA256 = 'C6A7CF2471D502311C820F8F7C4EC0A55E855FBD52621C1BC7D0893BBFACEC7E';
+export const G2_PAYLOAD_PATH = 'tmp/g2-b6-1-4-import-payload/G2_B6_1_4_FINAL_IMPORT_PAYLOAD.json';
+
+const stable = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(stable);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, v]) => [k, stable(v)])
+    );
+  }
+  return value;
+};
+export const canonicalPayloadHash = (payload: unknown): string =>
+  crypto
+    .createHash('sha256')
+    .update(JSON.stringify(stable(payload)))
+    .digest('hex')
+    .toUpperCase();
+
+export function importBatch(env: NodeJS.ProcessEnv = process.env): ImportBatch {
+  const value = env.ARENASPEX_SITUATION_IMPORT_BATCH;
+  if (!value || value === 'b3-source-bank') return 'b3-source-bank';
+  if (value === 'g2-authored-enrichment-v1') return value;
+  throw new Error(`Import refused: unsupported batch ${value}.`);
+}
+
 const root = process.cwd();
 const preview = (name: string) =>
   JSON.parse(fs.readFileSync(path.join(root, 'tmp/situation-bank-b3-1', name), 'utf8'));
@@ -32,6 +62,96 @@ export function loadImportPayload(): ImportPayload {
     familyMembers: preview('situation_family_members_import_preview_hardened.json'),
     media: preview('situation_media_import_preview_hardened.json'),
   };
+}
+
+export function loadG2ImportPayload(): ImportPayload {
+  const raw = JSON.parse(fs.readFileSync(path.join(root, G2_PAYLOAD_PATH), 'utf8')) as Record<
+    string,
+    any
+  >;
+  if (raw.batch?.id !== 'g2-authored-enrichment-v1')
+    throw new Error('G2 payload batch marker mismatch.');
+  return {
+    situations: raw.situations,
+    objectives: raw.objectiveRelations.map((row: any) => ({
+      ...row,
+      relationType: row.relationship,
+    })),
+    occurrences: raw.sourceOccurrences,
+    families: raw.families,
+    familyMembers: [],
+    media: raw.media,
+  };
+}
+
+export function validateG2ImportPayload(payload: ImportPayload, actualHash?: string): void {
+  if (actualHash && actualHash !== G2_PAYLOAD_SHA256)
+    throw new Error('G2 payload SHA-256 mismatch.');
+  if (
+    payload.situations.length !== 32 ||
+    payload.objectives.length !== 32 ||
+    payload.occurrences.length !== 0 ||
+    payload.families.length !== 0 ||
+    payload.familyMembers.length !== 0 ||
+    payload.media.length !== 0
+  )
+    throw new Error('G2 payload counts do not match the locked 32/32/0/0/0 contract.');
+  const ids = new Set(payload.situations.map((x) => x.id));
+  if (ids.size !== 32) throw new Error('Duplicate deterministic G2 situation ID.');
+  const keys = new Set(payload.objectives.map((x) => `${x.situationId}|${x.objectiveId}`));
+  if (keys.size !== 32) throw new Error('Duplicate G2 objective relation identity.');
+  for (const row of payload.situations) {
+    if (
+      row.approvalStatus !== 'APPROVED' ||
+      row.productionEligibility !== 'AUTO_GENERATION_ELIGIBLE' ||
+      row.provenance !== 'AUTHORED_FOR_ARENASPEX' ||
+      row.activityType !== 'PEDAGOGICAL_ACTIVITY'
+    )
+      throw new Error(`Invalid G2 governance for ${row.id}.`);
+  }
+  for (const row of payload.objectives) {
+    if (!ids.has(row.situationId))
+      throw new Error(`Unknown G2 relation situation: ${row.situationId}`);
+    if (row.relationType !== 'DIRECT')
+      throw new Error(`G2 relation is not DIRECT: ${row.situationId}.`);
+  }
+}
+
+export function assertNoG2SemanticConflicts(
+  existingSituations: Array<Record<string, any>>,
+  existingRelations: Array<Record<string, any>>,
+  payload: ImportPayload
+): void {
+  const existingById = new Map(existingSituations.map((row) => [row.id, row]));
+  for (const row of payload.situations) {
+    const existing = existingById.get(row.id);
+    if (!existing) continue;
+    const expected = {
+      name: row.title,
+      gradeId: row.gradeId,
+      domainId: row.domainId,
+      activityType: row.activityType,
+      approvalStatus: row.approvalStatus,
+      productionEligibility: row.productionEligibility,
+      organization: row.description ?? '',
+      sourceGoal: row.title,
+    };
+    if (Object.entries(expected).some(([key, value]) => existing[key] !== value))
+      throw new Error(`G2 semantic conflict for existing situation ${row.id}.`);
+  }
+  const relationByKey = new Map(
+    existingRelations.map((row) => [`${row.situationId}|${row.objectiveId}`, row])
+  );
+  for (const row of payload.objectives) {
+    const existing = relationByKey.get(`${row.situationId}|${row.objectiveId}`);
+    if (existing && existing.relationType !== row.relationType)
+      throw new Error(`G2 relation conflict for ${row.situationId}|${row.objectiveId}.`);
+    const other = existingRelations.find(
+      (candidate) =>
+        candidate.situationId === row.situationId && candidate.objectiveId !== row.objectiveId
+    );
+    if (other) throw new Error(`G2 objective conflict for ${row.situationId}.`);
+  }
 }
 
 export function validateImportPayload(payload: ImportPayload): void {
@@ -126,10 +246,34 @@ const gradeNumber = (id: string) => Number(id.replace('lvl_p', ''));
 
 export async function importEducationalSituationBank(
   prisma: PrismaClient,
-  payload = loadImportPayload()
+  payload = loadImportPayload(),
+  batch: ImportBatch = importBatch()
 ): Promise<{ situations: number; objectives: number; occurrences: number }> {
   authorizeImportEnvironment();
-  validateImportPayload(payload);
+  if (batch === 'g2-authored-enrichment-v1') validateG2ImportPayload(payload);
+  else validateImportPayload(payload);
+  if (batch === 'g2-authored-enrichment-v1') {
+    const ids = payload.situations.map((row) => row.id);
+    const existing = await prisma.educationalSituation.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        name: true,
+        gradeId: true,
+        domainId: true,
+        activityType: true,
+        approvalStatus: true,
+        productionEligibility: true,
+        organization: true,
+        sourceGoal: true,
+      },
+    });
+    const relations = await prisma.situationObjective.findMany({
+      where: { situationId: { in: ids } },
+      select: { situationId: true, objectiveId: true, relationType: true },
+    });
+    assertNoG2SemanticConflicts(existing, relations, payload);
+  }
   await prisma.$transaction(
     async (tx) => {
       for (const row of payload.situations)
@@ -156,12 +300,12 @@ export async function importEducationalSituationBank(
             grade: gradeNumber(row.gradeId),
             fieldId: row.domainId,
             fieldName: domainNames[row.domainId] ?? row.domainId,
-            objectiveIds: [],
-            objectiveTexts: [],
+            objectiveIds: row.canonicalObjectiveId ? [row.canonicalObjectiveId] : [],
+            objectiveTexts: row.canonicalObjectiveText ? [row.canonicalObjectiveText] : [],
             sourceGoal: row.title,
             organization: row.description ?? '',
-            equipment: [],
-            origin: 'REFERENCE_SEED',
+            equipment: row.equipment ?? [],
+            origin: row.provenance ?? 'REFERENCE_SEED',
             status: 'APPROVED',
             approvalStatus: row.approvalStatus as SituationApprovalStatus,
             productionEligibility: row.productionEligibility as SituationProductionEligibility,
@@ -218,11 +362,26 @@ export async function importEducationalSituationBank(
 
 async function main(): Promise<void> {
   console.log('IMPORT_START');
+  const batch = importBatch();
+  console.log(`IMPORT_BATCH=${batch}`);
   authorizeImportEnvironment();
   console.log('IMPORT_GUARD_OK');
-  const payload = loadImportPayload();
-  validateImportPayload(payload);
+  const raw =
+    batch === 'g2-authored-enrichment-v1'
+      ? JSON.parse(fs.readFileSync(path.join(root, G2_PAYLOAD_PATH), 'utf8'))
+      : null;
+  if (batch === 'g2-authored-enrichment-v1' && canonicalPayloadHash(raw) !== G2_PAYLOAD_SHA256)
+    throw new Error('G2 payload SHA-256 mismatch.');
+  const payload =
+    batch === 'g2-authored-enrichment-v1' ? loadG2ImportPayload() : loadImportPayload();
+  if (batch === 'g2-authored-enrichment-v1') validateG2ImportPayload(payload, G2_PAYLOAD_SHA256);
+  else validateImportPayload(payload);
   console.log('IMPORT_PAYLOAD_OK');
+  if (process.env.ARENASPEX_IMPORT_DRY_RUN === 'true') {
+    console.log(JSON.stringify({ dryRun: true, ...payloadCounts(payload) }));
+    console.log('IMPORT_DONE');
+    return;
+  }
   console.log('IMPORT_PREWRITE');
   const prisma = new PrismaClient();
   try {
@@ -234,6 +393,12 @@ async function main(): Promise<void> {
     await prisma.$disconnect();
   }
 }
+
+const payloadCounts = (payload: ImportPayload) => ({
+  situations: payload.situations.length,
+  objectives: payload.objectives.length,
+  occurrences: payload.occurrences.length,
+});
 
 if (isDirectExecution(import.meta.url, process.argv[1])) {
   main().catch((error: unknown) => {

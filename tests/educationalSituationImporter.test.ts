@@ -4,10 +4,15 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   authorizeImportEnvironment,
+  canonicalPayloadHash,
+  G2_PAYLOAD_SHA256,
+  importBatch,
   isDirectExecution,
+  loadG2ImportPayload,
   loadImportPayload,
   PRODUCTION_IMPORT_CONFIRMATION,
   validateImportPayload,
+  validateG2ImportPayload,
 } from '../scripts/importEducationalSituationBank';
 
 describe('educational situation importer validation', () => {
@@ -88,6 +93,52 @@ describe('educational situation importer validation', () => {
   });
   it('accepts the hardened payload shape and approved counts', () =>
     expect(() => validateImportPayload(loadImportPayload())).not.toThrow());
+
+  it('accepts the locked authored G2 payload and its canonical hash', () => {
+    const raw = JSON.parse(
+      fs.readFileSync('tmp/g2-b6-1-4-import-payload/G2_B6_1_4_FINAL_IMPORT_PAYLOAD.json', 'utf8')
+    );
+    expect(importBatch({ ARENASPEX_SITUATION_IMPORT_BATCH: 'g2-authored-enrichment-v1' })).toBe(
+      'g2-authored-enrichment-v1'
+    );
+    expect(canonicalPayloadHash(raw)).toBe(G2_PAYLOAD_SHA256);
+    expect(() => validateG2ImportPayload(loadG2ImportPayload(), G2_PAYLOAD_SHA256)).not.toThrow();
+  });
+
+  it('rejects G2 governance, relation, count, and duplicate violations', () => {
+    const payload = loadG2ImportPayload();
+    expect(() =>
+      validateG2ImportPayload({ ...payload, situations: payload.situations.slice(0, 31) })
+    ).toThrow(/32\/32\/0\/0\/0/);
+    expect(() =>
+      validateG2ImportPayload({ ...payload, occurrences: [{ id: 'unexpected' }] })
+    ).toThrow(/32\/32\/0\/0\/0/);
+    expect(() =>
+      validateG2ImportPayload({
+        ...payload,
+        situations: payload.situations.map((x, i) =>
+          i === 1 ? { ...x, id: payload.situations[0].id } : x
+        ),
+      })
+    ).toThrow(/Duplicate deterministic/);
+    expect(() =>
+      validateG2ImportPayload({
+        ...payload,
+        situations: payload.situations.map((x, i) =>
+          i === 0 ? { ...x, approvalStatus: 'PENDING_REVIEW' } : x
+        ),
+      })
+    ).toThrow(/governance/);
+    expect(() =>
+      validateG2ImportPayload({
+        ...payload,
+        objectives: payload.objectives.map((x, i) =>
+          i === 0 ? { ...x, relationType: 'SUPPORTIVE' } : x
+        ),
+      })
+    ).toThrow(/not DIRECT/);
+    expect(() => validateG2ImportPayload(payload, 'WRONG')).toThrow(/SHA-256/);
+  });
   it('rejects duplicate situation IDs and duplicate relation keys', () => {
     const payload = loadImportPayload();
     expect(() =>
