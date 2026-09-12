@@ -6,6 +6,7 @@ import {
   authorizeImportEnvironment,
   canonicalPayloadHash,
   G2_PAYLOAD_SHA256,
+  g2DomainForObjective,
   importBatch,
   isDirectExecution,
   loadG2ImportPayload,
@@ -103,6 +104,10 @@ describe('educational situation importer validation', () => {
     );
     expect(canonicalPayloadHash(raw)).toBe(G2_PAYLOAD_SHA256);
     expect(() => validateG2ImportPayload(loadG2ImportPayload(), G2_PAYLOAD_SHA256)).not.toThrow();
+    expect(g2DomainForObjective('G2-D1-OBJ-01')).toBe('f_locomotion');
+    expect(g2DomainForObjective('G2-D2-OBJ-05')).toBe('f_fundamentals');
+    expect(g2DomainForObjective('G2-D3-OBJ-02')).toBe('f_structuring');
+    expect(loadG2ImportPayload().situations.every((row) => row.fieldId && row.domainId)).toBe(true);
   });
 
   it('rejects G2 governance, relation, count, and duplicate violations', () => {

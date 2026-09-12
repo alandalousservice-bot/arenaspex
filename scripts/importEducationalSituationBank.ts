@@ -23,6 +23,17 @@ export type ImportPayload = {
 export type ImportBatch = 'b3-source-bank' | 'g2-authored-enrichment-v1';
 export const G2_PAYLOAD_SHA256 = 'C6A7CF2471D502311C820F8F7C4EC0A55E855FBD52621C1BC7D0893BBFACEC7E';
 export const G2_PAYLOAD_PATH = 'tmp/g2-b6-1-4-import-payload/G2_B6_1_4_FINAL_IMPORT_PAYLOAD.json';
+const g2DomainByCode: Record<string, string> = {
+  D1: 'f_locomotion',
+  D2: 'f_fundamentals',
+  D3: 'f_structuring',
+};
+export function g2DomainForObjective(objectiveId: string): string {
+  const match = /^G2-(D[123])-/.exec(objectiveId);
+  const domain = match ? g2DomainByCode[match[1]] : undefined;
+  if (!domain) throw new Error(`Unknown G2 canonical objective domain: ${objectiveId}`);
+  return domain;
+}
 
 const stable = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(stable);
@@ -72,7 +83,11 @@ export function loadG2ImportPayload(): ImportPayload {
   if (raw.batch?.id !== 'g2-authored-enrichment-v1')
     throw new Error('G2 payload batch marker mismatch.');
   return {
-    situations: raw.situations,
+    situations: raw.situations.map((row: any) => ({
+      ...row,
+      domainId: row.domainId ?? g2DomainForObjective(row.canonicalObjectiveId),
+      fieldId: row.fieldId ?? g2DomainForObjective(row.canonicalObjectiveId),
+    })),
     objectives: raw.objectiveRelations.map((row: any) => ({
       ...row,
       relationType: row.relationship,
@@ -298,7 +313,7 @@ export async function importEducationalSituationBank(
             externalId: row.id,
             name: row.title,
             grade: gradeNumber(row.gradeId),
-            fieldId: row.domainId,
+            fieldId: row.fieldId ?? row.domainId,
             fieldName: domainNames[row.domainId] ?? row.domainId,
             objectiveIds: row.canonicalObjectiveId ? [row.canonicalObjectiveId] : [],
             objectiveTexts: row.canonicalObjectiveText ? [row.canonicalObjectiveText] : [],
