@@ -616,6 +616,13 @@ export type EducationalSituationProductionEligibility =
   'AUTO_GENERATION_ELIGIBLE' | 'REVIEW_ONLY' | 'SOURCE_ARCHIVE_ONLY';
 export type EducationalSituationRelationType =
   'DIRECT' | 'SUPPORTIVE' | 'INTEGRATIVE' | 'ASSESSMENT';
+export interface EducationalSituationObjectiveRelation {
+  objectiveId: string;
+  relationType: EducationalSituationRelationType;
+  confidence?: number | null;
+  evidence?: Record<string, unknown> | null;
+  relevanceScore?: number | null;
+}
 export interface EducationalSituation {
   id: string;
   externalId?: string;
@@ -634,6 +641,19 @@ export interface EducationalSituation {
   approvalStatus?: EducationalSituationApprovalStatus;
   productionEligibility?: EducationalSituationProductionEligibility;
   relationTypes?: EducationalSituationRelationType[];
+  objectiveRelations?: EducationalSituationObjectiveRelation[];
+  gradeId?: string;
+  domainId?: string;
+  lessonTypes?: string[];
+  durationMinutes?: number | null;
+  phaseSuitability?: string[];
+  difficulty?: string | null;
+  motorActions?: string[];
+  pedagogicalTags?: string[];
+  requirements?: string[];
+  executionConditions?: string | null;
+  successCriteria?: string | null;
+  observationIndicators?: string | string[] | null;
   ownerId?: string;
   approvedById?: string;
   approvedByRole?: string;
