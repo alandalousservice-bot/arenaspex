@@ -12,6 +12,9 @@ import {
   G3_B1_BUNDLE_SHA256,
   G3_PAYLOAD_PATH,
   G3_PAYLOAD_SHA256,
+  G4_B3_BUNDLE_SHA256,
+  G4_PAYLOAD_PATH,
+  G4_PAYLOAD_SHA256,
   buildG3ImportPlan,
   g2DomainForObjective,
   importBatch,
@@ -27,6 +30,8 @@ import {
   validateG2ImportPayload,
   validateG3ImportPayload,
   loadG3ImportPayload,
+  loadG4ImportPayload,
+  validateG4ImportPayload,
 } from '../scripts/importEducationalSituationBank';
 import {
   findSuitableSituations,
@@ -52,6 +57,51 @@ const runLocalDryRun = (batch: string) =>
   );
 
 describe('educational situation importer validation', () => {
+  it('loads and validates the locked G4 payload from its exact path', () => {
+    const payload = loadG4ImportPayload();
+    expect(G4_PAYLOAD_PATH).toBe('tmp/g4-end-to-end/G4_B4_FINAL_IMPORT_PAYLOAD.json');
+    expect(payload.metadata).toMatchObject({
+      payloadVersion: 'g4-production-v1',
+      payloadKind: 'G4_EDUCATIONAL_SITUATION_IMPORT',
+      gradeId: 'lvl_p4',
+      generatedFromBundleSha256: G4_B3_BUNDLE_SHA256,
+    });
+    expect(payload.payloadSha256).toBe(G4_PAYLOAD_SHA256);
+    expect(() => validateG4ImportPayload(payload, G4_PAYLOAD_SHA256)).not.toThrow();
+    expect(payload.situations).toHaveLength(79);
+    expect(payload.objectives).toHaveLength(165);
+    expect(payload.occurrences).toHaveLength(58);
+  });
+
+  it('rejects G4 metadata drift before the write boundary', () => {
+    const payload = loadG4ImportPayload();
+    expect(() =>
+      validateG4ImportPayload({
+        ...payload,
+        metadata: { ...payload.metadata, gradeId: 'lvl_p3' },
+      })
+    ).toThrow(/metadata mismatch/i);
+  });
+
+  it('preserves G4 assessment relations and rejects authored occurrences', () => {
+    const payload = loadG4ImportPayload();
+    expect(payload.objectives.filter((row) => row.relationType === 'ASSESSMENT')).toHaveLength(64);
+    const authored = payload.situations.find((row) => row.kind === 'AUTHORED')!;
+    expect(() =>
+      validateG4ImportPayload({
+        ...payload,
+        occurrences: [
+          ...payload.occurrences.slice(0, -1),
+          {
+            id: `occurrence:lvl_p4:${authored.domainId}:${authored.id}`,
+            situationId: authored.id,
+            sourceDomain: authored.domainId,
+          },
+        ],
+      })
+    ).toThrow(/authored G4 source occurrence/i);
+  });
+
   it('accepts and preserves the first-class ASSESSMENT relation without coercion', () => {
     const row = {
       id: 'relation:assessment-situation:G3-D1-OBJ-01',
@@ -782,6 +832,27 @@ describe('importer lifecycle markers', () => {
       'IMPORT_PREWRITE',
       'IMPORT_DONE',
     ]);
+  });
+
+  it('emits the G4 dry-run lifecycle and plans the frozen payload without writes', () => {
+    const lines = markerLines(runLocalDryRun('g4-production-v1'));
+    expect(lines).toEqual([
+      'IMPORT_START',
+      'IMPORT_BATCH=g4-production-v1',
+      'IMPORT_GUARD_OK',
+      'IMPORT_PAYLOAD_OK',
+      'IMPORT_PREWRITE',
+      'IMPORT_DONE',
+    ]);
+    const output = runLocalDryRun('g4-production-v1');
+    const result = JSON.parse(output.split(/\r?\n/).find((line) => line.startsWith('{'))!);
+    expect(result.planned).toMatchObject({
+      situations: { create: 79, noOp: 0, conflict: 0 },
+      relations: { create: 165, noOp: 0, conflict: 0 },
+      occurrences: { create: 58, noOp: 0, conflict: 0 },
+    });
+    expect(result).not.toHaveProperty('writes');
+    expect(output).not.toContain('IMPORT_COMMIT_OK');
   });
 
   it('emits PREWRITE exactly once in the direct execution flow', () => {
