@@ -15,6 +15,10 @@ import { PrismaClient } from '@prisma/client';
 import { hashPassword } from '../src/server/auth.js';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import {
+  auditReferenceSeedOwnership,
+  type ReferenceSeedRecord,
+} from '../src/server/referenceSeedIntegrity.js';
 
 const prisma = new PrismaClient();
 
@@ -163,50 +167,73 @@ async function seedEducationalSituations() {
   const situations = JSON.parse(await readFile(source, 'utf8')) as Array<any>;
   if (situations.length !== 150)
     throw new Error(`Expected 150 educational situations; found ${situations.length}.`);
-  for (const item of situations) {
+
+  const seedRecords: ReferenceSeedRecord[] = situations.map((item) => ({
+    id: item.id,
+    externalId: item.id,
+    name: item.name,
+    grade: item.grade,
+    fieldId: item.field_id,
+    fieldName: item.field_name,
+    objectiveIds: item.linked_objective_ids,
+    objectiveTexts: item.linked_objectives,
+    sourceGoal: item.source_goal,
+    organization: item.organization,
+    equipment: String(item.equipment || '')
+      .split(/[،,]/)
+      .map((v) => v.trim())
+      .filter(Boolean),
+    variations: item.variations || null,
+    origin: 'REFERENCE_SEED',
+    status: 'APPROVED',
+  }));
+  const expectedSeedIds = seedRecords.map((record) => record.id);
+  const existingSeedRecords = await prisma.educationalSituation.findMany({
+    where: { id: { in: expectedSeedIds } },
+    select: {
+      id: true,
+      externalId: true,
+      name: true,
+      grade: true,
+      fieldId: true,
+      fieldName: true,
+      objectiveIds: true,
+      objectiveTexts: true,
+      sourceGoal: true,
+      organization: true,
+      equipment: true,
+      variations: true,
+      origin: true,
+      status: true,
+    },
+  });
+  const ownership = auditReferenceSeedOwnership(
+    seedRecords,
+    existingSeedRecords as ReferenceSeedRecord[]
+  );
+  if (ownership.conflictingIds.length > 0)
+    throw new Error(
+      `Reference seed conflicts detected for ${ownership.conflictingIds.length} seed-owned IDs.`
+    );
+
+  for (const record of seedRecords) {
     await prisma.educationalSituation.upsert({
-      where: { id: item.id },
+      where: { id: record.id },
       create: {
-        id: item.id,
-        externalId: item.id,
-        name: item.name,
-        grade: item.grade,
-        fieldId: item.field_id,
-        fieldName: item.field_name,
-        objectiveIds: item.linked_objective_ids,
-        objectiveTexts: item.linked_objectives,
-        sourceGoal: item.source_goal,
-        organization: item.organization,
-        equipment: String(item.equipment || '')
-          .split(/[،,]/)
-          .map((v) => v.trim())
-          .filter(Boolean),
-        variations: item.variations || null,
-        origin: 'REFERENCE_SEED',
-        status: 'APPROVED',
+        ...record,
       },
       update: {
-        name: item.name,
-        grade: item.grade,
-        fieldId: item.field_id,
-        fieldName: item.field_name,
-        objectiveIds: item.linked_objective_ids,
-        objectiveTexts: item.linked_objectives,
-        sourceGoal: item.source_goal,
-        organization: item.organization,
-        equipment: String(item.equipment || '')
-          .split(/[،,]/)
-          .map((v) => v.trim())
-          .filter(Boolean),
-        variations: item.variations || null,
-        origin: 'REFERENCE_SEED',
-        status: 'APPROVED',
+        ...record,
       },
     });
   }
-  const count = await prisma.educationalSituation.count({ where: { origin: 'REFERENCE_SEED' } });
-  if (count !== 150)
-    throw new Error(`Reference educational situation count is ${count}, expected 150.`);
+  const presentSeedCount = await prisma.educationalSituation.count({
+    where: { id: { in: expectedSeedIds } },
+  });
+  if (presentSeedCount !== expectedSeedIds.length)
+    throw new Error(
+      `Reference seed ID count is ${presentSeedCount}, expected ${expectedSeedIds.length}.`
+    );
 }
 
 async function main() {
