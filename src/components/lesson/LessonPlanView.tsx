@@ -84,6 +84,15 @@ function displayLevelName(classRoom: ClassRoom): string {
   );
 }
 
+function annualDistributionPath(academicYearId: string, levelId?: string): string {
+  const params = new URLSearchParams({
+    section: 'annual-distribution',
+    academicYearId,
+  });
+  if (levelId) params.set('levelId', levelId);
+  return `/planning?${params.toString()}`;
+}
+
 function formatLessonDate(value: string): string {
   const [year, month, day] = value.slice(0, 10).split('-');
   return year && month && day ? `${day} / ${month} / ${year}` : value;
@@ -629,11 +638,12 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
           <button
             type="button"
+            disabled={!teacherClasses.length}
             onClick={() => {
               setMemoMode('operational');
               setGenerationError('');
             }}
-            className={`rounded-lg px-3 py-2 text-xs font-bold ${memoMode === 'operational' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600'}`}
+            className={`rounded-lg px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40 ${memoMode === 'operational' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600'}`}
           >
             مذكرة حصة مبرمجة
           </button>
@@ -752,7 +762,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                   type="button"
                   onClick={() =>
                     window.location.assign(
-                      `/planning?section=annual-distribution&classId=${encodeURIComponent(operationalClassId)}&academicYearId=${encodeURIComponent(operationalAcademicYearId)}`
+                      annualDistributionPath(operationalAcademicYearId, operationalClass?.levelId)
                     )
                   }
                   className="action-primary mt-3 rounded-xl px-4 py-2 text-xs font-bold text-white"
@@ -957,7 +967,25 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       )}
       {!operationalClassId ? (
         <div className="workspace-empty-state rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-          <p className="font-bold text-slate-700">اختر قسماً لعرض الحصص المبرمجة</p>
+          <p className="font-bold text-slate-700">
+            {teacherClasses.length
+              ? 'اختر قسماً لعرض الحصص المبرمجة'
+              : 'لا توجد أقسام مسندة إليك بعد'}
+          </p>
+          {!teacherClasses.length && (
+            <>
+              <p className="mt-2 text-sm text-slate-500">
+                يمكنك إنشاء مذكرة مستقلة الآن، بينما تتطلب المذكرة التشغيلية إسناد قسم وحصة مبرمجة.
+              </p>
+              <button
+                type="button"
+                onClick={() => openGenerator('standalone', 'list')}
+                className="mt-3 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700"
+              >
+                توليد مذكرة مستقلة
+              </button>
+            </>
+          )}
         </div>
       ) : scheduledLoading ? (
         <div className="workspace-empty-state rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
@@ -970,7 +998,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             type="button"
             onClick={() =>
               window.location.assign(
-                `/planning?section=annual-distribution&classId=${encodeURIComponent(operationalClassId)}&academicYearId=${encodeURIComponent(operationalAcademicYearId)}`
+                annualDistributionPath(operationalAcademicYearId, operationalClass?.levelId)
               )
             }
             className="mt-3 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white"
@@ -1673,7 +1701,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           <button
             onClick={() =>
               window.location.assign(
-                `/planning?section=annual-distribution&classId=${encodeURIComponent(scheduledContext.classRoom.id)}&academicYearId=${encodeURIComponent(scheduledContext.session.academicYearId)}`
+                annualDistributionPath(
+                  scheduledContext.session.academicYearId,
+                  scheduledContext.classRoom.levelId
+                )
               )
             }
             className="rounded-xl border border-slate-300 px-3 py-2"

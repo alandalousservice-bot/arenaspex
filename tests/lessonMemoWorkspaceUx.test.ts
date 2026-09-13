@@ -119,6 +119,17 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(print).toContain('exportLessonPlanToPdf');
   });
 
+  it('keeps annual distribution level-scoped when no class is assigned', () => {
+    const view = read('src/components/lesson/LessonPlanView.tsx');
+
+    expect(view).toContain('function annualDistributionPath(');
+    expect(view).toContain("section: 'annual-distribution'");
+    expect(view).not.toContain('section=annual-distribution&classId=');
+    expect(view).toContain('لا توجد أقسام مسندة إليك بعد');
+    expect(view).toContain("openGenerator('standalone', 'list')");
+    expect(view).toContain('disabled={!teacherClasses.length}');
+  });
+
   it('keeps saved-memo navigation bound to the same operational context', () => {
     const view = read('src/components/lesson/LessonPlanView.tsx');
 
