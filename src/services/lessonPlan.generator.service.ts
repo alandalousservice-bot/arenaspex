@@ -7,16 +7,13 @@ import {
 } from '../types/spex';
 import { EducationalSituation } from '../types/spex';
 import {
-  findSuitableSituations,
   referenceSituations,
   selectEducationalSituations,
   snapshotSituation,
 } from './educationalSituation.selector.service';
 import type { EducationalSituationLessonType } from './educationalSituation.selector.service';
-import {
-  lessonPhaseBudgetsForDuration,
-  resolveOperationalLessonDuration,
-} from './lessonTiming.service';
+import { lessonPhaseBudgets, sequenceLessonSituations } from './lessonSituationSequencing.service';
+import { resolveOperationalLessonDuration } from './lessonTiming.service';
 import { scheduledLessonMemoIdFor, standaloneLessonMemoIdFor } from './lessonMemoIdentity.service';
 
 export interface AutoGenerateSessionSource {
@@ -137,8 +134,10 @@ function canonicalLessonTypeFor(
 
 export type LessonMemoGenerationWarningCode =
   | 'NO_ELIGIBLE_SITUATION'
+  | 'NO_DIRECT_MATCH'
   | 'INTEGRATIVE_COVERAGE_INCOMPLETE'
   | 'ASSESSMENT_COVERAGE_MISSING'
+  | 'INSUFFICIENT_DURATION_COVERAGE'
   | 'PHASE_BUDGET_UNFILLED'
   | 'NO_MAIN_DIRECT_ACTIVITY'
   | 'DURATION_UNKNOWN'
@@ -158,6 +157,10 @@ export const LESSON_MEMO_WARNING_MESSAGES: Record<
     message: 'لم يتوفر موقف تربوي معتمد ومطابق لهذه الحصة.',
     action: 'يمكنك اختيار موقف مناسب يدويًا من بنك المواقف.',
   },
+  NO_DIRECT_MATCH: {
+    message: 'لم يتوفر موقف مباشر مطابق للهدف التعلمي.',
+    action: 'اختر موقفًا مباشرًا مطابقًا من بنك المواقف أو راجع الهدف المعتمد.',
+  },
   INTEGRATIVE_COVERAGE_INCOMPLETE: {
     message: 'المواقف المتاحة لا تغطي جميع الأهداف الإدماجية المطلوبة.',
     action: 'راجع المواقف المقترحة أو اختر مواقفًا إضافية يدويًا.',
@@ -165,6 +168,10 @@ export const LESSON_MEMO_WARNING_MESSAGES: Record<
   ASSESSMENT_COVERAGE_MISSING: {
     message: 'لم تتوفر مواقف تقويمية كافية لسياق التقويم المحدد.',
     action: 'اختر موقفًا تقويميًا مناسبًا يدويًا قبل الحفظ النهائي.',
+  },
+  INSUFFICIENT_DURATION_COVERAGE: {
+    message: 'لا يكفي الزمن التشغيلي للمواقف المطابقة المتاحة.',
+    action: 'راجع المواقف المختارة أو أعد توزيع زمن الحصة يدويًا.',
   },
   PHASE_BUDGET_UNFILLED: {
     message: 'التسلسل المولد لا يستعمل كامل زمن الحصة.',
@@ -199,14 +206,13 @@ export function formatSituationExecution(situation: EducationalSituation): strin
 
 function buildMainRows(
   session: AutoGenerateSessionSource,
-  mainMinutes: number,
+  durationMinutes: number,
   ctx: AutoGenerateContext
 ): { rows: LessonPlanRow[]; warnings: LessonMemoGenerationWarning[] } {
   const pedagogicalParts = ctx.pedagogicalParts?.length ? ctx.pedagogicalParts : [session];
   const objectiveIds = pedagogicalParts
     .map((part) => part.objectiveId)
     .filter((value): value is string => Boolean(value));
-  const objectiveTexts = pedagogicalParts.map((part) => part.objective).filter(Boolean);
   const grade =
     Number(
       (ctx.levelName.match(/(الأولى|الثانية|الثالثة|الرابعة|الخامسة)/)?.[1] || '')
@@ -217,64 +223,74 @@ function buildMainRows(
         .replace('الخامسة', '5')
     ) || 0;
   const availableSituations = ctx.situations || referenceSituations;
-  let selectionWarningCodes: string[] = [];
-  let selectionFailureCode: string | undefined;
-  const canonicalLessonType =
-    canonicalLessonTypeFor(pedagogicalParts[0]?.type) ||
-    (pedagogicalParts.length > 1 ? 'LEARNING' : null);
-  const bank =
-    canonicalLessonType &&
-    (pedagogicalParts.length > 1 ||
-      canonicalLessonType === 'DIAGNOSTIC' ||
-      canonicalLessonType === 'SUMMATIVE')
-      ? (() => {
-          const selection = selectEducationalSituations(availableSituations, {
-            gradeId: grade,
-            domainId: session.fieldId,
-            lessonType: canonicalLessonType,
-            objectiveIds,
-            objectiveText: session.objective,
-            durationMinutes: mainMinutes,
-            previousSituationIds: ctx.previousSituationIds,
-            maxSituations: 3,
-          });
-          selectionWarningCodes = selection.warnings;
-          selectionFailureCode = selection.failureCode;
-          return selection.selectedSituations;
-        })()
-      : findSuitableSituations(availableSituations, {
-          grade,
-          fieldId: session.fieldId,
-          objectiveId: session.objectiveId || undefined,
-          objectiveIds,
-          objectiveText: session.objective,
-          objectiveTexts,
-          previousSituationIds: ctx.previousSituationIds,
-        });
-  if (!bank.length && !selectionFailureCode) selectionFailureCode = 'NO_ELIGIBLE_SITUATION';
+  const phaseBudgets = lessonPhaseBudgets(ctx.levelName, durationMinutes);
+  const mainMinutes = phaseBudgets.main;
+  const canonicalLessonType = canonicalLessonTypeFor(pedagogicalParts[0]?.type) || 'LEARNING';
+  const selection = selectEducationalSituations(availableSituations, {
+    gradeId: grade,
+    domainId: session.fieldId,
+    lessonType: canonicalLessonType,
+    objectiveIds,
+    objectiveText: session.objective,
+    durationMinutes,
+    previousSituationIds: ctx.previousSituationIds,
+    availableEquipment: session.tools,
+    maxSituations: Math.max(1, Math.min(3, Math.floor(mainMinutes / 20))),
+  });
+  const hasExplicitObjectiveMatch =
+    objectiveIds.length > 0 ||
+    pedagogicalParts.some((part) =>
+      availableSituations.some(
+        (situation) =>
+          situation.objectiveTexts.includes(part.objective) ||
+          situation.objectiveIds.includes(part.objectiveId || '')
+      )
+    );
+  const selectedIds = new Set(
+    hasExplicitObjectiveMatch ? selection.selectedSituations.map((situation) => situation.id) : []
+  );
+  const selectedCandidates = selection.candidates.filter((candidate) =>
+    selectedIds.has(candidate.situation.id)
+  );
+  const sequence = sequenceLessonSituations({
+    gradeId: grade,
+    fieldId: session.fieldId,
+    objectiveId: objectiveIds[0],
+    lessonType: canonicalLessonType,
+    lessonDurationMinutes: durationMinutes,
+    selectedSituations: selectedCandidates,
+    selectionWarnings: selection.warnings,
+    integratedObjectiveIds: canonicalLessonType === 'INTEGRATIVE' ? objectiveIds : undefined,
+  });
+  let selectionFailureCode = selection.failureCode;
+  if (!selectedCandidates.length && !selectionFailureCode) {
+    selectionFailureCode = 'NO_ELIGIBLE_SITUATION';
+  }
   const warnings = generationWarnings([
-    ...selectionWarningCodes,
+    ...selection.warnings,
+    ...(selectedCandidates.length ? sequence.warnings : []),
     ...(selectionFailureCode ? [selectionFailureCode] : []),
   ]);
-  if (bank.length) {
-    const selected = bank.slice(
-      0,
-      Math.max(1, Math.min(bank.length, Math.floor(mainMinutes / 20)))
-    );
-    const minutes = selected.map(
-      (_, index) =>
-        Math.floor(mainMinutes / selected.length) + (index < mainMinutes % selected.length ? 1 : 0)
-    );
+  if (selectedCandidates.length) {
     return {
-      rows: selected.map((situation, index) => ({
-        id: `main-${index + 1}`,
-        phase: 'المرحلة الرئيسية',
-        learningContent: situation.name,
-        executionContent: formatSituationExecution(situation),
-        durationMinutes: minutes[index],
-        guidance: situation.variations || 'احترام التنظيم والتعليمات.',
-        situationSnapshot: snapshotSituation(situation),
-      })),
+      rows: sequence.orderedActivities
+        .filter((activity) => activity.situationId)
+        .map<LessonPlanRow | null>((activity, index) => {
+          const situation = selectedCandidates.find(
+            (candidate) => candidate.situation.id === activity.situationId
+          )?.situation;
+          if (!situation) return null;
+          return {
+            id: `main-${index + 1}`,
+            phase: activity.phase,
+            learningContent: situation.name,
+            executionContent: formatSituationExecution(situation),
+            durationMinutes: activity.allocatedDurationMinutes,
+            guidance: situation.variations || 'احترام التنظيم والتعليمات.',
+            situationSnapshot: snapshotSituation(situation),
+          };
+        })
+        .filter((row): row is LessonPlanRow => row !== null),
       warnings,
     };
   }
@@ -319,11 +335,11 @@ export function autoGenerateLessonPlan(
     Number.isFinite(ctx.durationMinutes) && (ctx.durationMinutes || 0) > 0
       ? Math.round(ctx.durationMinutes as number)
       : lessonDurationForLevel(ctx.levelName, ctx.grade4WeeklyScheduleMode);
-  const phaseBudgets = lessonPhaseBudgetsForDuration(durationMinutes);
+  const phaseBudgets = lessonPhaseBudgets(ctx.levelName, durationMinutes);
   const preparationMinutes = phaseBudgets.warmup;
-  const closingMinutes = phaseBudgets.final;
   const mainMinutes = phaseBudgets.main;
-  const mainResult = buildMainRows(session, mainMinutes, ctx);
+  const closingMinutes = phaseBudgets.final;
+  const mainResult = buildMainRows(session, durationMinutes, ctx);
   const mainRows = mainResult.rows;
   const equipmentNeeded = [
     ...new Set([
