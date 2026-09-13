@@ -261,6 +261,8 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(curriculum).toContain('generateAnnualTimeDistribution');
     expect(planning).toContain('buildClassPlannedSessionSeedsFromCanonicalSessions');
     expect(view).toContain('classPlannedSessionId: scheduledContext.session.id');
-    expect(view).toContain('onSaveLessonPlan(saveLessonMemo(plan, existingOperationalMemo));');
+    expect(view).toContain(
+      'if (!(await persistLessonPlan(saveLessonMemo(plan, existingOperationalMemo)))) return;'
+    );
   });
 });

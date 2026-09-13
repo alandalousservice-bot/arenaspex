@@ -214,6 +214,7 @@ export function usePlatformStore({
     }
     return [];
   });
+  const lessonPlanSaveInFlight = useRef(new Map<string, Promise<void>>());
 
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>(() => {
     return INITIAL_KNOWLEDGE_BANK;
@@ -1180,14 +1181,22 @@ export function usePlatformStore({
     void syncNotebookEntryToDB(nextEntry);
   };
 
-  const handleSaveLessonPlan = (newPlan: LessonPlan) => {
-    setLessonPlans((prev) =>
-      prev.some((plan) => plan.id === newPlan.id)
-        ? prev.map((plan) => (plan.id === newPlan.id ? newPlan : plan))
-        : [newPlan, ...prev]
-    );
-    setActiveLessonPlanId(newPlan.id);
-    syncLessonPlanToDB(newPlan);
+  const handleSaveLessonPlan = (newPlan: LessonPlan): Promise<void> => {
+    const existingSave = lessonPlanSaveInFlight.current.get(newPlan.id);
+    if (existingSave) return existingSave;
+    const save = (async () => {
+      await syncLessonPlanToDB(newPlan);
+      setLessonPlans((prev) =>
+        prev.some((plan) => plan.id === newPlan.id)
+          ? prev.map((plan) => (plan.id === newPlan.id ? newPlan : plan))
+          : [newPlan, ...prev]
+      );
+      setActiveLessonPlanId(newPlan.id);
+    })();
+    lessonPlanSaveInFlight.current.set(newPlan.id, save);
+    const clearSave = () => lessonPlanSaveInFlight.current.delete(newPlan.id);
+    void save.then(clearSave, clearSave);
+    return save;
   };
 
   const handleAddKnowledgeItem = (newItem: Partial<KnowledgeItem>) => {

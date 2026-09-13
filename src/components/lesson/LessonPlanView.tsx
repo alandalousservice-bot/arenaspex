@@ -57,7 +57,7 @@ import {
 interface LessonPlanViewProps {
   lessonPlans: LessonPlan[];
   activeLessonId?: string;
-  onSaveLessonPlan: (lesson: LessonPlan) => void;
+  onSaveLessonPlan: (lesson: LessonPlan) => Promise<void>;
   onDeleteLessonPlan?: (lessonId: string) => void;
   onUpdateLessonStatus?: (
     lessonId: string,
@@ -200,6 +200,9 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [sourceLabel, setSourceLabel] = useState<'actual' | 'fallback'>('fallback');
   const [generationError, setGenerationError] = useState('');
   const [saveError, setSaveError] = useState('');
+  const [memoSaveStatus, setMemoSaveStatus] = useState<'IDLE' | 'SAVING' | 'SAVED' | 'ERROR'>(
+    'IDLE'
+  );
   const [showRegenerationConfirm, setShowRegenerationConfirm] = useState(false);
   const [draft, setDraft] = useState<LessonPlan | null>(null);
   const [memoMode, setMemoMode] = useState<LessonMemoMode>('operational');
@@ -577,7 +580,21 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     };
   };
 
-  const createPlan = () => {
+  const persistLessonPlan = async (nextPlan: LessonPlan): Promise<boolean> => {
+    setMemoSaveStatus('SAVING');
+    setSaveError('');
+    try {
+      await onSaveLessonPlan(nextPlan);
+      setMemoSaveStatus('SAVED');
+      return true;
+    } catch {
+      setMemoSaveStatus('ERROR');
+      setSaveError('تعذر حفظ المذكرة. لم تضِع التعديلات، ويمكنك إعادة المحاولة.');
+      return false;
+    }
+  };
+
+  const createPlan = async () => {
     if (memoMode === 'operational') {
       if (
         !scheduledContext ||
@@ -654,7 +671,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             }
           : generatedPlan;
       if (!plan.lessonRows?.length) throw new Error('empty memo');
-      onSaveLessonPlan(saveLessonMemo(plan, existingOperationalMemo));
+      if (!(await persistLessonPlan(saveLessonMemo(plan, existingOperationalMemo)))) return;
       setSelectedId(plan.id);
       setActiveLessonPlanId(plan.id);
       setScreenMode('saved');
@@ -668,6 +685,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
 
   const beginEdit = () => {
     if (!selected) return;
+    setMemoSaveStatus('IDLE');
     setSaveError('');
     setDraft({
       ...selected,
@@ -676,7 +694,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     });
     setEditing(true);
   };
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!draft) return;
     const expectedDuration =
       draft.classPlannedSessionId && scheduledContext
@@ -701,13 +719,13 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       version: Math.max(draft.version || 1, 2),
       manualEdits: true,
     });
-    onSaveLessonPlan(savedPlan);
+    if (!(await persistLessonPlan(savedPlan))) return;
     setSaveError('');
     setEditing(false);
     setDraft(null);
   };
 
-  const regenerateSelectedMemo = (confirmed = false) => {
+  const regenerateSelectedMemo = async (confirmed = false) => {
     if (!selected || !isScheduled) return;
     if (editing) {
       setSaveError('احفظ التعديلات الحالية أو ألغِها قبل إعادة التوليد.');
@@ -724,7 +742,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     }
     try {
       const regenerated = regenerateLessonMemo(context, selected, confirmed);
-      onSaveLessonPlan(saveLessonMemo(regenerated, selected));
+      if (!(await persistLessonPlan(saveLessonMemo(regenerated, selected)))) return;
       setSelectedId(regenerated.id);
       setActiveLessonPlanId(regenerated.id);
       setShowRegenerationConfirm(false);
@@ -1083,12 +1101,22 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             {generationError}
           </p>
         )}
+        {saveError && (
+          <p
+            role="alert"
+            className="mt-3 rounded-lg bg-rose-50 p-2 text-xs font-bold text-rose-700"
+          >
+            {saveError}
+          </p>
+        )}
         <button
           type="button"
           disabled={
             (memoMode === 'operational' && (!scheduledContext || scheduledLoading)) ||
-            (memoMode === 'annual' && (!annualMemoSource || annualMemoLoading))
+            (memoMode === 'annual' && (!annualMemoSource || annualMemoLoading)) ||
+            memoSaveStatus === 'SAVING'
           }
+          aria-busy={memoSaveStatus === 'SAVING'}
           onClick={createPlan}
           className="action-primary mt-5 rounded-xl px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -1514,7 +1542,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     if (editing) {
       setDraft((previous) => previous && { ...previous, lessonRows: next, equipmentNeeded });
     } else {
-      onSaveLessonPlan(
+      void persistLessonPlan(
         saveLessonMemo({ ...plan, lessonRows: next, equipmentNeeded, manualEdits: true })
       );
     }
@@ -1532,7 +1560,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     if (editing)
       setDraft((previous) => previous && { ...previous, lessonRows: next, equipmentNeeded });
     else
-      onSaveLessonPlan(
+      void persistLessonPlan(
         saveLessonMemo({ ...plan, lessonRows: next, equipmentNeeded, manualEdits: true })
       );
   };
@@ -1566,6 +1594,22 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           <span className="mr-2 mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">
             {plan.manualEdits ? 'معدلة' : plan.generatedAt ? 'مسودة مولدة' : 'محفوظة'}
           </span>
+          {memoSaveStatus === 'SAVING' && (
+            <span
+              role="status"
+              className="mr-2 mt-2 inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800"
+            >
+              جارٍ حفظ المذكرة على الخادم...
+            </span>
+          )}
+          {memoSaveStatus === 'SAVED' && (
+            <span
+              role="status"
+              className="mr-2 mt-2 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800"
+            >
+              تم حفظ المذكرة على الخادم
+            </span>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {screenMode === 'saved' && (
@@ -1647,6 +1691,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                 <button
                   type="button"
                   onClick={() => regenerateSelectedMemo()}
+                  disabled={memoSaveStatus === 'SAVING'}
+                  aria-busy={memoSaveStatus === 'SAVING'}
                   className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900"
                 >
                   إعادة توليد المذكرة
@@ -1680,6 +1726,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             <>
               <button
                 onClick={saveEdit}
+                disabled={memoSaveStatus === 'SAVING'}
+                aria-busy={memoSaveStatus === 'SAVING'}
                 className="flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white"
               >
                 <Save className="h-4 w-4" />

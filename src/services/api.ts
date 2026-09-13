@@ -1759,7 +1759,9 @@ export async function activateUserAccount(
 }
 
 export async function syncLessonPlanToDB(lessonPlan: unknown) {
-  await offlinePost('/api/db/lesson-plans', { lessonPlan }, 'POST');
+  const result = await offlinePost('/api/db/lesson-plans', { lessonPlan }, 'POST');
+  if (!result.success) throw new Error('LESSON_MEMO_PERSISTENCE_FAILED');
+  return result;
 }
 
 export async function syncLessonPlansBatchToDB(lessonPlans: unknown[]) {
