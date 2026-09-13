@@ -4,17 +4,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import {
-  BrainCircuit,
-  Search,
-  Plus,
-  Gamepad2,
-  Target,
-  Layers,
-  Copy,
-  Check,
-  BookOpen,
-} from 'lucide-react';
+import { BrainCircuit, Search, Plus, Target, Layers, Copy, Check, BookOpen } from 'lucide-react';
 import { CommunityResource, KnowledgeItem, KnowledgeCategory } from '../../types/spex';
 import { requestPedagogicalGameSuggestion } from '../../services/api';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -52,7 +42,6 @@ export function selectApprovedCommunityResources(
 }
 
 export const KNOWLEDGE_BANK_CATEGORIES = [
-  'game',
   'objective',
   'remedial',
   'educational_situation',
@@ -72,9 +61,12 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<
     KnowledgeCategory | 'educational_situation' | 'community_resource'
-  >('game');
+  >('educational_situation');
   const [searchVal, setSearchVal] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [selectedObjective, setSelectedObjective] = useState<
+    KnowledgeItem | CurriculumObjectiveReference | null
+  >(null);
   const [isSuggestingGames, setIsSuggestingGames] = useState(false);
   const [showSuggestionForm, setShowSuggestionForm] = useState(false);
   const [suggestionGrade, setSuggestionGrade] = useState(1);
@@ -128,6 +120,32 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
       return item.approved && matchesCategory && matchesSearch && matchesGrade && matchesField;
     }
   );
+  const isCanonicalObjective = (
+    item: KnowledgeItem | CurriculumObjectiveReference
+  ): item is CurriculumObjectiveReference => 'canonicalObjectiveId' in item;
+  const objectiveStatus = (item: KnowledgeItem | CurriculumObjectiveReference) => {
+    if (isCanonicalObjective(item)) {
+      return item.adoptedInCurrentSection ? 'معتمد في المقطع' : 'غير مستخدم في المقطع الحالي';
+    }
+    return item.approvalStatus === 'APPROVED' ? 'مرجع معتمد' : 'مقترح';
+  };
+  const objectiveAlternatives = selectedObjective
+    ? objectiveItems
+        .filter((item) => {
+          const selectedLevel = isCanonicalObjective(selectedObjective)
+            ? selectedObjective.levelId
+            : selectedObjective.levelId;
+          const selectedField = isCanonicalObjective(selectedObjective)
+            ? selectedObjective.fieldId
+            : selectedObjective.fieldId;
+          return (
+            item.id !== selectedObjective.id &&
+            item.levelId === selectedLevel &&
+            item.fieldId === selectedField
+          );
+        })
+        .slice(0, 4)
+    : [];
   const coverage = buildKnowledgeCoverage({ knowledgeItems });
   const canViewCoverage = canViewCoverageDiagnostics(currentUser.role);
   const statusLabel: Record<CoverageStatus, string> = {
@@ -228,7 +246,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
         levelName: `السنة ${suggestionGrade} ابتدائي`,
         objectiveId: selected.id,
         objectiveText: selected.description,
-        tags: ['اقتراح لعبة تربوية', 'الحركات القاعدية'],
+        tags: ['اقتراح موقف تربوي', 'الحركات القاعدية'],
         equipment: stringList(candidate.equipment),
         rules: textValue(candidate.rules || candidate.organization),
         organization: textValue(candidate.organization),
@@ -310,21 +328,21 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
             </span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            مكتبة متكاملة للبحث والتنفيذ السريع للأهداف الألعاب التربوية، الوضعيات والأنشطة العلاجية
+            مكتبة متكاملة للبحث والتنفيذ السريع للأهداف والمواقف التربوية والأنشطة العلاجية
           </p>
         </div>
 
         <button
           onClick={() => {
             setShowSuggestionForm(true);
-            setActiveTab('game');
+            setActiveTab('educational_situation');
             setSuggestionError('');
           }}
           disabled={isSuggestingGames}
           className="workspace-button-primary flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-2xl text-xs shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
         >
           <Plus className="w-4 h-4" />
-          <span>اقتراح لعبة تربوية</span>
+          <span>اقتراح موقف تربوي</span>
         </button>
       </div>
 
@@ -332,7 +350,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
         <section className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">اقتراح لعبة تربوية</h3>
+              <h3 className="text-sm font-bold text-slate-900">اقتراح موقف تربوي</h3>
               <p className="text-xs text-slate-500">
                 اختر السنة والميدان والهدف، ثم راجع الاقتراح قبل حفظه.
               </p>
@@ -530,18 +548,6 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
       <div className="workspace-tabs flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs">
         <div className="flex items-center gap-2 overflow-x-auto">
           <button
-            onClick={() => setActiveTab('game')}
-            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'game'
-                ? 'bg-indigo-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            <Gamepad2 className="w-4 h-4" />
-            <span>بنك الألعاب التربوية</span>
-          </button>
-
-          <button
             onClick={() => setActiveTab('objective')}
             className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'objective'
@@ -663,7 +669,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           </div>
         </section>
       )}
-      {['game', 'objective'].includes(activeTab) && (
+      {activeTab === 'objective' && (
         <div className="flex items-center gap-2 text-xs">
           <select
             value={objectiveGrade}
@@ -690,9 +696,9 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
         </div>
       )}
 
-      {activeTab === 'game' && ownEditableGames.length > 0 && (
+      {activeTab === 'educational_situation' && ownEditableGames.length > 0 && (
         <section className="bg-white rounded-3xl border border-slate-200/80 p-4 space-y-3">
-          <h3 className="text-sm font-bold text-slate-900">اقتراحاتي الخاصة</h3>
+          <h3 className="text-sm font-bold text-slate-900">مواقفي المقترحة الخاصة</h3>
           {ownEditableGames.map((item) => (
             <div key={item.id} className="border border-slate-100 rounded-2xl p-3 space-y-2">
               <div className="flex justify-between">
@@ -731,9 +737,9 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
         </section>
       )}
 
-      {activeTab === 'game' && pendingGames.length > 0 && (
+      {activeTab === 'educational_situation' && pendingGames.length > 0 && (
         <section className="bg-white rounded-3xl border border-amber-200 p-4 space-y-3">
-          <h3 className="text-sm font-bold text-slate-900">ألعاب بانتظار الاعتماد</h3>
+          <h3 className="text-sm font-bold text-slate-900">مواقف بانتظار الاعتماد</h3>
           {pendingGames.map((item) => (
             <div key={item.id} className="border border-slate-100 rounded-2xl p-3 space-y-2">
               <div className="flex justify-between">
@@ -773,7 +779,11 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
       )}
 
       {activeTab === 'educational_situation' ? (
-        <EducationalSituationsBankView currentUser={currentUser} embedded />
+        <EducationalSituationsBankView
+          currentUser={currentUser}
+          embedded
+          legacyGames={knowledgeItems.filter((item) => item.category === 'game')}
+        />
       ) : activeTab === 'community_resource' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filteredCommunityResources.map((resource) => (
@@ -803,20 +813,36 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filteredItems.map((item) => (
-            <div
+            <article
               key={item.id}
               className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow space-y-4"
             >
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
                 <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
                   {item.fieldName || 'الميدان العام'}
                 </span>
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">
+                  {objectiveStatus(item)}
+                </span>
               </div>
 
-              <h3 className="text-sm font-bold text-slate-900 leading-snug">{item.title}</h3>
+              <button
+                type="button"
+                onClick={() => setSelectedObjective(item)}
+                className="w-full text-right text-sm font-bold text-slate-900 leading-snug hover:text-indigo-700"
+              >
+                {item.title}
+              </button>
+              <p className="text-xs text-slate-500">{item.levelName || 'مرجع متعدد السنوات'}</p>
               <p className="text-xs text-slate-600 leading-relaxed bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
                 {item.description}
               </p>
+
+              {isCanonicalObjective(item) && (
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  <span className="font-bold text-slate-800">ما يخدمه:</span> {item.learningContent}
+                </p>
+              )}
 
               {item.rules && (
                 <div className="text-xs space-y-1">
@@ -854,10 +880,127 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
                   )}
                 </button>
               </div>
-            </div>
+              <button
+                type="button"
+                onClick={() => setSelectedObjective(item)}
+                className="w-full rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100"
+              >
+                فتح تفاصيل الهدف
+              </button>
+            </article>
           ))}
+        </div>
+      )}
+      {selectedObjective && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
+          role="presentation"
+          onClick={() => setSelectedObjective(null)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="objective-details-title"
+            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 text-right shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <span className="text-xs font-bold text-indigo-700">تفاصيل الهدف البيداغوجية</span>
+                <h3 id="objective-details-title" className="mt-1 text-lg font-black text-slate-900">
+                  {selectedObjective.title}
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  {selectedObjective.levelName || 'مرجع متعدد السنوات'} —{' '}
+                  {selectedObjective.fieldName || 'الميدان العام'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedObjective(null)}
+                className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700"
+              >
+                إغلاق
+              </button>
+            </div>
+
+            {isCanonicalObjective(selectedObjective) ? (
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <DetailBlock label="الكفاءة الختامية" value={selectedObjective.finalCompetency} />
+                <DetailBlock label="المقطع المرتبط" value={selectedObjective.learningSection} />
+                <DetailBlock
+                  label="ماذا يكتسب المتعلم؟"
+                  value={selectedObjective.learningContent}
+                />
+                <DetailBlock label="المعارف المجندة" value={selectedObjective.mobilizedKnowledge} />
+                <DetailBlock label="محتوى التنفيذ" value={selectedObjective.executionContent} />
+                <DetailBlock label="التوجيهات" value={selectedObjective.guidance} />
+                <DetailBlock
+                  label="موقع الهدف في التدرج"
+                  value={selectedObjective.progressionStage}
+                />
+                <DetailBlock label="وزن الترتيب" value={String(selectedObjective.sequenceWeight)} />
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <p className="text-xs font-black text-slate-700">الموارد المرتبطة</p>
+                  <p className="mt-2 text-xs text-slate-600">
+                    {selectedObjective.resourceLabels.join('، ') || 'لا توجد بيانات متاحة'}
+                  </p>
+                  <p className="mt-2 text-xs text-slate-500">
+                    العائلات: {selectedObjective.resourceFamilies.join('، ') || '—'}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <p className="text-xs font-black text-slate-700">المكونات العرضية</p>
+                  <p className="mt-2 text-xs text-slate-600">
+                    {selectedObjective.transversalResources.join('، ') || 'لا توجد بيانات متاحة'}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 md:col-span-2">
+                  <p className="text-xs font-black text-indigo-800">سبب الظهور في المقطع</p>
+                  <p className="mt-2 text-xs text-indigo-900">
+                    {selectedObjective.adoptedInCurrentSection
+                      ? 'هذا الهدف موجود ضمن تسلسل المقطع الحالي في المرجع المنهجي.'
+                      : 'هذا الهدف موجود في البنك canonical، لكنه غير ظاهر ضمن تسلسل المقطع الحالي وفق البيانات المتاحة.'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5">
+                <DetailBlock label="الوصف" value={selectedObjective.description} />
+                <DetailBlock label="الوسائل" value={selectedObjective.equipment?.join('، ')} />
+                <DetailBlock label="التوجيهات" value={selectedObjective.rules} />
+              </div>
+            )}
+
+            {objectiveAlternatives.length > 0 && (
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <h4 className="text-sm font-black text-slate-800">
+                  أهداف أخرى في نفس السنة والميدان
+                </h4>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {objectiveAlternatives.map((item) => (
+                    <button
+                      type="button"
+                      key={item.id}
+                      onClick={() => setSelectedObjective(item)}
+                      className="rounded-xl border border-slate-200 bg-white p-3 text-right text-xs font-bold text-slate-700 hover:border-indigo-300"
+                    >
+                      {item.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
         </div>
       )}
     </div>
   );
 };
+
+const DetailBlock: React.FC<{ label: string; value?: string }> = ({ label, value }) => (
+  <div className="rounded-2xl bg-slate-50 p-4">
+    <p className="text-xs font-black text-slate-700">{label}</p>
+    <p className="mt-2 text-xs leading-relaxed text-slate-600">{value || 'لا توجد بيانات متاحة'}</p>
+  </div>
+);

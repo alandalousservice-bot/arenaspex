@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { INITIAL_KNOWLEDGE_BANK } from '../src/data/knowledgeBankData';
+import { getObjectiveBank } from '../src/data/objectiveBankRegistry';
 import { referenceSituations } from '../src/services/educationalSituation.selector.service';
 import {
   buildKnowledgeCoverage,
@@ -56,6 +57,30 @@ describe('knowledge bank coverage diagnostics', () => {
           item.levelId === references[0].levelId
       )
     ).toHaveLength(1);
+  });
+
+  it('uses the canonical objective registry as the detailed objective source', () => {
+    const model = buildObjectiveReadModel([]);
+    const canonical = model.find((item) => item.id === 'G1-D2-OBJ-01');
+    const canonicalCount = ['lvl_p1', 'lvl_p2', 'lvl_p3', 'lvl_p4', 'lvl_p5']
+      .flatMap((levelId) =>
+        ['f_locomotion', 'f_fundamentals', 'f_structuring'].map((domainId) =>
+          getObjectiveBank(levelId, domainId)
+        )
+      )
+      .reduce((count, items) => count + items.length, 0);
+
+    expect(model.filter((item) => item.origin === 'CURRICULUM_REFERENCE')).toHaveLength(
+      canonicalCount
+    );
+    expect(canonical).toMatchObject({
+      canonicalObjectiveId: 'G1-D2-OBJ-01',
+      gradeId: 'lvl_p1',
+      domainId: 'f_fundamentals',
+      objectiveText: 'ينفذ المشي الفردي بتكامل وظائف جسمه.',
+      learningContent: 'المشي الفردي.',
+      progressionStage: 'foundation',
+    });
   });
 
   it('does not count retired situation KnowledgeItems in the baseline', () => {

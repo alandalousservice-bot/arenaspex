@@ -2994,12 +2994,25 @@ const educationalSituationInput = z.object({
   grade: z.number().int().min(1).max(5),
   fieldId: z.string().min(1),
   fieldName: z.string().min(1),
-  objectiveIds: z.array(z.string()).min(1),
-  objectiveTexts: z.array(z.string()).min(1),
+  objectiveIds: z.array(z.string()).default([]),
+  objectiveTexts: z.array(z.string()).default([]),
   sourceGoal: z.string().optional().default(''),
   organization: z.string().trim().min(1),
   equipment: z.array(z.string()).default([]),
   variations: z.string().optional(),
+  activityType: z.string().optional(),
+  approvalStatus: z.string().optional(),
+  productionEligibility: z.string().optional(),
+  gradeId: z.string().optional(),
+  domainId: z.string().optional(),
+  lessonTypes: z.array(z.string()).optional(),
+  executionConditions: z.string().optional(),
+  successCriteria: z.string().optional(),
+  observationIndicators: z.string().optional(),
+  motorActions: z.array(z.string()).optional(),
+  pedagogicalTags: z.array(z.string()).optional(),
+  difficulty: z.string().optional(),
+  progressionStage: z.string().optional(),
 });
 const canReviewSituation = (role: string) => role === 'admin' || role === 'inspector';
 
@@ -3014,7 +3027,18 @@ apiRouter.get('/educational-situations', async (req, res) => {
       ...(grade ? { grade } : {}),
       ...(fieldId ? { fieldId } : {}),
       ...(objective ? { objectiveTexts: { has: objective } } : {}),
-      ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { sourceGoal: { contains: search, mode: 'insensitive' } },
+              { organization: { contains: search, mode: 'insensitive' } },
+              { executionConditions: { contains: search, mode: 'insensitive' } },
+              { successCriteria: { contains: search, mode: 'insensitive' } },
+              { observationIndicators: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
     },
     orderBy: { name: 'asc' },
     include: { objectives: { select: { relationType: true } } },
@@ -3058,7 +3082,7 @@ apiRouter.put('/educational-situations/:id', async (req, res) => {
   res.json({
     situation: await prisma.educationalSituation.update({
       where: { id: existing.id },
-      data: { ...input, status: 'PRIVATE', rejectionReason: null },
+      data: { ...input, status: 'PRIVATE', rejectionReason: null } as any,
     }),
   });
 });

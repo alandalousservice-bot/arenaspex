@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, PenSquare, Printer, Save, Trash2, X } from 'lucide-react';
+import { FileText, PenSquare, Printer, Save, Target, Trash2, X } from 'lucide-react';
 import { ClassRoom, EducationalSituation, LessonPlan, LessonPlanRow, User } from '../../types/spex';
 import {
   COMPLETE_ANNUAL_CURRICULUM,
@@ -53,11 +53,17 @@ import {
   exportLessonPlanToPdf,
   exportLessonPlanToWord,
 } from '../../services/lessonPlanExport.service';
+import { generatePedagogicalSituation } from '../../services/pedagogicalSituationGeneration.service';
+import type { GeneratedPedagogicalSituation } from '../../services/pedagogicalSituationGeneration.service';
 import {
   findSuitableSituations,
+  hasOrdinaryLearningRelation,
+  isAutoGenerationEligible,
   referenceSituations,
+  selectEducationalSituations,
   snapshotSituation,
 } from '../../services/educationalSituation.selector.service';
+import { detailText } from '../educationalSituations/EducationalSituationsBankView';
 
 interface LessonPlanViewProps {
   lessonPlans: LessonPlan[];
@@ -126,6 +132,23 @@ function sessionStateLabel(
 function displayFieldName(domainId?: string, fieldName?: string): string {
   if (!fieldName || domainId === 'intro' || fieldName.trim().toLowerCase() === 'intro') return '';
   return fieldName;
+}
+
+function canonicalLessonTypeForPlan(
+  sessionType: LessonPlan['sessionType']
+): 'LEARNING' | 'DIAGNOSTIC' | 'INTEGRATIVE' | 'SUMMATIVE' {
+  if (sessionType === 'تشخيصية' || sessionType === 'تقويم تشخيصي') return 'DIAGNOSTIC';
+  if (sessionType === 'إدماجية') return 'INTEGRATIVE';
+  if (sessionType === 'تقويمية' || sessionType === 'تقويم تحصيلي') return 'SUMMATIVE';
+  return 'LEARNING';
+}
+
+function relationLabel(value: string): string {
+  if (value === 'DIRECT') return 'مباشر';
+  if (value === 'SUPPORTIVE') return 'داعم';
+  if (value === 'INTEGRATIVE') return 'إدماجي';
+  if (value === 'ASSESSMENT') return 'تقويمي';
+  return value;
 }
 
 type SourceSession = Parameters<typeof autoGenerateLessonPlan>[0];
@@ -204,6 +227,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [showBank, setShowBank] = useState(false);
   const [replaceRowId, setReplaceRowId] = useState<string | null>(null);
   const [bankSituations, setBankSituations] = useState<EducationalSituation[]>([]);
+  const [generatedSituation, setGeneratedSituation] =
+    useState<GeneratedPedagogicalSituation | null>(null);
+  const [generatedSituationError, setGeneratedSituationError] = useState('');
+  const [generatedSituationSaving, setGeneratedSituationSaving] = useState(false);
   const [scheduledLessons, setScheduledLessons] = useState<MergedScheduledLesson[]>([]);
   const [generationError, setGenerationError] = useState('');
   const [saveError, setSaveError] = useState('');
@@ -1597,7 +1624,23 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       grade,
       fieldId,
       objectiveText: plan.sessionTitle,
+      objectiveIds: plan.pedagogicalPartReferences
+        ?.map((part) => part.objectiveId)
+        .filter((value): value is string => Boolean(value)),
+      previousSituationIds: plan.lessonRows?.flatMap((row) =>
+        row.situationSnapshot?.situationId ? [row.situationSnapshot.situationId] : []
+      ),
     }
+  );
+  const situationPool = bankSituations.length ? bankSituations : referenceSituations;
+  const domainFallbackSituations = situationPool.filter(
+    (situation) =>
+      (isAutoGenerationEligible(situation) ||
+        (situation.ownerId === currentUser?.id &&
+          ['PRIVATE', 'REJECTED'].includes(situation.status))) &&
+      hasOrdinaryLearningRelation(situation) &&
+      situation.grade === grade &&
+      situation.fieldId === fieldId
   );
   const privateMatchingSituations = bankSituations.filter(
     (situation) =>
@@ -1607,21 +1650,73 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       situation.fieldId === fieldId &&
       situation.objectiveTexts.includes(plan.sessionTitle)
   );
-  const availableSituations = [
+  const exactSituations = [
     ...matchingSituations,
     ...privateMatchingSituations.filter(
       (item) => !matchingSituations.some((match) => match.id === item.id)
     ),
   ];
+  const availableSituations = [
+    ...exactSituations,
+    ...domainFallbackSituations.filter(
+      (item) => !exactSituations.some((match) => match.id === item.id)
+    ),
+  ];
+  const targetObjectiveIds = Array.from(
+    new Set(
+      (plan.pedagogicalPartReferences || [])
+        .map((part) => part.objectiveId)
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+  const selectedSituationRows = rows.filter(
+    (row) => row.phase === 'المرحلة الرئيسية' && row.situationSnapshot
+  );
+  const coveredObjectiveIds = Array.from(
+    new Set(selectedSituationRows.flatMap((row) => row.situationSnapshot?.objectiveIds || []))
+  );
+  const missingObjectiveIds = targetObjectiveIds.filter((id) => !coveredObjectiveIds.includes(id));
+  const coverageState =
+    selectedSituationRows.length === 0
+      ? 'لم يُختر موقف بعد'
+      : targetObjectiveIds.length && missingObjectiveIds.length === 0
+        ? 'التغطية مكتملة'
+        : targetObjectiveIds.length
+          ? 'التغطية جزئية'
+          : 'موقف مرتبط بالمذكرة';
+  const coverageLessonType = canonicalLessonTypeForPlan(plan.sessionType);
+  const coverageSelection = selectEducationalSituations(situationPool, {
+    gradeId: grade,
+    domainId: fieldId,
+    lessonType: coverageLessonType,
+    objectiveIds: targetObjectiveIds,
+    objectiveText: plan.sessionTitle,
+    durationMinutes: effectiveDuration,
+    previousSituationIds: plan.lessonRows?.flatMap((row) =>
+      row.situationSnapshot?.situationId ? [row.situationSnapshot.situationId] : []
+    ),
+  });
   const mainSituationCount = memoModel.mainPhase.situations.length;
   const addSituation = (situation: EducationalSituation) => {
     const main = {
       id: `main-${Date.now()}`,
       phase: 'المرحلة الرئيسية' as const,
       learningContent: situation.name,
-      executionContent: formatSituationExecution(situation),
+      executionContent:
+        situation.executionConditions ||
+        situation.instructions ||
+        formatSituationExecution(situation),
       durationMinutes: 1,
-      guidance: situation.variations || 'احترام التعليمات.',
+      guidance:
+        [
+          situation.successCriteria ? `معيار النجاح: ${situation.successCriteria}` : '',
+          detailText(situation.observationIndicators)
+            ? `مؤشرات الملاحظة: ${detailText(situation.observationIndicators)}`
+            : '',
+          situation.variations || '',
+        ]
+          .filter(Boolean)
+          .join('\n') || 'احترام التعليمات.',
       situationSnapshot: snapshotSituation(situation),
     };
     const pendingRow = rows.find(
@@ -1650,6 +1745,109 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       );
     }
     setReplaceRowId(null);
+  };
+
+  const generateSituationSuggestion = () => {
+    try {
+      setGeneratedSituationError('');
+      setGeneratedSituation(
+        generatePedagogicalSituation({
+          grade,
+          fieldId,
+          fieldName: plan.fieldName,
+          finalCompetency: plan.competencyTitle,
+          objective: plan.sessionTitle,
+          lessonType: coverageLessonType,
+          requirements: [
+            plan.proceduralObjectives.motor,
+            plan.proceduralObjectives.cognitive,
+            plan.proceduralObjectives.affective || '',
+          ].filter(Boolean),
+          equipment: plan.equipmentNeeded,
+          durationMinutes: effectiveDuration,
+          phase: 'المرحلة الرئيسية',
+        })
+      );
+    } catch {
+      setGeneratedSituationError('تعذر إعداد الموقف المقترح. راجع هدف الحصة ثم حاول مرة أخرى.');
+    }
+  };
+
+  const saveGeneratedSituation = async () => {
+    if (!generatedSituation || !currentUser) return;
+    setGeneratedSituationSaving(true);
+    setGeneratedSituationError('');
+    try {
+      const response = await fetch('/api/educational-situations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: generatedSituation.title,
+          grade,
+          fieldId,
+          fieldName: plan.fieldName,
+          objectiveIds: targetObjectiveIds,
+          objectiveTexts: plan.sessionTitle ? [plan.sessionTitle] : [],
+          sourceGoal: plan.sessionTitle,
+          organization: generatedSituation.organization,
+          equipment: generatedSituation.equipment,
+          variations: generatedSituation.variants,
+          gradeId: plan.levelId || `lvl_p${grade}`,
+          domainId: fieldId,
+          lessonTypes: [coverageLessonType],
+          executionConditions: generatedSituation.executionConditions,
+          successCriteria: generatedSituation.successCriteria,
+          observationIndicators: generatedSituation.observationIndicators,
+          motorActions: generatedSituation.motorSkills,
+          pedagogicalTags: generatedSituation.tags,
+          difficulty: generatedSituation.difficulty,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'save failed');
+      const saved = body.situation as EducationalSituation;
+      setBankSituations((previous) => [saved, ...previous.filter((item) => item.id !== saved.id)]);
+      addSituation(saved);
+      setGeneratedSituation(null);
+      setShowBank(false);
+    } catch {
+      setGeneratedSituationError('تعذر حفظ الموقف. بقيت المسودة متاحة للمراجعة ولم تتغير المذكرة.');
+    } finally {
+      setGeneratedSituationSaving(false);
+    }
+  };
+
+  const useGeneratedSituationWithoutSaving = () => {
+    if (!generatedSituation) return;
+    const draftSituation: EducationalSituation = {
+      id: `generated-${plan.id}-${Date.now()}`,
+      name: generatedSituation.title,
+      grade,
+      gradeId: plan.levelId || `lvl_p${grade}`,
+      fieldId,
+      domainId: fieldId,
+      fieldName: plan.fieldName,
+      objectiveIds: targetObjectiveIds,
+      objectiveTexts: plan.sessionTitle ? [plan.sessionTitle] : [],
+      sourceGoal: plan.sessionTitle,
+      organization: generatedSituation.organization,
+      equipment: generatedSituation.equipment,
+      variations: generatedSituation.variants,
+      lessonTypes: [coverageLessonType],
+      durationMinutes: generatedSituation.durationMinutes,
+      executionConditions: generatedSituation.executionConditions,
+      instructions: generatedSituation.instructions,
+      successCriteria: generatedSituation.successCriteria,
+      observationIndicators: generatedSituation.observationIndicators,
+      motorActions: generatedSituation.motorSkills,
+      pedagogicalTags: generatedSituation.tags,
+      difficulty: generatedSituation.difficulty,
+      origin: 'TEACHER',
+      status: 'PRIVATE',
+    };
+    addSituation(draftSituation);
+    setGeneratedSituation(null);
+    setShowBank(false);
   };
 
   const removeSituation = (rowId: string) => {
@@ -1868,6 +2066,70 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           )}
         </aside>
       )}
+
+      <section
+        className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4"
+        aria-live="polite"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-extrabold text-emerald-950">
+              <Target className="h-4 w-4" /> تغطية الموقف داخل المذكرة
+            </h3>
+            <p className="mt-1 text-xs text-emerald-900">
+              {coverageState}. الاختيار يعتمد على بنك المواقف المعتمد وسياق هذه الحصة.
+            </p>
+          </div>
+          {!editing && (
+            <button
+              type="button"
+              onClick={() => {
+                setReplaceRowId(null);
+                setShowBank(true);
+              }}
+              className="rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-emerald-900"
+            >
+              اختيار موقف من البنك
+            </button>
+          )}
+        </div>
+        <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
+          <div className="rounded-xl bg-white/80 p-3">
+            <strong className="block text-emerald-950">المواقف المتصلة</strong>
+            <span>{selectedSituationRows.length}</span>
+          </div>
+          <div className="rounded-xl bg-white/80 p-3">
+            <strong className="block text-emerald-950">الأهداف المغطاة</strong>
+            <span>
+              {targetObjectiveIds.length
+                ? `${coveredObjectiveIds.length} من ${targetObjectiveIds.length}`
+                : 'حسب هدف الحصة'}
+            </span>
+          </div>
+          <div className="rounded-xl bg-white/80 p-3">
+            <strong className="block text-emerald-950">مرشحون مطابقون</strong>
+            <span>{coverageSelection.candidates.length}</span>
+          </div>
+        </div>
+        {selectedSituationRows.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+            {Array.from(
+              new Map(
+                selectedSituationRows
+                  .flatMap((row) => row.situationSnapshot?.objectiveRelations || [])
+                  .map((relation) => [`${relation.objectiveId}-${relation.relationType}`, relation])
+              ).values()
+            ).map((relation) => (
+              <span
+                key={`${relation.objectiveId}-${relation.relationType}`}
+                className="rounded-full bg-white px-2.5 py-1 text-emerald-900"
+              >
+                {relationLabel(relation.relationType)} · {relation.objectiveId}
+              </span>
+            ))}
+          </div>
+        )}
+      </section>
 
       {!editing && !scheduledMode && lessonPlans.length > 1 && (
         <select
@@ -2215,21 +2477,175 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       {generatorModal}
       {showBank && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6">
-            <div className="flex justify-between">
-              <h3 className="font-extrabold">
-                {replaceRowId
-                  ? 'استبدال الموقف من بنك المواقف'
-                  : 'بنك المواقف التربوية المطابقة للهدف'}
-              </h3>
-              <button onClick={() => setShowBank(false)}>✕</button>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="memo-situation-bank-title"
+            className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6"
+          >
+            <div className="flex justify-between gap-3">
+              <div>
+                <h3 id="memo-situation-bank-title" className="font-extrabold">
+                  {replaceRowId
+                    ? 'استبدال الموقف من بنك المواقف'
+                    : 'بنك المواقف التربوية المطابقة للهدف'}
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  تظهر المطابقات أولًا، ثم مرشحون من نفس المستوى والميدان عند الحاجة للمراجعة
+                  اليدوية.
+                </p>
+              </div>
+              <button aria-label="إغلاق بنك المواقف" onClick={() => setShowBank(false)}>
+                <X className="h-5 w-5" />
+              </button>
             </div>
+            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <strong className="text-sm text-emerald-950">لم تجد موقفًا مناسبًا؟</strong>
+                  <p className="mt-1 text-xs text-emerald-900">
+                    يمكنك إعداد اقتراح منظم وفق هدف هذه الحصة ثم مراجعته قبل الاستخدام.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={generateSituationSuggestion}
+                  className="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white"
+                >
+                  اقتراح موقف مناسب للهدف
+                </button>
+              </div>
+            </div>
+            {generatedSituationError && (
+              <p
+                role="alert"
+                className="mt-3 rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-700"
+              >
+                {generatedSituationError}
+              </p>
+            )}
+            {generatedSituation && (
+              <section className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <strong className="text-sm text-sky-950">مراجعة الاقتراح</strong>
+                    <p className="mt-1 text-xs text-sky-900">
+                      هذا الاقتراح خاص بك ولا يصبح موقفًا عامًا معتمدًا تلقائيًا.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setGeneratedSituation(null)}
+                    className="rounded-lg p-1 text-slate-500"
+                    aria-label="إلغاء الاقتراح"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="mt-3 space-y-2">
+                  <input
+                    value={generatedSituation.title}
+                    onChange={(event) =>
+                      setGeneratedSituation(
+                        (previous) => previous && { ...previous, title: event.target.value }
+                      )
+                    }
+                    className="w-full rounded-lg border border-sky-200 bg-white p-2 text-sm font-bold"
+                    aria-label="عنوان الموقف المقترح"
+                  />
+                  {[
+                    ['الوصف', 'description'],
+                    ['التنظيم', 'organization'],
+                    ['التعليمة', 'instructions'],
+                    ['شروط الإنجاز', 'executionConditions'],
+                    ['معيار النجاح', 'successCriteria'],
+                    ['مؤشرات الملاحظة', 'observationIndicators'],
+                    ['التنويعات', 'variants'],
+                  ].map(([label, key]) => (
+                    <label key={key} className="block text-xs font-bold text-slate-700">
+                      {label}
+                      <textarea
+                        value={
+                          generatedSituation[key as keyof GeneratedPedagogicalSituation] as string
+                        }
+                        onChange={(event) =>
+                          setGeneratedSituation(
+                            (previous) => previous && { ...previous, [key]: event.target.value }
+                          )
+                        }
+                        className="mt-1 min-h-12 w-full rounded-lg border border-sky-200 bg-white p-2 text-xs font-normal"
+                      />
+                    </label>
+                  ))}
+                  <label className="block text-xs font-bold text-slate-700">
+                    الوسائل
+                    <input
+                      value={generatedSituation.equipment.join('، ')}
+                      onChange={(event) =>
+                        setGeneratedSituation(
+                          (previous) =>
+                            previous && {
+                              ...previous,
+                              equipment: event.target.value
+                                .split(/[,،]/)
+                                .map((item) => item.trim())
+                                .filter(Boolean),
+                            }
+                        )
+                      }
+                      className="mt-1 w-full rounded-lg border border-sky-200 bg-white p-2 text-xs font-normal"
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={useGeneratedSituationWithoutSaving}
+                    className="rounded-xl border border-sky-300 bg-white px-3 py-2 text-xs font-bold text-sky-900"
+                  >
+                    استخدام في المذكرة فقط
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void saveGeneratedSituation()}
+                    disabled={generatedSituationSaving}
+                    className="rounded-xl bg-sky-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
+                  >
+                    {generatedSituationSaving ? 'جارٍ الحفظ...' : 'حفظ كموقف خاص واستخدامه'}
+                  </button>
+                </div>
+              </section>
+            )}
             {availableSituations.length ? (
               availableSituations.map((situation) => (
-                <div key={situation.id} className="mt-3 rounded-xl border p-3">
-                  <strong>{situation.name}</strong>
-                  <p className="mt-1 text-xs">{situation.organization}</p>
-                  <p className="mt-1 text-xs text-slate-500">{situation.equipment.join('، ')}</p>
+                <div
+                  key={situation.id}
+                  className="mt-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <strong>{situation.name}</strong>
+                    <span
+                      className={`rounded-full px-2 py-1 text-[10px] font-bold ${exactSituations.some((item) => item.id === situation.id) ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}
+                    >
+                      {exactSituations.some((item) => item.id === situation.id)
+                        ? 'مطابق للسياق'
+                        : 'مرشح للمراجعة'}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-600">
+                    {situation.sourceGoal ||
+                      situation.executionConditions ||
+                      situation.organization}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    الوسائل: {situation.equipment.join('، ') || 'غير محددة'} · المدة:{' '}
+                    {situation.durationMinutes ? `${situation.durationMinutes} دقيقة` : 'غير محددة'}
+                  </p>
+                  {!!situation.successCriteria && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      معيار النجاح: {situation.successCriteria}
+                    </p>
+                  )}
                   <button
                     onClick={() => addSituation(situation)}
                     className="action-primary mt-2 rounded-lg px-3 py-1 text-xs font-bold text-white"
@@ -2240,7 +2656,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               ))
             ) : (
               <p className="mt-4 text-sm text-slate-500">
-                لا يوجد موقف بنكي مطابق؛ تبقى المذكرة على مسودة fallback المحلية.
+                لا يوجد موقف معتمد أو مرشح متاح لهذا المستوى والميدان. يمكنك تحرير المسودة يدويًا أو
+                إضافة موقف إلى البنك من محرك المعرفة.
               </p>
             )}
           </div>

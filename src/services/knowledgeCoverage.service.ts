@@ -1,4 +1,5 @@
 import { COMPLETE_ANNUAL_CURRICULUM, PE_FIELDS, PE_LEVELS } from '../data/algerianCurriculum';
+import { getObjectiveBank, getObjectiveBankResources } from '../data/objectiveBankRegistry';
 import {
   isAutoGenerationEligible,
   referenceSituations,
@@ -38,6 +39,26 @@ export interface CurriculumObjectiveReference {
   tags: string[];
   usageCount: number;
   rating: number;
+  canonicalObjectiveId: string;
+  objectiveText: string;
+  gradeId: string;
+  domainId: string;
+  curriculumResourceIds: string[];
+  resourceLabels: string[];
+  resourceFamilies: string[];
+  transversalResourceIds: string[];
+  transversalResources: string[];
+  competencyComponentIds: string[];
+  learningContent: string;
+  mobilizedKnowledge: string;
+  executionContent: string;
+  guidance: string;
+  progressionStage: string;
+  sequenceWeight: number;
+  finalCompetency?: string;
+  learningSection?: string;
+  adoptedInCurrentSection: boolean;
+  usageStatus: 'adopted' | 'alternative' | 'proposed' | 'unused';
   equipment?: string[];
   rules?: string;
 }
@@ -46,6 +67,40 @@ const FIELD_NAMES: Record<string, string> = {
   f_locomotion: 'الوضعيات والتنقلات',
   f_fundamentals: 'الحركات القاعدية',
   f_structuring: 'الهيكلة والبناء',
+};
+
+const TRANSVERSAL_RESOURCE_LABELS: Record<string, string> = {
+  attention: 'الانتباه والاستجابة للتوجيه',
+  safety: 'السلامة في فضاء الممارسة',
+  cooperation: 'التعاون مع الزملاء',
+  'rule-respect': 'احترام القواعد',
+  'body-awareness': 'الوعي بالجسم',
+  'body-control': 'التحكم في الجسم',
+  'effective-limb-use': 'الاستخدام الفعال للأطراف',
+  'execution-space': 'استغلال فضاء التنفيذ',
+  'group-synchronization': 'التزامن داخل المجموعة',
+  'instruction-response': 'الاستجابة للتعليمات',
+  'limb-coordination': 'تناسق عمل الأطراف',
+  'limb-integration': 'تكامل وظائف الأطراف',
+  'locomotion-pattern': 'أنماط التنقل',
+  'movement-adaptation': 'التكيف الحركي',
+  'movement-chaining': 'ربط الحركات',
+  'movement-coordination': 'التنسيق الحركي',
+  'organization-safety': 'التنظيم والسلامة',
+  'path-control': 'التحكم في المسار',
+  'posture-by-situation': 'الوضعية المناسبة للموقف',
+  'rhythm-adaptation': 'التكيف مع الوتيرة',
+  'rhythm-response': 'الاستجابة للوتيرة',
+  'self-peer-regulation': 'تنظيم العلاقة مع الزملاء',
+  'self-peer-safety': 'السلامة الذاتية وسلامة الزملاء',
+  'self-regulation': 'التنظيم الذاتي',
+  'situation-adaptation': 'التكيف مع الموقف',
+  'situation-response': 'الاستجابة للموقف',
+  'space-awareness': 'الوعي بفضاء الممارسة',
+  'space-orientation': 'التوجه في الفضاء',
+  'space-safety': 'السلامة في الفضاء',
+  'speed-adaptation': 'التكيف مع السرعة',
+  'stride-awareness': 'الوعي بخطوات الجري',
 };
 
 const normalize = (value: string) => value.trim().replace(/\s+/g, ' ');
@@ -67,40 +122,69 @@ export function buildCurriculumObjectiveReferences(
   const references: CurriculumObjectiveReference[] = [];
   Object.values(COMPLETE_ANNUAL_CURRICULUM).forEach((level) => {
     Object.values(level.fields).forEach((field) => {
-      field.sessionsList.forEach((session) => {
-        const key = `${level.levelId}|${field.fieldId}|${normalize(session.objective)}`;
-        const matching = items.some(
+      const bank = getObjectiveBank(level.levelId, field.fieldId);
+      const resources = getObjectiveBankResources(level.levelId, field.fieldId);
+      const sessionByText = new Map(
+        field.sessionsList.map((session) => [normalize(session.objective), session])
+      );
+      bank.forEach((objective) => {
+        const matchingKnowledgeItem = items.find(
           (item) =>
             item.category === 'objective' &&
-            normalize(item.description || item.title) === normalize(session.objective) &&
-            (item.levelIds?.includes(level.levelId) || item.levelId === level.levelId) &&
-            item.fieldId === field.fieldId
+            (item.objectiveId === objective.id ||
+              (normalize(item.description || item.title) === normalize(objective.objectiveText) &&
+                (item.levelIds?.includes(level.levelId) || item.levelId === level.levelId) &&
+                item.fieldId === field.fieldId))
         );
-        if (
-          !matching &&
-          !references.some(
-            (ref) => `${ref.levelId}|${ref.fieldId}|${normalize(ref.description)}` === key
-          )
-        ) {
-          references.push({
-            id: `curriculum_objective_${level.levelId}_${field.fieldId}_${session.sessionNumber}`,
-            category: 'objective',
-            title: session.objective,
-            description: session.objective,
-            origin: 'CURRICULUM_REFERENCE',
-            approvalStatus: 'APPROVED',
-            approved: true,
-            createdBy: 'مرجع منهجي داخل المنصة',
-            fieldId: field.fieldId,
-            fieldName:
-              FIELD_NAMES[field.fieldId] || field.fieldName.replace(/^الميدان \S+[:：]\s*/, ''),
-            levelId: level.levelId,
-            levelName: level.levelName,
-            tags: ['مرجع منهجي', session.typeLabel],
-            usageCount: 0,
-            rating: 0,
-          });
-        }
+        const session = sessionByText.get(normalize(objective.objectiveText));
+        const resourceById = new Map(resources.map((resource) => [resource.id, resource]));
+        const objectiveResourceRows = objective.curriculumResourceIds
+          .map((resourceId) => resourceById.get(resourceId))
+          .filter((resource): resource is (typeof resources)[number] => Boolean(resource));
+        const transversalResources = objective.transversalResourceIds.map((id) => {
+          const slug = id.split(':').pop() || id;
+          return TRANSVERSAL_RESOURCE_LABELS[slug] || slug.replace(/-/g, ' ');
+        });
+        references.push({
+          id: objective.id,
+          canonicalObjectiveId: objective.id,
+          category: 'objective',
+          title: objective.objectiveText,
+          description: objective.objectiveText,
+          objectiveText: objective.objectiveText,
+          origin: 'CURRICULUM_REFERENCE',
+          approvalStatus: 'APPROVED',
+          approved: true,
+          createdBy: 'بنك الأهداف المعتمد داخل المنصة',
+          fieldId: field.fieldId,
+          fieldName:
+            FIELD_NAMES[field.fieldId] || field.fieldName.replace(/^الميدان \S+[:：]\s*/, ''),
+          levelId: level.levelId,
+          gradeId: level.levelId,
+          domainId: field.fieldId,
+          levelName: level.levelName,
+          tags: [...objective.tags],
+          usageCount: matchingKnowledgeItem?.usageCount || 0,
+          rating: matchingKnowledgeItem?.rating || 0,
+          curriculumResourceIds: [...objective.curriculumResourceIds],
+          resourceLabels: objectiveResourceRows.map((resource) => resource.label),
+          resourceFamilies: objectiveResourceRows.map((resource) => resource.family),
+          transversalResourceIds: [...objective.transversalResourceIds],
+          transversalResources,
+          competencyComponentIds: [...objective.competencyComponentIds],
+          learningContent: objective.learningContent,
+          mobilizedKnowledge: objective.mobilizedKnowledge,
+          executionContent: objective.executionContent,
+          guidance: objective.guidance,
+          progressionStage: objective.progressionStage,
+          sequenceWeight: objective.sequenceWeight,
+          finalCompetency: field.finalCompetency,
+          learningSection: session
+            ? `${field.fieldName} — الحصة ${session.sessionNumber}`
+            : undefined,
+          adoptedInCurrentSection: Boolean(session),
+          usageStatus: session ? 'adopted' : 'unused',
+        });
       });
     });
   });
@@ -163,16 +247,18 @@ export function buildKnowledgeCoverage({
 export function buildObjectiveReadModel(
   knowledgeItems: KnowledgeItem[]
 ): Array<KnowledgeItem | CurriculumObjectiveReference> {
-  const existing = knowledgeItems.filter((item) => item.approved && item.category === 'objective');
-  const seen = new Set<string>();
-  const deduped = existing.filter((item) => {
-    const levels = item.levelIds?.length ? item.levelIds : item.levelId ? [item.levelId] : ['all'];
-    const keys = levels.map(
-      (levelId) => `${levelId}|${item.fieldId || ''}|${normalize(item.description || item.title)}`
+  const canonical = buildCurriculumObjectiveReferences(knowledgeItems);
+  const canonicalKeys = new Set(
+    canonical.map((item) => `${item.levelId}|${item.fieldId}|${normalize(item.description)}`)
+  );
+  const alternatives = knowledgeItems.filter((item) => {
+    if (!item.approved || item.category !== 'objective') return false;
+    const levels = item.levelIds?.length ? item.levelIds : item.levelId ? [item.levelId] : [];
+    return !levels.some((levelId) =>
+      canonicalKeys.has(
+        `${levelId}|${item.fieldId || ''}|${normalize(item.description || item.title)}`
+      )
     );
-    if (keys.some((key) => seen.has(key))) return false;
-    keys.forEach((key) => seen.add(key));
-    return true;
   });
-  return [...deduped, ...buildCurriculumObjectiveReferences(deduped)];
+  return [...canonical, ...alternatives];
 }
