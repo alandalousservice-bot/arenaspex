@@ -147,6 +147,23 @@ describe('MEMO-G4 teacher workspace contract', () => {
     ).toThrow('MEMO_PERSISTENCE_IDENTITY_CONFLICT');
   });
 
+  it('supports annual-distribution generation without an operational session', () => {
+    const plan = generateLessonMemoDraft({
+      teacher,
+      classId: 'class-g4-workspace',
+      academicYearId: '2026-2027',
+      source,
+      levelName: 'السنة الرابعة ابتدائي',
+      plannedDate: '2026-10-04',
+      durationMinutes: 90,
+      situations: [],
+    });
+    expect(plan.classPlannedSessionId).toBeUndefined();
+    expect(plan.classId).toBe('class-g4-workspace');
+    expect(plan.academicYearId).toBe('2026-2027');
+    expect(plan.referenceSessionId).toBe('ref-g4-workspace');
+  });
+
   it('requires confirmation only for edited memos and replaces explicitly', () => {
     const existing = {
       id: 'lp-g4-workspace',

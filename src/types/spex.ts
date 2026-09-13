@@ -686,6 +686,7 @@ export interface EducationalSituationSnapshot {
 // Lesson Plan (مذكرة الحصة البيداغوجية الرسمية)
 export interface LessonPlan {
   id: string;
+  memoSource?: 'annual-distribution' | 'operational' | 'standalone';
   dailyNotebookEntryId?: string;
   classPlannedSessionId?: string;
   referenceSessionId?: string;

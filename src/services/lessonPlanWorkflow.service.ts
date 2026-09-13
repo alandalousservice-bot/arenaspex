@@ -1,7 +1,7 @@
 import type { TeacherPlanningSession } from './api';
 import type { LessonPlan } from '../types/spex';
 
-export type LessonMemoMode = 'operational' | 'standalone';
+export type LessonMemoMode = 'operational' | 'annual' | 'standalone';
 
 export interface LessonMemoEligibilitySession {
   domainId?: string | null;

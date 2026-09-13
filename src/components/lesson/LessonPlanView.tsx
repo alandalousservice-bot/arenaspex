@@ -22,8 +22,10 @@ import {
 import type { LessonMemoGenerationContext } from '../../services/lessonMemoGeneration.service';
 import {
   fetchAnnualPlans,
+  fetchTeacherAnnualMemoSources,
   fetchTeacherPlanningSessions,
   initializeTeacherPlanningSessions,
+  TeacherAnnualMemoSource,
   TeacherPlanningSession,
 } from '../../services/api';
 import { getAcademicCalendar } from '../../data/academicCalendars';
@@ -219,6 +221,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [scheduledError, setScheduledError] = useState('');
   const [scheduledLoading, setScheduledLoading] = useState(false);
   const [initializingOperationalSessions, setInitializingOperationalSessions] = useState(false);
+  const [annualMemoSources, setAnnualMemoSources] = useState<TeacherAnnualMemoSource[]>([]);
+  const [annualMemoSourceId, setAnnualMemoSourceId] = useState('');
+  const [annualMemoLoading, setAnnualMemoLoading] = useState(false);
+  const [annualMemoError, setAnnualMemoError] = useState('');
   const [wordExporting, setWordExporting] = useState(false);
   const [wordExportError, setWordExportError] = useState('');
   const wordExportInFlight = useRef(false);
@@ -241,6 +247,19 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const existingOperationalMemo =
     scheduledContext && operationalMemoEligible
       ? findOperationalLessonPlan(lessonPlans, scheduledContext.session, currentUser?.id || '')
+      : undefined;
+  const annualMemoSource = annualMemoSources.find(
+    (item) => item.referenceSessionId === annualMemoSourceId
+  );
+  const existingAnnualMemo =
+    annualMemoSource && currentUser
+      ? lessonPlans.find(
+          (item) =>
+            item.teacherId === currentUser.id &&
+            item.classId === operationalClassId &&
+            item.academicYearId === operationalAcademicYearId &&
+            item.referenceSessionId === annualMemoSource.referenceSessionId
+        )
       : undefined;
   const activeLessonPlan = lessonPlans.find((plan) => plan.id === activeLessonPlanId);
   const activeLessonPlanForContext =
@@ -278,13 +297,28 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           })),
     [memoMode, scheduledContext, scheduledLessons]
   );
+  const annualActiveLessonPlan =
+    memoMode === 'annual' && screenMode === 'saved' && annualMemoSource && currentUser
+      ? lessonPlans.find(
+          (item) =>
+            item.id === activeLessonPlanId &&
+            item.teacherId === currentUser.id &&
+            item.classId === operationalClassId &&
+            item.academicYearId === operationalAcademicYearId &&
+            item.referenceSessionId === annualMemoSource.referenceSessionId
+        )
+      : undefined;
   const selected = scheduledMode
     ? screenMode === 'saved'
       ? activeLessonPlanForContext || existingOperationalMemo
       : undefined
-    : activeLessonPlanForContext ||
-      lessonPlans.find((plan) => plan.id === selectedId) ||
-      lessonPlans[0];
+    : memoMode === 'annual'
+      ? screenMode === 'saved'
+        ? annualActiveLessonPlan || existingAnnualMemo
+        : undefined
+      : activeLessonPlanForContext ||
+        lessonPlans.find((plan) => plan.id === selectedId) ||
+        lessonPlans[0];
 
   useEffect(() => {
     setSessionIndex(0);
@@ -387,6 +421,42 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   ]);
 
   useEffect(() => {
+    const shouldLoad =
+      showGenerator &&
+      memoMode === 'annual' &&
+      Boolean(operationalClassId) &&
+      Boolean(operationalAcademicYearId);
+    if (!shouldLoad) return;
+    let cancelled = false;
+    setAnnualMemoLoading(true);
+    setAnnualMemoError('');
+    fetchTeacherAnnualMemoSources(operationalClassId, operationalAcademicYearId)
+      .then((result) => {
+        if (cancelled) return;
+        setAnnualMemoSources(result.sources);
+        setAnnualMemoSourceId((current) =>
+          result.sources.some((item) => item.referenceSessionId === current)
+            ? current
+            : result.sources[0]?.referenceSessionId || ''
+        );
+      })
+      .catch((reason: unknown) => {
+        if (cancelled) return;
+        setAnnualMemoSources([]);
+        setAnnualMemoSourceId('');
+        setAnnualMemoError(
+          reason instanceof Error ? reason.message : 'تعذر تحميل التوزيع السنوي لهذا القسم.'
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setAnnualMemoLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [memoMode, operationalAcademicYearId, operationalClassId, showGenerator]);
+
+  useEffect(() => {
     if (!showBank) return;
     fetch('/api/educational-situations')
       .then((response) => (response.ok ? response.json() : { situations: [] }))
@@ -467,6 +537,40 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     };
   };
 
+  const annualGenerationContext = (): LessonMemoGenerationContext | null => {
+    if (!annualMemoSource || !operationalClass || !currentUser) return null;
+    const source = sourceFromPlanningReference(annualMemoSource.reference, operationalClass);
+    const previousSituationIds = lessonPlans
+      .filter(
+        (item) =>
+          item.teacherId === currentUser.id &&
+          item.classId === operationalClass.id &&
+          item.academicYearId === operationalAcademicYearId &&
+          (item.sessionGlobalNumber || 0) < source.globalNumber
+      )
+      .flatMap((item) =>
+        (item.lessonRows || []).flatMap((row) =>
+          row.situationSnapshot?.situationId ? [row.situationSnapshot.situationId] : []
+        )
+      );
+    return {
+      levelName: operationalClass.levelName || levelName,
+      teacher: currentUser,
+      className: operationalClass.name,
+      academicYearId: operationalAcademicYearId,
+      classId: operationalClass.id,
+      inspectorName,
+      plannedDate: annualMemoSource.plannedDate.slice(0, 10),
+      durationMinutes: annualMemoSource.durationMinutes,
+      source,
+      situations: bankSituations.length ? bankSituations : undefined,
+      previousSituationIds,
+      pedagogicalParts: annualMemoSource.pedagogicalPartReferences?.map((reference) =>
+        sourceFromPlanningReference(reference, operationalClass)
+      ),
+    };
+  };
+
   const createPlan = () => {
     if (memoMode === 'operational') {
       if (
@@ -495,8 +599,25 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         return;
       }
     }
+    if (memoMode === 'annual') {
+      if (!annualMemoSource || !operationalClass) {
+        setGenerationError('اختر حصة من التوزيع السنوي وقسماً صالحاً أولاً.');
+        return;
+      }
+      if (existingAnnualMemo) {
+        setSelectedId(existingAnnualMemo.id);
+        setActiveLessonPlanId(existingAnnualMemo.id);
+        setScreenMode('saved');
+        setShowGenerator(false);
+        setGenerationError('');
+        return;
+      }
+    }
     const operationalContext = memoMode === 'operational' ? scheduledContext : null;
-    const source = (generatorSessions.length ? generatorSessions : sessions)[sessionIndex];
+    const source =
+      memoMode === 'annual' && annualMemoSource && operationalClass
+        ? sourceFromPlanningReference(annualMemoSource.reference, operationalClass)
+        : (generatorSessions.length ? generatorSessions : sessions)[sessionIndex];
     if (!source) {
       setGenerationError(
         memoMode === 'operational'
@@ -509,12 +630,23 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       const operationalContextForGeneration = operationalContext
         ? operationalGenerationContext()
         : null;
-      const plan = operationalContextForGeneration
+      const annualContextForGeneration = memoMode === 'annual' ? annualGenerationContext() : null;
+      const generatedPlan = operationalContextForGeneration
         ? generateLessonMemoDraft(operationalContextForGeneration)
-        : autoGenerateLessonPlan(source, {
-            levelName,
-            teacher: currentUser,
-          });
+        : annualContextForGeneration
+          ? generateLessonMemoDraft(annualContextForGeneration)
+          : autoGenerateLessonPlan(source, {
+              levelName,
+              teacher: currentUser,
+            });
+      const plan =
+        memoMode === 'annual' && annualMemoSource
+          ? {
+              ...generatedPlan,
+              id: `lp_annual_${operationalClassId}_${operationalAcademicYearId}_${annualMemoSource.referenceSessionId}`,
+              memoSource: 'annual-distribution' as const,
+            }
+          : generatedPlan;
       if (!plan.lessonRows?.length) throw new Error('empty memo');
       onSaveLessonPlan(saveLessonMemo(plan, existingOperationalMemo));
       setSelectedId(plan.id);
@@ -626,7 +758,11 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
           <h3 className="font-extrabold">
-            {memoMode === 'operational' ? 'مذكرة حصة مبرمجة' : 'مذكرة مستقلة'}
+            {memoMode === 'operational'
+              ? 'مذكرة حصة مبرمجة'
+              : memoMode === 'annual'
+                ? 'مذكرة من التوزيع السنوي'
+                : 'مذكرة مستقلة'}
           </h3>
           <button
             onClick={() => {
@@ -638,7 +774,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
+        <div className="mb-5 grid grid-cols-3 gap-2 rounded-xl bg-slate-100 p-1">
           <button
             type="button"
             disabled={!teacherClasses.length}
@@ -649,6 +785,17 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             className={`rounded-lg px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40 ${memoMode === 'operational' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600'}`}
           >
             مذكرة حصة مبرمجة
+          </button>
+          <button
+            type="button"
+            disabled={!teacherClasses.length}
+            onClick={() => {
+              setMemoMode('annual');
+              setGenerationError('');
+            }}
+            className={`rounded-lg px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40 ${memoMode === 'annual' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600'}`}
+          >
+            من التوزيع السنوي
           </button>
           <button
             type="button"
@@ -789,6 +936,107 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               تُبنى المذكرة على الحصة المحددة وقسمها وسنتها وتاريخها الفعلي.
             </p>
           </>
+        ) : memoMode === 'annual' ? (
+          <>
+            <label className="mb-1 block text-sm font-bold">القسم</label>
+            <select
+              value={operationalClassId}
+              onChange={(event) => {
+                setOperationalClassId(event.target.value);
+                setAnnualMemoSourceId('');
+                setAnnualMemoSources([]);
+                closeSavedMemo();
+              }}
+              className="mb-3 w-full rounded-xl border p-2"
+            >
+              <option value="">اختر قسماً</option>
+              {teacherClasses.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name || displayLevelName(item)}
+                </option>
+              ))}
+            </select>
+            <label className="mb-1 block text-sm font-bold">السنة الدراسية</label>
+            <select
+              dir="ltr"
+              value={operationalAcademicYearId}
+              onChange={(event) => {
+                setOperationalAcademicYearId(event.target.value);
+                setAnnualMemoSourceId('');
+                setAnnualMemoSources([]);
+                closeSavedMemo();
+              }}
+              className="mb-3 w-full rounded-xl border p-2"
+            >
+              {getOperationalAcademicYearOptions().map((year) => (
+                <option key={year} value={year}>
+                  {formatAcademicYearSelectLabel(year)}
+                </option>
+              ))}
+            </select>
+            {annualMemoLoading ? (
+              <p className="rounded-xl bg-slate-50 p-3 text-xs font-bold text-slate-600">
+                جارٍ تحميل حصص التوزيع السنوي...
+              </p>
+            ) : annualMemoSources.length ? (
+              <>
+                <label className="mb-1 block text-sm font-bold">الحصة من التوزيع السنوي</label>
+                <select
+                  value={annualMemoSourceId}
+                  onChange={(event) => {
+                    setAnnualMemoSourceId(event.target.value);
+                    setGenerationError('');
+                  }}
+                  className="w-full rounded-xl border p-2 text-sm"
+                >
+                  {annualMemoSources.map((source) => (
+                    <option key={source.referenceSessionId} value={source.referenceSessionId}>
+                      {formatLessonDate(source.plannedDate)} · {source.reference.sessionTypeLabel} ·{' '}
+                      {source.reference.objective}
+                    </option>
+                  ))}
+                </select>
+                {annualMemoSource && (
+                  <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-emerald-50 p-3 text-xs text-slate-700">
+                    <span>
+                      <strong>التاريخ:</strong>{' '}
+                      <bdi dir="ltr">{formatLessonDate(annualMemoSource.plannedDate)}</bdi>
+                    </span>
+                    <span>
+                      <strong>المدة:</strong> {annualMemoSource.durationMinutes} دقيقة
+                    </span>
+                    <span className="col-span-2">
+                      <strong>هدف المقطع:</strong> {annualMemoSource.reference.objective}
+                    </span>
+                    <span className="col-span-2">
+                      <strong>الميدان:</strong> {annualMemoSource.reference.fieldName}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
+                <p className="text-sm font-bold text-slate-700">
+                  {annualMemoError || 'لم يتم إنشاء التوزيع السنوي لهذا المستوى بعد.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.location.assign(
+                      annualDistributionPath(operationalAcademicYearId, operationalClass?.levelId)
+                    )
+                  }
+                  className="mt-3 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white"
+                >
+                  فتح التوزيع السنوي
+                </button>
+              </div>
+            )}
+            <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-900">
+              محتوى المذكرة وأهدافها من التوزيع السنوي؛ أما التوقيت والتنفيذ اليومي فيديرهما الكراس
+              اليومي.
+            </p>
+          </>
         ) : (
           <>
             <label className="mb-1 block text-sm font-bold">المستوى</label>
@@ -831,11 +1079,17 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         )}
         <button
           type="button"
-          disabled={memoMode === 'operational' && (!scheduledContext || scheduledLoading)}
+          disabled={
+            (memoMode === 'operational' && (!scheduledContext || scheduledLoading)) ||
+            (memoMode === 'annual' && (!annualMemoSource || annualMemoLoading))
+          }
           onClick={createPlan}
           className="action-primary mt-5 rounded-xl px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {memoMode === 'operational' && existingOperationalMemo ? 'فتح المذكرة' : 'توليد المذكرة'}
+          {(memoMode === 'operational' && existingOperationalMemo) ||
+          (memoMode === 'annual' && existingAnnualMemo)
+            ? 'فتح المذكرة'
+            : 'توليد المذكرة'}
         </button>
       </div>
     </div>
@@ -1042,6 +1296,13 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             </button>
             <button
               type="button"
+              onClick={() => openGenerator('annual', 'list')}
+              className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white"
+            >
+              توليد من التوزيع السنوي
+            </button>
+            <button
+              type="button"
               onClick={() =>
                 window.location.assign(
                   annualDistributionPath(operationalAcademicYearId, operationalClass?.levelId)
@@ -1174,6 +1435,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     );
   }
   const isScheduled = Boolean(plan.classPlannedSessionId);
+  const isAnnualDistributionMemo = plan.memoSource === 'annual-distribution';
   const effectiveDuration =
     isScheduled && scheduledContext
       ? scheduledContext.session.durationMinutes
@@ -1281,13 +1543,19 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           </h2>
           <p className="mt-1 text-xs text-slate-500">
             {isScheduled
-              ? 'قالب موحد مستمد من الحصة المحددة في التوزيع السنوي.'
-              : 'هذه المذكرة غير مرتبطة بحصة مبرمجة في الكراس اليومي.'}
+              ? 'قالب موحد مستمد من الحصة المحددة في التوزيع السنوي والكراس اليومي.'
+              : isAnnualDistributionMemo
+                ? 'قالب موحد مستمد من التوزيع السنوي وأهداف المقطع.'
+                : 'هذه المذكرة غير مرتبطة بحصة مبرمجة في الكراس اليومي.'}
           </p>
           <span
-            className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${isScheduled ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-800'}`}
+            className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${isScheduled ? 'bg-blue-50 text-blue-700' : isAnnualDistributionMemo ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}
           >
-            {isScheduled ? 'مذكرة حصة مبرمجة' : 'مذكرة مستقلة'}
+            {isScheduled
+              ? 'مذكرة حصة مبرمجة'
+              : isAnnualDistributionMemo
+                ? 'مذكرة من التوزيع السنوي'
+                : 'مذكرة مستقلة'}
           </span>
           <span className="mr-2 mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-700">
             {plan.manualEdits ? 'معدلة' : plan.generatedAt ? 'مسودة مولدة' : 'محفوظة'}
@@ -1321,6 +1589,15 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           >
             <FileText className="h-4 w-4" />
             مذكرة مستقلة
+          </button>
+          <button
+            type="button"
+            disabled={!teacherClasses.length}
+            onClick={() => openGenerator('annual', 'saved')}
+            className="flex items-center gap-1 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <FileText className="h-4 w-4" />
+            من التوزيع السنوي
           </button>
           {!editing && onOpenCommandCenterForPlan && (
             <button
@@ -1743,14 +2020,14 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       <p className="text-xs text-slate-500">
         مجموع الزمن: {rows.reduce((sum, row) => sum + Number(row.durationMinutes || 0), 0)} دقيقة.
       </p>
-      {isScheduled && scheduledContext && (
+      {(isScheduled || isAnnualDistributionMemo) && (
         <div className="flex flex-wrap gap-2 text-xs font-bold">
           <button
             onClick={() =>
               window.location.assign(
                 annualDistributionPath(
-                  scheduledContext.session.academicYearId,
-                  scheduledContext.classRoom.levelId
+                  plan.academicYearId || operationalAcademicYearId,
+                  operationalClass?.levelId
                 )
               )
             }
@@ -1758,16 +2035,18 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           >
             التوزيع السنوي
           </button>
-          <button
-            onClick={() =>
-              window.location.assign(
-                `/daily-notebook?classId=${encodeURIComponent(scheduledContext.classRoom.id)}&classPlannedSessionId=${encodeURIComponent(scheduledContext.session.id)}&academicYearId=${encodeURIComponent(scheduledContext.session.academicYearId)}`
-              )
-            }
-            className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-blue-700"
-          >
-            الكراس اليومي
-          </button>
+          {isScheduled && scheduledContext && (
+            <button
+              onClick={() =>
+                window.location.assign(
+                  `/daily-notebook?classId=${encodeURIComponent(scheduledContext.classRoom.id)}&classPlannedSessionId=${encodeURIComponent(scheduledContext.session.id)}&academicYearId=${encodeURIComponent(scheduledContext.session.academicYearId)}`
+                )
+              }
+              className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-blue-700"
+            >
+              الكراس اليومي
+            </button>
+          )}
         </div>
       )}
 

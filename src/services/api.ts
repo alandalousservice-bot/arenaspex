@@ -687,6 +687,21 @@ export interface TeacherPlanningSessionsResponse {
   sessions: TeacherPlanningSession[];
 }
 
+export interface TeacherAnnualMemoSource {
+  referenceSessionId: string;
+  plannedDate: string;
+  durationMinutes: number;
+  reference: TeacherPlanningReference;
+  pedagogicalPartReferences?: TeacherPlanningReference[];
+}
+
+export interface TeacherAnnualMemoSourcesResponse {
+  success: boolean;
+  class: TeacherPlanningClassContext;
+  academicYearId: string;
+  sources: TeacherAnnualMemoSource[];
+}
+
 export interface TeacherPlanningAllSessionsResponse {
   success: boolean;
   classes: TeacherPlanningClassContext[];
@@ -714,6 +729,19 @@ export async function fetchTeacherPlanningSessionsForTeacher(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'تعذر تحميل حصص الأستاذ.');
   return data as TeacherPlanningAllSessionsResponse;
+}
+
+export async function fetchTeacherAnnualMemoSources(
+  classId: string,
+  academicYearId: string
+): Promise<TeacherAnnualMemoSourcesResponse> {
+  const query = new URLSearchParams({ classId, academicYearId });
+  const res = await fetch(
+    `/api/teacher/planning/annual-distribution/memo-sources?${query.toString()}`
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل حصص التوزيع السنوي.');
+  return data as TeacherAnnualMemoSourcesResponse;
 }
 
 export async function initializeTeacherPlanningSessions(

@@ -199,14 +199,14 @@ describe('session-first Lesson Memo workflow', () => {
     expect(lessonView).toContain('هذه المذكرة غير مرتبطة بحصة مبرمجة في الكراس اليومي.');
   });
 
-  it('uses one canonical deep-link contract and never initializes planning from memo generation', () => {
+  it('uses one canonical deep-link contract and keeps class initialization explicit', () => {
     expect(lessonView).toContain('classId');
     expect(lessonView).toContain('classPlannedSessionId');
     expect(lessonView).toContain('academicYearId');
     expect(planner).not.toContain('classPlannedSessionId');
     expect(planner).toContain('slots');
-    expect(lessonView).not.toContain('initializeTeacherPlanningSessions');
-    expect(lessonView).not.toContain('/sessions/initialize');
+    expect(lessonView).toContain('initializeTeacherPlanningSessions');
+    expect(lessonView).toContain('initializeSelectedClassSessions');
   });
 
   it('preserves operational linkage fields in the generator and edit flow', () => {

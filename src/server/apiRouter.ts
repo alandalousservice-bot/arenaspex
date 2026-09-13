@@ -1181,6 +1181,97 @@ apiRouter.get('/teacher/planning/annual-distribution', requireRole('teacher'), a
   });
 });
 
+apiRouter.get(
+  '/teacher/planning/annual-distribution/memo-sources',
+  requireRole('teacher'),
+  async (req, res) => {
+    const academicYearId = String(req.query.academicYearId || '');
+    const classId = String(req.query.classId || '');
+    if (!/^\d{4}-\d{4}$/.test(academicYearId) || !classId) {
+      return res.status(400).json({ error: 'القسم والسنة الدراسية مطلوبان.' });
+    }
+    const classRecord = await prisma.studentClass.findFirst({
+      where: { id: classId, teacherId: req.user!.id },
+      select: { id: true, name: true, levelId: true, institutionId: true },
+    });
+    const levelId = classRecord && normalizePrimaryLevelId(classRecord.levelId);
+    if (!classRecord || !levelId) {
+      return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+    }
+    const storedPlan = await prisma.annualPlan.findUnique({
+      where: {
+        teacherId_academicYearId_levelId_kind: {
+          teacherId: req.user!.id,
+          academicYearId,
+          levelId,
+          kind: ANNUAL_DISTRIBUTION_KIND,
+        },
+      },
+      select: { data: true },
+    });
+    if (!storedPlan) {
+      return res.status(404).json({ error: 'أنشئ التوزيع السنوي لهذا المستوى أولاً.' });
+    }
+    const teacherLearningPlans = await resolveTeacherLearningPlansForLevels(
+      [levelId],
+      req.user!.id,
+      academicYearId
+    );
+    const storedData = annualDistributionData(storedPlan);
+    const storedStartDate =
+      storedData.note &&
+      isPlanningStartDateConsistent(academicYearId, storedData.note) &&
+      isValidPlanningDate(storedData.note)
+        ? storedData.note
+        : getAcademicCalendar(academicYearId).schoolStart;
+    const generation = generateAllPrimaryLevelDistributions(
+      academicYearId,
+      storedStartDate,
+      teacherLearningPlans
+    );
+    const generatedLevel = generation.levels.find((item) => item.levelId === levelId);
+    if (!generatedLevel || generatedLevel.status !== 'generated') {
+      return res.status(422).json({ error: 'تعذر بناء التوزيع السنوي لهذا المستوى.' });
+    }
+    const level = applyPersistedAnnualDistributionDates(
+      generatedLevel,
+      storedData.overrides,
+      (value) => isAllowedAnnualDistributionDate(value, academicYearId, storedStartDate)
+    );
+    const references = await resolvePlanningReferences(levelId, req.user!.id, academicYearId);
+    const sources = level.sessions
+      .filter((session) => !session.isIntro)
+      .map((session) => {
+        const reference = references.get(session.referenceSessionId);
+        if (!reference) return null;
+        const pedagogicalParts = pedagogicalPartsForOperationalSession(
+          reference,
+          references,
+          'ONE_90'
+        );
+        return {
+          referenceSessionId: session.referenceSessionId,
+          plannedDate: session.plannedDate,
+          durationMinutes: session.durationMinutes,
+          reference,
+          ...(pedagogicalParts.length > 1 ? { pedagogicalPartReferences: pedagogicalParts } : {}),
+        };
+      })
+      .filter((source): source is NonNullable<typeof source> => Boolean(source));
+    return res.json({
+      success: true,
+      class: {
+        id: classRecord.id,
+        name: classRecord.name,
+        levelId: classRecord.levelId,
+        institutionId: classRecord.institutionId,
+      },
+      academicYearId,
+      sources,
+    });
+  }
+);
+
 apiRouter.post(
   '/teacher/planning/annual-distribution/initialize',
   requireRole('teacher'),
@@ -4169,7 +4260,37 @@ function jsonCollectionRoutes(opts: {
   } = opts;
 
   const validatePlannedLesson = async (item: Record<string, unknown>, user: { id: string }) => {
-    if (path !== 'lesson-plans' || typeof item.classPlannedSessionId !== 'string') return true;
+    if (path !== 'lesson-plans') return true;
+    if (item.memoSource === 'annual-distribution') {
+      if (
+        typeof item.classId !== 'string' ||
+        typeof item.academicYearId !== 'string' ||
+        typeof item.referenceSessionId !== 'string'
+      )
+        return false;
+      const classRecord = await prisma.studentClass.findFirst({
+        where: { id: item.classId, teacherId: user.id },
+        select: { levelId: true },
+      });
+      if (!classRecord) return false;
+      const levelId = normalizePrimaryLevelId(classRecord.levelId);
+      if (!levelId) return false;
+      const annualPlan = await prisma.annualPlan.findUnique({
+        where: {
+          teacherId_academicYearId_levelId_kind: {
+            teacherId: user.id,
+            academicYearId: item.academicYearId,
+            levelId,
+            kind: ANNUAL_DISTRIBUTION_KIND,
+          },
+        },
+        select: { id: true },
+      });
+      if (!annualPlan) return false;
+      const references = await resolvePlanningReferences(levelId, user.id, item.academicYearId);
+      return references.has(basePlanningReferenceId(item.referenceSessionId));
+    }
+    if (typeof item.classPlannedSessionId !== 'string') return true;
     if (typeof item.classId !== 'string' || typeof item.academicYearId !== 'string') return false;
     const planned = await prisma.classPlannedSession.findFirst({
       where: {

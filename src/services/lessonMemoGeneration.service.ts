@@ -10,7 +10,7 @@ export interface LessonMemoGenerationContext {
   teacher: User;
   classId: string;
   academicYearId: string;
-  classPlannedSessionId: string;
+  classPlannedSessionId?: string;
   source: AutoGenerateSessionSource;
   pedagogicalParts?: AutoGenerateSessionSource[];
   grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null;
@@ -31,7 +31,7 @@ export function resolveMemoGenerationContext(
   if (!context.teacher.id || !context.classId || !context.academicYearId) {
     throw new Error('MEMO_GENERATION_CONTEXT_INVALID');
   }
-  if (!context.classPlannedSessionId || !context.source.referenceSessionId) {
+  if (!context.source.referenceSessionId) {
     throw new Error('MEMO_GENERATION_REFERENCE_INVALID');
   }
   if (!Number.isFinite(context.durationMinutes) || context.durationMinutes <= 0) {

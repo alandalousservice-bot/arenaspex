@@ -119,6 +119,24 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(print).toContain('exportLessonPlanToPdf');
   });
 
+  it('offers annual-distribution memo generation without a weekly timetable', () => {
+    const view = read('src/components/lesson/LessonPlanView.tsx');
+    const api = read('src/services/api.ts');
+    const memoService = read('src/services/lessonMemoGeneration.service.ts');
+    const router = read('src/server/apiRouter.ts');
+
+    expect(view).toContain("openGenerator('annual', 'list')");
+    expect(view).toContain("memoSource: 'annual-distribution'");
+    expect(view).toContain(
+      'fetchTeacherAnnualMemoSources(operationalClassId, operationalAcademicYearId)'
+    );
+    expect(view).toContain('محتوى المذكرة وأهدافها من التوزيع السنوي');
+    expect(api).toContain('/api/teacher/planning/annual-distribution/memo-sources');
+    expect(memoService).toContain('classPlannedSessionId?: string');
+    expect(router).toContain("item.memoSource === 'annual-distribution'");
+    expect(router).toContain('أنشئ التوزيع السنوي لهذا المستوى أولاً.');
+  });
+
   it('keeps annual distribution level-scoped when no class is assigned', () => {
     const view = read('src/components/lesson/LessonPlanView.tsx');
 
