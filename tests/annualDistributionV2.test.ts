@@ -199,7 +199,9 @@ describe('academic-year annual distribution generation v2', () => {
       router.indexOf("'/teacher/planning/classes/:classId/sessions/initialize'")
     );
     expect(router).toContain("'/teacher/planning/annual-distribution/initialize'");
-    expect(globalRoute).toContain('classLinkViews(classes, generation.levels)');
+    expect(globalRoute).toContain(
+      'classLinkViews(classes, generation.levels, distributionsByClass)'
+    );
     expect(globalRoute).toContain('executionDependencyIds');
     expect(globalRoute).toContain('prisma.studentClass.findMany');
     expect(globalRoute).not.toContain('prisma.studentClass.create');

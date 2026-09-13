@@ -428,7 +428,8 @@ function timetableSlotForSession(
 async function resolvePlanningReferences(
   levelId: string,
   teacherId: string,
-  academicYearId: string
+  academicYearId: string,
+  grade4WeeklyScheduleMode?: 'TWO_45' | 'ONE_90'
 ) {
   const normalizedLevelId = normalizePrimaryLevelId(levelId);
   if (!normalizedLevelId) return new Map();
@@ -444,7 +445,8 @@ async function resolvePlanningReferences(
   return buildPlanningReferenceMap(
     normalizedLevelId,
     plans.find((plan) => plan.kind === 'section_wording')?.data,
-    plans.find((plan) => plan.kind === TEACHER_LEARNING_PLAN_KIND)?.data
+    plans.find((plan) => plan.kind === TEACHER_LEARNING_PLAN_KIND)?.data,
+    grade4WeeklyScheduleMode
   );
 }
 
@@ -497,7 +499,8 @@ function pedagogicalPartsForOperationalSession(
 function buildPlanningReferenceMap(
   levelId: string,
   wordingData: unknown,
-  teacherLearningPlan?: unknown
+  teacherLearningPlan?: unknown,
+  grade4WeeklyScheduleMode?: 'TWO_45' | 'ONE_90'
 ) {
   const fields = COMPLETE_ANNUAL_CURRICULUM[levelId]?.fields || {};
   const plan = resolveTeacherLearningPlan(
@@ -506,7 +509,7 @@ function buildPlanningReferenceMap(
     legacyWordingObjectives(wordingData)
   );
   const references = new Map(
-    canonicalReferenceSessions(levelId, plan).map((reference) => [
+    canonicalReferenceSessions(levelId, plan, grade4WeeklyScheduleMode).map((reference) => [
       reference.referenceSessionId,
       {
         referenceSessionId: reference.referenceSessionId,
@@ -549,7 +552,8 @@ function buildPlanningReferenceMap(
 async function resolvePlanningReferencesForLevels(
   levelIds: string[],
   teacherId: string,
-  academicYearId: string
+  academicYearId: string,
+  grade4ModeByLevel?: ReadonlyMap<string, 'TWO_45' | 'ONE_90'>
 ) {
   const normalizedLevelIds = [
     ...new Set(levelIds.map(normalizePrimaryLevelId).filter(Boolean)),
@@ -577,7 +581,12 @@ async function resolvePlanningReferencesForLevels(
   return new Map(
     normalizedLevelIds.map((levelId) => [
       levelId,
-      buildPlanningReferenceMap(levelId, wordingPlans.get(levelId), teacherPlans.get(levelId)),
+      buildPlanningReferenceMap(
+        levelId,
+        wordingPlans.get(levelId),
+        teacherPlans.get(levelId),
+        grade4ModeByLevel?.get(levelId)
+      ),
     ])
   );
 }
@@ -681,7 +690,8 @@ async function annualDistributionLevelViews(
       const references = await resolvePlanningReferences(
         level.levelId,
         teacherId,
-        generation.academicYearId
+        generation.academicYearId,
+        level.grade === 4 ? grade4WeeklyScheduleMode : undefined
       );
       const weeks =
         level.status === 'generated'
@@ -723,13 +733,17 @@ async function annualDistributionLevelViews(
 
 function classLinkViews(
   classes: Array<{ id: string; name: string; levelId: string }>,
-  distributions: ReturnType<typeof generateAllPrimaryLevelDistributions>['levels']
+  distributions: ReturnType<typeof generateAllPrimaryLevelDistributions>['levels'],
+  distributionsByClass?: ReadonlyMap<
+    string,
+    ReturnType<typeof generateAllPrimaryLevelDistributions>['levels'][number]
+  >
 ) {
   const distributionsByLevel = new Map(distributions.map((item) => [item.levelId, item] as const));
   return classes.map((classRecord) => {
     const normalizedLevelId = normalizePrimaryLevelId(classRecord.levelId);
     const distribution = normalizedLevelId
-      ? distributionsByLevel.get(normalizedLevelId)
+      ? distributionsByClass?.get(classRecord.id) || distributionsByLevel.get(normalizedLevelId)
       : undefined;
     return distribution
       ? {
@@ -866,6 +880,10 @@ apiRouter.post(
         isValidPlanningDate(storedData.note)
           ? storedData.note
           : getAcademicCalendar(academicYearId).schoolStart;
+      const grade4WeeklyScheduleMode =
+        normalizePrimaryLevelId(existing.class.levelId) === 'lvl_p4'
+          ? await grade4WeeklyScheduleModeForClass(existing.classId, academicYearId)
+          : undefined;
       const teacherLearningPlans = await resolveTeacherLearningPlansForLevels(
         [normalizedLevelId],
         req.user!.id,
@@ -874,7 +892,8 @@ apiRouter.post(
       const generation = generateAllPrimaryLevelDistributions(
         academicYearId,
         planningStartDate,
-        teacherLearningPlans
+        teacherLearningPlans,
+        grade4WeeklyScheduleMode
       );
       const distribution = generation.levels.find((level) => level.levelId === normalizedLevelId);
       if (!distribution || distribution.status !== 'generated') {
@@ -885,10 +904,6 @@ apiRouter.post(
       }
       const timetableSlots = await weeklySlotsForTeacher(req.user!.id, academicYearId);
       const classSlots = timetableSlots.filter((slot) => slot.classId === existing.classId);
-      const grade4WeeklyScheduleMode = await grade4WeeklyScheduleModeForClass(
-        existing.classId,
-        academicYearId
-      );
       const materialized = materializeClassPlannedSessionSeedsFromTimetable(
         req.user!.id,
         existing.classId,
@@ -1032,11 +1047,6 @@ apiRouter.get('/teacher/planning/sessions', requireRole('teacher'), async (req, 
   });
   if (!classes.length) return res.json({ success: true, classes: [], sessions: [] });
 
-  const referenceByLevel = await resolvePlanningReferencesForLevels(
-    classes.map((classRecord) => classRecord.levelId),
-    req.user!.id,
-    parsed.data.academicYearId
-  );
   const classesById = new Map(classes.map((classRecord) => [classRecord.id, classRecord] as const));
   const timetableSlots = await weeklySlotsForTeacher(req.user!.id, parsed.data.academicYearId);
   const timetableSlotsByClass = new Map<string, typeof timetableSlots>();
@@ -1056,6 +1066,31 @@ apiRouter.get('/teacher/planning/sessions', requireRole('teacher'), async (req, 
       )
     )
   );
+  const grade4ModeByLevel = new Map<string, 'TWO_45' | 'ONE_90'>();
+  for (const classRecord of classes) {
+    if (normalizePrimaryLevelId(classRecord.levelId) !== 'lvl_p4') continue;
+    const mode = grade4ModesByClass.get(classRecord.id);
+    if (mode) grade4ModeByLevel.set('lvl_p4', mode);
+  }
+  const referenceByLevel = await resolvePlanningReferencesForLevels(
+    classes.map((classRecord) => classRecord.levelId),
+    req.user!.id,
+    parsed.data.academicYearId,
+    grade4ModeByLevel
+  );
+  const grade4ReferenceByMode = new Map(
+    await Promise.all(
+      [...new Set(grade4ModesByClass.values())].map(async (mode) => {
+        const references = await resolvePlanningReferencesForLevels(
+          ['lvl_p4'],
+          req.user!.id,
+          parsed.data.academicYearId,
+          new Map([['lvl_p4', mode]])
+        );
+        return [mode, references.get('lvl_p4') || new Map<string, PlanningReference>()] as const;
+      })
+    )
+  );
   const rows = await prisma.classPlannedSession.findMany({
     where: {
       teacherId: req.user!.id,
@@ -1069,13 +1104,17 @@ apiRouter.get('/teacher/planning/sessions', requireRole('teacher'), async (req, 
     classes,
     sessions: rows.map((row) => {
       const levelId = classesById.get(row.classId)?.levelId || '';
-      const references = referenceByLevel.get(levelId) || new Map<string, PlanningReference>();
+      const normalizedLevelId = normalizePrimaryLevelId(levelId);
+      const mode = grade4ModesByClass.get(row.classId) || 'ONE_90';
+      const references =
+        normalizedLevelId === 'lvl_p4'
+          ? grade4ReferenceByMode.get(mode) || new Map<string, PlanningReference>()
+          : referenceByLevel.get(levelId) || new Map<string, PlanningReference>();
       const reference =
         references.get(row.referenceSessionId) ||
         references.get(basePlanningReferenceId(row.referenceSessionId)) ||
         introPlanningReference(levelId, row.referenceSessionId) ||
         null;
-      const mode = grade4ModesByClass.get(row.classId) || 'ONE_90';
       return {
         ...classPlannedSessionView(
           row,
@@ -1119,7 +1158,8 @@ apiRouter.get(
     const references = await resolvePlanningReferences(
       classRecord.levelId,
       req.user!.id,
-      parsed.data.academicYearId
+      parsed.data.academicYearId,
+      grade4WeeklyScheduleMode
     );
     res.json({
       success: true,
@@ -1177,11 +1217,6 @@ apiRouter.get('/teacher/planning/annual-distribution', requireRole('teacher'), a
     );
   const planningStartDate =
     storedStartDate || getAcademicCalendar(parsed.data.academicYearId).schoolStart;
-  const generation = generateAllPrimaryLevelDistributions(
-    parsed.data.academicYearId,
-    planningStartDate,
-    teacherLearningPlans
-  );
   const selectedClass = parsed.data.classId
     ? await prisma.studentClass.findFirst({
         where: { id: parsed.data.classId, teacherId: req.user!.id },
@@ -1194,7 +1229,13 @@ apiRouter.get('/teacher/planning/annual-distribution', requireRole('teacher'), a
   const grade4WeeklyScheduleMode =
     selectedClass && normalizePrimaryLevelId(selectedClass.levelId) === 'lvl_p4'
       ? await grade4WeeklyScheduleModeForClass(selectedClass.id, parsed.data.academicYearId)
-      : undefined;
+      : 'ONE_90';
+  const generation = generateAllPrimaryLevelDistributions(
+    parsed.data.academicYearId,
+    planningStartDate,
+    teacherLearningPlans,
+    grade4WeeklyScheduleMode
+  );
   const levels = await annualDistributionLevelViews(
     generation,
     req.user!.id,
@@ -1242,8 +1283,10 @@ apiRouter.get(
     }
     if (!levelId) return res.status(400).json({ error: 'المستوى الدراسي غير صالح.' });
     const grade4WeeklyScheduleMode =
-      classRecord && levelId === 'lvl_p4'
-        ? await grade4WeeklyScheduleModeForClass(classId, academicYearId)
+      levelId === 'lvl_p4'
+        ? classRecord
+          ? await grade4WeeklyScheduleModeForClass(classId, academicYearId)
+          : 'ONE_90'
         : undefined;
     const storedPlan = await prisma.annualPlan.findUnique({
       where: {
@@ -1274,7 +1317,8 @@ apiRouter.get(
     const generation = generateAllPrimaryLevelDistributions(
       academicYearId,
       storedStartDate,
-      teacherLearningPlans
+      teacherLearningPlans,
+      grade4WeeklyScheduleMode
     );
     const generatedLevel = generation.levels.find((item) => item.levelId === levelId);
     if (!generatedLevel || generatedLevel.status !== 'generated') {
@@ -1285,7 +1329,12 @@ apiRouter.get(
       storedData.overrides,
       (value) => isAllowedAnnualDistributionDate(value, academicYearId, storedStartDate)
     );
-    const references = await resolvePlanningReferences(levelId, req.user!.id, academicYearId);
+    const references = await resolvePlanningReferences(
+      levelId,
+      req.user!.id,
+      academicYearId,
+      grade4WeeklyScheduleMode
+    );
     const sources = level.sessions
       .filter((session) => !session.isIntro)
       .map((session) => {
@@ -1339,6 +1388,28 @@ apiRouter.post(
     if (preLaunchRebuild && !isPreLaunchAcademicYear(academicYearId)) {
       return res.status(400).json({ error: 'إعادة البناء قبل الإطلاق متاحة لسنة الإطلاق فقط.' });
     }
+    const classes = await prisma.studentClass.findMany({
+      where: { teacherId: req.user!.id },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, levelId: true },
+    });
+    const grade4ModesByClass = new Map(
+      await Promise.all(
+        classes
+          .filter((classRecord) => normalizePrimaryLevelId(classRecord.levelId) === 'lvl_p4')
+          .map(
+            async (classRecord) =>
+              [
+                classRecord.id,
+                await grade4WeeklyScheduleModeForClass(classRecord.id, academicYearId),
+              ] as const
+          )
+      )
+    );
+    const grade4WeeklyScheduleMode =
+      classes
+        .map((classRecord) => grade4ModesByClass.get(classRecord.id))
+        .find((mode): mode is 'TWO_45' | 'ONE_90' => Boolean(mode)) || 'ONE_90';
     const teacherLearningPlans = await resolveTeacherLearningPlansForLevels(
       PRIMARY_PLANNING_LEVEL_IDS,
       req.user!.id,
@@ -1347,9 +1418,15 @@ apiRouter.post(
     const generation = generateAllPrimaryLevelDistributions(
       academicYearId,
       planningStartDate,
-      teacherLearningPlans
+      teacherLearningPlans,
+      grade4WeeklyScheduleMode
     );
-    const levels = await annualDistributionLevelViews(generation, req.user!.id, []);
+    const levels = await annualDistributionLevelViews(
+      generation,
+      req.user!.id,
+      [],
+      grade4WeeklyScheduleMode
+    );
     if (generation.levels.some((level) => level.status === 'failed')) {
       return res.status(400).json({
         error: 'تعذر إنشاء توزيع جميع المستويات ضمن السنة الدراسية المحددة.',
@@ -1372,21 +1449,36 @@ apiRouter.post(
       });
     }
 
-    const classes = await prisma.studentClass.findMany({
-      where: { teacherId: req.user!.id },
-      orderBy: { name: 'asc' },
-      select: { id: true, name: true, levelId: true },
-    });
     const distributionsByLevel = new Map(
       generation.levels.map((distribution) => [distribution.levelId, distribution] as const)
     );
+    const distributionsByClass = new Map<
+      string,
+      ReturnType<typeof generateAllPrimaryLevelDistributions>['levels'][number]
+    >();
+    for (const classRecord of classes) {
+      const normalizedLevelId = normalizePrimaryLevelId(classRecord.levelId);
+      let distribution = normalizedLevelId
+        ? distributionsByLevel.get(normalizedLevelId)
+        : undefined;
+      const classMode = grade4ModesByClass.get(classRecord.id);
+      if (normalizedLevelId === 'lvl_p4' && classMode && classMode !== grade4WeeklyScheduleMode) {
+        distribution = generateAllPrimaryLevelDistributions(
+          academicYearId,
+          planningStartDate,
+          teacherLearningPlans,
+          classMode
+        ).levels.find((item) => item.levelId === normalizedLevelId);
+      }
+      if (distribution) distributionsByClass.set(classRecord.id, distribution);
+    }
     const existingRows = await prisma.classPlannedSession.findMany({
       where: { teacherId: req.user!.id, academicYearId },
     });
     const existingByClassReference = new Map(
       existingRows.map((row) => [`${row.classId}|${row.referenceSessionId}`, row] as const)
     );
-    const classLinks = classLinkViews(classes, generation.levels);
+    const classLinks = classLinkViews(classes, generation.levels, distributionsByClass);
     const timetableSlots = await weeklySlotsForTeacher(req.user!.id, academicYearId);
     const timetableSlotsByClass = new Map<string, typeof timetableSlots>();
     for (const slot of timetableSlots) {
@@ -1400,18 +1492,23 @@ apiRouter.post(
     >();
     const materializationErrors: Array<{ classId: string; className: string; error: string }> = [];
     for (const link of classLinks.filter((item) => item.status === 'linked')) {
-      const distribution = distributionsByLevel.get(link.normalizedLevelId!);
-      const grade4WeeklyScheduleMode = await grade4WeeklyScheduleModeForClass(
-        link.classId,
-        academicYearId
-      );
+      const distribution = distributionsByClass.get(link.classId);
+      const classMode = grade4ModesByClass.get(link.classId);
+      if (!distribution) {
+        materializationErrors.push({
+          classId: link.classId,
+          className: link.className,
+          error: 'تعذر تحديد التوزيع الموافق لنمط جدولة القسم.',
+        });
+        continue;
+      }
       const materialized = materializeClassPlannedSessionSeedsFromTimetable(
         req.user!.id,
         link.classId,
         academicYearId,
-        distribution!.sessions,
+        distribution.sessions,
         timetableSlotsByClass.get(link.classId) || [],
-        grade4WeeklyScheduleMode
+        classMode
       );
       if (materialized.error) {
         materializationErrors.push({
@@ -1691,6 +1788,10 @@ apiRouter.post(
     });
     if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
     const timetableSlots = await weeklySlotsForTeacher(req.user!.id, parsed.data.academicYearId);
+    const grade4WeeklyScheduleMode = await grade4WeeklyScheduleModeForClass(
+      classRecord.id,
+      parsed.data.academicYearId
+    );
     let seeds;
     try {
       const teacherLearningPlans = await resolveTeacherLearningPlansForLevels(
@@ -1703,11 +1804,8 @@ apiRouter.post(
         parsed.data.planningStartDate,
         parsed.data.academicYearId,
         0,
-        teacherLearningPlans.get(normalizePrimaryLevelId(classRecord.levelId) || '')
-      );
-      const grade4WeeklyScheduleMode = await grade4WeeklyScheduleModeForClass(
-        classRecord.id,
-        parsed.data.academicYearId
+        teacherLearningPlans.get(normalizePrimaryLevelId(classRecord.levelId) || ''),
+        grade4WeeklyScheduleMode
       );
       const materialized = materializeClassPlannedSessionSeedsFromTimetable(
         req.user!.id,
@@ -1779,7 +1877,8 @@ apiRouter.post(
     const references = await resolvePlanningReferences(
       classRecord.levelId,
       req.user!.id,
-      parsed.data.academicYearId
+      parsed.data.academicYearId,
+      grade4WeeklyScheduleMode
     );
     res.status(201).json({
       success: true,
@@ -4136,12 +4235,18 @@ function jsonCollectionRoutes(opts: {
       const classRecord = requestedClassId
         ? await prisma.studentClass.findFirst({
             where: { id: requestedClassId, teacherId: user.id },
-            select: { levelId: true },
+            select: { id: true, levelId: true },
           })
         : null;
       if (requestedClassId && !classRecord) return false;
       const levelId = normalizePrimaryLevelId(classRecord?.levelId || requestedLevelId);
       if (!levelId) return false;
+      const grade4WeeklyScheduleMode =
+        levelId === 'lvl_p4'
+          ? classRecord
+            ? await grade4WeeklyScheduleModeForClass(classRecord.id, item.academicYearId as string)
+            : 'ONE_90'
+          : undefined;
       const annualPlan = await prisma.annualPlan.findUnique({
         where: {
           teacherId_academicYearId_levelId_kind: {
@@ -4154,7 +4259,12 @@ function jsonCollectionRoutes(opts: {
         select: { id: true },
       });
       if (!annualPlan) return false;
-      const references = await resolvePlanningReferences(levelId, user.id, item.academicYearId);
+      const references = await resolvePlanningReferences(
+        levelId,
+        user.id,
+        item.academicYearId,
+        grade4WeeklyScheduleMode
+      );
       return references.has(basePlanningReferenceId(item.referenceSessionId));
     }
     if (typeof item.classPlannedSessionId !== 'string') return true;
