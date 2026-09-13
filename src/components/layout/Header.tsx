@@ -39,7 +39,10 @@ interface HeaderProps {
   isMobileMenuOpen?: boolean;
   onToggleMobileMenu?: () => void;
   dailyNotebookEntries?: DailyNotebookEntry[];
-  onUpdateNotebookStatus?: (entryId: string, status: 'منجزة' | 'مؤجلة' | 'غير منجزة') => void;
+  onUpdateNotebookStatus?: (
+    entryId: string,
+    status: 'منجزة' | 'مؤجلة' | 'غير منجزة'
+  ) => Promise<void> | void;
   activeLessonSession?: LessonSession | null;
   onOpenCommandCenter?: () => void;
   searchStudents?: Student[];
@@ -387,40 +390,49 @@ export const Header: React.FC<HeaderProps> = React.memo(
                             </div>
 
                             {/* Quick Action Buttons */}
-                            {onUpdateNotebookStatus && (
-                              <div className="flex items-center gap-1 pt-1 border-t border-slate-100">
-                                <button
-                                  onClick={() => onUpdateNotebookStatus(entry.id, 'منجزة')}
-                                  className={`flex-1 py-1 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                    entry.status === 'منجزة'
-                                      ? 'bg-emerald-600 text-white shadow-2xs'
-                                      : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                                  }`}
-                                >
-                                  ✓ منجزة
-                                </button>
-                                <button
-                                  onClick={() => onUpdateNotebookStatus(entry.id, 'غير منجزة')}
-                                  className={`flex-1 py-1 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                    entry.status === 'غير منجزة'
-                                      ? 'bg-rose-600 text-white shadow-2xs'
-                                      : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-                                  }`}
-                                >
-                                  ✕ غير منجزة
-                                </button>
-                                <button
-                                  onClick={() => onUpdateNotebookStatus(entry.id, 'مؤجلة')}
-                                  className={`flex-1 py-1 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                    entry.status === 'مؤجلة'
-                                      ? 'bg-amber-600 text-white shadow-2xs'
-                                      : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                                  }`}
-                                >
-                                  ⏰ مؤجلة
-                                </button>
-                              </div>
-                            )}
+                            {onUpdateNotebookStatus &&
+                              entry.classPlannedSessionId &&
+                              entry.classId &&
+                              entry.academicYearId && (
+                                <div className="flex items-center gap-1 pt-1 border-t border-slate-100">
+                                  <button
+                                    onClick={async () => {
+                                      await onUpdateNotebookStatus(entry.id, 'منجزة');
+                                    }}
+                                    className={`flex-1 py-1 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                                      entry.status === 'منجزة'
+                                        ? 'bg-emerald-600 text-white shadow-2xs'
+                                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                    }`}
+                                  >
+                                    ✓ منجزة
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      await onUpdateNotebookStatus(entry.id, 'غير منجزة');
+                                    }}
+                                    className={`flex-1 py-1 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                                      entry.status === 'غير منجزة'
+                                        ? 'bg-rose-600 text-white shadow-2xs'
+                                        : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                                    }`}
+                                  >
+                                    ✕ غير منجزة
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      await onUpdateNotebookStatus(entry.id, 'مؤجلة');
+                                    }}
+                                    className={`flex-1 py-1 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                                      entry.status === 'مؤجلة'
+                                        ? 'bg-amber-600 text-white shadow-2xs'
+                                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                    }`}
+                                  >
+                                    ⏰ مؤجلة
+                                  </button>
+                                </div>
+                              )}
                           </div>
                         ))}
                       </div>

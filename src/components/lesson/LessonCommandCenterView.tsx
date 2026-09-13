@@ -47,7 +47,7 @@ interface LessonCommandCenterViewProps {
   ) => Promise<void> | void;
   onUpdateTimingSettings: (settings: LessonSessionTiming) => void;
   onNavigateToLessonPlans: () => void;
-  onAddNotebookEntry?: (entry: Omit<DailyNotebookEntry, 'id'>) => void;
+  onAddNotebookEntry?: (entry: Omit<DailyNotebookEntry, 'id'>) => Promise<void> | void;
   onOpenAssessment?: () => void;
   onOpenAttendance?: () => void;
 }
@@ -218,7 +218,7 @@ export const LessonCommandCenterView: React.FC<LessonCommandCenterViewProps> = (
 
     if (onAddNotebookEntry) {
       const attendanceRate = Math.round((attendanceData.present / attendanceData.total) * 100);
-      onAddNotebookEntry({
+      await onAddNotebookEntry({
         teacherId: currentSession.teacherId || 't_1',
         classId: currentSession.classId,
         className: currentSession.className,

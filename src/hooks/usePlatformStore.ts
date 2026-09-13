@@ -165,6 +165,7 @@ export function usePlatformStore({
   });
   const dailyNotebookRef = useRef(dailyNotebook);
   const dailyNotebookMutationVersion = useRef(0);
+  const dailyNotebookStatusInFlight = useRef<Record<string, Promise<void>>>({});
 
   const [weeklySchedule, setWeeklySchedule] = useState<WeeklyScheduleSlot[]>(() => {
     if (!currentUser?.id) return [];
@@ -1113,13 +1114,57 @@ export function usePlatformStore({
     entryId: string,
     status: 'منجزة' | 'مؤجلة' | 'غير منجزة',
     note?: string
-  ) => {
-    dailyNotebookMutationVersion.current += 1;
-    setDailyNotebook((prev) =>
-      prev.map((item) =>
-        item.id === entryId ? { ...item, status, note: note ?? item.note } : item
-      )
-    );
+  ): Promise<void> => {
+    const entry = dailyNotebookRef.current.find((item) => item.id === entryId);
+    if (!entry?.classPlannedSessionId || !entry.classId || !entry.academicYearId)
+      return Promise.resolve();
+
+    const existingMutation = dailyNotebookStatusInFlight.current[entry.classPlannedSessionId];
+    if (existingMutation) return existingMutation;
+
+    const mutation = (async () => {
+      const previous = dailyNotebookRef.current;
+      const previousSessionStatus = entry.status;
+      let operationalStatusChanged = false;
+      try {
+        const response = await updateTeacherPlanningSession(
+          entry.classId,
+          entry.classPlannedSessionId,
+          { status }
+        );
+        operationalStatusChanged = response.session.status !== previousSessionStatus;
+        const nextEntry: DailyNotebookEntry = {
+          ...entry,
+          status,
+          note: note ?? entry.note,
+          executionDate: response.session.plannedDate,
+          timeSlot: response.session.startTime || entry.timeSlot,
+        };
+        const result = await syncNotebookEntryToDB(nextEntry);
+        if (!result.success) throw new Error('تعذر حفظ إدخال الكراس اليومي.');
+
+        dailyNotebookMutationVersion.current += 1;
+        dailyNotebookRef.current = previous.map((item) => (item.id === entryId ? nextEntry : item));
+        setDailyNotebook(dailyNotebookRef.current);
+      } catch {
+        if (operationalStatusChanged) {
+          try {
+            await updateTeacherPlanningSession(entry.classId, entry.classPlannedSessionId, {
+              status: previousSessionStatus,
+            });
+          } catch {
+            // Keep the durable operational response as the server's source of truth.
+          }
+        }
+        window.alert('تعذر تحديث حالة الحصة. لم يتم حفظ التغيير، ويمكنك إعادة المحاولة.');
+      }
+    })();
+
+    dailyNotebookStatusInFlight.current[entry.classPlannedSessionId] = mutation;
+    void mutation.finally(() => {
+      delete dailyNotebookStatusInFlight.current[entry.classPlannedSessionId!];
+    });
+    return mutation;
   };
 
   const handleUpdateLessonStatus = (

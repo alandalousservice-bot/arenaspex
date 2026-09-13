@@ -9,7 +9,10 @@ interface DailyScheduleListProps {
   dailyNotebook: DailyNotebookEntry[];
   plannedSessions?: TeacherPlanningSession[];
   onNavigateTab: (tab: NavTab) => void;
-  onUpdateNotebookStatus?: (entryId: string, status: 'منجزة' | 'مؤجلة' | 'غير منجزة') => void;
+  onUpdateNotebookStatus?: (
+    entryId: string,
+    status: 'منجزة' | 'مؤجلة' | 'غير منجزة'
+  ) => Promise<void> | void;
 }
 
 const STATUS_TOGGLES: Array<{
@@ -126,24 +129,28 @@ export const DailyScheduleList: React.FC<DailyScheduleListProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-                  {STATUS_TOGGLES.map((toggle) => (
-                    <button
-                      key={toggle.status}
-                      onClick={() =>
-                        onUpdateNotebookStatus && onUpdateNotebookStatus(entry.id, toggle.status)
-                      }
-                      className={`px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                        entry.status === toggle.status
-                          ? toggle.activeClassName
-                          : toggle.inactiveClassName
-                      }`}
-                      title={toggle.title}
-                    >
-                      {toggle.label}
-                    </button>
-                  ))}
-                </div>
+                {entry.classPlannedSessionId && entry.classId && entry.academicYearId && (
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                    {STATUS_TOGGLES.map((toggle) => (
+                      <button
+                        key={toggle.status}
+                        onClick={async () => {
+                          if (onUpdateNotebookStatus) {
+                            await onUpdateNotebookStatus(entry.id, toggle.status);
+                          }
+                        }}
+                        className={`px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                          entry.status === toggle.status
+                            ? toggle.activeClassName
+                            : toggle.inactiveClassName
+                        }`}
+                        title={toggle.title}
+                      >
+                        {toggle.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 <button
                   onClick={() => onNavigateTab('lesson_plans')}

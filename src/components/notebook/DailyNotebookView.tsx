@@ -127,6 +127,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [expandedPreviews, setExpandedPreviews] = useState<Set<string>>(() => new Set());
   const statusRequestVersions = useRef<Record<string, number>>({});
+  const statusInFlight = useRef<Record<string, boolean>>({});
   const initializedDateYears = useRef<Set<string>>(new Set());
   const selectedClassId = classFilter === 'all' ? '' : classFilter;
   const selectedClass = safeTeacherClasses.find((item) => item.id === selectedClassId);
@@ -292,6 +293,8 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
   }, [displayed, referenceForSession]);
   const classForSession = (session: TeacherPlanningSession) => classesById.get(session.classId);
   const updateStatus = async (session: TeacherPlanningSession, status: NotebookStatus) => {
+    if (statusInFlight.current[session.id]) return;
+    statusInFlight.current[session.id] = true;
     const requestVersion = (statusRequestVersions.current[session.id] || 0) + 1;
     statusRequestVersions.current[session.id] = requestVersion;
     setSavingId(session.id);
@@ -350,6 +353,7 @@ export const DailyNotebookView: React.FC<DailyNotebookViewProps> = ({
       }
     } finally {
       if (statusRequestVersions.current[session.id] === requestVersion) setSavingId(null);
+      delete statusInFlight.current[session.id];
     }
   };
   const saveNote = async (session: TeacherPlanningSession) => {

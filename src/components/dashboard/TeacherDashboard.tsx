@@ -34,7 +34,10 @@ interface TeacherDashboardProps {
   inspectorDisplayName?: string | null;
   onNavigateTab: (tab: NavTab) => void;
   onOpenAIGenerator: () => void;
-  onUpdateNotebookStatus?: (entryId: string, status: 'منجزة' | 'مؤجلة' | 'غير منجزة') => void;
+  onUpdateNotebookStatus?: (
+    entryId: string,
+    status: 'منجزة' | 'مؤجلة' | 'غير منجزة'
+  ) => Promise<void> | void;
 }
 
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
