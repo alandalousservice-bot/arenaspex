@@ -3041,7 +3041,18 @@ apiRouter.get('/educational-situations', async (req, res) => {
         : {}),
     },
     orderBy: { name: 'asc' },
-    include: { objectives: { select: { relationType: true } } },
+    include: {
+      objectives: { select: { relationType: true } },
+      media: {
+        select: {
+          id: true,
+          mediaRef: true,
+          mediaType: true,
+          classification: true,
+          provenance: true,
+        },
+      },
+    },
   });
   const visibleRows = rows.filter(
     (row) => row.status === 'APPROVED' || row.ownerId === user.id || canReviewSituation(user.role)

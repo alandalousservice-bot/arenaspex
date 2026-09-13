@@ -17,6 +17,40 @@ export const SITUATION_LESSON_TYPE_LABELS: Record<string, string> = {
   SUMMATIVE: 'تقويم تحصيلي',
 };
 
+export const SITUATION_RELATION_LABELS: Record<string, string> = {
+  DIRECT: 'يخدم الهدف مباشرة',
+  SUPPORTIVE: 'موقف داعم',
+  INTEGRATIVE: 'موقف إدماجي',
+  ASSESSMENT: 'موقف تقويمي',
+};
+
+export const SITUATION_DIFFICULTY_LABELS: Record<string, string> = {
+  basic: 'أساسي',
+  controlled: 'مضبوط',
+  challenging: 'متحدٍّ',
+  advanced: 'متقدم',
+  remedial: 'علاجي',
+};
+
+const SITUATION_PROVENANCE_LABELS: Record<string, string> = {
+  REFERENCE_SEED: 'من بنك المنصة',
+  REFERENCE: 'من بنك المنصة',
+  CURRICULUM_REFERENCE: 'من المرجع التربوي',
+  TEACHER: 'موقف شخصي',
+  COMMUNITY: 'مقترح من المجتمع التربوي',
+};
+
+const EQUIPMENT_LABELS: Record<string, string> = {
+  cones: 'أقماع',
+  cone: 'قمع',
+  whistle: 'صفارة',
+  balls: 'كرات',
+  ball: 'كرة',
+  mats: 'بسط',
+  mat: 'بساط',
+  bibs: 'صدريات ملونة',
+};
+
 const INTERNAL_TAXONOMY_VALUES = new Set([
   'LEARNING',
   'INTEGRATIVE',
@@ -42,6 +76,14 @@ export type SituationTaxonomySource = {
   relationTypes?: readonly string[] | null;
   gradeId?: string | null;
 };
+
+export interface EducationalSituationMedia {
+  id: string;
+  mediaRef: string;
+  mediaType: string;
+  classification?: string;
+  provenance?: unknown;
+}
 
 function canonicalMotorSkillLabels(): Map<string, string> {
   const labels = new Map<string, string>();
@@ -186,6 +228,76 @@ export function situationLessonTypeLabel(value: string): string | undefined {
   return SITUATION_LESSON_TYPE_LABELS[value];
 }
 
+export function situationRelationTypeLabel(value: string): string | undefined {
+  return SITUATION_RELATION_LABELS[value];
+}
+
+export function situationDifficultyLabel(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  return SITUATION_DIFFICULTY_LABELS[value] || undefined;
+}
+
+export function situationProvenanceLabel(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  return SITUATION_PROVENANCE_LABELS[value] || undefined;
+}
+
+export function situationEquipmentOptions(
+  values?: readonly string[] | null
+): TeacherFacingTaxonomyOption[] {
+  const seen = new Set<string>();
+  return (values || [])
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value) => {
+      if (seen.has(value)) return false;
+      seen.add(value);
+      return true;
+    })
+    .map((value) => ({
+      value,
+      label: EQUIPMENT_LABELS[value] || value,
+    }))
+    .filter((option) => /[\u0600-\u06ff]/.test(option.label) || EQUIPMENT_LABELS[option.value])
+    .sort((a, b) => a.label.localeCompare(b.label, 'ar'));
+}
+
+export function situationEquipmentLabels(values?: readonly string[] | null): string[] {
+  return situationEquipmentOptions(values).map((option) => option.label);
+}
+
+export type SituationVisual =
+  | { kind: 'media'; media: EducationalSituationMedia }
+  | { kind: 'project-icon'; iconKey: 'locomotion' | 'fundamentals' | 'structuring' }
+  | { kind: 'skill-icon'; iconKey: 'balance' | 'ball' | 'running' }
+  | { kind: 'fallback'; iconKey: 'neutral' };
+
+function validMedia(media?: EducationalSituationMedia | null): boolean {
+  if (!media?.mediaRef?.trim()) return false;
+  return /^(https?:\/\/|\/|data:image\/)/i.test(media.mediaRef.trim());
+}
+
+/** Resolves the visual in a stable, data-backed order without fabricating media. */
+export function situationVisual(item: {
+  media?: EducationalSituationMedia[] | null;
+  fieldId?: string | null;
+  motorActions?: readonly string[] | null;
+}): SituationVisual {
+  const media = (item.media || []).find(validMedia);
+  if (media) return { kind: 'media', media };
+  if (item.fieldId === 'f_locomotion') return { kind: 'project-icon', iconKey: 'locomotion' };
+  if (item.fieldId === 'f_fundamentals') return { kind: 'project-icon', iconKey: 'fundamentals' };
+  if (item.fieldId === 'f_structuring') return { kind: 'project-icon', iconKey: 'structuring' };
+  const skills = (item.motorActions || []).join(' ').toLocaleLowerCase();
+  if (skills.includes('balance') || skills.includes('توازن'))
+    return { kind: 'skill-icon', iconKey: 'balance' };
+  if (skills.includes('ball') || skills.includes('كرة'))
+    return { kind: 'skill-icon', iconKey: 'ball' };
+  if (skills.includes('run') || skills.includes('جري'))
+    return { kind: 'skill-icon', iconKey: 'running' };
+  return { kind: 'fallback', iconKey: 'neutral' };
+}
+
 /**
  * The teacher-facing read contract for applied pedagogical content.
  *
@@ -220,6 +332,7 @@ export interface PedagogicalSituationReadModel {
   observationIndicators?: string | string[] | null;
   approvalStatus?: string;
   productionEligibility?: string;
+  origin?: string;
   ownerId?: string;
   visibility: PedagogicalSituationVisibility;
   provenance: {
@@ -227,7 +340,9 @@ export interface PedagogicalSituationReadModel {
     sourceId: string;
     externalId?: string;
     canonicalSituationId?: string;
+    label?: string;
   };
+  media: EducationalSituationMedia[];
 }
 
 function legacyCompatibilityId(item: KnowledgeItem): string | undefined {
@@ -274,6 +389,7 @@ export function adaptEducationalSituation(
     observationIndicators: item.observationIndicators,
     approvalStatus: item.approvalStatus,
     productionEligibility: item.productionEligibility,
+    origin: item.origin,
     ownerId: item.ownerId,
     visibility:
       item.status === 'APPROVED'
@@ -287,7 +403,9 @@ export function adaptEducationalSituation(
       source: 'EDUCATIONAL_SITUATION',
       sourceId: item.id,
       externalId: item.externalId,
+      label: situationProvenanceLabel(item.origin),
     },
+    media: item.media || [],
   };
 }
 
@@ -312,13 +430,16 @@ export function adaptLegacyGame(item: KnowledgeItem): PedagogicalSituationReadMo
     executionConditions: item.rules,
     instructions: item.rules,
     approvalStatus: item.approvalStatus || item.status,
+    origin: item.origin,
     ownerId: item.ownerId,
     visibility: isPublic ? 'PUBLIC' : item.ownerId ? 'OWNER' : isReview ? 'REVIEW' : 'HIDDEN',
     provenance: {
       source: 'LEGACY_GAME',
       sourceId: item.id,
       canonicalSituationId,
+      label: situationProvenanceLabel(item.origin),
     },
+    media: [],
   };
 }
 

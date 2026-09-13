@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { matchesSituationFilters } from '../src/components/educationalSituations/EducationalSituationsBankView';
+import {
+  matchesSituationFilters,
+  situationSearchText,
+} from '../src/components/educationalSituations/EducationalSituationsBankView';
 import {
   classifySituationTaxonomy,
+  situationDifficultyLabel,
+  situationEquipmentOptions,
   situationDomainLabel,
   situationLessonTypeLabel,
+  situationProvenanceLabel,
+  situationRelationTypeLabel,
   teacherFacingSituationSkillOptions,
+  situationVisual,
 } from '../src/services/pedagogicalSituationReadModel.service';
+import type { EducationalSituation } from '../src/types/spex';
 
 const leakedValues = [
   'authored-direct',
@@ -89,12 +98,15 @@ describe('تصنيف Taxonomy بنك المواقف قبل العرض للمعل
     expect(options.some((option) => option.value === 'fast-running')).toBe(true);
     expect(JSON.stringify(input)).toBe(before);
     expect(
-      matchesSituationFilters({ ...input, durationMinutes: 45 } as any, {
-        skill: 'fast-running',
-        lessonType: '',
-        equipment: '',
-        duration: 'medium',
-      })
+      matchesSituationFilters(
+        { ...input, durationMinutes: 45 } as unknown as EducationalSituation,
+        {
+          skill: 'fast-running',
+          lessonType: '',
+          equipment: '',
+          duration: 'medium',
+        }
+      )
     ).toBe(true);
   });
 
@@ -110,5 +122,90 @@ describe('تصنيف Taxonomy بنك المواقف قبل العرض للمعل
       'f_structuring',
       'authored-direct',
     ]);
+  });
+
+  it('يعرض علاقات الأهداف بالعربية ويفلتر بالقيم الداخلية الثابتة', () => {
+    expect(situationRelationTypeLabel('DIRECT')).toBe('يخدم الهدف مباشرة');
+    expect(situationRelationTypeLabel('SUPPORTIVE')).toBe('موقف داعم');
+    expect(situationRelationTypeLabel('INTEGRATIVE')).toBe('موقف إدماجي');
+    expect(situationRelationTypeLabel('ASSESSMENT')).toBe('موقف تقويمي');
+    const item = {
+      ...source,
+      relationTypes: ['DIRECT', 'SUPPORTIVE'],
+      durationMinutes: 30,
+    } as unknown as EducationalSituation;
+    expect(
+      matchesSituationFilters(item, {
+        skill: '',
+        lessonType: '',
+        relationType: 'DIRECT',
+        equipment: '',
+        duration: 'medium',
+      })
+    ).toBe(true);
+    expect(
+      matchesSituationFilters(item, {
+        skill: '',
+        lessonType: '',
+        relationType: 'ASSESSMENT',
+        equipment: '',
+        duration: 'all',
+      })
+    ).toBe(false);
+  });
+
+  it('يعتمد الوسيط الصحيح أولًا ثم أيقونة المشروع ثم البديل المحايد', () => {
+    expect(
+      situationVisual({
+        fieldId: 'f_fundamentals',
+        motorActions: [],
+        media: [{ id: 'm1', mediaRef: '/media/situation.png', mediaType: 'image' }],
+      })
+    ).toEqual({
+      kind: 'media',
+      media: { id: 'm1', mediaRef: '/media/situation.png', mediaType: 'image' },
+    });
+    expect(situationVisual({ fieldId: 'f_fundamentals', motorActions: [], media: [] })).toEqual({
+      kind: 'project-icon',
+      iconKey: 'fundamentals',
+    });
+    expect(situationVisual({ motorActions: [], media: [] })).toEqual({
+      kind: 'fallback',
+      iconKey: 'neutral',
+    });
+    expect(
+      situationVisual({
+        motorActions: ['balance'],
+        media: [{ id: 'm1', mediaRef: 'not-a-url', mediaType: 'image' }],
+      })
+    ).toEqual({
+      kind: 'skill-icon',
+      iconKey: 'balance',
+    });
+  });
+
+  it('يعرض provenance والصعوبة والوسائل المنظمة فقط عند توفر قيم مدعومة', () => {
+    expect(situationProvenanceLabel('REFERENCE_SEED')).toBe('من بنك المنصة');
+    expect(situationProvenanceLabel('TEACHER')).toBe('موقف شخصي');
+    expect(situationProvenanceLabel('AUTHORED_FOR_ARENASPEX')).toBeUndefined();
+    expect(situationDifficultyLabel('basic')).toBe('أساسي');
+    expect(situationDifficultyLabel('unknown-internal-value')).toBeUndefined();
+    expect(situationEquipmentOptions(['أقماع', 'أقماع', 'cones', 'internal-equipment'])).toEqual([
+      { value: 'أقماع', label: 'أقماع' },
+      { value: 'cones', label: 'أقماع' },
+    ]);
+  });
+
+  it('يبحث في الهدف والمهارة والوسائل دون استعمال الوسوم التقنية المخفية', () => {
+    const item = {
+      ...source,
+      objectiveTexts: ['هدف الرمي'],
+      equipment: ['أقماع'],
+    } as unknown as EducationalSituation;
+    expect(situationSearchText(item)).toContain('هدف الرمي');
+    expect(situationSearchText(item)).toContain('الجري السريع');
+    expect(situationSearchText(item)).toContain('أقماع');
+    expect(situationSearchText(item)).not.toContain('f_locomotion');
+    expect(situationSearchText(item)).not.toContain('authored-direct');
   });
 });

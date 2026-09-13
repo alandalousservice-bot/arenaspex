@@ -1,5 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, BookOpen, Clock3, Layers3, Search, Target, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Activity,
+  BookOpen,
+  CircleDot,
+  Clock3,
+  Dumbbell,
+  ImageOff,
+  Layers3,
+  Search,
+  Target,
+  X,
+  Zap,
+} from 'lucide-react';
 import { EducationalSituation, KnowledgeItem, User } from '../../types/spex';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../../data/algerianCurriculum';
 import {
@@ -8,11 +20,17 @@ import {
   isLegacyGameReadModel,
   mergePedagogicalSituationReadModels,
   situationDomainLabel,
+  situationDifficultyLabel,
+  situationEquipmentLabels,
+  situationEquipmentOptions,
   situationLessonTypeLabel,
+  situationRelationTypeLabel,
   situationSkillOptions,
+  situationVisual,
   teacherFacingSituationSkillOptions,
   SITUATION_DOMAIN_LABELS,
   SITUATION_LESSON_TYPE_LABELS,
+  SITUATION_RELATION_LABELS,
 } from '../../services/pedagogicalSituationReadModel.service';
 
 export const FIELD_OPTIONS = [
@@ -31,6 +49,34 @@ export const LESSON_TYPE_LABELS = SITUATION_LESSON_TYPE_LABELS;
 
 export type SituationDurationFilter = 'all' | 'short' | 'medium' | 'long';
 
+const SituationVisualPreview: React.FC<{ item: EducationalSituation }> = ({ item }) => {
+  const visual = situationVisual(item);
+  if (visual.kind === 'media') {
+    return (
+      <img
+        src={visual.media.mediaRef}
+        alt={`صورة توضيحية: ${item.name}`}
+        className="h-12 w-12 rounded-xl object-cover ring-2 ring-white/40"
+      />
+    );
+  }
+  if (visual.kind === 'skill-icon') {
+    if (visual.iconKey === 'ball')
+      return <CircleDot aria-hidden="true" className="h-9 w-9 opacity-80" />;
+    if (visual.iconKey === 'running')
+      return <Zap aria-hidden="true" className="h-9 w-9 opacity-80" />;
+    return <Dumbbell aria-hidden="true" className="h-9 w-9 opacity-80" />;
+  }
+  if (visual.kind === 'project-icon') {
+    if (visual.iconKey === 'fundamentals')
+      return <Dumbbell aria-hidden="true" className="h-9 w-9 opacity-80" />;
+    if (visual.iconKey === 'structuring')
+      return <CircleDot aria-hidden="true" className="h-9 w-9 opacity-80" />;
+    return <Activity aria-hidden="true" className="h-9 w-9 opacity-80" />;
+  }
+  return <ImageOff aria-hidden="true" className="h-9 w-9 opacity-80" />;
+};
+
 export function detailText(value: string | string[] | null | undefined): string {
   return Array.isArray(value) ? value.filter(Boolean).join('، ') : value || '';
 }
@@ -41,6 +87,24 @@ export function situationSkillTags(item: EducationalSituation): string[] {
 
 export function situationSkillValues(item: EducationalSituation): string[] {
   return situationSkillOptions(item).map((option) => option.value);
+}
+
+export function situationSearchText(item: EducationalSituation): string {
+  return [
+    item.name,
+    item.sourceDescription,
+    item.sourceGoal,
+    item.instructions,
+    item.executionConditions,
+    item.successCriteria,
+    detailText(item.observationIndicators),
+    ...item.objectiveTexts,
+    ...situationSkillTags(item),
+    ...situationEquipmentLabels(item.equipment),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLocaleLowerCase();
 }
 
 export function durationBucket(
@@ -57,16 +121,19 @@ export function matchesSituationFilters(
   filters: {
     skill: string;
     lessonType: string;
+    relationType?: string;
     equipment: string;
     duration: SituationDurationFilter;
   }
 ): boolean {
   const skills = situationSkillValues(item);
   const lessonTypes = item.lessonTypes || [];
+  const relationTypes = item.relationTypes || [];
   const equipment = item.equipment || [];
   return (
     (!filters.skill || skills.includes(filters.skill)) &&
     (!filters.lessonType || lessonTypes.includes(filters.lessonType)) &&
+    (!filters.relationType || relationTypes.some((value) => value === filters.relationType)) &&
     (!filters.equipment || equipment.includes(filters.equipment)) &&
     (filters.duration === 'all' || durationBucket(item.durationMinutes) === filters.duration)
   );
@@ -116,6 +183,7 @@ export const EducationalSituationsBankView: React.FC<{
   const [objective, setObjective] = useState('');
   const [skill, setSkill] = useState('');
   const [lessonType, setLessonType] = useState('');
+  const [relationType, setRelationType] = useState('');
   const [equipmentFilter, setEquipmentFilter] = useState('');
   const [duration, setDuration] = useState<SituationDurationFilter>('all');
   const [selected, setSelected] = useState<EducationalSituation | null>(null);
@@ -123,14 +191,15 @@ export const EducationalSituationsBankView: React.FC<{
   const [draft, setDraft] = useState<any>(empty);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
   const objectiveOptions = useMemo(
     () => objectivesFor(Number(draft.grade) || 1, draft.fieldId),
     [draft.grade, draft.fieldId]
   );
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      if (q) params.set('q', q);
       if (grade) params.set('grade', grade);
       if (field) params.set('fieldId', field);
       if (objective) params.set('objective', objective);
@@ -139,10 +208,10 @@ export const EducationalSituationsBankView: React.FC<{
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'تعذر تحميل البنك');
     }
-  };
+  }, [field, grade, objective]);
   useEffect(() => {
     void load();
-  }, [q, grade, field, objective]);
+  }, [load]);
   const mine = useMemo(
     () => items.filter((item) => item.ownerId === currentUser.id),
     [items, currentUser.id]
@@ -170,8 +239,16 @@ export const EducationalSituationsBankView: React.FC<{
   );
   const availableEquipment = useMemo(
     () =>
-      Array.from(new Set(items.flatMap((item) => item.equipment || []))).sort((a, b) =>
-        a.localeCompare(b)
+      situationEquipmentOptions([
+        ...items.flatMap((item) => item.equipment || []),
+        ...legacyGames.flatMap((item) => item.equipment || []),
+      ]),
+    [items, legacyGames]
+  );
+  const availableRelationTypes = useMemo(
+    () =>
+      Array.from(new Set(items.flatMap((item) => item.relationTypes || []))).filter((value) =>
+        Boolean(situationRelationTypeLabel(value))
       ),
     [items]
   );
@@ -180,9 +257,16 @@ export const EducationalSituationsBankView: React.FC<{
       items.filter(
         (item) =>
           (item.status === 'APPROVED' || item.ownerId === currentUser.id) &&
-          matchesSituationFilters(item, { skill, lessonType, equipment: equipmentFilter, duration })
+          (!q.trim() || situationSearchText(item).includes(q.trim().toLocaleLowerCase())) &&
+          matchesSituationFilters(item, {
+            skill,
+            lessonType,
+            relationType,
+            equipment: equipmentFilter,
+            duration,
+          })
       ),
-    [currentUser.id, duration, equipmentFilter, items, lessonType, skill]
+    [currentUser.id, duration, equipmentFilter, items, lessonType, q, relationType, skill]
   );
   const visibleLegacyGames = useMemo(() => {
     const query = q.trim().toLocaleLowerCase();
@@ -190,7 +274,8 @@ export const EducationalSituationsBankView: React.FC<{
       const levels = item.levelIds?.length ? item.levelIds : item.levelId ? [item.levelId] : [];
       const gradeMatches = !grade || levels.includes(`lvl_p${grade}`);
       const fieldMatches = !field || item.fieldId === field;
-      const text = `${item.title} ${item.description} ${item.tags.join(' ')}`.toLocaleLowerCase();
+      const text =
+        `${item.title} ${item.description} ${item.objectiveText || ''} ${item.targetSkill || ''} ${item.tags.join(' ')} ${(item.equipment || []).join(' ')}`.toLocaleLowerCase();
       const queryMatches = !query || text.includes(query);
       const objectiveMatches = !objective || text.includes(objective.toLocaleLowerCase());
       const skillMatches =
@@ -203,6 +288,7 @@ export const EducationalSituationsBankView: React.FC<{
           requirements: [],
         }).some((option) => option.value === skill);
       const equipmentMatches = !equipmentFilter || (item.equipment || []).includes(equipmentFilter);
+      const relationMatches = !relationType;
       return (
         (item.approved || item.ownerId === currentUser.id) &&
         gradeMatches &&
@@ -210,6 +296,7 @@ export const EducationalSituationsBankView: React.FC<{
         queryMatches &&
         objectiveMatches &&
         skillMatches &&
+        relationMatches &&
         equipmentMatches
       );
     });
@@ -220,7 +307,18 @@ export const EducationalSituationsBankView: React.FC<{
       merged.filter(isLegacyGameReadModel).map((item) => item.sourceId)
     );
     return filtered.filter((item) => allowedLegacyIds.has(item.id));
-  }, [currentUser.id, equipmentFilter, field, grade, legacyGames, objective, q, skill]);
+  }, [
+    currentUser.id,
+    equipmentFilter,
+    field,
+    grade,
+    items,
+    legacyGames,
+    objective,
+    q,
+    relationType,
+    skill,
+  ]);
   const reviewer = currentUser.role === 'admin' || currentUser.role === 'inspector';
   const save = async () => {
     try {
@@ -281,6 +379,49 @@ export const EducationalSituationsBankView: React.FC<{
       setMessage(error instanceof Error ? error.message : 'تعذر المراجعة');
     }
   };
+  const closeDetails = useCallback(() => {
+    setSelected(null);
+    setSelectedLegacyGame(null);
+    window.requestAnimationFrame(() => openerRef.current?.focus());
+  }, []);
+  useEffect(() => {
+    if (!selected && !selectedLegacyGame) return undefined;
+    const dialog = dialogRef.current;
+    if (!dialog) return undefined;
+    const focusable = () =>
+      Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      );
+    (focusable()[0] || dialog).focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeDetails();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const elements = focusable();
+      if (!elements.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [closeDetails, selected, selectedLegacyGame]);
+  const selectedVisual = selected ? situationVisual(selected) : null;
   return (
     <div className="space-y-5" dir="rtl">
       <div className="rounded-2xl border bg-white p-5">
@@ -295,6 +436,7 @@ export const EducationalSituationsBankView: React.FC<{
           <label className="relative block">
             <Search className="pointer-events-none absolute right-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
+              aria-label="البحث في بنك المواقف"
               placeholder="ابحث في بنك المواقف"
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -302,6 +444,7 @@ export const EducationalSituationsBankView: React.FC<{
             />
           </label>
           <select
+            aria-label="تصفية حسب المستوى"
             value={grade}
             onChange={(e) => setGrade(e.target.value)}
             className="rounded-xl border p-2"
@@ -312,6 +455,7 @@ export const EducationalSituationsBankView: React.FC<{
             ))}
           </select>
           <select
+            aria-label="تصفية حسب الميدان"
             value={field}
             onChange={(e) => setField(e.target.value)}
             className="rounded-xl border p-2"
@@ -324,12 +468,14 @@ export const EducationalSituationsBankView: React.FC<{
             ))}
           </select>
           <input
+            aria-label="تصفية حسب الهدف التعليمي"
             placeholder="الهدف التعليمي المطابق"
             value={objective}
             onChange={(e) => setObjective(e.target.value)}
             className="rounded-xl border p-2"
           />
           <select
+            aria-label="تصفية حسب المهارة أو المتطلب"
             value={skill}
             onChange={(e) => setSkill(e.target.value)}
             className="rounded-xl border p-2"
@@ -342,6 +488,7 @@ export const EducationalSituationsBankView: React.FC<{
             ))}
           </select>
           <select
+            aria-label="تصفية حسب نوع الحصة"
             value={lessonType}
             onChange={(e) => setLessonType(e.target.value)}
             className="rounded-xl border p-2"
@@ -354,18 +501,33 @@ export const EducationalSituationsBankView: React.FC<{
             ))}
           </select>
           <select
+            aria-label="تصفية حسب علاقة الموقف بالهدف"
+            value={relationType}
+            onChange={(e) => setRelationType(e.target.value)}
+            className="rounded-xl border p-2"
+          >
+            <option value="">كل علاقات الأهداف</option>
+            {availableRelationTypes.map((value) => (
+              <option key={value} value={value}>
+                {SITUATION_RELATION_LABELS[value]}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="تصفية حسب الوسائل"
             value={equipmentFilter}
             onChange={(e) => setEquipmentFilter(e.target.value)}
             className="rounded-xl border p-2"
           >
             <option value="">كل الوسائل</option>
-            {availableEquipment.map((value) => (
-              <option key={value} value={value}>
-                {value}
+            {availableEquipment.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>
           <select
+            aria-label="تصفية حسب المدة"
             value={duration}
             onChange={(e) => setDuration(e.target.value as SituationDurationFilter)}
             className="rounded-xl border p-2"
@@ -408,7 +570,11 @@ export const EducationalSituationsBankView: React.FC<{
                 {item.description}
               </p>
               <button
-                onClick={() => setSelectedLegacyGame(item)}
+                onClick={(event) => {
+                  openerRef.current = event.currentTarget;
+                  setSelectedLegacyGame(item);
+                }}
+                aria-label={`فتح تفاصيل الموقف ${item.title}`}
                 className="mt-4 rounded-xl border border-indigo-200 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50"
               >
                 فتح التفاصيل
@@ -421,10 +587,17 @@ export const EducationalSituationsBankView: React.FC<{
             key={item.id}
             className="group overflow-hidden rounded-2xl border bg-white text-right shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
           >
-            <button onClick={() => setSelected(item)} className="w-full text-right">
+            <button
+              onClick={(event) => {
+                openerRef.current = event.currentTarget;
+                setSelected(item);
+              }}
+              aria-label={`فتح تفاصيل الموقف ${item.name}`}
+              className="w-full text-right"
+            >
               <div className="bg-gradient-to-br from-emerald-700 to-teal-500 p-5 text-white">
                 <div className="flex items-center justify-between gap-3">
-                  <Activity className="h-9 w-9 opacity-80" />
+                  <SituationVisualPreview item={item} />
                   <div className="flex flex-wrap justify-end gap-1 text-[10px] font-bold">
                     <span className="rounded-lg bg-white/20 px-2 py-1">
                       {situationLessonTypeLabel(item.lessonTypes?.[0] || '') || 'موقف تطبيقي'}
@@ -432,6 +605,14 @@ export const EducationalSituationsBankView: React.FC<{
                     {item.status === 'APPROVED' && (
                       <span className="rounded-lg bg-emerald-950/30 px-2 py-1">معتمد</span>
                     )}
+                    {item.relationTypes
+                      ?.map((value) => situationRelationTypeLabel(value))
+                      .filter(Boolean)
+                      .map((label) => (
+                        <span key={label} className="rounded-lg bg-white/20 px-2 py-1">
+                          {label}
+                        </span>
+                      ))}
                   </div>
                 </div>
                 <strong className="mt-4 block text-lg">{item.name}</strong>
@@ -446,6 +627,11 @@ export const EducationalSituationsBankView: React.FC<{
                     <Clock3 className="ml-1 inline h-3 w-3" />
                     {item.durationMinutes ? `${item.durationMinutes} دقيقة` : 'المدة غير محددة'}
                   </span>
+                  {situationDifficultyLabel(item.difficulty) && (
+                    <span className="rounded-full bg-slate-100 px-2 py-1">
+                      الصعوبة: {situationDifficultyLabel(item.difficulty)}
+                    </span>
+                  )}
                 </div>
                 <p className="mt-3 line-clamp-2 text-xs text-slate-600">
                   {item.sourceGoal || item.executionConditions || 'موقف تربوي مرتبط بهدف تعلّمي.'}
@@ -462,6 +648,16 @@ export const EducationalSituationsBankView: React.FC<{
                       </span>
                     ))}
                 </div>
+                {situationEquipmentLabels(item.equipment).length > 0 && (
+                  <p className="mt-2 text-[11px] text-slate-500">
+                    الوسائل: {situationEquipmentLabels(item.equipment).slice(0, 3).join('، ')}
+                  </p>
+                )}
+                {adaptEducationalSituation(item).provenance.label && (
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    المصدر: {adaptEducationalSituation(item).provenance.label}
+                  </p>
+                )}
                 <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-emerald-700">
                   فتح التفاصيل <Target className="h-3.5 w-3.5" />
                 </span>
@@ -477,12 +673,14 @@ export const EducationalSituationsBankView: React.FC<{
                   <span className="mr-2">
                     <button
                       onClick={() => edit(item)}
+                      aria-label={`تعديل الموقف ${item.name}`}
                       className="rounded-lg border px-2 py-1 text-xs"
                     >
                       تعديل
                     </button>
                     <button
                       onClick={() => void remove(item.id)}
+                      aria-label={`حذف الموقف ${item.name}`}
                       className="mr-1 rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700"
                     >
                       حذف
@@ -661,6 +859,9 @@ export const EducationalSituationsBankView: React.FC<{
             role="dialog"
             aria-modal="true"
             aria-labelledby="educational-situation-details-title"
+            aria-describedby="educational-situation-details-content"
+            tabIndex={-1}
+            ref={dialogRef}
             className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"
           >
             <div className="flex items-start justify-between gap-3 border-b pb-4">
@@ -675,17 +876,21 @@ export const EducationalSituationsBankView: React.FC<{
               </div>
               <button
                 aria-label="إغلاق التفاصيل"
-                onClick={() => {
-                  setSelected(null);
-                  setSelectedLegacyGame(null);
-                }}
+                onClick={closeDetails}
                 className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
             {selected ? (
-              <div className="mt-4 space-y-4">
+              <div id="educational-situation-details-content" className="mt-4 space-y-4">
+                {selectedVisual?.kind === 'media' && (
+                  <img
+                    src={selectedVisual.media.mediaRef}
+                    alt={`صورة توضيحية: ${selected.name}`}
+                    className="max-h-56 w-full rounded-xl object-contain bg-slate-50"
+                  />
+                )}
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="rounded-xl bg-slate-50 p-3 text-sm">
                     <BookOpen className="mb-1 h-4 w-4 text-emerald-700" />
@@ -707,17 +912,24 @@ export const EducationalSituationsBankView: React.FC<{
                       {selected.durationMinutes ? `${selected.durationMinutes} دقيقة` : 'غير محددة'}
                     </p>
                   </div>
+                  {situationDifficultyLabel(selected.difficulty) && (
+                    <div className="rounded-xl bg-slate-50 p-3 text-sm">
+                      <strong>الصعوبة</strong>
+                      <p>{situationDifficultyLabel(selected.difficulty)}</p>
+                    </div>
+                  )}
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   {[
                     ['الهدف / الغاية', selected.sourceGoal],
+                    ['الفكرة العامة', selected.sourceDescription],
                     ['الأهداف المرتبطة', selected.objectiveTexts.join('، ')],
                     ['التنظيم', selected.organization],
-                    ['الوسائل', selected.equipment.join('، ')],
-                    ['شروط الإنجاز', selected.executionConditions],
+                    ['الوسائل', situationEquipmentLabels(selected.equipment).join('، ')],
+                    ['كيف يتم الإنجاز؟ (شروط الإنجاز)', selected.executionConditions],
                     ['مؤشرات الملاحظة', detailText(selected.observationIndicators)],
-                    ['معيار النجاح', selected.successCriteria],
-                    ['التعليمات', selected.instructions],
+                    ['شروط النجاح (معيار النجاح)', selected.successCriteria],
+                    ['ماذا يقول الأستاذ؟', selected.instructions],
                     ['التنويعات', selected.variations],
                     ['المهارات والإجراءات', situationSkillTags(selected).join('، ')],
                   ].map(([label, value]) =>
@@ -740,6 +952,20 @@ export const EducationalSituationsBankView: React.FC<{
                       .join('، ')}
                   </div>
                 )}
+                {!!selected.relationTypes?.length && (
+                  <div className="rounded-xl bg-indigo-50 p-3 text-sm">
+                    <strong>علاقة الموقف بالأهداف:</strong>{' '}
+                    {selected.relationTypes
+                      .map((value) => situationRelationTypeLabel(value))
+                      .filter(Boolean)
+                      .join('، ')}
+                  </div>
+                )}
+                {adaptEducationalSituation(selected).provenance.label && (
+                  <div className="rounded-xl bg-slate-50 p-3 text-sm">
+                    <strong>المصدر:</strong> {adaptEducationalSituation(selected).provenance.label}
+                  </div>
+                )}
                 {!!selected.pedagogicalTags?.length && (
                   <div className="flex flex-wrap gap-2 text-xs">
                     {selected.pedagogicalTags
@@ -756,7 +982,7 @@ export const EducationalSituationsBankView: React.FC<{
                 )}
               </div>
             ) : selectedLegacyGame ? (
-              <div className="mt-4 space-y-4 text-sm">
+              <div id="educational-situation-details-content" className="mt-4 space-y-4 text-sm">
                 <div className="rounded-xl bg-indigo-50 p-4">
                   <strong>الوصف</strong>
                   <p className="mt-1 whitespace-pre-wrap leading-relaxed">
@@ -769,7 +995,7 @@ export const EducationalSituationsBankView: React.FC<{
                   ['الهدف التربوي', selectedLegacyGame.pedagogicalPurpose],
                   ['إرشادات السلامة', selectedLegacyGame.safetyGuidance],
                   ['التدرج', selectedLegacyGame.progression],
-                  ['الوسائل', selectedLegacyGame.equipment?.join('، ')],
+                  ['الوسائل', situationEquipmentLabels(selectedLegacyGame.equipment).join('، ')],
                 ].map(([label, value]) =>
                   value ? (
                     <div key={label} className="rounded-xl border border-slate-100 p-3">

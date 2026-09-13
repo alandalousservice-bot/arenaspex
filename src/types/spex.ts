@@ -623,6 +623,13 @@ export interface EducationalSituationObjectiveRelation {
   evidence?: Record<string, unknown> | null;
   relevanceScore?: number | null;
 }
+export interface EducationalSituationMedia {
+  id: string;
+  mediaRef: string;
+  mediaType: string;
+  classification?: string;
+  provenance?: unknown;
+}
 export interface EducationalSituation {
   id: string;
   externalId?: string;
@@ -656,6 +663,7 @@ export interface EducationalSituation {
   instructions?: string | null;
   successCriteria?: string | null;
   observationIndicators?: string | string[] | null;
+  media?: EducationalSituationMedia[];
   ownerId?: string;
   approvedById?: string;
   approvedByRole?: string;
