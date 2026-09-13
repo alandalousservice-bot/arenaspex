@@ -12,11 +12,16 @@ import { EducationalSituationsBankView } from '../educationalSituations/Educatio
 import { User } from '../../types/spex';
 import {
   buildKnowledgeCoverage,
-  buildObjectiveReadModel,
   CoverageStatus,
   CurriculumObjectiveReference,
   canViewCoverageDiagnostics,
 } from '../../services/knowledgeCoverage.service';
+import {
+  buildObjectiveBankReadModel,
+  filterObjectiveBankReadModel,
+  objectiveAdoptionLabel,
+  ObjectiveBankReadModel,
+} from '../../services/objectiveBankReadModel.service';
 
 interface KnowledgeEngineViewProps {
   knowledgeItems: KnowledgeItem[];
@@ -83,10 +88,19 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
   const [showCoverage, setShowCoverage] = useState(false);
   const [objectiveGrade, setObjectiveGrade] = useState('all');
   const [objectiveField, setObjectiveField] = useState('all');
+  const [objectiveFinalCompetency, setObjectiveFinalCompetency] = useState('all');
+  const [objectiveLearningSection, setObjectiveLearningSection] = useState('all');
+  const [objectiveAdoption, setObjectiveAdoption] = useState('all');
   // تأخير التصفية عن الطباعة المباشرة لتقليل عمليات إعادة الرسم على القوائم الكبيرة
   const debouncedSearchVal = useDebounce(searchVal, 300);
 
-  const objectiveItems = buildObjectiveReadModel(knowledgeItems);
+  const objectiveItems = buildObjectiveBankReadModel(knowledgeItems);
+  const finalCompetencies = [
+    ...new Set(objectiveItems.map((item) => item.finalCompetency).filter(Boolean)),
+  ];
+  const learningSections = [
+    ...new Set(objectiveItems.map((item) => item.learningSection).filter(Boolean)),
+  ];
   const suggestionObjectives = useMemo(
     () =>
       objectiveItems
@@ -98,51 +112,46 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
         .filter((item) => item.fieldId === suggestionField),
     [objectiveItems, suggestionGrade, suggestionField]
   );
-  const filteredItems = (activeTab === 'objective' ? objectiveItems : knowledgeItems).filter(
-    (item) => {
-      const matchesCategory = item.category === activeTab;
-      const matchesSearch =
-        item.title.includes(debouncedSearchVal) ||
-        item.description.includes(debouncedSearchVal) ||
-        item.tags.some((t) => t.includes(debouncedSearchVal));
-      const matchesGrade =
-        !['game', 'objective'].includes(activeTab) ||
-        objectiveGrade === 'all' ||
-        item.levelId === objectiveGrade ||
-        item.levelIds?.includes(objectiveGrade);
-      const matchesField =
-        !['game', 'objective'].includes(activeTab) ||
-        objectiveField === 'all' ||
-        item.fieldId === objectiveField;
-      return item.approved && matchesCategory && matchesSearch && matchesGrade && matchesField;
-    }
-  );
+  const filteredItems =
+    activeTab === 'objective'
+      ? filterObjectiveBankReadModel(objectiveItems, {
+          search: debouncedSearchVal,
+          gradeId: objectiveGrade === 'all' ? undefined : objectiveGrade,
+          domainId: objectiveField === 'all' ? undefined : objectiveField,
+          finalCompetency:
+            objectiveFinalCompetency === 'all' ? undefined : objectiveFinalCompetency,
+          learningSection:
+            objectiveLearningSection === 'all' ? undefined : objectiveLearningSection,
+          adoptionStatus:
+            objectiveAdoption === 'all' ? undefined : (objectiveAdoption as 'ADOPTED' | 'UNUSED'),
+        })
+      : knowledgeItems.filter((item) => {
+          const matchesCategory = item.category === activeTab;
+          const matchesSearch =
+            item.title.includes(debouncedSearchVal) ||
+            item.description.includes(debouncedSearchVal) ||
+            item.tags.some((t) => t.includes(debouncedSearchVal));
+          return item.approved && matchesCategory && matchesSearch;
+        });
   const isCanonicalObjective = (
     item: KnowledgeItem | CurriculumObjectiveReference
   ): item is CurriculumObjectiveReference => 'canonicalObjectiveId' in item;
+  const isObjectiveBankModel = (
+    item: KnowledgeItem | CurriculumObjectiveReference
+  ): item is ObjectiveBankReadModel => 'adoptionStatus' in item;
   const objectiveStatus = (item: KnowledgeItem | CurriculumObjectiveReference) => {
+    if (isObjectiveBankModel(item)) return objectiveAdoptionLabel(item.adoptionStatus);
     if (isCanonicalObjective(item)) {
       return item.adoptedInCurrentSection ? 'معتمد في المقطع' : 'غير مستخدم في المقطع الحالي';
     }
     return item.approvalStatus === 'APPROVED' ? 'مرجع معتمد' : 'مقترح';
   };
-  const objectiveAlternatives = selectedObjective
-    ? objectiveItems
-        .filter((item) => {
-          const selectedLevel = isCanonicalObjective(selectedObjective)
-            ? selectedObjective.levelId
-            : selectedObjective.levelId;
-          const selectedField = isCanonicalObjective(selectedObjective)
-            ? selectedObjective.fieldId
-            : selectedObjective.fieldId;
-          return (
-            item.id !== selectedObjective.id &&
-            item.levelId === selectedLevel &&
-            item.fieldId === selectedField
-          );
-        })
-        .slice(0, 4)
-    : [];
+  const objectiveAlternatives =
+    selectedObjective && isObjectiveBankModel(selectedObjective)
+      ? selectedObjective.alternativeObjectives
+          .map((alternative) => objectiveItems.find((item) => item.id === alternative.objectiveId))
+          .filter((item): item is ObjectiveBankReadModel => Boolean(item))
+      : [];
   const coverage = buildKnowledgeCoverage({ knowledgeItems });
   const canViewCoverage = canViewCoverageDiagnostics(currentUser.role);
   const statusLabel: Record<CoverageStatus, string> = {
@@ -642,7 +651,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
         </section>
       )}
       {activeTab === 'objective' && (
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
           <select
             value={objectiveGrade}
             onChange={(e) => setObjectiveGrade(e.target.value)}
@@ -664,6 +673,39 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
             <option value="f_locomotion">الوضعيات والتنقلات</option>
             <option value="f_fundamentals">الحركات القاعدية</option>
             <option value="f_structuring">الهيكلة والبناء</option>
+          </select>
+          <select
+            value={objectiveFinalCompetency}
+            onChange={(e) => setObjectiveFinalCompetency(e.target.value)}
+            className="max-w-xs bg-white border border-slate-200 rounded-xl px-3 py-2"
+          >
+            <option value="all">كل الكفاءات الختامية</option>
+            {finalCompetencies.map((competency) => (
+              <option key={competency} value={competency}>
+                {competency}
+              </option>
+            ))}
+          </select>
+          <select
+            value={objectiveLearningSection}
+            onChange={(e) => setObjectiveLearningSection(e.target.value)}
+            className="max-w-xs bg-white border border-slate-200 rounded-xl px-3 py-2"
+          >
+            <option value="all">كل المقاطع والحصص</option>
+            {learningSections.map((section) => (
+              <option key={section} value={section}>
+                {section}
+              </option>
+            ))}
+          </select>
+          <select
+            value={objectiveAdoption}
+            onChange={(e) => setObjectiveAdoption(e.target.value)}
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2"
+          >
+            <option value="all">كل حالات الاستخدام</option>
+            <option value="ADOPTED">معتمد في المقطع</option>
+            <option value="UNUSED">غير مستخدم في المقطع الحالي</option>
           </select>
         </div>
       )}
@@ -790,6 +832,13 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
                 </p>
               )}
 
+              {isObjectiveBankModel(item) && (
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  <span className="font-bold text-slate-800">ماذا يكتسب المتعلم؟</span>{' '}
+                  {item.learnerAcquisition}
+                </p>
+              )}
+
               {item.rules && (
                 <div className="text-xs space-y-1">
                   <span className="font-bold text-slate-800 block">طريقة التنفيذ والقوانين:</span>
@@ -873,7 +922,9 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
             {isCanonicalObjective(selectedObjective) ? (
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <DetailBlock label="الكفاءة الختامية" value={selectedObjective.finalCompetency} />
-                <DetailBlock label="المقطع المرتبط" value={selectedObjective.learningSection} />
+                {selectedObjective.learningSection && (
+                  <DetailBlock label="المقطع المرتبط" value={selectedObjective.learningSection} />
+                )}
                 <DetailBlock
                   label="ماذا يكتسب المتعلم؟"
                   value={selectedObjective.learningContent}
@@ -881,34 +932,90 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
                 <DetailBlock label="المعارف المجندة" value={selectedObjective.mobilizedKnowledge} />
                 <DetailBlock label="محتوى التنفيذ" value={selectedObjective.executionContent} />
                 <DetailBlock label="التوجيهات" value={selectedObjective.guidance} />
-                <DetailBlock
-                  label="موقع الهدف في التدرج"
-                  value={selectedObjective.progressionStage}
-                />
+                {isObjectiveBankModel(selectedObjective) && (
+                  <>
+                    <DetailBlock
+                      label="المتطلبات"
+                      value={selectedObjective.requirements.join('، ')}
+                    />
+                    <DetailBlock
+                      label="المهارات والمكونات"
+                      value={selectedObjective.skills.join('، ')}
+                    />
+                    {selectedObjective.progression && (
+                      <DetailBlock label="موقعه في التدرج" value={selectedObjective.progression} />
+                    )}
+                    <DetailBlock
+                      label="لماذا هذا الهدف؟"
+                      value={selectedObjective.whyThisObjective}
+                    />
+                    <DetailBlock
+                      label="ماذا يكتسب المتعلم؟"
+                      value={selectedObjective.learnerAcquisition}
+                    />
+                  </>
+                )}
                 <DetailBlock label="وزن الترتيب" value={String(selectedObjective.sequenceWeight)} />
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-xs font-black text-slate-700">الموارد المرتبطة</p>
-                  <p className="mt-2 text-xs text-slate-600">
-                    {selectedObjective.resourceLabels.join('، ') || 'لا توجد بيانات متاحة'}
-                  </p>
-                  <p className="mt-2 text-xs text-slate-500">
-                    العائلات: {selectedObjective.resourceFamilies.join('، ') || '—'}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-xs font-black text-slate-700">المكونات العرضية</p>
-                  <p className="mt-2 text-xs text-slate-600">
-                    {selectedObjective.transversalResources.join('، ') || 'لا توجد بيانات متاحة'}
-                  </p>
-                </div>
+                {selectedObjective.resourceLabels.length > 0 && (
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-black text-slate-700">الموارد المرتبطة</p>
+                    <p className="mt-2 text-xs text-slate-600">
+                      {selectedObjective.resourceLabels.join('، ')}
+                    </p>
+                    {selectedObjective.resourceFamilies.length > 0 && (
+                      <p className="mt-2 text-xs text-slate-500">
+                        العائلات: {selectedObjective.resourceFamilies.join('، ')}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {selectedObjective.transversalResources.length > 0 && (
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs font-black text-slate-700">المكونات العرضية</p>
+                    <p className="mt-2 text-xs text-slate-600">
+                      {selectedObjective.transversalResources.join('، ')}
+                    </p>
+                  </div>
+                )}
+                {isObjectiveBankModel(selectedObjective) && (
+                  <>
+                    {selectedObjective.criteria.length > 0 && (
+                      <DetailBlock
+                        label="المعايير المرتبطة بالميدان"
+                        value={selectedObjective.criteria.join('، ')}
+                      />
+                    )}
+                    {selectedObjective.indicators.length > 0 && (
+                      <DetailBlock
+                        label="المؤشرات المرتبطة بالميدان"
+                        value={selectedObjective.indicators.join('، ')}
+                      />
+                    )}
+                  </>
+                )}
                 <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 md:col-span-2">
                   <p className="text-xs font-black text-indigo-800">سبب الظهور في المقطع</p>
                   <p className="mt-2 text-xs text-indigo-900">
-                    {selectedObjective.adoptedInCurrentSection
-                      ? 'هذا الهدف موجود ضمن تسلسل المقطع الحالي في المرجع المنهجي.'
-                      : 'هذا الهدف موجود في البنك canonical، لكنه غير ظاهر ضمن تسلسل المقطع الحالي وفق البيانات المتاحة.'}
+                    {isObjectiveBankModel(selectedObjective)
+                      ? selectedObjective.whyThisObjective
+                      : selectedObjective.adoptedInCurrentSection
+                        ? 'هذا الهدف موجود ضمن تسلسل المقطع الحالي في المرجع المنهجي.'
+                        : 'هذا الهدف موجود في البنك canonical، لكنه غير ظاهر ضمن تسلسل المقطع الحالي وفق البيانات المتاحة.'}
                   </p>
                 </div>
+                {isObjectiveBankModel(selectedObjective) &&
+                  selectedObjective.alternativeWording.length > 0 && (
+                    <div className="rounded-2xl bg-slate-50 p-4 md:col-span-2">
+                      <p className="text-xs font-black text-slate-700">صياغات بديلة</p>
+                      <ul className="mt-2 space-y-1 text-xs text-slate-600">
+                        {selectedObjective.alternativeWording.map((alternative) => (
+                          <li key={`${alternative.objectiveId}-${alternative.wording}`}>
+                            {alternative.wording}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
               </div>
             ) : (
               <div className="mt-5">
@@ -920,9 +1027,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
 
             {objectiveAlternatives.length > 0 && (
               <div className="mt-5 border-t border-slate-100 pt-4">
-                <h4 className="text-sm font-black text-slate-800">
-                  أهداف أخرى في نفس السنة والميدان
-                </h4>
+                <h4 className="text-sm font-black text-slate-800">أهداف أخرى تخدم الكفاءة</h4>
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
                   {objectiveAlternatives.map((item) => (
                     <button
