@@ -635,6 +635,7 @@ export interface TeacherPlanningReference {
   learningSectionId: string;
   objectiveId: string | null;
   objectiveGroupId: string | null;
+  relatedObjectiveIds?: string[];
   objective: string;
   sessionType: string;
   sessionTypeLabel: string;
@@ -723,6 +724,48 @@ export async function fetchTeacherPlanningSessions(
   return data as TeacherPlanningSessionsResponse;
 }
 
+export interface ClassPlanningConfigurationResponse {
+  success: boolean;
+  configuration: {
+    classId: string;
+    academicYearId: string;
+    grade4WeeklyScheduleMode: 'TWO_45' | 'ONE_90' | null;
+  } | null;
+  effectiveGrade4WeeklyScheduleMode: 'TWO_45' | 'ONE_90';
+  explicitlySelected: boolean;
+}
+
+export async function fetchClassPlanningConfiguration(
+  classId: string,
+  academicYearId: string
+): Promise<ClassPlanningConfigurationResponse> {
+  const query = new URLSearchParams({ academicYearId });
+  const res = await fetch(
+    `/api/teacher/planning/classes/${encodeURIComponent(classId)}/configuration?${query.toString()}`
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل إعداد جدولة القسم.');
+  return data as ClassPlanningConfigurationResponse;
+}
+
+export async function updateClassPlanningConfiguration(
+  classId: string,
+  academicYearId: string,
+  grade4WeeklyScheduleMode: 'TWO_45' | 'ONE_90'
+): Promise<ClassPlanningConfigurationResponse> {
+  const res = await fetch(
+    `/api/teacher/planning/classes/${encodeURIComponent(classId)}/configuration`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ academicYearId, grade4WeeklyScheduleMode }),
+    }
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر حفظ نمط جدولة القسم.');
+  return data as ClassPlanningConfigurationResponse;
+}
+
 export async function fetchTeacherPlanningSessionsForTeacher(
   academicYearId: string
 ): Promise<TeacherPlanningAllSessionsResponse> {
@@ -773,6 +816,7 @@ export interface TeacherAnnualLevelDistributionSummary {
   meetingCount: number;
   annualHours: number;
   durationMinutes: number;
+  grade4WeeklyScheduleMode?: 'TWO_45' | 'ONE_90';
   status: 'generated' | 'failed';
   error?: string;
   weeks: TeacherAnnualDistributionWeek[];
@@ -864,9 +908,11 @@ export interface TeacherAnnualDistributionConflict {
 }
 
 export async function fetchTeacherAnnualDistribution(
-  academicYearId: string
+  academicYearId: string,
+  classId?: string
 ): Promise<TeacherAnnualDistributionResponse | null> {
   const query = new URLSearchParams({ academicYearId });
+  if (classId) query.set('classId', classId);
   const res = await fetch(`/api/teacher/planning/annual-distribution?${query.toString()}`);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'تعذر تحميل التوزيع السنوي للمستويات.');

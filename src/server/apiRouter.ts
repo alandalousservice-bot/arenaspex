@@ -152,6 +152,7 @@ const academicYearIdSchema = z
 
 const classPlanningQuerySchema = z.object({
   academicYearId: academicYearIdSchema,
+  classId: z.string().trim().min(1).optional(),
 });
 
 const classPlanningInitializeSchema = z
@@ -461,6 +462,7 @@ type PlanningReference = {
   learningSectionId: string;
   objectiveId: string | null;
   objectiveGroupId: string | null;
+  relatedObjectiveIds?: string[];
   objective: string;
   sessionType: string;
   sessionTypeLabel: string;
@@ -503,7 +505,7 @@ function buildPlanningReferenceMap(
     teacherLearningPlan,
     legacyWordingObjectives(wordingData)
   );
-  return new Map(
+  const references = new Map(
     canonicalReferenceSessions(levelId, plan).map((reference) => [
       reference.referenceSessionId,
       {
@@ -521,9 +523,27 @@ function buildPlanningReferenceMap(
         sequenceIndex: reference.sequenceIndex,
         fieldSessionNumber: reference.fieldSessionNumber,
         isIntro: false,
+        relatedObjectiveIds: undefined,
       },
     ])
   );
+  for (const reference of references.values()) {
+    if (!['إدماجية', 'تقويم تشخيصي', 'تقويم تحصيلي'].includes(reference.sessionType)) continue;
+    reference.relatedObjectiveIds = [
+      ...new Set(
+        [...references.values()]
+          .filter(
+            (candidate) =>
+              candidate.domainId === reference.domainId &&
+              candidate.sequenceIndex < reference.sequenceIndex &&
+              candidate.sessionType === 'تعلمية' &&
+              candidate.objectiveId
+          )
+          .map((candidate) => candidate.objectiveId as string)
+      ),
+    ];
+  }
+  return references;
 }
 
 async function resolvePlanningReferencesForLevels(
@@ -653,7 +673,8 @@ function isAllowedAnnualDistributionDate(
 async function annualDistributionLevelViews(
   generation: ReturnType<typeof generateAllPrimaryLevelDistributions>,
   teacherId: string,
-  _plans: Array<{ levelId: string; data: unknown }>
+  _plans: Array<{ levelId: string; data: unknown }>,
+  grade4WeeklyScheduleMode?: 'TWO_45' | 'ONE_90'
 ) {
   return Promise.all(
     generation.levels.map(async (level) => {
@@ -664,18 +685,22 @@ async function annualDistributionLevelViews(
       );
       const weeks =
         level.status === 'generated'
-          ? buildAnnualDistributionWeeks(level, (session) => {
-              const reference = references.get(session.referenceSessionId);
-              return reference
-                ? {
-                    fieldName: reference.fieldName,
-                    objective: reference.objective,
-                    sessionTypeLabel: reference.sessionTypeLabel,
-                    objectiveId: reference.objectiveId,
-                    objectiveGroupId: reference.objectiveGroupId,
-                  }
-                : {};
-            })
+          ? buildAnnualDistributionWeeks(
+              level,
+              (session) => {
+                const reference = references.get(session.referenceSessionId);
+                return reference
+                  ? {
+                      fieldName: reference.fieldName,
+                      objective: reference.objective,
+                      sessionTypeLabel: reference.sessionTypeLabel,
+                      objectiveId: reference.objectiveId,
+                      objectiveGroupId: reference.objectiveGroupId,
+                    }
+                  : {};
+              },
+              grade4WeeklyScheduleMode
+            )
           : [];
       const summary = annualDistributionUnitSummary(weeks);
       return {
@@ -687,6 +712,7 @@ async function annualDistributionLevelViews(
         meetingCount: summary.meetingCount,
         annualHours: level.annualHours,
         durationMinutes: level.durationMinutes,
+        ...(level.grade === 4 && grade4WeeklyScheduleMode ? { grade4WeeklyScheduleMode } : {}),
         status: level.status,
         error: level.error,
         weeks,
@@ -1156,7 +1182,25 @@ apiRouter.get('/teacher/planning/annual-distribution', requireRole('teacher'), a
     planningStartDate,
     teacherLearningPlans
   );
-  const levels = await annualDistributionLevelViews(generation, req.user!.id, plans);
+  const selectedClass = parsed.data.classId
+    ? await prisma.studentClass.findFirst({
+        where: { id: parsed.data.classId, teacherId: req.user!.id },
+        select: { id: true, name: true, levelId: true },
+      })
+    : null;
+  if (parsed.data.classId && !selectedClass) {
+    return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+  }
+  const grade4WeeklyScheduleMode =
+    selectedClass && normalizePrimaryLevelId(selectedClass.levelId) === 'lvl_p4'
+      ? await grade4WeeklyScheduleModeForClass(selectedClass.id, parsed.data.academicYearId)
+      : undefined;
+  const levels = await annualDistributionLevelViews(
+    generation,
+    req.user!.id,
+    plans,
+    grade4WeeklyScheduleMode
+  );
   const classes = await prisma.studentClass.findMany({
     where: { teacherId: req.user!.id },
     orderBy: { name: 'asc' },

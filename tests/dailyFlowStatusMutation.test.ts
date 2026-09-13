@@ -62,7 +62,8 @@ describe('daily flow acknowledged status mutation contract', () => {
     expect(timing).toContain("input.classPlanningMode === 'TWO_45' ? 45 : 90");
     expect(timing).toContain('if (grade === 5) return 60;');
     expect(planning).toContain('sessionsPerWeek = grade <= 4 ? 2 : 1');
-    expect(planning).toContain('gradeUsesLearningPairs = level.grade >= 1 && level.grade <= 4');
+    expect(planning).toContain('grade4WeeklyScheduleMode');
+    expect(planning).toContain('const slotsPerWeek');
     expect(notebook).toContain('getPairedSessionInfo');
   });
 });

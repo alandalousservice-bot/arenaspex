@@ -738,6 +738,11 @@ export interface LessonPlan {
   lessonRows?: LessonPlanRow[];
   equipmentChecklist?: { name: string; available: boolean }[]; // قائمة تحقق التجهيزات (متوفر/يجب توفيره) — تُشتق من equipmentNeeded عند التوليد وتبقى متوافقة مع النسخ القديمة
   generalObjective: string; // هدف الحصة التعلمي الخاص والإجرائي المسطر للمقطع
+  /** Optional free-authoring fields for standalone memos; never used as planning references. */
+  learningContent?: string;
+  executionInstructions?: string;
+  successCriteria?: string;
+  observationIndicators?: string;
   proceduralObjectives: {
     motor: string; // الهدف المهاري / المنهجي الحركي
     cognitive: string; // الهدف المعرفي

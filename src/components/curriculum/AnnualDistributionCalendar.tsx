@@ -336,6 +336,15 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
                 {selectedLevel.weekCount} أسبوعاً · {selectedLevel.pedagogicalUnitCount} وحدة
                 بيداغوجية · {selectedLevel.learningUnitCount} حصة تعلمية ·{' '}
                 {selectedLevel.meetingCount} لقاءً تشغيلياً متوقعاً
+                {selectedLevel.grade4WeeklyScheduleMode && (
+                  <>
+                    {' '}
+                    · نمط السنة الرابعة:{' '}
+                    {selectedLevel.grade4WeeklyScheduleMode === 'TWO_45'
+                      ? 'حصتان من 45 دقيقة'
+                      : 'حصة واحدة من 90 دقيقة'}
+                  </>
+                )}
               </p>
             </div>
             <span className="text-xs font-bold text-emerald-700">

@@ -146,7 +146,8 @@ function annualDistributionUnitSource(
  */
 export function buildAnnualDistributionWeeks(
   level: AnnualLevelDistribution,
-  referenceFor?: (session: CanonicalPlanningSession) => AnnualDistributionReferenceOverride
+  referenceFor?: (session: CanonicalPlanningSession) => AnnualDistributionReferenceOverride,
+  grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null
 ): AnnualDistributionWeek[] {
   const introUnit: AnnualDistributionPedagogicalUnit = {
     referenceSessionId: `${level.levelId}:intro:week:1`,
@@ -185,7 +186,12 @@ export function buildAnnualDistributionWeeks(
     },
   ];
 
-  const gradeUsesLearningPairs = level.grade >= 1 && level.grade <= 4;
+  // Keep the legacy helper default stable for callers that do not have a
+  // class/year configuration. The class-scoped read model passes the
+  // persisted Grade 4 mode explicitly.
+  const gradeUsesLearningPairs =
+    (level.grade >= 1 && level.grade <= 3) ||
+    (level.grade === 4 && (grade4WeeklyScheduleMode || 'TWO_45') === 'TWO_45');
   const units: AnnualDistributionPedagogicalUnit[] = [];
   for (let index = 0; index < level.sessions.length; index += 1) {
     const session = level.sessions[index];
@@ -262,8 +268,12 @@ export function buildAnnualDistributionWeeks(
   let weekIndex = 2;
   let slotIndex = 0;
   const seenUnitReferences = new Set<string>();
+  const slotsPerWeek =
+    level.grade <= 3 || (level.grade === 4 && (grade4WeeklyScheduleMode || 'TWO_45') === 'TWO_45')
+      ? 2
+      : 1;
   while (slotIndex < slots.length) {
-    const weekSlots = slots.slice(slotIndex, slotIndex + (level.grade <= 4 ? 2 : 1));
+    const weekSlots = slots.slice(slotIndex, slotIndex + slotsPerWeek);
     const pedagogicalUnits = units.filter((unit) => {
       if (seenUnitReferences.has(unit.referenceSessionId)) return false;
       if (

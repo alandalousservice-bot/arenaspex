@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, PenSquare, Plus, Printer, Save, Trash2, X } from 'lucide-react';
+import { FileText, PenSquare, Printer, Save, Trash2, X } from 'lucide-react';
 import { ClassRoom, EducationalSituation, LessonPlan, LessonPlanRow, User } from '../../types/spex';
 import {
   COMPLETE_ANNUAL_CURRICULUM,
@@ -8,6 +8,7 @@ import {
 } from '../../data/algerianCurriculum';
 import {
   autoGenerateLessonPlan,
+  createIndependentLessonPlan,
   formatSituationExecution,
   generateLessonMemoDocument,
   getUnifiedLessonRows,
@@ -47,8 +48,6 @@ import {
 import {
   annualDistributionLessonMemoIdFor,
   isAnnualDistributionLessonMemo,
-  isStandaloneLessonMemo,
-  standaloneLessonMemoIdFor,
 } from '../../services/lessonMemoIdentity.service';
 import {
   exportLessonPlanToPdf,
@@ -150,6 +149,7 @@ function sourceFromPlanningReference(
     objective: reference.objective,
     objectiveId: reference.objectiveId,
     objectiveGroupId: reference.objectiveGroupId,
+    relatedObjectiveIds: reference.relatedObjectiveIds,
     referenceSessionId: reference.referenceSessionId,
     tools: field?.suggestedTools || [],
   };
@@ -205,7 +205,6 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [replaceRowId, setReplaceRowId] = useState<string | null>(null);
   const [bankSituations, setBankSituations] = useState<EducationalSituation[]>([]);
   const [scheduledLessons, setScheduledLessons] = useState<MergedScheduledLesson[]>([]);
-  const [sourceLabel, setSourceLabel] = useState<'actual' | 'fallback'>('fallback');
   const [generationError, setGenerationError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [memoSaveStatus, setMemoSaveStatus] = useState<'IDLE' | 'SAVING' | 'SAVED' | 'ERROR'>(
@@ -247,6 +246,17 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   >();
   const [annualMemoLoading, setAnnualMemoLoading] = useState(false);
   const [annualMemoError, setAnnualMemoError] = useState('');
+  const [independentFieldId, setIndependentFieldId] = useState(PE_FIELDS[0]?.id || '');
+  const [independentSessionType, setIndependentSessionType] =
+    useState<LessonPlan['sessionType']>('تعلمية');
+  const [independentObjective, setIndependentObjective] = useState('');
+  const [independentLearningContent, setIndependentLearningContent] = useState('');
+  const [independentExecutionContent, setIndependentExecutionContent] = useState('');
+  const [independentSuccessCriteria, setIndependentSuccessCriteria] = useState('');
+  const [independentObservationIndicators, setIndependentObservationIndicators] = useState('');
+  const [independentEquipment, setIndependentEquipment] = useState('');
+  const [independentDuration, setIndependentDuration] = useState(60);
+  const [independentTeacherNotes, setIndependentTeacherNotes] = useState('');
   const [wordExporting, setWordExporting] = useState(false);
   const [wordExportError, setWordExportError] = useState('');
   const wordExportInFlight = useRef(false);
@@ -497,7 +507,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   }, [showBank]);
 
   useEffect(() => {
-    if (!showGenerator || !currentUser?.id || memoMode === 'operational') return;
+    if (!showGenerator || !currentUser?.id || memoMode !== 'annual') return;
     const levelId = LEVEL_KEYS[levelName];
     const base = generateAnnualTimeDistribution(
       levelId,
@@ -514,17 +524,14 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         const wording = wordingResponse.annualPlans?.[0];
         if (!schedule) {
           setScheduledLessons([]);
-          setSourceLabel('fallback');
           return;
         }
         setScheduledLessons(
           mergeSchedule(base, schedule.data?.overrides || {}, wording?.data?.overrides || {})
         );
-        setSourceLabel('actual');
       })
       .catch(() => {
         setScheduledLessons([]);
-        setSourceLabel('fallback');
       });
   }, [showGenerator, levelName, currentUser?.id, memoMode, scheduledContext]);
 
@@ -663,8 +670,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     const source =
       memoMode === 'annual' && annualMemoSource
         ? sourceFromPlanningReference(annualMemoSource.reference)
-        : (generatorSessions.length ? generatorSessions : sessions)[sessionIndex];
-    if (!source) {
+        : memoMode === 'standalone'
+          ? undefined
+          : (generatorSessions.length ? generatorSessions : sessions)[sessionIndex];
+    if (!source && memoMode !== 'standalone') {
       setGenerationError(
         memoMode === 'operational'
           ? 'لم يتم إنشاء التوزيع السنوي لهذا القسم بعد.'
@@ -672,36 +681,39 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       );
       return;
     }
-    if (memoMode === 'standalone' && currentUser?.id && source.referenceSessionId) {
-      const existingStandaloneMemo = lessonPlans.find(
-        (item) =>
-          item.teacherId === currentUser.id &&
-          !item.classPlannedSessionId &&
-          item.referenceSessionId === source.referenceSessionId &&
-          isStandaloneLessonMemo(item)
-      );
-      if (existingStandaloneMemo) {
-        setSelectedId(existingStandaloneMemo.id);
-        setActiveLessonPlanId(existingStandaloneMemo.id);
-        setScreenMode('saved');
-        setShowGenerator(false);
-        setGenerationError('');
-        return;
-      }
-    }
     try {
       const operationalContextForGeneration = operationalContext
         ? operationalGenerationContext()
         : null;
       const annualContextForGeneration = memoMode === 'annual' ? annualGenerationContext() : null;
-      const generatedPlan = operationalContextForGeneration
-        ? generateLessonMemoDraft(operationalContextForGeneration)
-        : annualContextForGeneration
-          ? generateLessonMemoDraft(annualContextForGeneration)
-          : autoGenerateLessonPlan(source, {
-              levelName,
+      const generatedPlan =
+        memoMode === 'standalone'
+          ? createIndependentLessonPlan({
               teacher: currentUser,
-            });
+              inspectorName,
+              levelName,
+              fieldId: independentFieldId,
+              fieldName:
+                PE_FIELDS.find((field) => field.id === independentFieldId)?.name ||
+                independentFieldId,
+              sessionType: independentSessionType,
+              objective: independentObjective,
+              learningContent: independentLearningContent,
+              executionContent: independentExecutionContent,
+              successCriteria: independentSuccessCriteria,
+              observationIndicators: independentObservationIndicators,
+              equipment: independentEquipment.split(/[,،]/),
+              durationMinutes: independentDuration,
+              teacherNotes: independentTeacherNotes,
+            })
+          : operationalContextForGeneration
+            ? generateLessonMemoDraft(operationalContextForGeneration)
+            : annualContextForGeneration
+              ? generateLessonMemoDraft(annualContextForGeneration)
+              : autoGenerateLessonPlan(source, {
+                  levelName,
+                  teacher: currentUser,
+                });
       const plan =
         memoMode === 'annual' && annualMemoSource
           ? {
@@ -714,16 +726,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               levelId: annualLevelId,
               memoSource: 'annual-distribution' as const,
             }
-          : memoMode === 'standalone' && currentUser?.id && source.referenceSessionId
-            ? {
-                ...generatedPlan,
-                id: standaloneLessonMemoIdFor({
-                  teacherId: currentUser.id,
-                  referenceSessionId: source.referenceSessionId,
-                }),
-                memoSource: 'standalone' as const,
-              }
-            : generatedPlan;
+          : generatedPlan;
       if (!plan.lessonRows?.length) throw new Error('empty memo');
       if (!(await persistLessonPlan(saveLessonMemo(plan, existingOperationalMemo)))) return;
       setSelectedId(plan.id);
@@ -837,7 +840,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         <div className="mb-5 flex items-center justify-between">
           <h3 className="font-extrabold">
             {memoMode === 'operational'
-              ? 'مذكرة حصة مبرمجة'
+              ? 'توليد مذكرة حصة مبرمجة'
               : memoMode === 'annual'
                 ? 'مذكرة من التوزيع السنوي'
                 : 'مذكرة مستقلة'}
@@ -852,7 +855,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="mb-5 grid grid-cols-3 gap-2 rounded-xl bg-slate-100 p-1">
+        <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
           <button
             type="button"
             disabled={!teacherClasses.length}
@@ -866,24 +869,13 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           </button>
           <button
             type="button"
-            disabled={!teacherClasses.length}
-            onClick={() => {
-              setMemoMode('annual');
-              setGenerationError('');
-            }}
-            className={`rounded-lg px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40 ${memoMode === 'annual' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600'}`}
-          >
-            من التوزيع السنوي
-          </button>
-          <button
-            type="button"
             onClick={() => {
               setMemoMode('standalone');
               setGenerationError('');
             }}
             className={`rounded-lg px-3 py-2 text-xs font-bold ${memoMode === 'standalone' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600'}`}
           >
-            مذكرة مستقلة
+            إنشاء مذكرة مستقلة
           </button>
         </div>
         {memoMode === 'operational' ? (
@@ -1126,23 +1118,81 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                 <option key={level}>{level}</option>
               ))}
             </select>
-            <label className="mb-1 block text-sm font-bold">الحصة المرجعية</label>
+            <label className="mb-1 block text-sm font-bold">الميدان</label>
             <select
-              value={sessionIndex}
-              onChange={(event) => setSessionIndex(Number(event.target.value))}
-              className="w-full rounded-xl border p-2"
+              value={independentFieldId}
+              onChange={(event) => setIndependentFieldId(event.target.value)}
+              className="mb-3 w-full rounded-xl border p-2"
             >
-              {(generatorSessions.length ? generatorSessions : sessions).map((session, index) => (
-                <option key={`${session.fieldId}-${session.sessionNumber}`} value={index}>
-                  الحصة {session.globalNumber}: {session.objective}
+              {PE_FIELDS.map((field) => (
+                <option key={field.id} value={field.id}>
+                  {field.name}
                 </option>
               ))}
             </select>
-            <p className="mt-2 text-xs font-bold text-slate-600">
-              المصدر: {sourceLabel === 'actual' ? 'التوزيع السنوي المرجعي' : 'المنهاج المرجعي'}
-            </p>
+            <label className="mb-1 block text-sm font-bold">نوع الحصة</label>
+            <select
+              value={independentSessionType}
+              onChange={(event) =>
+                setIndependentSessionType(event.target.value as LessonPlan['sessionType'])
+              }
+              className="mb-3 w-full rounded-xl border p-2"
+            >
+              <option value="تعلمية">حصة تعلمية</option>
+              <option value="تشخيصية">تقويم تشخيصي</option>
+              <option value="إدماجية">حصة إدماجية</option>
+              <option value="تقويمية">تقويم تحصيلي</option>
+            </select>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm font-bold">
+                الهدف
+                <textarea
+                  value={independentObjective}
+                  onChange={(event) => setIndependentObjective(event.target.value)}
+                  className="mt-1 min-h-16 w-full rounded-xl border p-2 text-sm"
+                  placeholder="اكتب هدف الحصة"
+                />
+              </label>
+              <label className="block text-sm font-bold">
+                المدة بالدقائق
+                <input
+                  type="number"
+                  min="1"
+                  value={independentDuration}
+                  onChange={(event) => setIndependentDuration(Number(event.target.value) || 60)}
+                  className="mt-1 w-full rounded-xl border p-2 text-sm"
+                />
+              </label>
+            </div>
+            {[
+              ['محتوى التعلم', independentLearningContent, setIndependentLearningContent],
+              [
+                'محتوى الإنجاز / تعليمات التنفيذ',
+                independentExecutionContent,
+                setIndependentExecutionContent,
+              ],
+              ['معيار النجاح', independentSuccessCriteria, setIndependentSuccessCriteria],
+              [
+                'مؤشرات الملاحظة',
+                independentObservationIndicators,
+                setIndependentObservationIndicators,
+              ],
+              ['الوسائل', independentEquipment, setIndependentEquipment],
+              ['ملاحظات الأستاذ', independentTeacherNotes, setIndependentTeacherNotes],
+            ].map(([label, value, setter]) => (
+              <label key={label as string} className="mt-3 block text-sm font-bold">
+                {label as string}
+                <textarea
+                  value={value as string}
+                  onChange={(event) =>
+                    (setter as React.Dispatch<React.SetStateAction<string>>)(event.target.value)
+                  }
+                  className="mt-1 min-h-14 w-full rounded-xl border p-2 text-sm"
+                />
+              </label>
+            ))}
             <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
-              هذه المذكرة غير مرتبطة بحصة مبرمجة في الكراس اليومي.
+              هذه مذكرة مستقلة يحررها الأستاذ، ولا تُضاف إلى التوزيع السنوي أو الكراس اليومي.
             </p>
           </>
         )}
@@ -1334,6 +1384,13 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             <bdi dir="ltr">{formatAcademicYearLabel(operationalAcademicYearId)}</bdi>
           </span>
         )}
+        <button
+          type="button"
+          onClick={() => openGenerator('standalone', 'list')}
+          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700"
+        >
+          إنشاء مذكرة مستقلة
+        </button>
       </div>
       {scheduledError && (
         <p role="alert" className="mb-3 rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">
@@ -1350,14 +1407,14 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           {!teacherClasses.length && (
             <>
               <p className="mt-2 text-sm text-slate-500">
-                يمكنك إنشاء مذكرة مستقلة الآن، بينما تتطلب المذكرة التشغيلية إسناد قسم وحصة مبرمجة.
+                يمكنك إنشاء مذكرة مستقلة الآن. أما المذكرة المبرمجة فتحتاج إلى قسم وحصة مبرمجة.
               </p>
               <button
                 type="button"
                 onClick={() => openGenerator('standalone', 'list')}
                 className="mt-3 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700"
               >
-                توليد مذكرة مستقلة
+                إنشاء مذكرة مستقلة
               </button>
             </>
           )}
@@ -1370,7 +1427,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         <div className="workspace-empty-state rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
           <p className="font-bold text-slate-700">لا توجد حصص مبرمجة لهذا القسم</p>
           <p className="mt-2 text-sm text-slate-500">
-            يمكنك توليد مذكرة مستقلة الآن، بينما تتطلب المذكرة التشغيلية توزيعاً أسبوعياً وحصة
+            يمكنك إنشاء مذكرة مستقلة الآن، بينما تتطلب المذكرة المبرمجة توزيعاً أسبوعياً وحصة
             مبرمجة.
           </p>
           <div className="mt-3 flex flex-wrap justify-center gap-2">
@@ -1379,14 +1436,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               onClick={() => openGenerator('standalone', 'list')}
               className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700"
             >
-              توليد مذكرة مستقلة
-            </button>
-            <button
-              type="button"
-              onClick={() => openGenerator('annual', 'list')}
-              className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white"
-            >
-              توليد من التوزيع السنوي
+              إنشاء مذكرة مستقلة
             </button>
             <button
               type="button"
@@ -1476,7 +1526,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                       }
                       className="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white"
                     >
-                      {memo ? 'فتح المذكرة' : 'إنشاء المذكرة'}
+                      {memo ? 'فتح المذكرة' : 'توليد مذكرة حصة مبرمجة'}
                     </button>
                   ) : (
                     <span className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
@@ -1674,34 +1724,6 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               العودة إلى الحصص
             </button>
           )}
-          <button
-            onClick={() => {
-              openGenerator('operational', 'saved');
-            }}
-            className="action-primary flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-bold text-white"
-          >
-            <Plus className="h-4 w-4" />
-            مذكرة حصة مبرمجة
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              openGenerator('standalone', 'saved');
-            }}
-            className="flex items-center gap-1 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700"
-          >
-            <FileText className="h-4 w-4" />
-            مذكرة مستقلة
-          </button>
-          <button
-            type="button"
-            disabled={!teacherClasses.length}
-            onClick={() => openGenerator('annual', 'saved')}
-            className="flex items-center gap-1 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <FileText className="h-4 w-4" />
-            من التوزيع السنوي
-          </button>
           {!editing && onOpenCommandCenterForPlan && (
             <button
               onClick={() => onOpenCommandCenterForPlan(plan)}

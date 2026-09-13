@@ -8,7 +8,9 @@ import { WeeklyTimetableView } from '../schedule/WeeklyTimetableView';
 import {
   fetchTeacherPlanningSessions,
   fetchTeacherAnnualDistribution,
+  fetchClassPlanningConfiguration,
   initializeTeacherAnnualDistribution,
+  updateClassPlanningConfiguration,
   TeacherPlanningSession,
   TeacherAnnualDistributionResponse,
 } from '../../services/api';
@@ -90,6 +92,10 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     useState<TeacherAnnualDistributionResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [grade4WeeklyScheduleMode, setGrade4WeeklyScheduleMode] = useState<'TWO_45' | 'ONE_90'>(
+    'ONE_90'
+  );
+  const [grade4ModeSaving, setGrade4ModeSaving] = useState(false);
   const sessionsRequestId = useRef(0);
 
   const selectedClass = classes.find((item) => item.id === selectedClassId);
@@ -104,7 +110,11 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
       }
       return;
     }
-    if (!selectedClassId && classes.length && section !== 'annual-distribution') {
+    if (
+      !selectedClassId &&
+      classes.length &&
+      !['annual-plan', 'segments', 'calendar'].includes(section)
+    ) {
       setSelectedClassId(
         classes.find((item) => normalizePrimaryLevelId(item.levelId) === selectedLevelId)?.id ||
           classes[0].id
@@ -149,11 +159,14 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     if (section !== 'annual-distribution') return;
     let cancelled = false;
     setLoading(true);
-    fetchTeacherAnnualDistribution(academicYearId)
+    fetchTeacherAnnualDistribution(academicYearId, selectedClassId || undefined)
       .then((result) => {
         if (cancelled || !result) return;
         setAnnualGeneration(result);
         setPlanningStartDate(result.planningStartDate);
+        const selectedLevel = result.levels.find((item) => item.levelId === 'lvl_p4');
+        if (selectedLevel?.grade4WeeklyScheduleMode)
+          setGrade4WeeklyScheduleMode(selectedLevel.grade4WeeklyScheduleMode);
       })
       .catch((reason: unknown) => {
         if (!cancelled) setError(reason instanceof Error ? reason.message : 'تعذر تحميل التوزيع.');
@@ -164,7 +177,27 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     return () => {
       cancelled = true;
     };
-  }, [academicYearId, section]);
+  }, [academicYearId, section, selectedClassId]);
+
+  useEffect(() => {
+    if (
+      section !== 'annual-distribution' ||
+      !selectedClass ||
+      normalizePrimaryLevelId(selectedClass.levelId) !== 'lvl_p4'
+    )
+      return;
+    let cancelled = false;
+    fetchClassPlanningConfiguration(selectedClass.id, academicYearId)
+      .then((result) => {
+        if (!cancelled) setGrade4WeeklyScheduleMode(result.effectiveGrade4WeeklyScheduleMode);
+      })
+      .catch(() => {
+        if (!cancelled) setGrade4WeeklyScheduleMode('ONE_90');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [academicYearId, section, selectedClass]);
 
   useEffect(() => {
     window.localStorage.setItem(ACADEMIC_YEAR_PREFERENCE_KEY, academicYearId);
@@ -180,7 +213,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
 
   const changeLevel = (next: PrimaryLevelId) => {
     setSelectedLevelId(next);
-    if (section !== 'annual-distribution') {
+    if (!['annual-plan', 'segments', 'calendar'].includes(section)) {
       const matchingClass = classes.find((item) => normalizePrimaryLevelId(item.levelId) === next);
       setSelectedClassId(matchingClass?.id || '');
     }
@@ -196,7 +229,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     const nextParams = new URLSearchParams({ section: next });
     const levelId = nextLevelId || selectedLevelId;
     if (levelId) nextParams.set('levelId', levelId);
-    if (next !== 'annual-distribution' && selectedClassId) {
+    if (!['annual-plan', 'segments', 'calendar'].includes(next) && selectedClassId) {
       nextParams.set('classId', selectedClassId);
     }
     nextParams.set('academicYearId', academicYearId);
@@ -230,6 +263,10 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
         true
       );
       setAnnualGeneration(result);
+      if (selectedClassId) {
+        const scopedResult = await fetchTeacherAnnualDistribution(academicYearId, selectedClassId);
+        if (scopedResult) setAnnualGeneration(scopedResult);
+      }
       if (selectedClassId && section !== 'annual-distribution') {
         const requestId = ++sessionsRequestId.current;
         const classResult = await fetchTeacherPlanningSessions(selectedClassId, academicYearId);
@@ -258,6 +295,21 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
   };
 
   const operationalView = section === 'weekly';
+  const changeGrade4Mode = async (mode: 'TWO_45' | 'ONE_90') => {
+    if (!selectedClass || selectedClass.levelId !== 'lvl_p4') return;
+    setGrade4WeeklyScheduleMode(mode);
+    setGrade4ModeSaving(true);
+    setError('');
+    try {
+      await updateClassPlanningConfiguration(selectedClass.id, academicYearId, mode);
+      const result = await fetchTeacherAnnualDistribution(academicYearId, selectedClass.id);
+      if (result) setAnnualGeneration(result);
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'تعذر حفظ نمط جدولة السنة الرابعة.');
+    } finally {
+      setGrade4ModeSaving(false);
+    }
+  };
 
   return (
     <div
@@ -290,7 +342,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
               ))}
             </select>
           </label>
-          {operationalView && (
+          {(operationalView || section === 'annual-distribution') && (
             <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
               القسم
               <select
@@ -307,6 +359,24 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
               </select>
             </label>
           )}
+          {section === 'annual-distribution' &&
+            selectedClass &&
+            normalizePrimaryLevelId(selectedClass.levelId) === 'lvl_p4' && (
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                نمط حصص السنة الرابعة
+                <select
+                  value={grade4WeeklyScheduleMode}
+                  disabled={grade4ModeSaving}
+                  onChange={(event) =>
+                    void changeGrade4Mode(event.target.value as 'TWO_45' | 'ONE_90')
+                  }
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                >
+                  <option value="ONE_90">حصة واحدة · 90 دقيقة</option>
+                  <option value="TWO_45">حصتان · 45 دقيقة</option>
+                </select>
+              </label>
+            )}
         </div>
         <nav
           className="workspace-tabs mt-5 flex gap-2 overflow-x-auto border-t border-slate-100 pt-4"

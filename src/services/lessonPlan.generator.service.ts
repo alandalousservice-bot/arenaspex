@@ -14,7 +14,13 @@ import {
 import type { EducationalSituationLessonType } from './educationalSituation.selector.service';
 import { lessonPhaseBudgets, sequenceLessonSituations } from './lessonSituationSequencing.service';
 import { resolveOperationalLessonDuration } from './lessonTiming.service';
-import { scheduledLessonMemoIdFor, standaloneLessonMemoIdFor } from './lessonMemoIdentity.service';
+import {
+  manualStandaloneLessonMemoIdFor,
+  scheduledLessonMemoIdFor,
+  standaloneLessonMemoIdFor,
+} from './lessonMemoIdentity.service';
+
+let independentMemoSequence = 0;
 
 export interface AutoGenerateSessionSource {
   referenceSessionId?: string;
@@ -31,6 +37,7 @@ export interface AutoGenerateSessionSource {
   objective: string;
   objectiveId?: string | null;
   objectiveGroupId?: string | null;
+  relatedObjectiveIds?: string[];
   tools: string[];
 }
 
@@ -52,6 +59,23 @@ export interface AutoGenerateContext {
   situations?: EducationalSituation[];
   grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null;
   pedagogicalParts?: AutoGenerateSessionSource[];
+}
+
+export interface IndependentLessonMemoInput {
+  teacher?: User;
+  inspectorName?: string;
+  levelName: string;
+  fieldId: string;
+  fieldName: string;
+  sessionType: LessonPlan['sessionType'];
+  objective: string;
+  learningContent: string;
+  executionContent: string;
+  successCriteria: string;
+  observationIndicators: string;
+  equipment: string[];
+  durationMinutes: number;
+  teacherNotes: string;
 }
 
 export const lessonDurationForLevel = (
@@ -211,7 +235,7 @@ function buildMainRows(
 ): { rows: LessonPlanRow[]; warnings: LessonMemoGenerationWarning[] } {
   const pedagogicalParts = ctx.pedagogicalParts?.length ? ctx.pedagogicalParts : [session];
   const objectiveIds = pedagogicalParts
-    .map((part) => part.objectiveId)
+    .flatMap((part) => [part.objectiveId, ...(part.relatedObjectiveIds || [])])
     .filter((value): value is string => Boolean(value));
   const grade =
     Number(
@@ -447,6 +471,122 @@ export function autoGenerateLessonPlan(
     aiGenerated: false,
     version: 2,
     createdAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Creates a genuinely teacher-authored memo. It deliberately has no class,
+ * ClassPlannedSession, annual reference, or execution status, so it cannot
+ * enter the operational Daily Notebook flow.
+ */
+export function createIndependentLessonPlan(input: IndependentLessonMemoInput): LessonPlan {
+  const createdAt = new Date().toISOString();
+  const identityTimestamp = `${createdAt}-${++independentMemoSequence}`;
+  const durationMinutes = Math.max(1, Math.round(input.durationMinutes || 60));
+  const budgets = lessonPhaseBudgets(input.levelName, durationMinutes);
+  const objective = input.objective.trim();
+  const learningContent = input.learningContent.trim() || 'محتوى التعلم الذي يحدده الأستاذ.';
+  const executionContent =
+    input.executionContent.trim() || 'تعليمات التنفيذ التي يحددها الأستاذ أثناء إعداد المذكرة.';
+  const successCriteria = input.successCriteria.trim();
+  const observationIndicators = input.observationIndicators.trim();
+  const guidance = [
+    successCriteria ? `معيار النجاح: ${successCriteria}` : '',
+    observationIndicators ? `مؤشرات الملاحظة: ${observationIndicators}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+  const mainGuidance = guidance || 'يحدد الأستاذ التوجيهات ومعايير الملاحظة المناسبة.';
+  const teacher = input.teacher;
+  const levelIdMatch = input.levelName.match(/(الأولى|الثانية|الثالثة|الرابعة|الخامسة)/);
+  const levelNumber = levelIdMatch
+    ? ['الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة'].indexOf(levelIdMatch[1]) + 1
+    : 0;
+  const equipment = [...new Set(input.equipment.map((item) => item.trim()).filter(Boolean))];
+  const mainRow: LessonPlanRow = {
+    id: 'main-1',
+    phase: 'المرحلة الرئيسية',
+    learningContent,
+    executionContent,
+    durationMinutes: budgets.main,
+    guidance: mainGuidance,
+  };
+  return {
+    id: manualStandaloneLessonMemoIdFor(teacher?.id || 'teacher', identityTimestamp),
+    memoSource: 'standalone',
+    inspectorName: input.inspectorName || '',
+    teacherId: teacher?.id || '',
+    institutionName: teacher?.schoolName || '',
+    teacherName: teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : '',
+    levelId: levelNumber ? `lvl_p${levelNumber}` : undefined,
+    levelName: input.levelName,
+    className: '',
+    fieldName: input.fieldName.trim(),
+    competencyTitle: '',
+    segmentTitle: 'مذكرة مستقلة',
+    sessionTitle: objective || 'هدف الحصة المستقلة',
+    sessionType: input.sessionType,
+    sessionTypeNumber: 'حصة مستقلة',
+    segmentGoal: '',
+    generatedAt: createdAt,
+    date: createdAt.slice(0, 10),
+    durationMinutes,
+    equipmentNeeded: equipment,
+    equipmentChecklist: equipment.map((name) => ({ name, available: true })),
+    lessonRows: [
+      {
+        id: 'preparation',
+        phase: 'المرحلة التحضيرية',
+        learningContent: 'تهيئة المتعلمين وتنظيم الميدان.',
+        executionContent: 'تهيئة تدريجية وتنظيم آمن قبل بداية النشاط.',
+        durationMinutes: budgets.warmup,
+        guidance: 'التنظيم والسلامة والإنصات للتعليمات.',
+      },
+      mainRow,
+      {
+        id: 'closing',
+        phase: 'المرحلة الختامية',
+        learningContent: 'تقويم التعلم والعودة التدريجية للحالة الطبيعية.',
+        executionContent: 'تهدئة قصيرة وحوار تقويمي حول الهدف.',
+        durationMinutes: budgets.final,
+        guidance: 'مشاركة الجميع واحترام آراء المتعلمين.',
+      },
+    ],
+    generalObjective: objective,
+    proceduralObjectives: { motor: objective, cognitive: '', affective: '' },
+    learningContent,
+    executionInstructions: executionContent,
+    successCriteria,
+    observationIndicators,
+    teacherNotes: input.teacherNotes.trim(),
+    warmupPhase: {
+      duration: `${budgets.warmup} دقيقة`,
+      generalWarmup: 'تهيئة تدريجية.',
+      specificWarmup: '',
+      organization: 'تنظيم آمن للميدان.',
+    },
+    mainPhase: {
+      duration: `${budgets.main} دقيقة`,
+      problemSituation: '',
+      learningSituation1: {
+        title: learningContent,
+        description: executionContent,
+        dosing: '',
+        criteria: successCriteria,
+      },
+      learningSituation2: { title: '', description: '', dosing: '', criteria: '' },
+      guidedApplication: { title: '', description: '', rules: observationIndicators },
+    },
+    coolDownPhase: {
+      duration: `${budgets.final} دقيقة`,
+      activities: 'تهدئة واسترجاع.',
+      assessmentAndDialogue: observationIndicators,
+    },
+    safetyRules: [],
+    generationWarnings: [],
+    aiGenerated: false,
+    version: 2,
+    createdAt,
   };
 }
 

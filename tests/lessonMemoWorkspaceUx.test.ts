@@ -18,7 +18,7 @@ describe('Lesson Memo session-first workspace presentation', () => {
     );
     expect(view).toContain('findOperationalLessonPlan(');
     expect(view).toContain("currentUser?.id || ''");
-    expect(view).toContain('إنشاء المذكرة');
+    expect(view).toContain('توليد مذكرة حصة مبرمجة');
     expect(view).toContain('فتح المذكرة');
     expect(api).toContain('/api/teacher/planning/classes/');
   });
@@ -113,19 +113,20 @@ describe('Lesson Memo session-first workspace presentation', () => {
 
     expect(view).toContain("useState<LessonMemoMode>('operational')");
     expect(view).toContain('مذكرة مستقلة');
-    expect(view).toContain('هذه المذكرة غير مرتبطة بحصة مبرمجة في الكراس اليومي.');
+    expect(view).toContain(
+      'هذه مذكرة مستقلة يحررها الأستاذ، ولا تُضاف إلى التوزيع السنوي أو الكراس اليومي.'
+    );
     expect(view).toContain('exportLessonPlanToPdf(plan)');
     expect(view).toContain('handleWordExport(plan)');
     expect(print).toContain('exportLessonPlanToPdf');
   });
 
-  it('offers annual-distribution memo generation without a weekly timetable', () => {
+  it('keeps annual references internal while exposing only two primary memo workflows', () => {
     const view = read('src/components/lesson/LessonPlanView.tsx');
     const api = read('src/services/api.ts');
     const memoService = read('src/services/lessonMemoGeneration.service.ts');
     const router = read('src/server/apiRouter.ts');
 
-    expect(view).toContain("openGenerator('annual', 'list')");
     expect(view).toContain("memoSource: 'annual-distribution'");
     expect(view).toContain(
       'fetchTeacherAnnualMemoSources(annualLevelId, operationalAcademicYearId)'
@@ -135,6 +136,8 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(memoService).toContain('classPlannedSessionId?: string');
     expect(router).toContain("item.memoSource === 'annual-distribution'");
     expect(router).toContain('أنشئ التوزيع السنوي لهذا المستوى أولاً.');
+    expect(view).not.toContain("openGenerator('annual', 'list')");
+    expect(view).not.toContain('توليد من التوزيع السنوي');
   });
 
   it('keeps annual distribution level-scoped when no class is assigned', () => {
@@ -156,7 +159,7 @@ describe('Lesson Memo session-first workspace presentation', () => {
 
     expect(emptySessionsBranch).toContain('لا توجد حصص مبرمجة لهذا القسم');
     expect(emptySessionsBranch).toContain("openGenerator('standalone', 'list')");
-    expect(emptySessionsBranch).toContain('توليد مذكرة مستقلة');
+    expect(emptySessionsBranch).toContain('إنشاء مذكرة مستقلة');
     expect(emptySessionsBranch).toContain('فتح التوزيع السنوي');
   });
 

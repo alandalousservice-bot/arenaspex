@@ -29,6 +29,12 @@ export function standaloneLessonMemoIdFor(context: LessonMemoIdentityContext): s
   ].join('_');
 }
 
+/** Unique identity for a teacher-authored memo with no annual or class reference. */
+export function manualStandaloneLessonMemoIdFor(teacherId: string, createdAt: string): string {
+  if (!teacherId || !createdAt) throw new Error('MANUAL_MEMO_IDENTITY_CONTEXT_INVALID');
+  return ['lp_standalone_manual', stablePart(teacherId), stablePart(createdAt)].join('_');
+}
+
 /** Annual-distribution memos use a separate namespace and ownership scope. */
 export function annualDistributionLessonMemoIdFor(
   context: LessonMemoIdentityContext & { academicYearId: string }
