@@ -133,9 +133,10 @@ type SourceSession = Parameters<typeof autoGenerateLessonPlan>[0];
 
 function sourceFromPlanningReference(
   reference: NonNullable<TeacherPlanningSession['reference']>,
-  classRoom: ClassRoom
+  classRoom?: ClassRoom
 ): SourceSession {
-  const field = COMPLETE_ANNUAL_CURRICULUM[classRoom.levelId]?.fields[reference.domainId];
+  const levelId = classRoom?.levelId || `lvl_p${reference.grade}`;
+  const field = COMPLETE_ANNUAL_CURRICULUM[levelId]?.fields[reference.domainId];
   return {
     fieldId: reference.domainId,
     fieldName: displayFieldName(reference.domainId, field?.fieldName || reference.fieldName),
@@ -226,6 +227,14 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     const requestedYear = query.get('academicYearId') || localStorage.getItem(YEAR_KEY) || '';
     return isOperationalAcademicYear(requestedYear) ? requestedYear : getCurrentAcademicYear();
   });
+  const [annualLevelId, setAnnualLevelId] = useState(() => {
+    const requestedLevelId = query.get('levelId') || '';
+    if (Object.values(LEVEL_KEYS).includes(requestedLevelId)) return requestedLevelId;
+    return (
+      teacherClasses.find((item) => Object.values(LEVEL_KEYS).includes(item.levelId))?.levelId ||
+      'lvl_p1'
+    );
+  });
   const [operationalSessionId, setOperationalSessionId] = useState(requestedSessionId);
   const [operationalSessions, setOperationalSessions] = useState<TeacherPlanningSession[]>([]);
   const [scheduledError, setScheduledError] = useState('');
@@ -269,9 +278,9 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       ? lessonPlans.find(
           (item) =>
             item.teacherId === currentUser.id &&
-            item.classId === operationalClassId &&
             item.academicYearId === operationalAcademicYearId &&
             item.referenceSessionId === annualMemoSource.referenceSessionId &&
+            !item.classId &&
             isAnnualDistributionLessonMemo(item)
         )
       : undefined;
@@ -317,9 +326,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           (item) =>
             item.id === activeLessonPlanId &&
             item.teacherId === currentUser.id &&
-            item.classId === operationalClassId &&
             item.academicYearId === operationalAcademicYearId &&
-            item.referenceSessionId === annualMemoSource.referenceSessionId
+            item.referenceSessionId === annualMemoSource.referenceSessionId &&
+            !item.classId &&
+            isAnnualDistributionLessonMemo(item)
         )
       : undefined;
   const selected = scheduledMode
@@ -347,6 +357,12 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   useEffect(() => {
     if (!operationalClassId && teacherClasses[0]) setOperationalClassId(teacherClasses[0].id);
   }, [operationalClassId, teacherClasses]);
+
+  useEffect(() => {
+    if (memoMode !== 'annual') return;
+    const matchingLevel = Object.entries(LEVEL_KEYS).find(([, id]) => id === annualLevelId)?.[0];
+    if (matchingLevel) setLevelName(matchingLevel);
+  }, [annualLevelId, memoMode]);
 
   useEffect(() => {
     if (deepLinkDismissed || !requestedSessionId || !operationalSession) return;
@@ -438,13 +454,13 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     const shouldLoad =
       showGenerator &&
       memoMode === 'annual' &&
-      Boolean(operationalClassId) &&
+      Boolean(annualLevelId) &&
       Boolean(operationalAcademicYearId);
     if (!shouldLoad) return;
     let cancelled = false;
     setAnnualMemoLoading(true);
     setAnnualMemoError('');
-    fetchTeacherAnnualMemoSources(operationalClassId, operationalAcademicYearId)
+    fetchTeacherAnnualMemoSources(annualLevelId, operationalAcademicYearId)
       .then((result) => {
         if (cancelled) return;
         setAnnualMemoSources(result.sources);
@@ -470,7 +486,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [memoMode, operationalAcademicYearId, operationalClassId, showGenerator]);
+  }, [annualLevelId, memoMode, operationalAcademicYearId, showGenerator]);
 
   useEffect(() => {
     if (!showBank) return;
@@ -554,14 +570,14 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   };
 
   const annualGenerationContext = (): LessonMemoGenerationContext | null => {
-    if (!annualMemoSource || !operationalClass || !currentUser) return null;
-    const source = sourceFromPlanningReference(annualMemoSource.reference, operationalClass);
+    if (!annualMemoSource || !currentUser) return null;
+    const source = sourceFromPlanningReference(annualMemoSource.reference);
     const previousSituationIds = lessonPlans
       .filter(
         (item) =>
           item.teacherId === currentUser.id &&
-          item.classId === operationalClass.id &&
           item.academicYearId === operationalAcademicYearId &&
+          !item.classId &&
           (item.sessionGlobalNumber || 0) < source.globalNumber
       )
       .flatMap((item) =>
@@ -570,11 +586,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         )
       );
     return {
-      levelName: operationalClass.levelName || levelName,
+      levelName,
       teacher: currentUser,
-      className: operationalClass.name,
+      className: '',
       academicYearId: operationalAcademicYearId,
-      classId: operationalClass.id,
       inspectorName,
       plannedDate: annualMemoSource.plannedDate.slice(0, 10),
       durationMinutes: annualMemoSource.durationMinutes,
@@ -583,7 +598,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       situations: bankSituations.length ? bankSituations : undefined,
       previousSituationIds,
       pedagogicalParts: annualMemoSource.pedagogicalPartReferences?.map((reference) =>
-        sourceFromPlanningReference(reference, operationalClass)
+        sourceFromPlanningReference(reference)
       ),
     };
   };
@@ -631,8 +646,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       }
     }
     if (memoMode === 'annual') {
-      if (!annualMemoSource || !operationalClass) {
-        setGenerationError('اختر حصة من التوزيع السنوي وقسماً صالحاً أولاً.');
+      if (!annualMemoSource) {
+        setGenerationError('اختر حصة صالحة من التوزيع السنوي لهذا المستوى أولاً.');
         return;
       }
       if (existingAnnualMemo) {
@@ -646,8 +661,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     }
     const operationalContext = memoMode === 'operational' ? scheduledContext : null;
     const source =
-      memoMode === 'annual' && annualMemoSource && operationalClass
-        ? sourceFromPlanningReference(annualMemoSource.reference, operationalClass)
+      memoMode === 'annual' && annualMemoSource
+        ? sourceFromPlanningReference(annualMemoSource.reference)
         : (generatorSessions.length ? generatorSessions : sessions)[sessionIndex];
     if (!source) {
       setGenerationError(
@@ -693,10 +708,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               ...generatedPlan,
               id: annualDistributionLessonMemoIdFor({
                 teacherId: currentUser?.id || '',
-                classId: operationalClassId,
                 academicYearId: operationalAcademicYearId,
                 referenceSessionId: annualMemoSource.referenceSessionId,
               }),
+              levelId: annualLevelId,
               memoSource: 'annual-distribution' as const,
             }
           : memoMode === 'standalone' && currentUser?.id && source.referenceSessionId
@@ -1001,21 +1016,20 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
           </>
         ) : memoMode === 'annual' ? (
           <>
-            <label className="mb-1 block text-sm font-bold">القسم</label>
+            <label className="mb-1 block text-sm font-bold">المستوى الدراسي</label>
             <select
-              value={operationalClassId}
+              value={annualLevelId}
               onChange={(event) => {
-                setOperationalClassId(event.target.value);
+                setAnnualLevelId(event.target.value);
                 setAnnualMemoSourceId('');
                 setAnnualMemoSources([]);
                 closeSavedMemo();
               }}
               className="mb-3 w-full rounded-xl border p-2"
             >
-              <option value="">اختر قسماً</option>
-              {teacherClasses.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name || displayLevelName(item)}
+              {Object.entries(LEVEL_KEYS).map(([label, id]) => (
+                <option key={id} value={id}>
+                  {label}
                 </option>
               ))}
             </select>
@@ -1086,7 +1100,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                   type="button"
                   onClick={() =>
                     window.location.assign(
-                      annualDistributionPath(operationalAcademicYearId, operationalClass?.levelId)
+                      annualDistributionPath(operationalAcademicYearId, annualLevelId)
                     )
                   }
                   className="mt-3 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white"
@@ -2120,7 +2134,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               window.location.assign(
                 annualDistributionPath(
                   plan.academicYearId || operationalAcademicYearId,
-                  operationalClass?.levelId
+                  plan.levelId || annualLevelId || operationalClass?.levelId
                 )
               )
             }

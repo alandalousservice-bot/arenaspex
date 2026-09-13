@@ -690,6 +690,7 @@ export interface LessonPlan {
   dailyNotebookEntryId?: string;
   classPlannedSessionId?: string;
   referenceSessionId?: string;
+  levelId?: string;
   academicYearId?: string;
   classId?: string;
   plannedStartTime?: string | null;

@@ -697,7 +697,8 @@ export interface TeacherAnnualMemoSource {
 
 export interface TeacherAnnualMemoSourcesResponse {
   success: boolean;
-  class: TeacherPlanningClassContext;
+  class?: TeacherPlanningClassContext;
+  levelId: string;
   academicYearId: string;
   grade4WeeklyScheduleMode?: 'TWO_45' | 'ONE_90';
   sources: TeacherAnnualMemoSource[];
@@ -733,10 +734,10 @@ export async function fetchTeacherPlanningSessionsForTeacher(
 }
 
 export async function fetchTeacherAnnualMemoSources(
-  classId: string,
+  levelId: string,
   academicYearId: string
 ): Promise<TeacherAnnualMemoSourcesResponse> {
-  const query = new URLSearchParams({ classId, academicYearId });
+  const query = new URLSearchParams({ levelId, academicYearId });
   const res = await fetch(
     `/api/teacher/planning/annual-distribution/memo-sources?${query.toString()}`
   );

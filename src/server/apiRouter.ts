@@ -1182,19 +1182,23 @@ apiRouter.get(
   async (req, res) => {
     const academicYearId = String(req.query.academicYearId || '');
     const classId = String(req.query.classId || '');
-    if (!/^\d{4}-\d{4}$/.test(academicYearId) || !classId) {
-      return res.status(400).json({ error: 'القسم والسنة الدراسية مطلوبان.' });
+    const requestedLevelId = normalizePrimaryLevelId(String(req.query.levelId || ''));
+    if (!/^\d{4}-\d{4}$/.test(academicYearId) || (!classId && !requestedLevelId)) {
+      return res.status(400).json({ error: 'المستوى أو القسم والسنة الدراسية مطلوبان.' });
     }
-    const classRecord = await prisma.studentClass.findFirst({
-      where: { id: classId, teacherId: req.user!.id },
-      select: { id: true, name: true, levelId: true, institutionId: true },
-    });
-    const levelId = classRecord && normalizePrimaryLevelId(classRecord.levelId);
-    if (!classRecord || !levelId) {
+    const classRecord = classId
+      ? await prisma.studentClass.findFirst({
+          where: { id: classId, teacherId: req.user!.id },
+          select: { id: true, name: true, levelId: true, institutionId: true },
+        })
+      : null;
+    const levelId = normalizePrimaryLevelId(classRecord?.levelId || requestedLevelId);
+    if (classId && !classRecord) {
       return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
     }
+    if (!levelId) return res.status(400).json({ error: 'المستوى الدراسي غير صالح.' });
     const grade4WeeklyScheduleMode =
-      levelId === 'lvl_p4'
+      classRecord && levelId === 'lvl_p4'
         ? await grade4WeeklyScheduleModeForClass(classId, academicYearId)
         : undefined;
     const storedPlan = await prisma.annualPlan.findUnique({
@@ -1259,12 +1263,17 @@ apiRouter.get(
       .filter((source): source is NonNullable<typeof source> => Boolean(source));
     return res.json({
       success: true,
-      class: {
-        id: classRecord.id,
-        name: classRecord.name,
-        levelId: classRecord.levelId,
-        institutionId: classRecord.institutionId,
-      },
+      ...(classRecord
+        ? {
+            class: {
+              id: classRecord.id,
+              name: classRecord.name,
+              levelId: classRecord.levelId,
+              institutionId: classRecord.institutionId,
+            },
+          }
+        : {}),
+      levelId,
       academicYearId,
       grade4WeeklyScheduleMode,
       sources,
@@ -4039,18 +4048,20 @@ function jsonCollectionRoutes(opts: {
   const validatePlannedLesson = async (item: Record<string, unknown>, user: { id: string }) => {
     if (path !== 'lesson-plans') return true;
     if (item.memoSource === 'annual-distribution') {
-      if (
-        typeof item.classId !== 'string' ||
-        typeof item.academicYearId !== 'string' ||
-        typeof item.referenceSessionId !== 'string'
-      )
+      if (typeof item.academicYearId !== 'string' || typeof item.referenceSessionId !== 'string')
         return false;
-      const classRecord = await prisma.studentClass.findFirst({
-        where: { id: item.classId, teacherId: user.id },
-        select: { levelId: true },
-      });
-      if (!classRecord) return false;
-      const levelId = normalizePrimaryLevelId(classRecord.levelId);
+      const requestedClassId =
+        typeof item.classId === 'string' && item.classId.trim() ? item.classId : undefined;
+      const requestedLevelId =
+        typeof item.levelId === 'string' ? normalizePrimaryLevelId(item.levelId) : undefined;
+      const classRecord = requestedClassId
+        ? await prisma.studentClass.findFirst({
+            where: { id: requestedClassId, teacherId: user.id },
+            select: { levelId: true },
+          })
+        : null;
+      if (requestedClassId && !classRecord) return false;
+      const levelId = normalizePrimaryLevelId(classRecord?.levelId || requestedLevelId);
       if (!levelId) return false;
       const annualPlan = await prisma.annualPlan.findUnique({
         where: {

@@ -128,7 +128,7 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(view).toContain("openGenerator('annual', 'list')");
     expect(view).toContain("memoSource: 'annual-distribution'");
     expect(view).toContain(
-      'fetchTeacherAnnualMemoSources(operationalClassId, operationalAcademicYearId)'
+      'fetchTeacherAnnualMemoSources(annualLevelId, operationalAcademicYearId)'
     );
     expect(view).toContain('محتوى المذكرة وأهدافها من التوزيع السنوي');
     expect(api).toContain('/api/teacher/planning/annual-distribution/memo-sources');

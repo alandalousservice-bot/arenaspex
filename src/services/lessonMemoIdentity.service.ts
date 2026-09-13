@@ -31,12 +31,12 @@ export function standaloneLessonMemoIdFor(context: LessonMemoIdentityContext): s
 
 /** Annual-distribution memos use a separate namespace and ownership scope. */
 export function annualDistributionLessonMemoIdFor(
-  context: Required<LessonMemoIdentityContext>
+  context: LessonMemoIdentityContext & { academicYearId: string }
 ): string {
   return [
     'lp_annual',
     stablePart(context.teacherId),
-    stablePart(context.classId),
+    stablePart(context.classId || 'no-class'),
     stablePart(context.academicYearId),
     stablePart(context.referenceSessionId),
   ].join('_');
