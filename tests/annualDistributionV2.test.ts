@@ -257,8 +257,17 @@ describe('academic-year annual distribution generation v2', () => {
     expect(second.levels).toEqual(first.levels);
 
     const router = fs.readFileSync('src/server/apiRouter.ts', 'utf8');
-    expect(router).toContain("if (decision === 'preserve') return []");
-    expect(router).toContain('plannedDate: seed.plannedDate');
+    const legacyPatchRouteStart = router.indexOf(
+      "'/teacher/planning/annual-distribution/levels/:levelId/sessions/:referenceSessionId'"
+    );
+    const nextRouteStart = router.indexOf(
+      "'/teacher/planning/classes/:classId/sessions/initialize'",
+      legacyPatchRouteStart
+    );
+    const legacyPatchRoute = router.slice(legacyPatchRouteStart, nextRouteStart);
+    expect(legacyPatchRoute).toContain('res.status(410).json({');
+    expect(legacyPatchRoute).not.toContain("if (decision === 'preserve') return []");
+    expect(legacyPatchRoute).not.toContain('plannedDate: seed.plannedDate');
     expect(router).toContain('annual_distribution');
   });
 
