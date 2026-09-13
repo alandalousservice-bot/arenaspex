@@ -22,6 +22,7 @@ import {
   objectiveAdoptionLabel,
   ObjectiveBankReadModel,
 } from '../../services/objectiveBankReadModel.service';
+import { situationDomainLabel } from '../../services/pedagogicalSituationReadModel.service';
 
 interface KnowledgeEngineViewProps {
   knowledgeItems: KnowledgeItem[];
@@ -761,7 +762,8 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
                 <span className="text-xs text-amber-700">بانتظار الاعتماد</span>
               </div>
               <p className="text-xs text-slate-600">
-                السنة {item.levelIds?.[0]?.replace('lvl_p', '')} · {item.fieldName} ·{' '}
+                السنة {item.levelIds?.[0]?.replace('lvl_p', '')} ·{' '}
+                {situationDomainLabel(item.fieldId, item.fieldName) || 'الميدان العام'} ·{' '}
                 {item.description}
               </p>
               <div className="flex gap-2">

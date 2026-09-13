@@ -7,12 +7,18 @@ import {
   adaptLegacyGame,
   isLegacyGameReadModel,
   mergePedagogicalSituationReadModels,
+  situationDomainLabel,
+  situationLessonTypeLabel,
+  situationSkillOptions,
+  teacherFacingSituationSkillOptions,
+  SITUATION_DOMAIN_LABELS,
+  SITUATION_LESSON_TYPE_LABELS,
 } from '../../services/pedagogicalSituationReadModel.service';
 
 export const FIELD_OPTIONS = [
-  { id: 'f_locomotion', name: 'الوضعيات والتنقلات' },
-  { id: 'f_fundamentals', name: 'الحركات القاعدية' },
-  { id: 'f_structuring', name: 'الهيكلة والبناء' },
+  { id: 'f_locomotion', name: SITUATION_DOMAIN_LABELS.f_locomotion },
+  { id: 'f_fundamentals', name: SITUATION_DOMAIN_LABELS.f_fundamentals },
+  { id: 'f_structuring', name: SITUATION_DOMAIN_LABELS.f_structuring },
 ] as const;
 const STATUS_LABELS: Record<EducationalSituation['status'], string> = {
   PRIVATE: 'خاص',
@@ -21,12 +27,7 @@ const STATUS_LABELS: Record<EducationalSituation['status'], string> = {
   REJECTED: 'مرفوض',
 };
 
-export const LESSON_TYPE_LABELS: Record<string, string> = {
-  LEARNING: 'حصة تعلمية',
-  INTEGRATIVE: 'حصة إدماجية',
-  DIAGNOSTIC: 'تقويم تشخيصي',
-  SUMMATIVE: 'تقويم تحصيلي',
-};
+export const LESSON_TYPE_LABELS = SITUATION_LESSON_TYPE_LABELS;
 
 export type SituationDurationFilter = 'all' | 'short' | 'medium' | 'long';
 
@@ -35,13 +36,11 @@ export function detailText(value: string | string[] | null | undefined): string 
 }
 
 export function situationSkillTags(item: EducationalSituation): string[] {
-  return Array.from(
-    new Set([
-      ...(item.motorActions || []),
-      ...(item.pedagogicalTags || []),
-      ...(item.requirements || []),
-    ])
-  ).filter(Boolean);
+  return situationSkillOptions(item).map((option) => option.label);
+}
+
+export function situationSkillValues(item: EducationalSituation): string[] {
+  return situationSkillOptions(item).map((option) => option.value);
 }
 
 export function durationBucket(
@@ -62,7 +61,7 @@ export function matchesSituationFilters(
     duration: SituationDurationFilter;
   }
 ): boolean {
-  const skills = situationSkillTags(item);
+  const skills = situationSkillValues(item);
   const lessonTypes = item.lessonTypes || [];
   const equipment = item.equipment || [];
   return (
@@ -152,12 +151,21 @@ export const EducationalSituationsBankView: React.FC<{
     () => items.filter((item) => item.status === 'PENDING_APPROVAL'),
     [items]
   );
-  const availableSkills = useMemo(
-    () => Array.from(new Set(items.flatMap(situationSkillTags))).sort((a, b) => a.localeCompare(b)),
-    [items]
-  );
+  const availableSkills = useMemo(() => {
+    const legacySources = legacyGames.map((item) => ({
+      fieldId: item.fieldId,
+      gradeId: item.levelId,
+      motorActions: item.targetSkill ? [item.targetSkill] : [],
+      pedagogicalTags: item.tags,
+      requirements: [],
+    }));
+    return teacherFacingSituationSkillOptions([...items, ...legacySources]);
+  }, [items, legacyGames]);
   const availableLessonTypes = useMemo(
-    () => Array.from(new Set(items.flatMap((item) => item.lessonTypes || []))),
+    () =>
+      Array.from(new Set(items.flatMap((item) => item.lessonTypes || []))).filter((value) =>
+        Boolean(situationLessonTypeLabel(value))
+      ),
     [items]
   );
   const availableEquipment = useMemo(
@@ -185,7 +193,15 @@ export const EducationalSituationsBankView: React.FC<{
       const text = `${item.title} ${item.description} ${item.tags.join(' ')}`.toLocaleLowerCase();
       const queryMatches = !query || text.includes(query);
       const objectiveMatches = !objective || text.includes(objective.toLocaleLowerCase());
-      const skillMatches = !skill || item.tags.includes(skill) || item.targetSkill === skill;
+      const skillMatches =
+        !skill ||
+        situationSkillOptions({
+          fieldId: item.fieldId,
+          gradeId: item.levelId,
+          motorActions: item.targetSkill ? [item.targetSkill] : [],
+          pedagogicalTags: item.tags,
+          requirements: [],
+        }).some((option) => option.value === skill);
       const equipmentMatches = !equipmentFilter || (item.equipment || []).includes(equipmentFilter);
       return (
         (item.approved || item.ownerId === currentUser.id) &&
@@ -301,9 +317,11 @@ export const EducationalSituationsBankView: React.FC<{
             className="rounded-xl border p-2"
           >
             <option value="">كل الميادين</option>
-            <option value="f_locomotion">الوضعيات والتنقلات</option>
-            <option value="f_fundamentals">الحركات القاعدية</option>
-            <option value="f_structuring">الهيكلة والبناء</option>
+            {FIELD_OPTIONS.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.name}
+              </option>
+            ))}
           </select>
           <input
             placeholder="الهدف التعليمي المطابق"
@@ -317,9 +335,9 @@ export const EducationalSituationsBankView: React.FC<{
             className="rounded-xl border p-2"
           >
             <option value="">كل المهارات والمتطلبات</option>
-            {availableSkills.map((value) => (
-              <option key={value} value={value}>
-                {value}
+            {availableSkills.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>
@@ -331,7 +349,7 @@ export const EducationalSituationsBankView: React.FC<{
             <option value="">كل أنواع الحصص</option>
             {availableLessonTypes.map((value) => (
               <option key={value} value={value}>
-                {LESSON_TYPE_LABELS[value] || value}
+                {LESSON_TYPE_LABELS[value]}
               </option>
             ))}
           </select>
@@ -383,7 +401,8 @@ export const EducationalSituationsBankView: React.FC<{
             </div>
             <div className="p-4">
               <p className="text-xs text-slate-500">
-                {item.levelName || 'مرجع متعدد السنوات'} — {item.fieldName || 'الميدان العام'}
+                {item.levelName || 'مرجع متعدد السنوات'} —{' '}
+                {situationDomainLabel(item.fieldId, item.fieldName) || 'الميدان العام'}
               </p>
               <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-600">
                 {item.description}
@@ -408,7 +427,7 @@ export const EducationalSituationsBankView: React.FC<{
                   <Activity className="h-9 w-9 opacity-80" />
                   <div className="flex flex-wrap justify-end gap-1 text-[10px] font-bold">
                     <span className="rounded-lg bg-white/20 px-2 py-1">
-                      {LESSON_TYPE_LABELS[item.lessonTypes?.[0] || ''] || 'موقف تطبيقي'}
+                      {situationLessonTypeLabel(item.lessonTypes?.[0] || '') || 'موقف تطبيقي'}
                     </span>
                     {item.status === 'APPROVED' && (
                       <span className="rounded-lg bg-emerald-950/30 px-2 py-1">معتمد</span>
@@ -420,7 +439,9 @@ export const EducationalSituationsBankView: React.FC<{
               <div className="p-4">
                 <div className="flex flex-wrap gap-1.5 text-[11px] text-slate-600">
                   <span className="rounded-full bg-slate-100 px-2 py-1">السنة {item.grade}</span>
-                  <span className="rounded-full bg-slate-100 px-2 py-1">{item.fieldName}</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-1">
+                    {situationDomainLabel(item.fieldId, item.fieldName) || 'الميدان غير محدد'}
+                  </span>
                   <span className="rounded-full bg-slate-100 px-2 py-1">
                     <Clock3 className="ml-1 inline h-3 w-3" />
                     {item.durationMinutes ? `${item.durationMinutes} دقيقة` : 'المدة غير محددة'}
@@ -674,7 +695,10 @@ export const EducationalSituationsBankView: React.FC<{
                   <div className="rounded-xl bg-slate-50 p-3 text-sm">
                     <Layers3 className="mb-1 h-4 w-4 text-emerald-700" />
                     <strong>الميدان</strong>
-                    <p>{selected.fieldName}</p>
+                    <p>
+                      {situationDomainLabel(selected.fieldId, selected.fieldName) ||
+                        'الميدان غير محدد'}
+                    </p>
                   </div>
                   <div className="rounded-xl bg-slate-50 p-3 text-sm">
                     <Clock3 className="mb-1 h-4 w-4 text-emerald-700" />
@@ -711,17 +735,23 @@ export const EducationalSituationsBankView: React.FC<{
                   <div className="rounded-xl bg-emerald-50 p-3 text-sm">
                     <strong>أنواع الحصص المناسبة:</strong>{' '}
                     {selected.lessonTypes
-                      .map((value) => LESSON_TYPE_LABELS[value] || value)
+                      .map((value) => situationLessonTypeLabel(value))
+                      .filter(Boolean)
                       .join('، ')}
                   </div>
                 )}
                 {!!selected.pedagogicalTags?.length && (
                   <div className="flex flex-wrap gap-2 text-xs">
-                    {selected.pedagogicalTags.map((tag) => (
-                      <span key={tag} className="rounded-full bg-slate-100 px-3 py-1">
-                        #{tag}
-                      </span>
-                    ))}
+                    {selected.pedagogicalTags
+                      .map((tag) =>
+                        situationSkillOptions(selected).find((option) => option.value === tag)
+                      )
+                      .filter(Boolean)
+                      .map((option) => (
+                        <span key={option!.value} className="rounded-full bg-slate-100 px-3 py-1">
+                          #{option!.label}
+                        </span>
+                      ))}
                   </div>
                 )}
               </div>

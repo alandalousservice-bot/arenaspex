@@ -1,7 +1,190 @@
+import { getObjectiveBankResources } from '../data/objectiveBankRegistry';
 import { EducationalSituation, KnowledgeItem } from '../types/spex';
 
 export type PedagogicalSituationReadSource = 'EDUCATIONAL_SITUATION' | 'LEGACY_GAME';
 export type PedagogicalSituationVisibility = 'PUBLIC' | 'OWNER' | 'REVIEW' | 'HIDDEN';
+
+export const SITUATION_DOMAIN_LABELS: Record<string, string> = {
+  f_locomotion: 'الوضعيات والتنقلات',
+  f_fundamentals: 'الحركات القاعدية',
+  f_structuring: 'الهيكلة والبناء',
+};
+
+export const SITUATION_LESSON_TYPE_LABELS: Record<string, string> = {
+  LEARNING: 'حصة تعلمية',
+  INTEGRATIVE: 'حصة إدماجية',
+  DIAGNOSTIC: 'تقويم تشخيصي',
+  SUMMATIVE: 'تقويم تحصيلي',
+};
+
+const INTERNAL_TAXONOMY_VALUES = new Set([
+  'LEARNING',
+  'INTEGRATIVE',
+  'DIAGNOSTIC',
+  'SUMMATIVE',
+  'authored-direct',
+  'grade-1',
+  'grade-2',
+  'grade-3',
+  'grade-4',
+  'grade-5',
+  'f_locomotion',
+  'f_fundamentals',
+  'f_structuring',
+]);
+
+export type SituationTaxonomySource = {
+  fieldId?: string | null;
+  lessonTypes?: readonly string[] | null;
+  motorActions?: readonly string[] | null;
+  pedagogicalTags?: readonly string[] | null;
+  requirements?: readonly string[] | null;
+  relationTypes?: readonly string[] | null;
+  gradeId?: string | null;
+};
+
+function canonicalMotorSkillLabels(): Map<string, string> {
+  const labels = new Map<string, string>();
+  for (let grade = 1; grade <= 5; grade += 1) {
+    for (const domainId of ['f_locomotion', 'f_fundamentals', 'f_structuring']) {
+      for (const resource of getObjectiveBankResources(`lvl_p${grade}`, domainId)) {
+        if (!resource.id.startsWith('curriculum-resource:')) continue;
+        const slug = resource.id.split(':').pop();
+        if (slug) labels.set(slug, resource.label);
+      }
+    }
+  }
+  return labels;
+}
+
+const CANONICAL_MOTOR_SKILL_LABELS = canonicalMotorSkillLabels();
+
+function isInternalTaxonomyValue(value: string): boolean {
+  return (
+    INTERNAL_TAXONOMY_VALUES.has(value) ||
+    /^(grade|field|domain|lesson|relation|source|status|approval|production)[-_]/i.test(value) ||
+    /^(DIRECT|SUPPORTIVE|INTEGRATIVE|ASSESSMENT|AUTO_GENERATION_ELIGIBLE|REVIEW_ONLY|SOURCE_ARCHIVE_ONLY)$/.test(
+      value
+    )
+  );
+}
+
+function safeTeacherLabel(value: string): { value: string; label: string } | undefined {
+  const normalized = value.trim();
+  if (!normalized || isInternalTaxonomyValue(normalized)) return undefined;
+  if (CANONICAL_MOTOR_SKILL_LABELS.has(normalized)) {
+    return { value: normalized, label: CANONICAL_MOTOR_SKILL_LABELS.get(normalized)! };
+  }
+  // Free-text values are safe for the teacher view only when they are already
+  // human-readable Arabic. Unknown technical slugs are intentionally hidden.
+  if (!/[\u0600-\u06ff]/.test(normalized)) return undefined;
+  return { value: normalized, label: normalized };
+}
+
+function uniquePresentedValues(
+  values: Array<{ value: string; label: string } | undefined>
+): Array<{ value: string; label: string }> {
+  const seen = new Set<string>();
+  return values.filter((entry): entry is { value: string; label: string } => {
+    if (!entry || seen.has(entry.value)) return false;
+    seen.add(entry.value);
+    return true;
+  });
+}
+
+function rawValues(values?: readonly string[] | null): string[] {
+  return (values || []).map((value) => value.trim()).filter(Boolean);
+}
+
+export interface TeacherFacingTaxonomyOption {
+  value: string;
+  label: string;
+}
+
+export interface SituationTaxonomy {
+  domainId?: string;
+  domainLabel?: string;
+  gradeId?: string;
+  lessonTypes: string[];
+  lessonTypeLabels: string[];
+  motorSkills: TeacherFacingTaxonomyOption[];
+  pedagogicalRequirements: TeacherFacingTaxonomyOption[];
+  objectiveRelationTypes: string[];
+  sourceTags: string[];
+  internalTags: string[];
+}
+
+/**
+ * Classifies source fields before they reach teacher-facing filters/cards.
+ * Tags are never promoted to skills unless they resolve to a canonical
+ * structured motor resource; unknown technical values are discarded.
+ */
+export function classifySituationTaxonomy(item: SituationTaxonomySource): SituationTaxonomy {
+  const motorSkills = uniquePresentedValues(rawValues(item.motorActions).map(safeTeacherLabel));
+  const pedagogicalRequirements = uniquePresentedValues(
+    rawValues(item.requirements).map(safeTeacherLabel)
+  );
+  const lessonTypes = rawValues(item.lessonTypes).filter((value) =>
+    Boolean(SITUATION_LESSON_TYPE_LABELS[value])
+  );
+  const rawSourceTags = rawValues(item.pedagogicalTags);
+  const sourceTags = rawSourceTags.filter((value) =>
+    Boolean(CANONICAL_MOTOR_SKILL_LABELS.get(value))
+  );
+  const internalTags = Array.from(
+    new Set(
+      rawSourceTags.filter((value) => !sourceTags.includes(value) || isInternalTaxonomyValue(value))
+    )
+  );
+  const sourceTagSkills = uniquePresentedValues(sourceTags.map(safeTeacherLabel));
+  const domainId = item.fieldId && SITUATION_DOMAIN_LABELS[item.fieldId] ? item.fieldId : undefined;
+  return {
+    domainId,
+    domainLabel: domainId ? SITUATION_DOMAIN_LABELS[domainId] : undefined,
+    gradeId: item.gradeId,
+    lessonTypes,
+    lessonTypeLabels: lessonTypes.map((value) => SITUATION_LESSON_TYPE_LABELS[value]),
+    motorSkills: uniquePresentedValues([...motorSkills, ...sourceTagSkills]),
+    pedagogicalRequirements,
+    objectiveRelationTypes: rawValues(item.relationTypes).filter((value) =>
+      ['DIRECT', 'SUPPORTIVE', 'INTEGRATIVE', 'ASSESSMENT'].includes(value)
+    ),
+    sourceTags,
+    internalTags,
+  };
+}
+
+export function teacherFacingSituationSkillOptions(
+  items: SituationTaxonomySource[]
+): TeacherFacingTaxonomyOption[] {
+  const values = items.flatMap((item) => {
+    const taxonomy = classifySituationTaxonomy(item);
+    return [...taxonomy.motorSkills, ...taxonomy.pedagogicalRequirements];
+  });
+  return uniquePresentedValues(values).sort((a, b) => a.label.localeCompare(b.label, 'ar'));
+}
+
+export function situationSkillOptions(
+  item: SituationTaxonomySource
+): TeacherFacingTaxonomyOption[] {
+  const taxonomy = classifySituationTaxonomy(item);
+  return uniquePresentedValues([...taxonomy.motorSkills, ...taxonomy.pedagogicalRequirements]);
+}
+
+export function situationDomainLabel(
+  fieldId?: string | null,
+  fallback?: string | null
+): string | undefined {
+  if (fieldId && SITUATION_DOMAIN_LABELS[fieldId]) return SITUATION_DOMAIN_LABELS[fieldId];
+  const value = fallback?.trim();
+  return value && /[\u0600-\u06ff]/.test(value) && !isInternalTaxonomyValue(value)
+    ? value
+    : undefined;
+}
+
+export function situationLessonTypeLabel(value: string): string | undefined {
+  return SITUATION_LESSON_TYPE_LABELS[value];
+}
 
 /**
  * The teacher-facing read contract for applied pedagogical content.

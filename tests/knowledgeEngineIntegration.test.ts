@@ -82,8 +82,8 @@ describe('دمج المواقف التربوية داخل بنك المعرفة'
   it('يحسب المهارات والمدة بشكل قابل لإعادة الاستخدام', () => {
     const situation = {
       motorActions: ['الجري'],
-      pedagogicalTags: ['توازن'],
-      requirements: ['الانتباه'],
+      pedagogicalTags: ['authored-direct'],
+      requirements: ['توازن', 'الانتباه'],
       lessonTypes: ['LEARNING'],
       equipment: ['أقماع'],
       durationMinutes: 45,
