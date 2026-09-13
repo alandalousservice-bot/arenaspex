@@ -5,7 +5,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { BrainCircuit, Search, Plus, Target, Layers, Copy, Check, BookOpen } from 'lucide-react';
-import { CommunityResource, KnowledgeItem, KnowledgeCategory } from '../../types/spex';
+import { CommunityResource, KnowledgeItem } from '../../types/spex';
 import { requestPedagogicalGameSuggestion } from '../../services/api';
 import { useDebounce } from '../../hooks/useDebounce';
 import { EducationalSituationsBankView } from '../educationalSituations/EducationalSituationsBankView';
@@ -45,7 +45,6 @@ export const KNOWLEDGE_BANK_CATEGORIES = [
   'objective',
   'remedial',
   'educational_situation',
-  'community_resource',
 ] as const;
 
 export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
@@ -57,11 +56,9 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
   onApproveKnowledgeItem,
   onRejectKnowledgeItem,
   currentUser,
-  communityResources = [],
 }) => {
-  const [activeTab, setActiveTab] = useState<
-    KnowledgeCategory | 'educational_situation' | 'community_resource'
-  >('educational_situation');
+  const [activeTab, setActiveTab] =
+    useState<(typeof KNOWLEDGE_BANK_CATEGORIES)[number]>('educational_situation');
   const [searchVal, setSearchVal] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedObjective, setSelectedObjective] = useState<
@@ -153,7 +150,6 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
     LOW: 'منخفضة',
     ADEQUATE: 'كافية',
   };
-  const approvedCommunityResources = selectApprovedCommunityResources(communityResources);
   const ownEditableGames = knowledgeItems.filter(
     (item) =>
       item.category === 'game' &&
@@ -166,16 +162,6 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
       (item.approvalStatus === 'PENDING_APPROVAL' || item.approvalStatus === 'PENDING_REVIEW') &&
       (currentUser.role === 'admin' || currentUser.role === 'inspector')
   );
-  const filteredCommunityResources = approvedCommunityResources.filter((resource) => {
-    const query = debouncedSearchVal.trim();
-    return (
-      !query ||
-      resource.title.includes(query) ||
-      resource.description.includes(query) ||
-      resource.authorName.includes(query)
-    );
-  });
-
   const handleCopyText = (item: KnowledgeItem | CurriculumObjectiveReference) => {
     const textToCopy = `${item.title}\n\n${item.description}\n\nالأدوات: ${item.equipment?.join('، ')}\nالقوانين: ${item.rules}`;
     // clipboard API غير متوفرة في السياقات غير الآمنة (http) أو بعض المتصفحات — بديل آمن
@@ -556,7 +542,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
             }`}
           >
             <Target className="w-4 h-4" />
-            <span>بنك الأهداف الإجرائية</span>
+            <span>بنك الأهداف</span>
           </button>
 
           <button
@@ -582,20 +568,6 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
             <Layers className="w-4 h-4" />
             <span>المواقف التربوية</span>
           </button>
-
-          {approvedCommunityResources.length > 0 && (
-            <button
-              onClick={() => setActiveTab('community_resource')}
-              className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                activeTab === 'community_resource'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>الموارد التعليمية المشتركة</span>
-            </button>
-          )}
         </div>
 
         <div className="relative w-full md:w-64">
@@ -629,7 +601,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
               </p>
             </div>
             <span className="text-xs text-slate-500">
-              15 خلية · موارد مشتركة معتمدة: {approvedCommunityResources.length}
+              15 خلية · الموارد المشتركة متاحة من المجتمع المهني
             </span>
           </div>
           <div className="overflow-x-auto">
@@ -784,32 +756,6 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           embedded
           legacyGames={knowledgeItems.filter((item) => item.category === 'game')}
         />
-      ) : activeTab === 'community_resource' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {filteredCommunityResources.map((resource) => (
-            <article
-              key={resource.id}
-              className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-3"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">
-                  مورد تعليمي مشترك
-                </span>
-                <span className="text-xs text-slate-500">{resource.authorName}</span>
-              </div>
-              <h3 className="text-sm font-bold text-slate-900">{resource.title}</h3>
-              <p className="text-xs leading-relaxed text-slate-600 bg-slate-50 p-3 rounded-2xl">
-                {resource.description}
-              </p>
-              <p className="text-xs text-slate-500">النوع: {resource.type}</p>
-            </article>
-          ))}
-          {!filteredCommunityResources.length && (
-            <p className="md:col-span-2 rounded-2xl border bg-white p-6 text-center text-sm text-slate-500">
-              لا توجد موارد تعليمية مشتركة مطابقة.
-            </p>
-          )}
-        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filteredItems.map((item) => (

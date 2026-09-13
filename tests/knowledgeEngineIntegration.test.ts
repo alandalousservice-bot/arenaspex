@@ -24,6 +24,16 @@ describe('دمج المواقف التربوية داخل بنك المعرفة'
     expect(ROLE_TABS.admin).not.toContain('educational_situations');
   });
 
+  it('يعرض محرك المعرفة ثلاثة أقسام رئيسية فقط دون بنك ألعاب مستقل', () => {
+    expect(KNOWLEDGE_BANK_CATEGORIES).toEqual(['objective', 'remedial', 'educational_situation']);
+    const source = readFileSync('src/components/knowledge/KnowledgeEngineView.tsx', 'utf8');
+    expect(source).toContain('بنك الأهداف</span>');
+    expect(source).toContain('الأنشطة العلاجية');
+    expect(source).toContain('المواقف التربوية');
+    expect(source).not.toContain("setActiveTab('community_resource')");
+    expect(source).not.toContain('بنك الألعاب التربوية');
+  });
+
   it('يعرض الموارد التعليمية المشتركة المعتمدة فقط', () => {
     const resources = [
       {

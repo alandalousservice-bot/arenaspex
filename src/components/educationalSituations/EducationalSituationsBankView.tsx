@@ -2,6 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Activity, BookOpen, Clock3, Layers3, Search, Target, X } from 'lucide-react';
 import { EducationalSituation, KnowledgeItem, User } from '../../types/spex';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../../data/algerianCurriculum';
+import {
+  adaptEducationalSituation,
+  adaptLegacyGame,
+  isLegacyGameReadModel,
+  mergePedagogicalSituationReadModels,
+} from '../../services/pedagogicalSituationReadModel.service';
 
 export const FIELD_OPTIONS = [
   { id: 'f_locomotion', name: 'الوضعيات والتنقلات' },
@@ -172,7 +178,7 @@ export const EducationalSituationsBankView: React.FC<{
   );
   const visibleLegacyGames = useMemo(() => {
     const query = q.trim().toLocaleLowerCase();
-    return legacyGames.filter((item) => {
+    const filtered = legacyGames.filter((item) => {
       const levels = item.levelIds?.length ? item.levelIds : item.levelId ? [item.levelId] : [];
       const gradeMatches = !grade || levels.includes(`lvl_p${grade}`);
       const fieldMatches = !field || item.fieldId === field;
@@ -191,6 +197,13 @@ export const EducationalSituationsBankView: React.FC<{
         equipmentMatches
       );
     });
+    const canonicalReadModels = items.map(adaptEducationalSituation);
+    const legacyReadModels = filtered.map(adaptLegacyGame);
+    const merged = mergePedagogicalSituationReadModels(canonicalReadModels, legacyReadModels);
+    const allowedLegacyIds = new Set(
+      merged.filter(isLegacyGameReadModel).map((item) => item.sourceId)
+    );
+    return filtered.filter((item) => allowedLegacyIds.has(item.id));
   }, [currentUser.id, equipmentFilter, field, grade, legacyGames, objective, q, skill]);
   const reviewer = currentUser.role === 'admin' || currentUser.role === 'inspector';
   const save = async () => {
