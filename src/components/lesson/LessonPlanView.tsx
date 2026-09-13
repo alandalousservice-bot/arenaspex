@@ -994,17 +994,30 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       ) : operationalSessions.length === 0 ? (
         <div className="workspace-empty-state rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
           <p className="font-bold text-slate-700">لا توجد حصص مبرمجة لهذا القسم</p>
-          <button
-            type="button"
-            onClick={() =>
-              window.location.assign(
-                annualDistributionPath(operationalAcademicYearId, operationalClass?.levelId)
-              )
-            }
-            className="mt-3 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white"
-          >
-            فتح التوزيع السنوي
-          </button>
+          <p className="mt-2 text-sm text-slate-500">
+            يمكنك توليد مذكرة مستقلة الآن، بينما تتطلب المذكرة التشغيلية توزيعاً أسبوعياً وحصة
+            مبرمجة.
+          </p>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => openGenerator('standalone', 'list')}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700"
+            >
+              توليد مذكرة مستقلة
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                window.location.assign(
+                  annualDistributionPath(operationalAcademicYearId, operationalClass?.levelId)
+                )
+              }
+              className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white"
+            >
+              فتح التوزيع السنوي
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">

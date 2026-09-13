@@ -130,6 +130,18 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(view).toContain('disabled={!teacherClasses.length}');
   });
 
+  it('offers standalone memo generation when a class has no planned sessions', () => {
+    const view = read('src/components/lesson/LessonPlanView.tsx');
+    const emptySessionsStart = view.indexOf('operationalSessions.length === 0');
+    const emptySessionsEnd = view.indexOf(') : (', emptySessionsStart);
+    const emptySessionsBranch = view.slice(emptySessionsStart, emptySessionsEnd);
+
+    expect(emptySessionsBranch).toContain('لا توجد حصص مبرمجة لهذا القسم');
+    expect(emptySessionsBranch).toContain("openGenerator('standalone', 'list')");
+    expect(emptySessionsBranch).toContain('توليد مذكرة مستقلة');
+    expect(emptySessionsBranch).toContain('فتح التوزيع السنوي');
+  });
+
   it('keeps saved-memo navigation bound to the same operational context', () => {
     const view = read('src/components/lesson/LessonPlanView.tsx');
 
