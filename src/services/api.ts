@@ -699,6 +699,7 @@ export interface TeacherAnnualMemoSourcesResponse {
   success: boolean;
   class: TeacherPlanningClassContext;
   academicYearId: string;
+  grade4WeeklyScheduleMode?: 'TWO_45' | 'ONE_90';
   sources: TeacherAnnualMemoSource[];
 }
 

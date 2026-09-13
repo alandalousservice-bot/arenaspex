@@ -1198,6 +1198,10 @@ apiRouter.get(
     if (!classRecord || !levelId) {
       return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
     }
+    const grade4WeeklyScheduleMode =
+      levelId === 'lvl_p4'
+        ? await grade4WeeklyScheduleModeForClass(classId, academicYearId)
+        : undefined;
     const storedPlan = await prisma.annualPlan.findUnique({
       where: {
         teacherId_academicYearId_levelId_kind: {
@@ -1247,7 +1251,7 @@ apiRouter.get(
         const pedagogicalParts = pedagogicalPartsForOperationalSession(
           reference,
           references,
-          'ONE_90'
+          grade4WeeklyScheduleMode || 'ONE_90'
         );
         return {
           referenceSessionId: session.referenceSessionId,
@@ -1267,6 +1271,7 @@ apiRouter.get(
         institutionId: classRecord.institutionId,
       },
       academicYearId,
+      grade4WeeklyScheduleMode,
       sources,
     });
   }

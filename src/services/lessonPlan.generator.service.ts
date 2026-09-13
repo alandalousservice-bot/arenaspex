@@ -12,6 +12,7 @@ import {
   selectEducationalSituations,
   snapshotSituation,
 } from './educationalSituation.selector.service';
+import type { EducationalSituationLessonType } from './educationalSituation.selector.service';
 import {
   lessonPhaseBudgetsForDuration,
   resolveOperationalLessonDuration,
@@ -123,6 +124,16 @@ function situationEquipment(fieldId: string): string[] {
   return ['أقماع', 'شواخص', 'سلم أرضي'];
 }
 
+function canonicalLessonTypeFor(
+  type: AutoGenerateSessionSource['type']
+): EducationalSituationLessonType | null {
+  if (type === 'تشخيصية' || type === 'تقويم تشخيصي') return 'DIAGNOSTIC';
+  if (type === 'تقويمية' || type === 'تقويم تحصيلي') return 'SUMMATIVE';
+  if (type === 'إدماجية') return 'INTEGRATIVE';
+  if (type === 'تعلمية') return 'LEARNING';
+  return null;
+}
+
 export type LessonMemoGenerationWarningCode =
   | 'NO_ELIGIBLE_SITUATION'
   | 'INTEGRATIVE_COVERAGE_INCOMPLETE'
@@ -207,13 +218,19 @@ function buildMainRows(
   const availableSituations = ctx.situations || referenceSituations;
   let selectionWarningCodes: string[] = [];
   let selectionFailureCode: string | undefined;
+  const canonicalLessonType =
+    canonicalLessonTypeFor(pedagogicalParts[0]?.type) ||
+    (pedagogicalParts.length > 1 ? 'LEARNING' : null);
   const bank =
-    pedagogicalParts.length > 1
+    canonicalLessonType &&
+    (pedagogicalParts.length > 1 ||
+      canonicalLessonType === 'DIAGNOSTIC' ||
+      canonicalLessonType === 'SUMMATIVE')
       ? (() => {
           const selection = selectEducationalSituations(availableSituations, {
             gradeId: grade,
             domainId: session.fieldId,
-            lessonType: 'LEARNING',
+            lessonType: canonicalLessonType,
             objectiveIds,
             objectiveText: session.objective,
             durationMinutes: mainMinutes,

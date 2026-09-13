@@ -8,8 +8,8 @@ import { EducationalSituation } from '../types/spex';
 
 export interface LessonMemoGenerationContext {
   teacher: User;
-  classId: string;
-  academicYearId: string;
+  classId?: string;
+  academicYearId?: string;
   classPlannedSessionId?: string;
   source: AutoGenerateSessionSource;
   pedagogicalParts?: AutoGenerateSessionSource[];
@@ -28,7 +28,10 @@ export interface LessonMemoGenerationContext {
 export function resolveMemoGenerationContext(
   context: LessonMemoGenerationContext
 ): LessonMemoGenerationContext {
-  if (!context.teacher.id || !context.classId || !context.academicYearId) {
+  if (
+    !context.teacher.id ||
+    (context.classPlannedSessionId && (!context.classId || !context.academicYearId))
+  ) {
     throw new Error('MEMO_GENERATION_CONTEXT_INVALID');
   }
   if (!context.source.referenceSessionId) {
@@ -57,9 +60,7 @@ export function generateLessonMemoDraft(context: LessonMemoGenerationContext): L
     inspectorName: resolved.inspectorName,
     situations: resolved.situations,
     previousSituationIds: resolved.previousSituationIds,
-    grade4WeeklyScheduleMode:
-      resolved.grade4WeeklyScheduleMode ||
-      (resolved.pedagogicalParts && resolved.pedagogicalParts.length > 1 ? 'ONE_90' : undefined),
+    grade4WeeklyScheduleMode: resolved.grade4WeeklyScheduleMode,
     pedagogicalParts: resolved.pedagogicalParts,
   };
   return autoGenerateLessonPlan(resolved.source, generationContext);

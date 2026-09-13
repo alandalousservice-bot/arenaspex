@@ -223,6 +223,9 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [initializingOperationalSessions, setInitializingOperationalSessions] = useState(false);
   const [annualMemoSources, setAnnualMemoSources] = useState<TeacherAnnualMemoSource[]>([]);
   const [annualMemoSourceId, setAnnualMemoSourceId] = useState('');
+  const [annualGrade4WeeklyScheduleMode, setAnnualGrade4WeeklyScheduleMode] = useState<
+    'TWO_45' | 'ONE_90' | undefined
+  >();
   const [annualMemoLoading, setAnnualMemoLoading] = useState(false);
   const [annualMemoError, setAnnualMemoError] = useState('');
   const [wordExporting, setWordExporting] = useState(false);
@@ -434,6 +437,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       .then((result) => {
         if (cancelled) return;
         setAnnualMemoSources(result.sources);
+        setAnnualGrade4WeeklyScheduleMode(result.grade4WeeklyScheduleMode);
         setAnnualMemoSourceId((current) =>
           result.sources.some((item) => item.referenceSessionId === current)
             ? current
@@ -444,6 +448,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         if (cancelled) return;
         setAnnualMemoSources([]);
         setAnnualMemoSourceId('');
+        setAnnualGrade4WeeklyScheduleMode(undefined);
         setAnnualMemoError(
           reason instanceof Error ? reason.message : 'تعذر تحميل التوزيع السنوي لهذا القسم.'
         );
@@ -562,6 +567,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       inspectorName,
       plannedDate: annualMemoSource.plannedDate.slice(0, 10),
       durationMinutes: annualMemoSource.durationMinutes,
+      grade4WeeklyScheduleMode: annualGrade4WeeklyScheduleMode,
       source,
       situations: bankSituations.length ? bankSituations : undefined,
       previousSituationIds,
