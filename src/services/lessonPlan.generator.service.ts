@@ -17,6 +17,7 @@ import {
   lessonPhaseBudgetsForDuration,
   resolveOperationalLessonDuration,
 } from './lessonTiming.service';
+import { scheduledLessonMemoIdFor, standaloneLessonMemoIdFor } from './lessonMemoIdentity.service';
 
 export interface AutoGenerateSessionSource {
   referenceSessionId?: string;
@@ -356,10 +357,18 @@ export function autoGenerateLessonPlan(
   ];
 
   // الحقول القديمة محفوظة للتوافق مع قرّاء السجلات والوحدات المشتركة فقط؛ الواجهة الجديدة لا تعرضها.
+  const id = ctx.classPlannedSessionId
+    ? scheduledLessonMemoIdFor(ctx.classPlannedSessionId)
+    : ctx.teacher?.id && session.referenceSessionId
+      ? standaloneLessonMemoIdFor({
+          teacherId: ctx.teacher.id,
+          classId: ctx.classId,
+          academicYearId: ctx.academicYearId,
+          referenceSessionId: session.referenceSessionId,
+        })
+      : `lp_auto_${Date.now()}`;
   return {
-    id: ctx.classPlannedSessionId
-      ? `lp_session_${ctx.classPlannedSessionId}`
-      : `lp_auto_${Date.now()}`,
+    id,
     dailyNotebookEntryId: ctx.dailyNotebookEntryId,
     classPlannedSessionId: ctx.classPlannedSessionId,
     referenceSessionId: ctx.referenceSessionId,

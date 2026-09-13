@@ -45,6 +45,12 @@ import {
   sortOperationalSessions,
 } from '../../services/lessonPlanWorkflow.service';
 import {
+  annualDistributionLessonMemoIdFor,
+  isAnnualDistributionLessonMemo,
+  isStandaloneLessonMemo,
+  standaloneLessonMemoIdFor,
+} from '../../services/lessonMemoIdentity.service';
+import {
   exportLessonPlanToPdf,
   exportLessonPlanToWord,
 } from '../../services/lessonPlanExport.service';
@@ -164,6 +170,7 @@ function sessionsForLevel(levelName: string): SourceSession[] {
       type: session.type as LessonPlan['sessionType'],
       typeLabel: session.typeLabel,
       objective: session.objective,
+      referenceSessionId: `${LEVEL_KEYS[levelName]}:${field.fieldId}:sequence:${globalNumber}`,
       tools: field.suggestedTools || [],
     }))
   );
@@ -264,7 +271,8 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             item.teacherId === currentUser.id &&
             item.classId === operationalClassId &&
             item.academicYearId === operationalAcademicYearId &&
-            item.referenceSessionId === annualMemoSource.referenceSessionId
+            item.referenceSessionId === annualMemoSource.referenceSessionId &&
+            isAnnualDistributionLessonMemo(item)
         )
       : undefined;
   const activeLessonPlan = lessonPlans.find((plan) => plan.id === activeLessonPlanId);
@@ -649,6 +657,23 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       );
       return;
     }
+    if (memoMode === 'standalone' && currentUser?.id && source.referenceSessionId) {
+      const existingStandaloneMemo = lessonPlans.find(
+        (item) =>
+          item.teacherId === currentUser.id &&
+          !item.classPlannedSessionId &&
+          item.referenceSessionId === source.referenceSessionId &&
+          isStandaloneLessonMemo(item)
+      );
+      if (existingStandaloneMemo) {
+        setSelectedId(existingStandaloneMemo.id);
+        setActiveLessonPlanId(existingStandaloneMemo.id);
+        setScreenMode('saved');
+        setShowGenerator(false);
+        setGenerationError('');
+        return;
+      }
+    }
     try {
       const operationalContextForGeneration = operationalContext
         ? operationalGenerationContext()
@@ -666,10 +691,24 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
         memoMode === 'annual' && annualMemoSource
           ? {
               ...generatedPlan,
-              id: `lp_annual_${operationalClassId}_${operationalAcademicYearId}_${annualMemoSource.referenceSessionId}`,
+              id: annualDistributionLessonMemoIdFor({
+                teacherId: currentUser?.id || '',
+                classId: operationalClassId,
+                academicYearId: operationalAcademicYearId,
+                referenceSessionId: annualMemoSource.referenceSessionId,
+              }),
               memoSource: 'annual-distribution' as const,
             }
-          : generatedPlan;
+          : memoMode === 'standalone' && currentUser?.id && source.referenceSessionId
+            ? {
+                ...generatedPlan,
+                id: standaloneLessonMemoIdFor({
+                  teacherId: currentUser.id,
+                  referenceSessionId: source.referenceSessionId,
+                }),
+                memoSource: 'standalone' as const,
+              }
+            : generatedPlan;
       if (!plan.lessonRows?.length) throw new Error('empty memo');
       if (!(await persistLessonPlan(saveLessonMemo(plan, existingOperationalMemo)))) return;
       setSelectedId(plan.id);
@@ -726,14 +765,14 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   };
 
   const regenerateSelectedMemo = async (confirmed = false) => {
-    if (!selected || !isScheduled) return;
+    if (!selected || (!isScheduled && selected.memoSource !== 'annual-distribution')) return;
     if (editing) {
       setSaveError('احفظ التعديلات الحالية أو ألغِها قبل إعادة التوليد.');
       return;
     }
-    const context = operationalGenerationContext();
+    const context = isScheduled ? operationalGenerationContext() : annualGenerationContext();
     if (!context) {
-      setGenerationError('تعذر تحديد الحصة التشغيلية لإعادة التوليد.');
+      setGenerationError('تعذر تحديد المرجع البيداغوجي لإعادة التوليد.');
       return;
     }
     if (!confirmed && selected.manualEdits) {
@@ -1687,7 +1726,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                 <PenSquare className="h-4 w-4" />
                 تعديل
               </button>
-              {isScheduled && (
+              {(isScheduled || isAnnualDistributionMemo) && (
                 <button
                   type="button"
                   onClick={() => regenerateSelectedMemo()}

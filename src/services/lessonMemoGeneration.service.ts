@@ -116,5 +116,13 @@ export function regenerateLessonMemo(
     error.code = 'REGENERATION_CONFIRMATION_REQUIRED';
     throw error;
   }
-  return generateLessonMemoDraft(context);
+  const regenerated = generateLessonMemoDraft(context);
+  if (existing && !existing.classPlannedSessionId) {
+    return {
+      ...regenerated,
+      id: existing.id,
+      memoSource: existing.memoSource,
+    };
+  }
+  return regenerated;
 }
