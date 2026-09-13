@@ -23,8 +23,10 @@ import type { LessonMemoGenerationContext } from '../../services/lessonMemoGener
 import {
   fetchAnnualPlans,
   fetchTeacherPlanningSessions,
+  initializeTeacherPlanningSessions,
   TeacherPlanningSession,
 } from '../../services/api';
+import { getAcademicCalendar } from '../../data/academicCalendars';
 import { mergeSchedule, MergedScheduledLesson } from '../../services/schedule/scheduleMerge';
 import {
   formatAcademicYearLabel,
@@ -216,6 +218,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [operationalSessions, setOperationalSessions] = useState<TeacherPlanningSession[]>([]);
   const [scheduledError, setScheduledError] = useState('');
   const [scheduledLoading, setScheduledLoading] = useState(false);
+  const [initializingOperationalSessions, setInitializingOperationalSessions] = useState(false);
   const [wordExporting, setWordExporting] = useState(false);
   const [wordExportError, setWordExportError] = useState('');
   const wordExportInFlight = useRef(false);
@@ -756,8 +759,19 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
             ) : (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
                 <p className="text-sm font-bold text-slate-700">
-                  لم يتم إنشاء التوزيع السنوي لهذا القسم بعد.
+                  لم يتم إنشاء الحصص التشغيلية لهذا القسم بعد.
                 </p>
+                {scheduledError && (
+                  <p className="mt-2 text-xs font-semibold text-rose-700">{scheduledError}</p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void initializeSelectedClassSessions()}
+                  disabled={initializingOperationalSessions}
+                  className="action-primary mt-3 rounded-xl px-4 py-2 text-xs font-bold text-white disabled:opacity-60"
+                >
+                  {initializingOperationalSessions ? 'جارٍ إنشاء حصص القسم...' : 'إنشاء حصص القسم'}
+                </button>
                 <button
                   type="button"
                   onClick={() =>
@@ -765,7 +779,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                       annualDistributionPath(operationalAcademicYearId, operationalClass?.levelId)
                     )
                   }
-                  className="action-primary mt-3 rounded-xl px-4 py-2 text-xs font-bold text-white"
+                  className="mt-2 rounded-xl border border-emerald-700 px-4 py-2 text-xs font-bold text-emerald-800"
                 >
                   إنشاء / فتح التوزيع السنوي
                 </button>
@@ -875,6 +889,26 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     setScreenMode('generator');
     setGenerationError('');
     setShowGenerator(true);
+  };
+  const initializeSelectedClassSessions = async () => {
+    if (!operationalClassId) return;
+    setInitializingOperationalSessions(true);
+    setScheduledError('');
+    try {
+      const result = await initializeTeacherPlanningSessions(
+        operationalClassId,
+        operationalAcademicYearId,
+        getAcademicCalendar(operationalAcademicYearId).schoolStart
+      );
+      const nextSessions = sortOperationalSessions(result.sessions);
+      setOperationalSessions(nextSessions);
+      setOperationalSessionId(nextSessions[0]?.id || '');
+      setGenerationError('');
+    } catch (reason: unknown) {
+      setScheduledError(reason instanceof Error ? reason.message : 'تعذر إنشاء حصص القسم.');
+    } finally {
+      setInitializingOperationalSessions(false);
+    }
   };
   const workspaceHeader = (
     <header className="workspace-header lesson-memo-workspace-header flex flex-col gap-4 rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs xl:flex-row xl:items-end xl:justify-between">

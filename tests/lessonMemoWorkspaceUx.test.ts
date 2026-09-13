@@ -142,6 +142,15 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(emptySessionsBranch).toContain('فتح التوزيع السنوي');
   });
 
+  it('allows initializing programmed sessions for the selected class', () => {
+    const view = read('src/components/lesson/LessonPlanView.tsx');
+
+    expect(view).toContain('initializeTeacherPlanningSessions');
+    expect(view).toContain('initializeSelectedClassSessions');
+    expect(view).toContain('إنشاء حصص القسم');
+    expect(view).toContain('getAcademicCalendar(operationalAcademicYearId).schoolStart');
+  });
+
   it('keeps saved-memo navigation bound to the same operational context', () => {
     const view = read('src/components/lesson/LessonPlanView.tsx');
 
