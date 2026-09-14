@@ -95,6 +95,82 @@ const promptFor = (context: PedagogicalGenerationContext) =>
     ],
   });
 
+type ProviderFailureClassification =
+  | 'AUTH'
+  | 'BILLING_QUOTA'
+  | 'RATE_LIMIT'
+  | 'MODEL_ACCESS'
+  | 'BAD_REQUEST'
+  | 'STRUCTURED_OUTPUT_SCHEMA'
+  | 'REFUSAL'
+  | 'INCOMPLETE_RESPONSE'
+  | 'TIMEOUT'
+  | 'NETWORK'
+  | 'PROVIDER_5XX'
+  | 'RESPONSE_EXTRACTION'
+  | 'UNKNOWN';
+
+const errorMetadata = (error: unknown) => {
+  const value = error as Record<string, unknown>;
+  const status = typeof value?.status === 'number' ? value.status : null;
+  const code = typeof value?.code === 'string' ? value.code : null;
+  const type = typeof value?.type === 'string' ? value.type : null;
+  const param = typeof value?.param === 'string' ? value.param : null;
+  const requestId =
+    typeof value?.request_id === 'string'
+      ? value.request_id
+      : typeof value?.requestId === 'string'
+        ? value.requestId
+        : null;
+  return { status, code, type, param, requestId };
+};
+
+export function classifyOpenAIProviderFailure(error: unknown): ProviderFailureClassification {
+  const { status, code, type } = errorMetadata(error);
+  const marker = `${String(code || '')} ${String(type || '')}`.toLowerCase();
+  if (status === 401) return 'AUTH';
+  if (status === 429)
+    return marker.includes('quota') || marker.includes('billing') ? 'BILLING_QUOTA' : 'RATE_LIMIT';
+  if (status && status >= 500) return 'PROVIDER_5XX';
+  if (marker.includes('quota') || marker.includes('billing') || marker.includes('insufficient'))
+    return 'BILLING_QUOTA';
+  if (marker.includes('model') || marker.includes('not_found') || marker.includes('model_not'))
+    return 'MODEL_ACCESS';
+  if (marker.includes('schema') || marker.includes('structured')) return 'STRUCTURED_OUTPUT_SCHEMA';
+  if (status === 400) return 'BAD_REQUEST';
+  const errorName = String((error as Record<string, unknown>)?.name || '').toLowerCase();
+  if (
+    marker.includes('timeout') ||
+    marker.includes('timed_out') ||
+    marker.includes('etimedout') ||
+    errorName.includes('timeout')
+  )
+    return 'TIMEOUT';
+  if (marker.includes('network') || marker.includes('econn') || marker.includes('fetch'))
+    return 'NETWORK';
+  return 'UNKNOWN';
+}
+
+function logProviderFailure(
+  classification: ProviderFailureClassification,
+  error: unknown,
+  durationMs: number,
+  extra: Record<string, unknown> = {}
+) {
+  const metadata = errorMetadata(error);
+  console.error(
+    JSON.stringify({
+      event: 'pedagogical_generation.provider_failure',
+      provider: 'openai',
+      classification,
+      ...metadata,
+      responseStatus: extra.responseStatus ?? null,
+      incompleteReason: extra.incompleteReason ?? null,
+      durationMs,
+    })
+  );
+}
+
 export class OpenAIPedagogicalGenerationProvider implements PedagogicalGenerationProvider {
   private readonly client: OpenAI;
   constructor(
@@ -115,24 +191,65 @@ export class OpenAIPedagogicalGenerationProvider implements PedagogicalGeneratio
   async generateAsync(
     context: PedagogicalGenerationContext
   ): Promise<GeneratedPedagogicalSituationCandidate> {
-    const response = await this.client.responses.create({
-      model: this.model!,
-      store: false,
-      input: promptFor(context),
-      text: {
-        format: {
-          type: 'json_schema',
-          name: 'pedagogical_situation_candidate',
-          strict: true,
-          schema: candidateSchema,
+    const startedAt = Date.now();
+    let response: Awaited<ReturnType<OpenAI['responses']['create']>>;
+    try {
+      response = await this.client.responses.create({
+        model: this.model!,
+        store: false,
+        input: promptFor(context),
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'pedagogical_situation_candidate',
+            strict: true,
+            schema: candidateSchema,
+          },
         },
-      },
-    });
-    if (!response.output_text) throw new Error('GENERATION_EMPTY_RESPONSE');
-    const raw = JSON.parse(response.output_text) as Omit<
+      });
+    } catch (error) {
+      logProviderFailure(classifyOpenAIProviderFailure(error), error, Date.now() - startedAt);
+      throw error;
+    }
+    if (response.status === 'incomplete') {
+      logProviderFailure('INCOMPLETE_RESPONSE', null, Date.now() - startedAt, {
+        responseStatus: response.status,
+        incompleteReason: response.incomplete_details?.reason ?? null,
+      });
+      throw new Error('GENERATION_INCOMPLETE_RESPONSE');
+    }
+    if (
+      Array.isArray(response.output) &&
+      response.output.some(
+        (item) => item.type === 'message' && item.content.some((part) => part.type === 'refusal')
+      )
+    ) {
+      logProviderFailure('REFUSAL', null, Date.now() - startedAt, {
+        responseStatus: response.status,
+      });
+      throw new Error('GENERATION_REFUSAL');
+    }
+    if (!response.output_text) {
+      logProviderFailure('RESPONSE_EXTRACTION', null, Date.now() - startedAt, {
+        responseStatus: response.status,
+      });
+      throw new Error('GENERATION_EMPTY_RESPONSE');
+    }
+    let raw: Omit<
       GeneratedPedagogicalSituationCandidate,
       'gradeId' | 'domainId' | 'finalCompetencyId' | 'situationType' | 'lessonType' | 'governance'
     >;
+    try {
+      raw = JSON.parse(response.output_text) as Omit<
+        GeneratedPedagogicalSituationCandidate,
+        'gradeId' | 'domainId' | 'finalCompetencyId' | 'situationType' | 'lessonType' | 'governance'
+      >;
+    } catch (error) {
+      logProviderFailure('RESPONSE_EXTRACTION', error, Date.now() - startedAt, {
+        responseStatus: response.status,
+      });
+      throw error;
+    }
     return {
       ...raw,
       gradeId: context.gradeId,

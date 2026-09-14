@@ -106,4 +106,40 @@ describe('OpenAI pedagogical provider boundary', () => {
     expect(context).not.toHaveProperty('studentIds');
     expect(context).not.toHaveProperty('teacherId');
   });
+
+  it.each([
+    [{ status: 401 }, 'AUTH'],
+    [{ status: 429 }, 'RATE_LIMIT'],
+    [{ status: 429, code: 'insufficient_quota' }, 'BILLING_QUOTA'],
+    [{ status: 404, code: 'model_not_found' }, 'MODEL_ACCESS'],
+    [{ status: 400, code: 'invalid_json_schema' }, 'STRUCTURED_OUTPUT_SCHEMA'],
+    [{ status: 500 }, 'PROVIDER_5XX'],
+    [{ code: 'ETIMEDOUT' }, 'TIMEOUT'],
+    [{ code: 'ECONNRESET' }, 'NETWORK'],
+  ])('classifies safe provider metadata without logging content', async (error, expected) => {
+    const { classifyOpenAIProviderFailure } =
+      await import('../src/services/providers/openaiPedagogicalGeneration.provider');
+    expect(classifyOpenAIProviderFailure(error)).toBe(expected);
+  });
+
+  it('emits only sanitized metadata for a provider failure', async () => {
+    const error = Object.assign(new Error('secret prompt sk-test-never-log'), {
+      status: 401,
+      code: 'invalid_api_key',
+      request_id: 'req_safe',
+    });
+    create.mockRejectedValue(error);
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { OpenAIPedagogicalGenerationProvider } =
+      await import('../src/services/providers/openaiPedagogicalGeneration.provider');
+    await expect(
+      new OpenAIPedagogicalGenerationProvider().generateAsync(
+        buildPedagogicalGenerationContext(request)
+      )
+    ).rejects.toThrow();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('"classification":"AUTH"'));
+    expect(log.mock.calls[0][0]).not.toContain('sk-test-never-log');
+    expect(log.mock.calls[0][0]).not.toContain('secret prompt');
+    log.mockRestore();
+  });
 });
