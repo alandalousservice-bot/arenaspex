@@ -206,6 +206,11 @@ describe('academic-year annual distribution generation v2', () => {
     expect(globalRoute).toContain('prisma.studentClass.findMany');
     expect(globalRoute).not.toContain('prisma.studentClass.create');
     expect(globalRoute).toContain('materializationErrors');
+    expect(globalRoute).toContain(
+      'level-owned Annual Distribution is independent from class timing'
+    );
+    expect(globalRoute).toContain("status: materializationErrors.length ? 'partial'");
+    expect(globalRoute).toContain('missingTimetableClasses: materializationErrors');
     expect(router).toContain("'/teacher/planning/annual-distribution'");
     expect(router).toContain('ANNUAL_DISTRIBUTION_KIND');
   });
@@ -230,7 +235,7 @@ describe('academic-year annual distribution generation v2', () => {
     expect(router).toContain(
       "status: preLaunchRebuild && allOperations.length ? 'partial' : 'blocked'"
     );
-    expect(router).toContain("status: allOperations.length ? 'rebuilt' : 'unchanged'");
+    expect(router).toContain("allOperations.length ? 'rebuilt' : 'unchanged'");
     expect(router).toContain('missingTimetableClasses');
     expect(router).toContain('orphaned-generated-session');
   });

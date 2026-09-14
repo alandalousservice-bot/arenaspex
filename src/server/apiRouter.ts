@@ -1526,28 +1526,9 @@ apiRouter.post(
         seedsByClass.set(link.classId, materialized.seeds);
       }
     }
-    if (materializationErrors.length) {
-      return res.status(400).json({
-        error: 'اضبط التوقيت الأسبوعي لكل قسم قبل إنشاء حصص الكراس اليومي.',
-        academicYearId,
-        planningStartDate,
-        endDate: generation.endDate,
-        levels,
-        classes: classLinks,
-        missingSchedule: materializationErrors,
-        missingTimetableClasses: materializationErrors,
-        linkedClasses: classLinks.filter((link) => link.status === 'linked').length,
-        createdOrUpdatedSessions: 0,
-        status: 'blocked',
-        classesProcessed: 0,
-        sessionsCreated: 0,
-        sessionsReconciled: 0,
-        sessionsUnchanged: 0,
-        sessionsProtected: 0,
-        sessionsRemovedOrRetired: 0,
-        conflicts: [],
-      });
-    }
+    // The level-owned Annual Distribution is independent from class timing.
+    // Keep missing timetable information in the response, but do not block
+    // persisting the pedagogical level distributions.
     const dependencyIds = await executionDependencyIds(
       req.user!.id,
       existingRows.map((row) => row.id)
@@ -1755,14 +1736,18 @@ apiRouter.post(
       endDate: generation.endDate,
       levels,
       classes: classLinks,
-      status: allOperations.length ? 'rebuilt' : 'unchanged',
+      status: materializationErrors.length
+        ? 'partial'
+        : allOperations.length
+          ? 'rebuilt'
+          : 'unchanged',
       classesProcessed: linkedClasses,
       sessionsCreated,
       sessionsReconciled,
       sessionsUnchanged,
       sessionsProtected: 0,
       sessionsRemovedOrRetired,
-      missingTimetableClasses: [],
+      missingTimetableClasses: materializationErrors,
       conflicts: [],
       linkedClasses,
       createdOrUpdatedSessions,
