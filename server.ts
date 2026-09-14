@@ -65,6 +65,7 @@ async function startServer() {
       ok: true,
       service: 'spex',
       environment: process.env.NODE_ENV || 'development',
+      revision: process.env.RENDER_GIT_COMMIT ?? null,
       timestamp: new Date().toISOString(),
     });
   });
