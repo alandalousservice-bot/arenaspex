@@ -64,6 +64,7 @@ import {
   snapshotSituation,
 } from '../../services/educationalSituation.selector.service';
 import { detailText } from '../educationalSituations/EducationalSituationsBankView';
+import { resolveAssessmentScope } from '../../domain/pedagogicalKnowledge/assessmentScopeAdapter';
 
 interface LessonPlanViewProps {
   lessonPlans: LessonPlan[];
@@ -176,6 +177,17 @@ function sourceFromPlanningReference(
     referenceSessionId: reference.referenceSessionId,
     tools: field?.suggestedTools || [],
   };
+}
+
+function assessmentScopeForSource(source: SourceSession, gradeId: string) {
+  const lessonType = canonicalLessonTypeForPlan(source.type);
+  if (lessonType !== 'DIAGNOSTIC' && lessonType !== 'SUMMATIVE') return undefined;
+  return resolveAssessmentScope({
+    gradeId,
+    domainId: source.fieldId,
+    finalCompetencyId: `fc_${gradeId}_${source.fieldId}`,
+    kind: lessonType === 'DIAGNOSTIC' ? 'diagnostic' : 'summative',
+  });
 }
 
 function sessionsForLevel(levelName: string): SourceSession[] {
@@ -596,6 +608,10 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       grade4WeeklyScheduleMode: scheduledContext.session.grade4WeeklyScheduleMode,
       source,
       situations: bankSituations.length ? bankSituations : undefined,
+      assessmentScope: assessmentScopeForSource(
+        source,
+        scheduledContext.classRoom.levelId || LEVEL_KEYS[levelName]
+      ),
       previousSituationIds,
       pedagogicalParts: scheduledContext.session.pedagogicalPartReferences?.map((reference) =>
         sourceFromPlanningReference(reference, scheduledContext.classRoom)
@@ -630,6 +646,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
       grade4WeeklyScheduleMode: annualGrade4WeeklyScheduleMode,
       source,
       situations: bankSituations.length ? bankSituations : undefined,
+      assessmentScope: assessmentScopeForSource(source, annualLevelId),
       previousSituationIds,
       pedagogicalParts: annualMemoSource.pedagogicalPartReferences?.map((reference) =>
         sourceFromPlanningReference(reference)
@@ -740,6 +757,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               : autoGenerateLessonPlan(source, {
                   levelName,
                   teacher: currentUser,
+                  assessmentScope: assessmentScopeForSource(source, LEVEL_KEYS[levelName]),
                 });
       const plan =
         memoMode === 'annual' && annualMemoSource

@@ -15,6 +15,10 @@ import type { EducationalSituationLessonType } from './educationalSituation.sele
 import { lessonPhaseBudgets, sequenceLessonSituations } from './lessonSituationSequencing.service';
 import { resolveOperationalLessonDuration } from './lessonTiming.service';
 import {
+  assessmentScopeRequirementLabels,
+  type CanonicalAssessmentScope,
+} from '../domain/pedagogicalKnowledge/assessmentScopeAdapter';
+import {
   manualStandaloneLessonMemoIdFor,
   scheduledLessonMemoIdFor,
   standaloneLessonMemoIdFor,
@@ -57,6 +61,7 @@ export interface AutoGenerateContext {
   durationMinutes?: number;
   previousSituationIds?: string[];
   situations?: EducationalSituation[];
+  assessmentScope?: CanonicalAssessmentScope;
   grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null;
   pedagogicalParts?: AutoGenerateSessionSource[];
 }
@@ -250,6 +255,13 @@ function buildMainRows(
   const phaseBudgets = lessonPhaseBudgets(ctx.levelName, durationMinutes);
   const mainMinutes = phaseBudgets.main;
   const canonicalLessonType = canonicalLessonTypeFor(pedagogicalParts[0]?.type) || 'LEARNING';
+  const assessmentScope =
+    canonicalLessonType === 'DIAGNOSTIC' || canonicalLessonType === 'SUMMATIVE'
+      ? ctx.assessmentScope
+      : undefined;
+  const scopeRequirements = assessmentScope
+    ? assessmentScopeRequirementLabels(assessmentScope)
+    : [];
   const selection = selectEducationalSituations(availableSituations, {
     gradeId: grade,
     domainId: session.fieldId,
@@ -257,6 +269,8 @@ function buildMainRows(
     objectiveIds,
     objectiveText: session.objective,
     durationMinutes,
+    requirements: scopeRequirements,
+    assessmentScope,
     previousSituationIds: ctx.previousSituationIds,
     availableEquipment: session.tools,
     maxSituations: Math.max(1, Math.min(3, Math.floor(mainMinutes / 20))),

@@ -6,6 +6,7 @@ import {
   EducationalSituationSnapshot,
 } from '../types/spex';
 import { lessonPhaseBudgetsForDuration } from './lessonTiming.service';
+import type { CanonicalAssessmentScope } from '../domain/pedagogicalKnowledge/assessmentScopeAdapter';
 
 type SeedSituation = {
   id: string;
@@ -48,7 +49,21 @@ export interface EducationalSituationSelectionInput {
   excludedSituationIds?: string[];
   preferredSituationIds?: string[];
   requirements?: string[];
+  assessmentScope?: CanonicalAssessmentScope;
   maxSituations?: number;
+}
+
+export interface AssessmentScopeCoverage {
+  scopeResolved: boolean;
+  requiredCriteriaIds: string[];
+  coveredCriteriaIds: string[];
+  missingCriteriaIds: string[];
+  requiredIndicatorIds: string[];
+  coveredIndicatorIds: string[];
+  missingIndicatorIds: string[];
+  requiredRequirementIds: string[];
+  coveredRequirementIds: string[];
+  missingRequirementIds: string[];
 }
 
 export interface RequirementCoverage {
@@ -97,6 +112,7 @@ export interface EducationalSituationSelectionResult {
   requirementCoverage: RequirementCoverage;
   durationBudgetMinutes: number | null;
   usedDurationMinutes: number;
+  assessmentCoverage?: AssessmentScopeCoverage;
 }
 
 export const referenceSituations: EducationalSituation[] = (seed as SeedSituation[]).map(
@@ -253,6 +269,53 @@ function requirementCoverage(
     matched: uniqueMatched,
     missing: uniqueRequested.filter((item) => !uniqueMatched.includes(item)),
     ratio: uniqueRequested.length ? uniqueMatched.length / uniqueRequested.length : 1,
+  };
+}
+
+function evidenceIds(situation: EducationalSituation, key: string): Set<string> {
+  const ids = new Set<string>();
+  for (const relation of relationEntries(situation)) {
+    const value = relation.evidence?.[key];
+    if (typeof value === 'string' && value.trim()) ids.add(value.trim());
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (typeof item === 'string' && item.trim()) ids.add(item.trim());
+      });
+    }
+  }
+  return ids;
+}
+
+function assessmentScopeCoverage(
+  situations: readonly EducationalSituation[],
+  scope: EducationalSituationSelectionInput['assessmentScope']
+): AssessmentScopeCoverage | undefined {
+  if (!scope) return undefined;
+  const requiredCriteriaIds = scope.requiredCriteria.map((item) => item.id);
+  const requiredIndicatorIds = scope.requiredIndicators.map((item) => item.id);
+  const requiredRequirementIds = scope.requirements.map((item) => item.id);
+  const coveredCriteria = new Set<string>();
+  const coveredIndicators = new Set<string>();
+  const coveredRequirements = new Set<string>();
+  for (const situation of situations) {
+    evidenceIds(situation, 'criterionIds').forEach((id) => coveredCriteria.add(id));
+    evidenceIds(situation, 'indicatorIds').forEach((id) => coveredIndicators.add(id));
+    evidenceIds(situation, 'learningRequirementIds').forEach((id) => coveredRequirements.add(id));
+  }
+  const coveredCriteriaIds = requiredCriteriaIds.filter((id) => coveredCriteria.has(id));
+  const coveredIndicatorIds = requiredIndicatorIds.filter((id) => coveredIndicators.has(id));
+  const coveredRequirementIds = requiredRequirementIds.filter((id) => coveredRequirements.has(id));
+  return {
+    scopeResolved: !scope.unresolved,
+    requiredCriteriaIds,
+    coveredCriteriaIds,
+    missingCriteriaIds: requiredCriteriaIds.filter((id) => !coveredCriteria.has(id)),
+    requiredIndicatorIds,
+    coveredIndicatorIds,
+    missingIndicatorIds: requiredIndicatorIds.filter((id) => !coveredIndicators.has(id)),
+    requiredRequirementIds,
+    coveredRequirementIds,
+    missingRequirementIds: requiredRequirementIds.filter((id) => !coveredRequirements.has(id)),
   };
 }
 
@@ -431,6 +494,13 @@ export function selectEducationalSituations(
     (id) => !selectedObjectiveIds.has(id)
   );
   let failureCode: SelectionFailureCode | undefined;
+  const assessmentCoverage =
+    input.lessonType === 'DIAGNOSTIC' || input.lessonType === 'SUMMATIVE'
+      ? assessmentScopeCoverage(
+          selected.map((candidate) => candidate.situation),
+          input.assessmentScope
+        )
+      : undefined;
   const hasMatchingIdentityCandidate = items.some(
     (situation) =>
       isAutoGenerationEligible(situation) &&
@@ -458,6 +528,15 @@ export function selectEducationalSituations(
   else if (input.lessonType === 'INTEGRATIVE' && missingIntegrativeObjectives.length)
     failureCode = 'INTEGRATIVE_COVERAGE_INCOMPLETE';
   else if (!selected.length && budget != null) failureCode = 'INSUFFICIENT_DURATION_COVERAGE';
+  if (
+    assessmentCoverage &&
+    (!assessmentCoverage.scopeResolved ||
+      assessmentCoverage.missingCriteriaIds.length > 0 ||
+      assessmentCoverage.missingIndicatorIds.length > 0 ||
+      assessmentCoverage.missingRequirementIds.length > 0)
+  ) {
+    failureCode = 'ASSESSMENT_COVERAGE_MISSING';
+  }
   return {
     selectedSituations: selected.map((candidate) => candidate.situation),
     candidates: eligible,
@@ -467,6 +546,7 @@ export function selectEducationalSituations(
     requirementCoverage: coverage,
     durationBudgetMinutes: budget,
     usedDurationMinutes: used,
+    assessmentCoverage,
   };
 }
 

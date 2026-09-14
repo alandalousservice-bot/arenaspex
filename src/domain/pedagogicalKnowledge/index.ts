@@ -1,4 +1,5 @@
 export * from './aliases';
+export * from './assessmentScopeAdapter';
 export * from './catalog';
 export * from './engine/competencyCoverage.service';
 export * from './operationalReconciliation';

@@ -5,6 +5,7 @@ import {
   AutoGenerateSessionSource,
 } from './lessonPlan.generator.service';
 import { EducationalSituation } from '../types/spex';
+import type { CanonicalAssessmentScope } from '../domain/pedagogicalKnowledge/assessmentScopeAdapter';
 
 export interface LessonMemoGenerationContext {
   teacher: User;
@@ -22,6 +23,7 @@ export interface LessonMemoGenerationContext {
   venue?: string | null;
   inspectorName?: string;
   situations?: EducationalSituation[];
+  assessmentScope?: CanonicalAssessmentScope;
   previousSituationIds?: string[];
 }
 
@@ -59,6 +61,7 @@ export function generateLessonMemoDraft(context: LessonMemoGenerationContext): L
     venue: resolved.venue,
     inspectorName: resolved.inspectorName,
     situations: resolved.situations,
+    assessmentScope: resolved.assessmentScope,
     previousSituationIds: resolved.previousSituationIds,
     grade4WeeklyScheduleMode: resolved.grade4WeeklyScheduleMode,
     pedagogicalParts: resolved.pedagogicalParts,
