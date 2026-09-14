@@ -89,8 +89,10 @@ import { buildStudentRosterReadModel } from '../services/studentRosterReadModel.
 import { persistStudentRosterRows } from '../services/studentRosterPersistence.service.js';
 import {
   generatePedagogicalSituation,
+  generatePedagogicalSituationAsync,
   type PedagogicalSituationGenerationRequest,
 } from '../services/pedagogicalGeneration.service.js';
+import { resolveConfiguredPedagogicalGenerationProvider } from '../services/providers/pedagogicalGenerationProviderResolver.js';
 import {
   normalizeTeacherLearningPlan,
   parseTeacherLearningPlan,
@@ -3151,18 +3153,22 @@ const pedagogicalGenerationRequest = z.object({
  * a separately reviewed provider before this boundary can be enabled.
  */
 apiRouter.post('/pedagogical-situations/generate', requireRole('teacher'), async (req, res) => {
-  if (
-    process.env.NODE_ENV === 'production' ||
-    process.env.APP_ENV === 'production' ||
-    process.env.PEDAGOGICAL_GENERATION_ALLOW_LOCAL !== 'true'
-  ) {
+  const configuredProvider = (process.env.PEDAGOGICAL_GENERATION_PROVIDER || '')
+    .trim()
+    .toLowerCase();
+  if (configuredProvider !== 'openai' && !resolveConfiguredPedagogicalGenerationProvider()) {
     return res.status(503).json({ error: 'خدمة إعداد المواقف غير متاحة حالياً.' });
   }
   try {
     const request = pedagogicalGenerationRequest.parse(
       req.body
     ) as PedagogicalSituationGenerationRequest;
-    const result = generatePedagogicalSituation(request);
+    const provider = resolveConfiguredPedagogicalGenerationProvider();
+    if (!provider) return res.status(503).json({ error: 'خدمة إعداد المواقف غير متاحة حالياً.' });
+    const result =
+      configuredProvider === 'openai'
+        ? await generatePedagogicalSituationAsync(request, provider)
+        : generatePedagogicalSituation(request, provider);
     return res.json({ candidate: result.candidate, validation: result.validation });
   } catch (error) {
     const code = error instanceof Error ? error.message : 'GENERATION_FAILED';

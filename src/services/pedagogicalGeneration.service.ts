@@ -122,6 +122,9 @@ export interface PedagogicalGenerationResult {
 
 export interface PedagogicalGenerationProvider {
   generate(context: PedagogicalGenerationContext): GeneratedPedagogicalSituationCandidate;
+  generateAsync?(
+    context: PedagogicalGenerationContext
+  ): Promise<GeneratedPedagogicalSituationCandidate>;
 }
 
 const LESSON_TYPES: EducationalSituationLessonType[] = [
@@ -433,4 +436,35 @@ export function generatePedagogicalSituation(
   if (validation.status === 'INVALID')
     throw invalid(validation.errors[0] || 'GENERATION_OUTPUT_INVALID');
   return { context, candidate, validation };
+}
+
+export async function generatePedagogicalSituationAsync(
+  request: PedagogicalSituationGenerationRequest,
+  provider: PedagogicalGenerationProvider
+): Promise<PedagogicalGenerationResult> {
+  const context = buildPedagogicalGenerationContext(request);
+  let candidate: GeneratedPedagogicalSituationCandidate;
+  try {
+    candidate = normalizePedagogicalCandidate(
+      provider.generateAsync ? await provider.generateAsync(context) : provider.generate(context)
+    );
+  } catch {
+    throw invalid('GENERATION_PROVIDER_FAILED');
+  }
+  const validation = validatePedagogicalCandidate(context, candidate);
+  if (validation.status === 'INVALID')
+    throw invalid(validation.errors[0] || 'GENERATION_OUTPUT_INVALID');
+  return { context, candidate, validation };
+}
+
+export function resolvePedagogicalGenerationProvider(): PedagogicalGenerationProvider | null {
+  const configured = (process.env.PEDAGOGICAL_GENERATION_PROVIDER || '').trim().toLowerCase();
+  if (configured === 'openai') return null;
+  if (
+    (process.env.NODE_ENV !== 'production' &&
+      process.env.PEDAGOGICAL_GENERATION_ALLOW_LOCAL === 'true') ||
+    configured === 'deterministic'
+  )
+    return deterministicPedagogicalGenerationProvider;
+  return null;
 }
