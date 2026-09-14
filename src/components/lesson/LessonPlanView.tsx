@@ -26,6 +26,7 @@ import {
   fetchTeacherAnnualMemoSources,
   fetchTeacherPlanningSessions,
   initializeTeacherPlanningSessions,
+  requestPedagogicalSituationGeneration,
   TeacherAnnualMemoSource,
   TeacherPlanningSession,
 } from '../../services/api';
@@ -53,8 +54,7 @@ import {
   exportLessonPlanToPdf,
   exportLessonPlanToWord,
 } from '../../services/lessonPlanExport.service';
-import { generatePedagogicalSituation } from '../../services/pedagogicalSituationGeneration.service';
-import type { GeneratedPedagogicalSituation } from '../../services/pedagogicalSituationGeneration.service';
+import type { GeneratedPedagogicalSituationCandidate } from '../../services/pedagogicalGeneration.service';
 import {
   findSuitableSituations,
   hasOrdinaryLearningRelation,
@@ -240,7 +240,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
   const [replaceRowId, setReplaceRowId] = useState<string | null>(null);
   const [bankSituations, setBankSituations] = useState<EducationalSituation[]>([]);
   const [generatedSituation, setGeneratedSituation] =
-    useState<GeneratedPedagogicalSituation | null>(null);
+    useState<GeneratedPedagogicalSituationCandidate | null>(null);
   const [generatedSituationError, setGeneratedSituationError] = useState('');
   const [generatedSituationSaving, setGeneratedSituationSaving] = useState(false);
   const [scheduledLessons, setScheduledLessons] = useState<MergedScheduledLesson[]>([]);
@@ -1765,29 +1765,82 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
     setReplaceRowId(null);
   };
 
-  const generateSituationSuggestion = () => {
+  const generateSituationSuggestion = async () => {
     try {
       setGeneratedSituationError('');
       setGeneratedSituation(
-        generatePedagogicalSituation({
-          grade,
-          fieldId,
-          fieldName: plan.fieldName,
-          finalCompetency: plan.competencyTitle,
-          objective: plan.sessionTitle,
+        await requestPedagogicalSituationGeneration({
+          intent: targetObjectiveIds.length ? 'GENERATE_FOR_OBJECTIVE' : 'GENERATE_SITUATION',
+          gradeId: plan.levelId || `lvl_p${grade}`,
+          domainId: fieldId,
+          finalCompetencyId: `fc_${plan.levelId || `lvl_p${grade}`}_${fieldId}`,
+          objectiveIds: targetObjectiveIds,
           lessonType: coverageLessonType,
+          motorSkills: [plan.proceduralObjectives.motor].filter(Boolean),
           requirements: [
             plan.proceduralObjectives.motor,
             plan.proceduralObjectives.cognitive,
             plan.proceduralObjectives.affective || '',
           ].filter(Boolean),
           equipment: plan.equipmentNeeded,
+          availableEquipment: plan.equipmentNeeded,
           durationMinutes: effectiveDuration,
-          phase: 'المرحلة الرئيسية',
+          recentSituationIds: selectedSituationRows.flatMap((row) =>
+            row.situationSnapshot?.situationId ? [row.situationSnapshot.situationId] : []
+          ),
+          recentSituationTitles: selectedSituationRows.flatMap((row) =>
+            row.situationSnapshot?.name ? [row.situationSnapshot.name] : []
+          ),
         })
       );
     } catch {
       setGeneratedSituationError('تعذر إعداد الموقف المقترح. راجع هدف الحصة ثم حاول مرة أخرى.');
+    }
+  };
+
+  const generateAlternativeSituationSuggestion = async () => {
+    const sourceSituationId =
+      selectedSituationRows[0]?.situationSnapshot?.situationId || availableSituations[0]?.id;
+    const sourceSituation = availableSituations.find((item) => item.id === sourceSituationId);
+    if (!sourceSituationId) {
+      setGeneratedSituationError('اختر موقفًا مرجعيًا أولًا لإعداد بديل تربوي.');
+      return;
+    }
+    try {
+      setGeneratedSituationError('');
+      setGeneratedSituation(
+        await requestPedagogicalSituationGeneration({
+          intent: 'GENERATE_ALTERNATIVE',
+          gradeId: plan.levelId || `lvl_p${grade}`,
+          domainId: fieldId,
+          finalCompetencyId: `fc_${plan.levelId || `lvl_p${grade}`}_${fieldId}`,
+          objectiveIds: targetObjectiveIds,
+          lessonType: coverageLessonType,
+          motorSkills: [plan.proceduralObjectives.motor].filter(Boolean),
+          requirements: [
+            plan.proceduralObjectives.motor,
+            plan.proceduralObjectives.cognitive,
+            plan.proceduralObjectives.affective || '',
+          ].filter(Boolean),
+          equipment: plan.equipmentNeeded,
+          availableEquipment: plan.equipmentNeeded,
+          durationMinutes: effectiveDuration,
+          recentSituationIds: selectedSituationRows.flatMap((row) =>
+            row.situationSnapshot?.situationId ? [row.situationSnapshot.situationId] : []
+          ),
+          sourceSituationId,
+          sourceSituation: sourceSituation
+            ? {
+                id: sourceSituation.id,
+                title: sourceSituation.name,
+                executionContent:
+                  sourceSituation.executionConditions || sourceSituation.instructions || '',
+              }
+            : undefined,
+        })
+      );
+    } catch {
+      setGeneratedSituationError('تعذر إعداد البديل التربوي وفق السياق المحدد.');
     }
   };
 
@@ -2527,7 +2580,7 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                 </div>
                 <button
                   type="button"
-                  onClick={generateSituationSuggestion}
+                  onClick={() => void generateSituationSuggestion()}
                   className="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white"
                 >
                   اقتراح موقف مناسب للهدف
@@ -2584,7 +2637,9 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                       {label}
                       <textarea
                         value={
-                          generatedSituation[key as keyof GeneratedPedagogicalSituation] as string
+                          generatedSituation[
+                            key as keyof GeneratedPedagogicalSituationCandidate
+                          ] as string
                         }
                         onChange={(event) =>
                           setGeneratedSituation(
@@ -2630,6 +2685,13 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
                     className="rounded-xl bg-sky-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
                   >
                     {generatedSituationSaving ? 'جارٍ الحفظ...' : 'حفظ كموقف خاص واستخدامه'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void generateAlternativeSituationSuggestion()}
+                    className="rounded-xl border border-sky-300 bg-white px-3 py-2 text-xs font-bold text-sky-900"
+                  >
+                    اقتراح بديل
                   </button>
                 </div>
               </section>

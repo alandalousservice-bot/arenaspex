@@ -88,6 +88,10 @@ import { deleteOwnedStudent, StudentDeletionError } from '../services/studentDel
 import { buildStudentRosterReadModel } from '../services/studentRosterReadModel.service.js';
 import { persistStudentRosterRows } from '../services/studentRosterPersistence.service.js';
 import {
+  generatePedagogicalSituation,
+  type PedagogicalSituationGenerationRequest,
+} from '../services/pedagogicalGeneration.service.js';
+import {
   normalizeTeacherLearningPlan,
   parseTeacherLearningPlan,
   resolveTeacherLearningPlan,
@@ -3114,6 +3118,68 @@ const educationalSituationInput = z.object({
   progressionStage: z.string().optional(),
 });
 const canReviewSituation = (role: string) => role === 'admin' || role === 'inspector';
+
+const pedagogicalGenerationRequest = z.object({
+  intent: z.enum([
+    'GENERATE_SITUATION',
+    'GENERATE_ALTERNATIVE',
+    'GENERATE_FOR_OBJECTIVE',
+    'ADAPT_SITUATION',
+  ]),
+  gradeId: z.string().trim().min(1),
+  domainId: z.string().trim().min(1),
+  finalCompetencyId: z.string().trim().nullable().optional(),
+  objectiveIds: z.array(z.string().trim()).max(20).default([]),
+  lessonType: z.enum(['LEARNING', 'INTEGRATIVE', 'DIAGNOSTIC', 'SUMMATIVE']),
+  motorSkills: z.array(z.string().trim()).max(30).default([]),
+  requirements: z.array(z.string().trim()).max(30).default([]),
+  equipment: z.array(z.string().trim()).max(30).default([]),
+  availableEquipment: z.array(z.string().trim()).max(30).optional(),
+  durationMinutes: z.number().int().positive().max(180).nullable().optional(),
+  studentCount: z.number().int().positive().max(200).nullable().optional(),
+  groupingPreference: z.string().trim().max(200).optional(),
+  difficulty: z.string().trim().max(80).optional(),
+  recentSituationIds: z.array(z.string().trim()).max(50).default([]),
+  recentSituationTitles: z.array(z.string().trim()).max(50).optional(),
+  sourceSituationId: z.string().trim().nullable().optional(),
+  teacherInstruction: z.string().trim().max(1000).optional(),
+});
+
+/**
+ * Provider-neutral generation boundary. The local deterministic implementation
+ * is intentionally available for development/tests only; production must have
+ * a separately reviewed provider before this boundary can be enabled.
+ */
+apiRouter.post('/pedagogical-situations/generate', requireRole('teacher'), async (req, res) => {
+  if (
+    process.env.NODE_ENV === 'production' ||
+    process.env.APP_ENV === 'production' ||
+    process.env.PEDAGOGICAL_GENERATION_ALLOW_LOCAL !== 'true'
+  ) {
+    return res.status(503).json({ error: 'خدمة إعداد المواقف غير متاحة حالياً.' });
+  }
+  try {
+    const request = pedagogicalGenerationRequest.parse(
+      req.body
+    ) as PedagogicalSituationGenerationRequest;
+    const result = generatePedagogicalSituation(request);
+    return res.json({ candidate: result.candidate, validation: result.validation });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : 'GENERATION_FAILED';
+    const messages: Record<string, string> = {
+      GENERATION_GRADE_UNSUPPORTED: 'المستوى الدراسي غير مدعوم.',
+      GENERATION_DOMAIN_UNSUPPORTED: 'الميدان غير مدعوم.',
+      GENERATION_OBJECTIVE_NOT_CANONICAL: 'الهدف المختار غير موجود في بنك الأهداف المعتمد.',
+      GENERATION_OBJECTIVE_REQUIRED: 'يرجى اختيار هدف معتمد.',
+      GENERATION_ASSESSMENT_SCOPE_UNRESOLVED: 'تعذر تحديد نطاق التقويم المرجعي.',
+      GENERATION_SOURCE_REQUIRED: 'مصدر الموقف البديل غير محدد.',
+      GENERATION_SOURCE_SCOPE_INVALID: 'مصدر الموقف البديل غير متسق.',
+    };
+    return res
+      .status(400)
+      .json({ error: messages[code] || 'تعذر إعداد الموقف وفق السياق المحدد.' });
+  }
+});
 
 apiRouter.get('/educational-situations', async (req, res) => {
   const user = req.user!;

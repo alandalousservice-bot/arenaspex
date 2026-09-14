@@ -1508,6 +1508,21 @@ export interface PedagogicalGameSuggestionRequest {
   };
 }
 
+export async function requestPedagogicalSituationGeneration(
+  payload: import('./pedagogicalGeneration.service').PedagogicalSituationGenerationRequest
+) {
+  const response = await fetch('/api/pedagogical-situations/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const json = await response.json();
+  if (!response.ok) throw new Error(json.error || 'تعذر إعداد الموقف وفق السياق المحدد.');
+  if (!json.candidate || typeof json.candidate !== 'object')
+    throw new Error('GENERATION_OUTPUT_INVALID');
+  return json.candidate as import('./pedagogicalGeneration.service').GeneratedPedagogicalSituationCandidate;
+}
+
 export async function requestPedagogicalGameSuggestion(payload: PedagogicalGameSuggestionRequest) {
   const response = await fetch('/api/ai/suggest-games', {
     method: 'POST',

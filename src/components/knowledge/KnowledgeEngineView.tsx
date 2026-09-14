@@ -6,7 +6,7 @@
 import React, { useMemo, useState } from 'react';
 import { BrainCircuit, Search, Plus, Target, Layers, Copy, Check, BookOpen } from 'lucide-react';
 import { CommunityResource, KnowledgeItem } from '../../types/spex';
-import { requestPedagogicalGameSuggestion } from '../../services/api';
+import { requestPedagogicalSituationGeneration } from '../../services/api';
 import { useDebounce } from '../../hooks/useDebounce';
 import { EducationalSituationsBankView } from '../educationalSituations/EducationalSituationsBankView';
 import { User } from '../../types/spex';
@@ -55,7 +55,7 @@ export const KNOWLEDGE_BANK_CATEGORIES = [
 
 export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
   knowledgeItems,
-  onAddKnowledgeItem,
+  onAddKnowledgeItem: _onAddKnowledgeItem,
   onUpdateKnowledgeItem,
   onSubmitKnowledgeItem,
   onDeleteKnowledgeItem,
@@ -82,7 +82,9 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
     environment: '',
     difficulty: '',
   });
-  const [suggestionDraft, setSuggestionDraft] = useState<Partial<KnowledgeItem> | null>(null);
+  const [suggestionDraft, setSuggestionDraft] = useState<
+    (Partial<KnowledgeItem> & Record<string, unknown>) | null
+  >(null);
   const [suggestionError, setSuggestionError] = useState('');
   const [duplicateWarning, setDuplicateWarning] = useState(false);
   const [rejectionDraft, setRejectionDraft] = useState<Record<string, string>>({});
@@ -213,46 +215,53 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
     setSuggestionError('');
     setDuplicateWarning(false);
     try {
-      const candidate = await requestPedagogicalGameSuggestion({
-        grade: suggestionGrade,
-        fieldId: suggestionField,
-        fieldName: fieldLabel(suggestionField),
-        objectiveId: selected.id,
-        objectiveText: selected.description,
-        existingGames: knowledgeItems
-          .filter(
-            (item) =>
-              item.category === 'game' &&
-              item.approved &&
-              item.fieldId === suggestionField &&
-              (item.levelIds?.includes(`lvl_p${suggestionGrade}`) ||
-                item.levelId === `lvl_p${suggestionGrade}`)
-          )
-          .map((item) => item.title),
-        existingSituations: [],
-        constraints: suggestionConstraints,
+      const candidate = await requestPedagogicalSituationGeneration({
+        intent: 'GENERATE_FOR_OBJECTIVE',
+        gradeId: `lvl_p${suggestionGrade}`,
+        domainId: suggestionField,
+        finalCompetencyId: `fc_lvl_p${suggestionGrade}_${suggestionField}`,
+        objectiveIds: [selected.id],
+        lessonType: 'LEARNING',
+        motorSkills: selected.skills,
+        requirements: selected.requirements,
+        equipment: stringList(suggestionConstraints.equipment),
+        availableEquipment: stringList(suggestionConstraints.equipment),
+        groupingPreference: suggestionConstraints.groupSize,
+        difficulty: suggestionConstraints.difficulty,
+        recentSituationIds: [],
+        teacherInstruction: suggestionConstraints.environment
+          ? `فضاء التنفيذ: ${suggestionConstraints.environment}`
+          : '',
       });
-      const draft: Partial<KnowledgeItem> = {
-        category: 'game',
+      const draft: Partial<KnowledgeItem> & Record<string, unknown> = {
+        category: 'situation',
         title: textValue(candidate.title),
-        description: textValue(candidate.description || candidate.pedagogicalPurpose),
+        description: textValue(candidate.description),
         fieldId: suggestionField,
         fieldName: fieldLabel(suggestionField),
         levelIds: [`lvl_p${suggestionGrade}`],
         levelName: `السنة ${suggestionGrade} ابتدائي`,
+        levelId: `lvl_p${suggestionGrade}`,
         objectiveId: selected.id,
         objectiveText: selected.description,
-        tags: ['اقتراح موقف تربوي', 'الحركات القاعدية'],
-        equipment: stringList(candidate.equipment),
-        rules: textValue(candidate.rules || candidate.organization),
-        organization: textValue(candidate.organization),
-        pedagogicalPurpose: textValue(candidate.pedagogicalPurpose || candidate.description),
-        safetyGuidance: textValue(candidate.safety),
-        progression: textValue(candidate.progression),
+        tags: ['موقف تربوي', 'مراجعة الأستاذ'],
+        equipment: candidate.equipment,
+        rules: candidate.instructions,
+        organization: candidate.organization,
+        pedagogicalPurpose: candidate.description,
+        safetyGuidance: candidate.executionConditions,
+        progression: candidate.variants,
+        executionConditions: candidate.executionConditions,
+        successCriteria: candidate.successCriteria,
+        observationIndicators: candidate.observationIndicators,
+        motorActions: candidate.motorSkills,
+        lessonTypes: [candidate.lessonType],
+        durationMinutes: candidate.durationMinutes,
+        finalCompetencyId: candidate.finalCompetencyId,
         approved: false,
         approvalStatus: 'DRAFT',
-        origin: 'AI_GENERATED',
-        createdBy: 'اقتراح',
+        origin: 'TEACHER',
+        createdBy: 'الأستاذ',
         usageCount: 0,
         rating: 0,
       };
@@ -270,23 +279,53 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
       );
       setSuggestionDraft(draft);
     } catch (error) {
-      const message =
-        error instanceof Error &&
-        (error.message === 'خدمة اقتراح الألعاب غير مفعلة لحسابك.' ||
-          error.message === 'الخدمة غير متاحة حالياً. يرجى المحاولة لاحقاً.')
+      setSuggestionError(
+        error instanceof Error && error.message.includes('غير متاحة')
           ? error.message
-          : 'تعذر إنشاء الاقتراح. يرجى المحاولة مرة أخرى.';
-      setSuggestionError(message);
+          : 'تعذر إعداد الموقف. يرجى مراجعة المدخلات والمحاولة مرة أخرى.'
+      );
     } finally {
       setIsSuggestingGames(false);
     }
   };
 
-  const saveSuggestionDraft = () => {
+  const saveSuggestionDraft = async () => {
     if (!suggestionDraft?.title || !suggestionDraft.description || !suggestionDraft.rules) return;
-    onAddKnowledgeItem(suggestionDraft);
-    setSuggestionDraft(null);
-    setShowSuggestionForm(false);
+    try {
+      const response = await fetch('/api/educational-situations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: suggestionDraft.title,
+          grade: suggestionGrade,
+          fieldId: suggestionField,
+          fieldName: fieldLabel(suggestionField),
+          objectiveIds: [suggestionDraft.objectiveId].filter(Boolean),
+          objectiveTexts: [suggestionDraft.objectiveText].filter(Boolean),
+          sourceGoal: suggestionDraft.objectiveText || suggestionDraft.description,
+          organization: suggestionDraft.organization,
+          equipment: suggestionDraft.equipment || [],
+          variations: suggestionDraft.progression,
+          gradeId: `lvl_p${suggestionGrade}`,
+          domainId: suggestionField,
+          lessonTypes: suggestionDraft.lessonTypes || ['LEARNING'],
+          executionConditions:
+            suggestionDraft.executionConditions || suggestionDraft.safetyGuidance,
+          successCriteria: suggestionDraft.successCriteria || '',
+          observationIndicators: suggestionDraft.observationIndicators || '',
+          motorActions: suggestionDraft.motorActions || [],
+          pedagogicalTags: suggestionDraft.tags || [],
+          difficulty: 'متوسط',
+          durationMinutes: suggestionDraft.durationMinutes,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'save failed');
+      setSuggestionDraft(null);
+      setShowSuggestionForm(false);
+    } catch {
+      setSuggestionError('تعذر حفظ الموقف الخاص. بقيت المسودة متاحة للمراجعة.');
+    }
   };
 
   const fieldLabel = (fieldId: string) =>
@@ -465,19 +504,19 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
             disabled={isSuggestingGames}
             className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-xs disabled:opacity-50"
           >
-            {isSuggestingGames ? 'جاري إعداد الاقتراح...' : 'إنشاء اقتراح'}
+            {isSuggestingGames ? 'جاري إعداد الموقف...' : 'توليد موقف تربوي'}
           </button>
         </section>
       )}
 
       {suggestionDraft && (
         <section className="bg-white rounded-3xl p-6 border border-indigo-200 shadow-xs space-y-3">
-          <h3 className="text-sm font-bold text-slate-900">مراجعة الاقتراح قبل الحفظ</h3>
+          <h3 className="text-sm font-bold text-slate-900">مسودة موقف — مراجعة قبل الحفظ</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input
               value={suggestionDraft.title || ''}
               onChange={(e) => setSuggestionDraft({ ...suggestionDraft, title: e.target.value })}
-              placeholder="اسم اللعبة"
+              placeholder="عنوان الموقف"
               className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs"
             />
             <input
@@ -503,7 +542,7 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
             <textarea
               value={suggestionDraft.rules || ''}
               onChange={(e) => setSuggestionDraft({ ...suggestionDraft, rules: e.target.value })}
-              placeholder="سير اللعبة والقواعد"
+              placeholder="التعليمة وسير التنفيذ"
               className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs min-h-20"
             />
             <textarea
@@ -525,10 +564,10 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           </div>
           <div className="flex gap-2">
             <button
-              onClick={saveSuggestionDraft}
+              onClick={() => void saveSuggestionDraft()}
               className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold"
             >
-              حفظ كمسودة
+              حفظ ضمن مواقفي
             </button>
             <button
               onClick={() => setSuggestionDraft(null)}
