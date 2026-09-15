@@ -36,6 +36,7 @@ const candidateSchema = {
     'servedObjectiveLabels',
   ],
   properties: {
+    objectiveText: { type: 'string' },
     title: { type: 'string' },
     description: { type: 'string' },
     shortDescription: { type: 'string' },

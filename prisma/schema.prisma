@@ -776,6 +776,26 @@ model AnnualPlan {
   @@index([status])
 }
 
+model TeacherObjective {
+  id                  String   @id
+  ownerId             String
+  gradeId             String
+  domainId            String
+  finalCompetencyId   String
+  text                String
+  status              String   @default("PERSONAL")
+  provenanceType      String
+  sourceReferenceId   String?
+  sourceObjectiveId   String?
+  canonicalResourceIds String[] @default([])
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  adoptedAt           DateTime?
+
+  @@index([ownerId, gradeId, domainId, finalCompetencyId])
+  @@index([sourceReferenceId])
+}
+
 // -----------------------------------------------------------------------
 // إعداد مزودات الذكاء الاصطناعي التي يضيفها مشرف المنظومة من لوحة التحكم.
 // التخزين خادمي حقيقي في Postgres؛ المفتاح يُشفَّر عند الراحة (encryptedApiKey)

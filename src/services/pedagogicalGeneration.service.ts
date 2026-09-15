@@ -7,7 +7,12 @@ import {
 import type { EducationalSituationLessonType } from './educationalSituation.selector.service';
 
 export type PedagogicalGenerationIntent =
-  'GENERATE_SITUATION' | 'GENERATE_ALTERNATIVE' | 'GENERATE_FOR_OBJECTIVE' | 'ADAPT_SITUATION';
+  | 'GENERATE_SITUATION'
+  | 'GENERATE_ALTERNATIVE'
+  | 'GENERATE_FOR_OBJECTIVE'
+  | 'ADAPT_SITUATION'
+  | 'GENERATE_OBJECTIVE'
+  | 'REFORMULATE_OBJECTIVE';
 
 export interface PedagogicalSituationGenerationRequest {
   intent: PedagogicalGenerationIntent;
@@ -69,6 +74,7 @@ export interface PedagogicalGenerationContext {
 }
 
 export interface GeneratedPedagogicalSituationCandidate {
+  objectiveText?: string;
   title: string;
   description: string;
   shortDescription: string;
@@ -269,6 +275,10 @@ export const deterministicPedagogicalGenerationProvider: PedagogicalGenerationPr
     ];
     return {
       title: `${alternative}موقف تطبيقي: ${objective.replace(/[.،؛:]+$/u, '').slice(0, 80)}`,
+      objectiveText:
+        context.intent === 'GENERATE_OBJECTIVE' || context.intent === 'REFORMULATE_OBJECTIVE'
+          ? objective
+          : undefined,
       description: `وضعية تربوية منظمة في ${focus} تخدم الهدف المرجعي دون تغيير صياغته، وتتيح الملاحظة والتدرج الآمن.`,
       shortDescription: `وضعية منظمة تخدم ${objective}.`,
       pedagogicalIdea: `توظيف ${focus} في إنجاز قابل للملاحظة والتدرج.`,

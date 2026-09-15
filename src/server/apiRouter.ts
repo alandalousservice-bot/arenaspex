@@ -59,6 +59,7 @@ import {
   PRIMARY_PLANNING_LEVEL_IDS,
 } from '../services/teacherPlanning.service.js';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../data/algerianCurriculum.js';
+import { getObjectiveBank } from '../data/objectiveBankRegistry.js';
 import { getAcademicCalendar, isValidAcademicSchoolDate } from '../data/academicCalendars.js';
 import {
   isCanonicalAcademicYearId,
@@ -88,6 +89,11 @@ import { deleteOwnedStudent, StudentDeletionError } from '../services/studentDel
 import { buildStudentRosterReadModel } from '../services/studentRosterReadModel.service.js';
 import { persistStudentRosterRows } from '../services/studentRosterPersistence.service.js';
 import { collectSituationUsageCounts } from '../services/situationUsage.service.js';
+import {
+  normalizeObjectiveText,
+  validateTeacherObjectiveContext,
+  type TeacherObjectiveDraft,
+} from '../services/teacherObjective.service.js';
 import {
   generatePedagogicalSituationAsync,
   type PedagogicalSituationGenerationRequest,
@@ -3111,6 +3117,8 @@ const pedagogicalGenerationRequest = z.object({
     'GENERATE_SITUATION',
     'GENERATE_ALTERNATIVE',
     'GENERATE_FOR_OBJECTIVE',
+    'GENERATE_OBJECTIVE',
+    'REFORMULATE_OBJECTIVE',
     'ADAPT_SITUATION',
   ]),
   gradeId: z.string().trim().min(1),
@@ -3197,6 +3205,111 @@ apiRouter.post('/pedagogical-situations/generate', requireRole('teacher'), async
     return res
       .status(400)
       .json({ error: messages[code] || 'تعذر إعداد الموقف وفق السياق المحدد.' });
+  }
+});
+
+const teacherObjectiveDraftSchema = z.object({
+  text: z.string().trim().min(1).max(500),
+  gradeId: z.string().min(1),
+  domainId: z.string().min(1),
+  finalCompetencyId: z.string().min(1),
+  provenanceType: z.enum(['GENERATED', 'REFORMULATED', 'MANUAL']),
+  sourceReferenceId: z.string().nullable().optional(),
+  sourceObjectiveId: z.string().nullable().optional(),
+});
+
+apiRouter.get('/teacher/objective-bank', requireRole('teacher'), async (req, res) => {
+  const rows = await prisma.teacherObjective.findMany({
+    where: { ownerId: req.user!.id },
+    orderBy: { createdAt: 'desc' },
+  });
+  const canonical = Object.values(COMPLETE_ANNUAL_CURRICULUM).flatMap((level) =>
+    Object.values(level.fields).flatMap((field) =>
+      getObjectiveBank(level.levelId, field.fieldId).map((item) => ({
+        id: item.id,
+        text: item.objectiveText,
+        gradeId: level.levelId,
+        domainId: field.fieldId,
+        finalCompetencyId: `fc_${level.levelId}_${field.fieldId}`,
+        source: 'CANONICAL' as const,
+      }))
+    )
+  );
+  res.json({
+    objectives: [...canonical, ...rows.map((row) => ({ ...row, source: 'PERSONAL' as const }))],
+  });
+});
+
+apiRouter.post('/teacher/objective-bank/adopt', requireRole('teacher'), async (req, res) => {
+  const parsed = teacherObjectiveDraftSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'بيانات الهدف غير صحيحة.' });
+  const draft = parsed.data as TeacherObjectiveDraft;
+  try {
+    validateTeacherObjectiveContext(draft);
+  } catch (error) {
+    return res
+      .status(400)
+      .json({ error: error instanceof Error ? error.message : 'سياق الهدف غير صحيح.' });
+  }
+  const normalized = normalizeObjectiveText(draft.text);
+  const existing = await prisma.teacherObjective.findFirst({
+    where: {
+      ownerId: req.user!.id,
+      gradeId: draft.gradeId,
+      domainId: draft.domainId,
+      finalCompetencyId: draft.finalCompetencyId,
+    },
+  });
+  if (existing && normalizeObjectiveText(existing.text) === normalized)
+    return res.status(409).json({ error: 'هذا الهدف موجود بالفعل في بنك أهدافك.' });
+  const now = new Date();
+  const objective = await prisma.teacherObjective.create({
+    data: {
+      id: `tobj_${req.user!.id}_${Date.now()}`,
+      ownerId: req.user!.id,
+      gradeId: draft.gradeId,
+      domainId: draft.domainId,
+      finalCompetencyId: draft.finalCompetencyId,
+      text: draft.text.trim(),
+      status: 'PERSONAL',
+      provenanceType: draft.provenanceType,
+      sourceReferenceId: draft.sourceReferenceId || null,
+      sourceObjectiveId: draft.sourceObjectiveId || null,
+      canonicalResourceIds: [],
+      adoptedAt: now,
+      updatedAt: now,
+    },
+  });
+  res.status(201).json({ objective });
+});
+
+apiRouter.post('/teacher/objective-bank/generate', requireRole('teacher'), async (req, res) => {
+  try {
+    const request = pedagogicalGenerationRequest.parse({
+      ...req.body,
+      intent:
+        req.body?.intent === 'REFORMULATE_OBJECTIVE'
+          ? 'REFORMULATE_OBJECTIVE'
+          : 'GENERATE_OBJECTIVE',
+      lessonType: 'LEARNING',
+    }) as PedagogicalSituationGenerationRequest;
+    const provider = resolveConfiguredPedagogicalGenerationProvider();
+    if (!provider) return res.status(503).json({ error: 'خدمة اقتراح الأهداف غير متاحة حالياً.' });
+    const result = await generatePedagogicalSituationAsync(request, provider);
+    return res.json({
+      draft: {
+        text: result.candidate.objectiveText || result.candidate.description,
+        gradeId: result.context.gradeId,
+        domainId: result.context.domainId,
+        finalCompetencyId: result.context.finalCompetencyId,
+        provenanceType: request.intent === 'REFORMULATE_OBJECTIVE' ? 'REFORMULATED' : 'GENERATED',
+        sourceReferenceId: request.objectiveIds[0] || null,
+      },
+    });
+  } catch (error) {
+    return res
+      .status(400)
+      .json({ error: error instanceof Error ? error.message : 'تعذر اقتراح الهدف.' });
   }
 });
 

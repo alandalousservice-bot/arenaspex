@@ -89,6 +89,14 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
   const [duplicateWarning, setDuplicateWarning] = useState(false);
   const [rejectionDraft, setRejectionDraft] = useState<Record<string, string>>({});
   const [showCoverage, setShowCoverage] = useState(false);
+  const [objectiveDraft, setObjectiveDraft] = useState<{
+    text: string;
+    gradeId: string;
+    domainId: string;
+    finalCompetencyId: string;
+    provenanceType: 'GENERATED' | 'REFORMULATED';
+    sourceReferenceId?: string | null;
+  } | null>(null);
   const [objectiveGrade, setObjectiveGrade] = useState('all');
   const [objectiveField, setObjectiveField] = useState('all');
   const [objectiveFinalCompetency, setObjectiveFinalCompetency] = useState('all');
@@ -155,6 +163,48 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           .map((alternative) => objectiveItems.find((item) => item.id === alternative.objectiveId))
           .filter((item): item is ObjectiveBankReadModel => Boolean(item))
       : [];
+  const proposeObjective = async (intent: 'GENERATE_OBJECTIVE' | 'REFORMULATE_OBJECTIVE') => {
+    const source = objectiveItems.find(
+      (item) => item.levelId === `lvl_p${suggestionGrade}` && item.fieldId === suggestionField
+    );
+    if (!source) return;
+    try {
+      const result = await requestPedagogicalSituationGeneration({
+        intent,
+        gradeId: `lvl_p${suggestionGrade}`,
+        domainId: suggestionField,
+        finalCompetencyId: `fc_lvl_p${suggestionGrade}_${suggestionField}`,
+        objectiveIds: [source.id],
+        lessonType: 'LEARNING',
+        motorSkills: source.skills,
+        requirements: source.requirements,
+        equipment: [],
+        recentSituationIds: [],
+        sourceSituationId: intent === 'REFORMULATE_OBJECTIVE' ? source.id : undefined,
+      });
+      setObjectiveDraft({
+        text: result.objectiveText || result.description,
+        gradeId: `lvl_p${suggestionGrade}`,
+        domainId: suggestionField,
+        finalCompetencyId: `fc_lvl_p${suggestionGrade}_${suggestionField}`,
+        provenanceType: intent === 'REFORMULATE_OBJECTIVE' ? 'REFORMULATED' : 'GENERATED',
+        sourceReferenceId: source.id,
+      });
+      setActiveTab('objective');
+    } catch {
+      setSuggestionError('تعذر إعداد صياغة الهدف. يرجى المحاولة لاحقاً.');
+    }
+  };
+  const adoptObjective = async () => {
+    if (!objectiveDraft?.text.trim()) return;
+    const response = await fetch('/api/teacher/objective-bank/adopt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(objectiveDraft),
+    });
+    if (response.ok) setObjectiveDraft(null);
+    else setSuggestionError('تعذر اعتماد الهدف؛ قد يكون مكررًا أو خارج السياق.');
+  };
   const coverage = buildKnowledgeCoverage({ knowledgeItems });
   const canViewCoverage = canViewCoverageDiagnostics(currentUser.role);
   const statusLabel: Record<CoverageStatus, string> = {
@@ -382,6 +432,13 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           <Plus className="w-4 h-4" />
           <span>اقتراح موقف تربوي</span>
         </button>
+        <button
+          type="button"
+          onClick={() => void proposeObjective('GENERATE_OBJECTIVE')}
+          className="workspace-button-secondary"
+        >
+          <Target className="w-4 h-4" /> اقتراح هدف
+        </button>
       </div>
 
       {showSuggestionForm && (
@@ -574,6 +631,40 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
             </button>
             <button
               onClick={() => setSuggestionDraft(null)}
+              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold"
+            >
+              إلغاء
+            </button>
+          </div>
+        </section>
+      )}
+
+      {objectiveDraft && (
+        <section className="bg-white rounded-3xl p-6 border border-indigo-200 shadow-xs space-y-3">
+          <h3 className="text-sm font-bold text-slate-900">مسودة هدف — مراجعة قبل الاعتماد</h3>
+          <textarea
+            value={objectiveDraft.text}
+            onChange={(e) => setObjectiveDraft({ ...objectiveDraft, text: e.target.value })}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm min-h-24"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => void adoptObjective()}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold"
+            >
+              اعتماد وحفظ الهدف
+            </button>
+            <button
+              type="button"
+              onClick={() => void proposeObjective('REFORMULATE_OBJECTIVE')}
+              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold"
+            >
+              إعادة صياغة
+            </button>
+            <button
+              type="button"
+              onClick={() => setObjectiveDraft(null)}
               className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold"
             >
               إلغاء

@@ -8,6 +8,7 @@ import { configuredGeminiModel } from './geminiRuntimeConfig.js';
 const candidateSchema = {
   type: 'OBJECT',
   properties: {
+    objectiveText: { type: 'STRING' },
     title: { type: 'STRING' },
     description: { type: 'STRING' },
     shortDescription: { type: 'STRING' },
