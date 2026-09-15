@@ -240,6 +240,7 @@ describe('P1G guarded read-only Knowledge Core runtime', () => {
     expect(directSource).toEqual([]);
     expect(boundaryConsumers).toEqual([
       'src/services/annualPlanReferenceReadModel.ts',
+      'src/services/learningObjectivePath.service.ts',
       'src/services/teacherLearningPlan.service.ts',
     ]);
   });

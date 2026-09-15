@@ -70,6 +70,11 @@ import {
   markPlanningV2Plan,
   type PlanningV2Slot,
 } from '../../services/planningV2Reference.service';
+import {
+  generateLearningObjectivePath,
+  type LearningLessonCount,
+  type LearningObjectivePath,
+} from '../../services/learningObjectivePath.service';
 
 interface LearningSegmentsViewProps {
   currentUser: User;
@@ -241,6 +246,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
   const [objectiveBankFieldId, setObjectiveBankFieldId] = useState<string | null>(null);
   const [objectiveBankTargetId, setObjectiveBankTargetId] = useState<string | null>(null);
   const [generatorDraft, setGeneratorDraft] = useState<SectionGeneratorDraft | null>(null);
+  const [objectivePathDraft, setObjectivePathDraft] = useState<LearningObjectivePath | null>(null);
   const [situationPickerKey, setSituationPickerKey] = useState<string | null>(null);
   const [printingFieldId, setPrintingFieldId] = useState<string | null>(null);
   const printPreviewDialogRef = useRef<HTMLDivElement>(null);
@@ -467,6 +473,22 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
   const removeIntegration = (fieldId: string, integrationId: string) => {
     if (!plan || !window.confirm('هل تريد حذف هذه الحصة الإدماجية؟')) return;
     savePlan(deleteTeacherLearningIntegration(plan, fieldId, integrationId));
+  };
+
+  const generateObjectivePath = (domainId: string, count: LearningLessonCount) => {
+    try {
+      setObjectivePathDraft(
+        generateLearningObjectivePath({
+          teacherId: currentUser.id,
+          gradeId: selectedLevelId,
+          domainId,
+          finalCompetencyId: `fc_${selectedLevelId}_${domainId}`,
+          learningLessonCount: count,
+        })
+      );
+    } catch (reason: unknown) {
+      window.alert(reason instanceof Error ? reason.message : 'تعذر توليد مسار الأهداف.');
+    }
   };
 
   const suitableSituations = editingItem
@@ -856,6 +878,15 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                   <div className="flex flex-wrap items-center gap-2 print:hidden">
                     <button
                       type="button"
+                      onClick={() =>
+                        generateObjectivePath(field.fieldId, objectives.length === 7 ? 8 : 7)
+                      }
+                      className="inline-flex items-center gap-1 rounded-lg border border-indigo-300 bg-indigo-50 px-2.5 py-1.5 text-[11px] font-bold text-indigo-800"
+                    >
+                      توليد أهداف المقطع ({objectives.length === 7 ? '8' : '7'})
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => {
                         setObjectiveBankFieldId(null);
                         setNewSessionDraft(null);
@@ -938,6 +969,23 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                       <Plus className="h-3.5 w-3.5" /> إضافة حصة إدماجية
                     </button>
                   </div>
+                  {objectivePathDraft?.domainId === field.fieldId && (
+                    <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50/60 p-3">
+                      <p className="text-[11px] font-extrabold text-indigo-950">
+                        مقترح أهداف المقطع — راجعه قبل الاعتماد
+                      </p>
+                      <div className="mt-2 space-y-1 text-xs text-indigo-950">
+                        {objectivePathDraft.objectives.map((objective) => (
+                          <p key={objective.position}>
+                            الحصة التعلمية {objective.position}: {objective.text}
+                          </p>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-[10px] text-indigo-700">
+                        هذا اقتراح غير محفوظ؛ الاعتماد النهائي يتم عبر مسار إعداد المقطع.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 {generatorDraft?.fieldId === field.fieldId && (
                   <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-3 print:hidden">
