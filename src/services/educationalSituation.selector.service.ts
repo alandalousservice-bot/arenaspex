@@ -456,6 +456,8 @@ export function selectEducationalSituations(
   eligible.sort(compareCandidates);
   const warnings: SelectionWarning[] = [];
   const budget = lessonMainWorkBudgetMinutes(input.gradeId, input.durationMinutes);
+  // Learning lessons use two complementary situations by default (three only when
+  // the longer main phase permits it). Assessments are circuits, not learning pairs.
   const max = input.maxSituations ?? (budget != null && budget >= 60 ? 3 : 2);
   const hasDirectLearningMatch = eligible.some((candidate) => candidate.ranking.relationTier === 3);
   const selectable = input.lessonType === 'LEARNING' && !hasDirectLearningMatch ? [] : eligible;

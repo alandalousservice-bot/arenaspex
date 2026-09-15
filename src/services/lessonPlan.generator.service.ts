@@ -708,6 +708,7 @@ export interface LessonMemoDocument {
   mainPhase: {
     learningContent: string;
     situations: LessonMemoSituation[];
+    presentationMode: 'LEARNING_SITUATIONS' | 'ASSESSMENT_CIRCUIT';
     totalDurationMinutes: number;
   };
   finalPhase: LessonMemoPhase;
@@ -761,6 +762,13 @@ export function generateLessonMemoDocument(
         guidance: row.guidance,
         sourceRow: row,
       })),
+      presentationMode:
+        plan.sessionType === 'تشخيصية' ||
+        plan.sessionType === 'تقويم تشخيصي' ||
+        plan.sessionType === 'تقويمية' ||
+        plan.sessionType === 'تقويم تحصيلي'
+          ? 'ASSESSMENT_CIRCUIT'
+          : 'LEARNING_SITUATIONS',
       totalDurationMinutes: mainRows.reduce((sum, row) => sum + row.durationMinutes, 0),
     },
     finalPhase: phaseDocument(closing),

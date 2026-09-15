@@ -63,7 +63,7 @@ function documentRows(model: LessonMemoDocument) {
               ]
             : []),
           cell(
-            `الموقف ${String(situation.number).padStart(2, '0')}\n${situation.executionContent}`
+            `${model.mainPhase.presentationMode === 'ASSESSMENT_CIRCUIT' ? 'المحطة' : 'الموقف'} ${String(situation.number).padStart(2, '0')}\n${situation.executionContent}`
           ),
           cell(`${situation.durationMinutes} د`),
           cell(situation.guidance),
