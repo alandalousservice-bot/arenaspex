@@ -332,21 +332,33 @@ function buildMainRows(
       warnings,
     };
   }
-  const count = hasComplexObjective(session.objective) ? 2 : 1;
+  const isLearning = canonicalLessonType === 'LEARNING';
+  const count = isLearning ? (hasComplexObjective(session.objective) ? 3 : 2) : 1;
   const minutes = Array.from(
     { length: count },
     (_, index) => Math.floor(mainMinutes / count) + (index < mainMinutes % count ? 1 : 0)
   );
   const tools = session.tools.length ? session.tools : situationEquipment(session.fieldId);
+  const fallbackDescriptions = [
+    'تفكيك عناصر الهدف والتعرف عليها ثم تنفيذها وفق التعليمات.',
+    'توظيف عناصر الهدف في وضعية منظمة والاستجابة للتعليمات مع تثبيت الأداء.',
+    'تثبيت الأداء وربط عناصر الهدف في تطبيق مركب قابل للملاحظة.',
+  ];
 
   return {
     rows: minutes.map((durationMinutes, index) => ({
       id: `main-${index + 1}`,
       phase: 'المرحلة الرئيسية',
-      learningContent: `اختيار موقف تربوي يدويًا ${String(index + 1).padStart(2, '0')}`,
-      executionContent: `لم يتوفر موقف معتمد مطابق تلقائيًا. اختر موقفًا مناسبًا من بنك المواقف قبل اعتماد هذه المسودة. الوسائل المتوقعة: ${tools.join('، ')}.`,
+      learningContent: isLearning
+        ? `مسودة مكملة ${String(index + 1).padStart(2, '0')} لهدف الحصة`
+        : `اختيار موقف تربوي يدويًا ${String(index + 1).padStart(2, '0')}`,
+      executionContent: isLearning
+        ? `${fallbackDescriptions[index]} الهدف المقصود: ${session.objective} الوسائل المتوقعة: ${tools.join('، ')}.`
+        : `لم يتوفر موقف معتمد مطابق تلقائيًا. اختر موقفًا مناسبًا من بنك المواقف قبل اعتماد هذه المسودة. الوسائل المتوقعة: ${tools.join('، ')}.`,
       durationMinutes,
-      guidance: 'تظل هذه الخانة معلقة إلى حين اختيار موقف مطابق والتحقق من التعليمات والسلامة.',
+      guidance: isLearning
+        ? 'مسودة قابلة للتحرير والمراجعة؛ لا تعد موقفًا معتمدًا ولا تُنشر تلقائيًا.'
+        : 'تظل هذه الخانة معلقة إلى حين اختيار موقف مطابق والتحقق من التعليمات والسلامة.',
     })),
     warnings,
   };

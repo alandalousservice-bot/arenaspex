@@ -22,7 +22,7 @@ const source = (objective: string) => ({
 });
 
 describe('مولد مذكرة الحصة الموحد', () => {
-  it('يبني صفوف القالب الثلاثة ويحتفظ بالهدف المعتمد', () => {
+  it('يبني صفوف القالب ويحافظ على موقفين تعلميين مكملين', () => {
     const plan = autoGenerateLessonPlan(source('ينجز تنقلات أمامية مع التحكم في الجسم.'), {
       levelName: 'السنة الأولى ابتدائي',
     });
@@ -30,21 +30,22 @@ describe('مولد مذكرة الحصة الموحد', () => {
     expect(plan.lessonRows?.map((row) => row.phase)).toEqual([
       'المرحلة التحضيرية',
       'المرحلة الرئيسية',
+      'المرحلة الرئيسية',
       'المرحلة الختامية',
     ]);
     expect(plan.lessonRows?.reduce((total, row) => total + row.durationMinutes, 0)).toBe(60);
     expect(plan.equipmentNeeded).toContain('سلم أرضي');
   });
 
-  it('لا يفرض موقفين: الهدف البسيط ينتج موقفاً واحداً والهدف المركب ينتج موقفين', () => {
+  it('ينشئ مسودة من موقفين، وثلاثة عند الحاجة إلى تفكيك مركب', () => {
     const simple = autoGenerateLessonPlan(source('ينجز تنقلات أمامية.'), {
       levelName: 'السنة الثانية ابتدائي',
     });
     const complex = autoGenerateLessonPlan(source('يربط بين الجري والقفز في مسار حركي.'), {
       levelName: 'السنة الثانية ابتدائي',
     });
-    expect(simple.lessonRows?.filter((row) => row.phase === 'المرحلة الرئيسية')).toHaveLength(1);
-    expect(complex.lessonRows?.filter((row) => row.phase === 'المرحلة الرئيسية')).toHaveLength(2);
+    expect(simple.lessonRows?.filter((row) => row.phase === 'المرحلة الرئيسية')).toHaveLength(2);
+    expect(complex.lessonRows?.filter((row) => row.phase === 'المرحلة الرئيسية')).toHaveLength(3);
   });
 
   it('يطبق 90 دقيقة للسنة الرابعة و60 دقيقة لبقية المستويات', () => {
@@ -60,10 +61,18 @@ describe('مولد مذكرة الحصة الموحد', () => {
     const plan = autoGenerateLessonPlan(source('ينجز تنقلات أمامية.'), {
       levelName: 'السنة الأولى ابتدائي',
       teacher: {
-        id: 'teacher-1', username: 'teacher', spexId: 'SPX-1', firstName: 'أحمد', lastName: 'بن علي',
-        email: 'teacher@example.com', role: 'teacher', directorateId: 'd', districtId: 'x',
-        schoolName: 'مدرسة الأمل', status: 'active'
-      }
+        id: 'teacher-1',
+        username: 'teacher',
+        spexId: 'SPX-1',
+        firstName: 'أحمد',
+        lastName: 'بن علي',
+        email: 'teacher@example.com',
+        role: 'teacher',
+        directorateId: 'd',
+        districtId: 'x',
+        schoolName: 'مدرسة الأمل',
+        status: 'active',
+      },
     });
     expect(plan.teacherName).toBe('أحمد بن علي');
     expect(plan.institutionName).toBe('مدرسة الأمل');
@@ -86,7 +95,7 @@ describe('مولد مذكرة الحصة الموحد', () => {
     };
     const withTwo = rebalanceLessonRows([...first, second], 60);
     expect(withTwo.reduce((total, row) => total + row.durationMinutes, 0)).toBe(60);
-    expect(withTwo.filter((row) => row.phase === 'المرحلة الرئيسية')).toHaveLength(2);
+    expect(withTwo.filter((row) => row.phase === 'المرحلة الرئيسية')).toHaveLength(3);
     const withOne = rebalanceLessonRows(
       withTwo.filter((row) => row.id !== 'main-2'),
       60
