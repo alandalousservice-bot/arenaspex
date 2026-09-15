@@ -88,7 +88,6 @@ import { deleteOwnedStudent, StudentDeletionError } from '../services/studentDel
 import { buildStudentRosterReadModel } from '../services/studentRosterReadModel.service.js';
 import { persistStudentRosterRows } from '../services/studentRosterPersistence.service.js';
 import {
-  generatePedagogicalSituation,
   generatePedagogicalSituationAsync,
   type PedagogicalSituationGenerationRequest,
 } from '../services/pedagogicalGeneration.service.js';
@@ -3145,18 +3144,46 @@ apiRouter.post('/pedagogical-situations/generate', requireRole('teacher'), async
     return res.status(503).json({ error: 'خدمة إعداد المواقف غير متاحة حالياً.' });
   }
   try {
+    console.info(
+      JSON.stringify({
+        event: 'pedagogical_generation.request_received',
+        intent: req.body?.intent,
+        gradeId: req.body?.gradeId,
+        domainId: req.body?.domainId,
+        objectiveCount: Array.isArray(req.body?.objectiveIds) ? req.body.objectiveIds.length : 0,
+      })
+    );
     const request = pedagogicalGenerationRequest.parse(
       req.body
     ) as PedagogicalSituationGenerationRequest;
     const provider = resolveConfiguredPedagogicalGenerationProvider();
     if (!provider) return res.status(503).json({ error: 'خدمة إعداد المواقف غير متاحة حالياً.' });
-    const result =
-      configuredProvider === 'openai'
-        ? await generatePedagogicalSituationAsync(request, provider)
-        : generatePedagogicalSituation(request, provider);
+    console.info(
+      JSON.stringify({
+        event: 'pedagogical_generation.provider_selected',
+        provider: configuredProvider || 'none',
+      })
+    );
+    const result = await generatePedagogicalSituationAsync(request, provider);
+    console.info(
+      JSON.stringify({
+        event: 'pedagogical_generation.provider_succeeded',
+        provider: configuredProvider,
+        gradeId: result.context.gradeId,
+        domainId: result.context.domainId,
+        objectiveCount: result.context.objectiveIds.length,
+      })
+    );
     return res.json({ candidate: result.candidate, validation: result.validation });
   } catch (error) {
     const code = error instanceof Error ? error.message : 'GENERATION_FAILED';
+    console.error(
+      JSON.stringify({
+        event: 'pedagogical_generation.provider_failed',
+        stage: 'generation_request',
+        code,
+      })
+    );
     const messages: Record<string, string> = {
       GENERATION_GRADE_UNSUPPORTED: 'المستوى الدراسي غير مدعوم.',
       GENERATION_DOMAIN_UNSUPPORTED: 'الميدان غير مدعوم.',
