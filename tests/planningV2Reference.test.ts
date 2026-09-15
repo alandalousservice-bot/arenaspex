@@ -3,6 +3,7 @@ import { seedTeacherLearningPlan } from '../src/services/teacherLearningPlan.ser
 import {
   buildAllPlanningV2References,
   buildPlanningV2References,
+  markPlanningV2Plan,
   PLANNING_V2_SEQUENCE,
 } from '../src/services/planningV2Reference.service';
 
@@ -45,5 +46,33 @@ describe('Planning V2 reference contract', () => {
     expect(refs.find((ref) => ref.slot === 'S')).toMatchObject({ lessonType: 'SUMMATIVE' });
     expect(refs.find((ref) => ref.slot === 'D')).not.toHaveProperty('objectiveId');
     expect(refs.find((ref) => ref.slot === 'S')).not.toHaveProperty('objectiveId');
+  });
+
+  it('preserves canonical and teacher-owned objective source identity', () => {
+    const plan = seedTeacherLearningPlan('lvl_p1');
+    const domain = plan.domains.find((item) => item.fieldId === 'f_fundamentals')!;
+    domain.objectives = [
+      { ...domain.objectives[0], sourceReferenceId: 'G1-D2-OBJ-01' },
+      {
+        ...domain.objectives[1],
+        sourceReferenceId: undefined,
+        teacherObjectiveId: 'teacher-objective-qa-1',
+      },
+    ];
+    const refs = buildPlanningV2References('lvl_p1', 'f_fundamentals', plan);
+    expect(refs.find((item) => item.slot === 'L1')).toMatchObject({
+      objectiveSourceType: 'CANONICAL',
+      objectiveId: 'G1-D2-OBJ-01',
+    });
+    expect(refs.find((item) => item.slot === 'L2')).toMatchObject({
+      objectiveSourceType: 'TEACHER_OBJECTIVE',
+      teacherObjectiveId: 'teacher-objective-qa-1',
+    });
+  });
+
+  it('marks explicit V2 writes without mutating legacy plan identity', () => {
+    const legacy = seedTeacherLearningPlan('lvl_p1');
+    expect(legacy.planningVersion).toBeUndefined();
+    expect(markPlanningV2Plan(legacy).planningVersion).toBe('planning-v2');
   });
 });

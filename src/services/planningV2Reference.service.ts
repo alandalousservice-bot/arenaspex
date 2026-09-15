@@ -121,6 +121,12 @@ export function buildPlanningV2References(
   return refs;
 }
 
+export function markPlanningV2Plan<T extends TeacherLearningPlanData | TeacherLearningPlan>(
+  plan: T
+): T {
+  return { ...plan, planningVersion: PLANNING_V2_VERSION } as T;
+}
+
 export function buildAllPlanningV2References(
   gradeId: string,
   plan?: TeacherLearningPlanData | TeacherLearningPlan

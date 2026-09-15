@@ -65,6 +65,11 @@ import type {
 import { AcademicYearLabel } from '../common/AcademicYearLabel';
 import { LearningSectionPrintPreviewDialog } from './LearningSectionPrintPreviewDialog';
 import { mapLearningSectionForPrint } from '../../services/learningSectionPrint.service';
+import {
+  buildPlanningV2References,
+  markPlanningV2Plan,
+  type PlanningV2Slot,
+} from '../../services/planningV2Reference.service';
 
 interface LearningSegmentsViewProps {
   currentUser: User;
@@ -419,18 +424,20 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
     }
     try {
       savePlan(
-        generateTeacherLearningSectionStructure(
-          plan,
-          generatorDraft.fieldId,
-          objectiveCount,
-          integrationCount,
-          {
-            mode: generatorDraft.mode,
-            objectiveFillMode:
-              generatorDraft.generationMode === 'auto' ? 'bank-auto' : 'structure-only',
-            allowDestructiveReplacement,
-            allowObjectiveRemoval,
-          }
+        markPlanningV2Plan(
+          generateTeacherLearningSectionStructure(
+            plan,
+            generatorDraft.fieldId,
+            objectiveCount,
+            integrationCount,
+            {
+              mode: generatorDraft.mode,
+              objectiveFillMode:
+                generatorDraft.generationMode === 'auto' ? 'bank-auto' : 'structure-only',
+              allowDestructiveReplacement,
+              allowObjectiveRemoval,
+            }
+          )
         )
       );
       setGeneratorDraft(null);
@@ -671,6 +678,25 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
           );
           const officialComponents = getLearningSectionComponents(selectedLevelId, field.fieldId);
           const objectiveBank = getObjectiveBank(selectedLevelId, field.fieldId);
+          const planningV2References = buildPlanningV2References(
+            selectedLevelId,
+            field.fieldId,
+            plan || undefined
+          );
+          const planningV2Labels: Record<PlanningV2Slot, string> = {
+            D: 'تقويم تشخيصي',
+            L1: 'الحصة التعلمية 1',
+            L2: 'الحصة التعلمية 2',
+            L3: 'الحصة التعلمية 3',
+            L4: 'الحصة التعلمية 4',
+            I1: 'الحصة الإدماجية 1',
+            L5: 'الحصة التعلمية 5',
+            L6: 'الحصة التعلمية 6',
+            L7: 'الحصة التعلمية 7',
+            L8: 'الحصة التعلمية 8',
+            I2: 'الحصة الإدماجية 2',
+            S: 'تقويم تحصيلي',
+          };
           const objectiveCoverage = calculateObjectiveBankCoverage(
             selectedLevelId,
             field.fieldId,
@@ -745,6 +771,25 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                   </div>
                 </div>
               )}
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3">
+                <p className="text-[11px] font-extrabold text-indigo-950">
+                  تسلسل المقطع التعلمي — 12 مرجعاً تربوياً
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {planningV2References.map((reference) => (
+                    <span
+                      key={reference.referenceSessionId}
+                      className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${reference.lessonType === 'LEARNING' && reference.objectiveId ? 'border-indigo-300 bg-white text-indigo-950' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
+                    >
+                      {planningV2Labels[reference.slot]}
+                      {reference.lessonType === 'INTEGRATIVE' &&
+                      reference.coveredReferenceIds?.length
+                        ? ` — يغطي ${reference.coveredReferenceIds.length} حصص`
+                        : ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
               {objectiveCoverage.total > 0 && (
                 <details className="rounded-xl border border-sky-200 bg-sky-50/70 p-3 print:hidden">
                   <summary className="cursor-pointer text-[11px] font-extrabold text-sky-950">
@@ -819,7 +864,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                             ? null
                             : {
                                 fieldId: field.fieldId,
-                                objectiveCount: String(objectives.length),
+                                objectiveCount: '8',
                                 integrationCount: String(integrationPoints.length),
                                 mode: 'reorganize',
                                 generationMode: objectiveBank.length > 0 ? 'auto' : 'structure',

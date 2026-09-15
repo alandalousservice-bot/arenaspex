@@ -59,7 +59,7 @@ import {
   PRIMARY_PLANNING_LEVEL_IDS,
 } from '../services/teacherPlanning.service.js';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../data/algerianCurriculum.js';
-import { getObjectiveBank } from '../data/objectiveBankRegistry.js';
+import { getObjectiveBank, getObjectiveBankItem } from '../data/objectiveBankRegistry.js';
 import { getAcademicCalendar, isValidAcademicSchoolDate } from '../data/academicCalendars.js';
 import { generateLessonMemoDraft } from '../services/lessonMemoGeneration.service.js';
 import {
@@ -5256,6 +5256,16 @@ apiRouter.post('/teacher/learning-plan', requireRole('teacher'), async (req, res
     return res.status(400).json({ error: 'المستوى لا يطابق خطة الأستاذ.' });
   }
   const plan = normalizeTeacherLearningPlan(parsed.data.plan);
+  for (const domain of plan.domains) {
+    for (const objective of domain.objectives) {
+      if (
+        objective.sourceReferenceId &&
+        !getObjectiveBankItem(normalizedLevelId, domain.fieldId, objective.sourceReferenceId)
+      ) {
+        return res.status(400).json({ error: 'الهدف المقترح لا ينتمي إلى سياق الميدان المحدد.' });
+      }
+    }
+  }
   const referencedIds = plan.domains.flatMap((domain) =>
     domain.objectives
       .map((objective) => objective.teacherObjectiveId)
