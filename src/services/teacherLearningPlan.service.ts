@@ -32,6 +32,7 @@ const objectiveSchema = z.object({
   orderIndex: z.number().int().positive(),
   isPlaceholder: z.boolean().optional(),
   sourceReferenceId: z.string().trim().max(240).nullable().optional(),
+  teacherObjectiveId: z.string().trim().max(240).nullable().optional(),
   curriculumResourceIds: z.array(z.string().trim().min(1).max(240)).max(40).optional(),
   transversalResourceIds: z.array(z.string().trim().min(1).max(240)).max(20).optional(),
   competencyComponentIds: z.array(z.string().trim().min(1).max(240)).max(12).optional(),

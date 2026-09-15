@@ -499,6 +499,7 @@ export interface TeacherLearningObjective {
   orderIndex: number;
   isPlaceholder?: boolean;
   sourceReferenceId?: string | null;
+  teacherObjectiveId?: string | null;
   curriculumResourceIds?: string[];
   transversalResourceIds?: string[];
   competencyComponentIds?: string[];
@@ -730,6 +731,16 @@ export interface LessonPlan {
     sequenceIndex?: number;
     fieldName?: string;
   }>;
+  objectiveSnapshot?: {
+    id: string;
+    source: 'CANONICAL' | 'LEGACY_EMBEDDED' | 'TEACHER_OBJECTIVE';
+    text: string;
+    gradeId: string;
+    domainId: string;
+    finalCompetencyId: string;
+    sourceReferenceId?: string;
+    teacherObjectiveId?: string;
+  };
   manualEdits?: boolean;
   generatedAt?: string;
   generationWarnings?: Array<{

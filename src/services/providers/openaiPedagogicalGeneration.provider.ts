@@ -65,6 +65,13 @@ const candidateSchema = {
   },
 } as const;
 
+const objectiveSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: { objectiveText: { type: 'string' } },
+  required: ['objectiveText'],
+} as const;
+
 const promptFor = (context: PedagogicalGenerationContext) =>
   JSON.stringify({
     instruction:
@@ -202,9 +209,15 @@ export class OpenAIPedagogicalGenerationProvider implements PedagogicalGeneratio
         text: {
           format: {
             type: 'json_schema',
-            name: 'pedagogical_situation_candidate',
+            name:
+              context.intent === 'GENERATE_OBJECTIVE' || context.intent === 'REFORMULATE_OBJECTIVE'
+                ? 'pedagogical_objective_candidate'
+                : 'pedagogical_situation_candidate',
             strict: true,
-            schema: candidateSchema,
+            schema:
+              context.intent === 'GENERATE_OBJECTIVE' || context.intent === 'REFORMULATE_OBJECTIVE'
+                ? objectiveSchema
+                : candidateSchema,
           },
         },
       });

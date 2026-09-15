@@ -26,6 +26,7 @@ import {
   fetchTeacherAnnualMemoSources,
   fetchTeacherPlanningSessions,
   initializeTeacherPlanningSessions,
+  generateScheduledLessonMemo,
   requestPedagogicalSituationGeneration,
   TeacherAnnualMemoSource,
   TeacherPlanningSession,
@@ -172,6 +173,7 @@ function sourceFromPlanningReference(
     typeLabel: reference.sessionTypeLabel,
     objective: reference.objective,
     objectiveId: reference.objectiveId,
+    teacherObjectiveId: reference.teacherObjectiveId,
     objectiveGroupId: reference.objectiveGroupId,
     relatedObjectiveIds: reference.relatedObjectiveIds,
     referenceSessionId: reference.referenceSessionId,
@@ -751,7 +753,9 @@ export const LessonPlanView: React.FC<LessonPlanViewProps> = ({
               teacherNotes: independentTeacherNotes,
             })
           : operationalContextForGeneration
-            ? generateLessonMemoDraft(operationalContextForGeneration)
+            ? await generateScheduledLessonMemo(
+                operationalContextForGeneration.classPlannedSessionId!
+              )
             : annualContextForGeneration
               ? generateLessonMemoDraft(annualContextForGeneration)
               : autoGenerateLessonPlan(source, {

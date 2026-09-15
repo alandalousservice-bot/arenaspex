@@ -64,6 +64,12 @@ const candidateSchema = {
   ],
 } as const;
 
+const objectiveSchema = {
+  type: 'OBJECT',
+  properties: { objectiveText: { type: 'STRING' } },
+  required: ['objectiveText'],
+} as const;
+
 const safeContext = (context: PedagogicalGenerationContext) => ({
   gradeId: context.gradeId,
   domainId: context.domainId,
@@ -119,7 +125,10 @@ export class GeminiPedagogicalGenerationProvider implements PedagogicalGeneratio
                   {
                     text: JSON.stringify({
                       instruction:
-                        'أعد موقفًا تربويًا بالعربية وفق السياق المرجعي فقط. أعد JSON مطابقًا للمخطط، ولا تغيّر أي معرف canonical.',
+                        context.intent === 'GENERATE_OBJECTIVE' ||
+                        context.intent === 'REFORMULATE_OBJECTIVE'
+                          ? 'أعد صياغة هدف تربوي واحد بالعربية فقط داخل JSON بالمخطط المحدد.'
+                          : 'أعد موقفًا تربويًا بالعربية وفق السياق المرجعي فقط. أعد JSON مطابقًا للمخطط، ولا تغيّر أي معرف canonical.',
                       context: safeContext(context),
                     }),
                   },
@@ -129,7 +138,11 @@ export class GeminiPedagogicalGenerationProvider implements PedagogicalGeneratio
             generationConfig: {
               temperature: 0.2,
               responseMimeType: 'application/json',
-              responseSchema: candidateSchema,
+              responseSchema:
+                context.intent === 'GENERATE_OBJECTIVE' ||
+                context.intent === 'REFORMULATE_OBJECTIVE'
+                  ? objectiveSchema
+                  : candidateSchema,
             },
           }),
         }

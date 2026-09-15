@@ -61,6 +61,7 @@ import {
 import { COMPLETE_ANNUAL_CURRICULUM } from '../data/algerianCurriculum.js';
 import { getObjectiveBank } from '../data/objectiveBankRegistry.js';
 import { getAcademicCalendar, isValidAcademicSchoolDate } from '../data/academicCalendars.js';
+import { generateLessonMemoDraft } from '../services/lessonMemoGeneration.service.js';
 import {
   isCanonicalAcademicYearId,
   isPreLaunchAcademicYear,
@@ -94,6 +95,10 @@ import {
   validateTeacherObjectiveContext,
   type TeacherObjectiveDraft,
 } from '../services/teacherObjective.service.js';
+import {
+  resolveObjective,
+  type TeacherObjectiveRecord,
+} from '../services/objectiveResolver.service.js';
 import {
   generatePedagogicalSituationAsync,
   type PedagogicalSituationGenerationRequest,
@@ -475,6 +480,7 @@ type PlanningReference = {
   finalCompetency: string;
   learningSectionId: string;
   objectiveId: string | null;
+  teacherObjectiveId?: string | null;
   objectiveGroupId: string | null;
   relatedObjectiveIds?: string[];
   objective: string;
@@ -531,6 +537,7 @@ function buildPlanningReferenceMap(
         finalCompetency: fields[reference.domainId]?.finalCompetency || '',
         learningSectionId: reference.learningSectionId,
         objectiveId: reference.objectiveId,
+        teacherObjectiveId: reference.teacherObjectiveId,
         objectiveGroupId: reference.objectiveGroupId,
         objective: reference.objective,
         sessionType: reference.sessionType,
@@ -1201,6 +1208,96 @@ apiRouter.get(
     });
   }
 );
+
+// Scheduled memo generation is deliberately server-authoritative. The client
+// supplies only the operational session identity; planning and objective data
+// are resolved from the authenticated teacher's records here.
+apiRouter.post('/teacher/lesson-memos/generate', requireRole('teacher'), async (req, res) => {
+  const sessionId =
+    typeof req.body?.classPlannedSessionId === 'string' ? req.body.classPlannedSessionId : '';
+  if (!sessionId) return res.status(400).json({ error: 'الحصة المبرمجة مطلوبة.' });
+  const session = await prisma.classPlannedSession.findFirst({
+    where: { id: sessionId, teacherId: req.user!.id },
+  });
+  if (!session) return res.status(404).json({ error: 'الحصة المبرمجة غير موجودة ضمن سجلاتك.' });
+  const classRecord = await prisma.studentClass.findFirst({
+    where: { id: session.classId, teacherId: req.user!.id },
+    select: { id: true, name: true, levelId: true },
+  });
+  if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+  const mode = await grade4WeeklyScheduleModeForClass(classRecord.id, session.academicYearId);
+  const references = await resolvePlanningReferences(
+    classRecord.levelId,
+    req.user!.id,
+    session.academicYearId,
+    mode
+  );
+  const reference =
+    references.get(session.referenceSessionId) ||
+    references.get(basePlanningReferenceId(session.referenceSessionId));
+  if (!reference) return res.status(409).json({ error: 'تعذر حل مرجع الحصة من خطة الأستاذ.' });
+  let teacherObjective: TeacherObjectiveRecord | undefined;
+  if (reference.teacherObjectiveId) {
+    const row = await prisma.teacherObjective.findFirst({
+      where: { id: reference.teacherObjectiveId, ownerId: req.user!.id },
+      select: {
+        id: true,
+        ownerId: true,
+        gradeId: true,
+        domainId: true,
+        finalCompetencyId: true,
+        text: true,
+      },
+    });
+    if (
+      !row ||
+      row.gradeId !== classRecord.levelId ||
+      row.domainId !== reference.domainId ||
+      row.finalCompetencyId !== `fc_${row.gradeId}_${row.domainId}`
+    )
+      return res.status(403).json({ error: 'الهدف الخاص غير متاح ضمن نطاقك.' });
+    teacherObjective = row;
+  }
+  const field = COMPLETE_ANNUAL_CURRICULUM[classRecord.levelId]?.fields[reference.domainId];
+  const source = {
+    fieldId: reference.domainId,
+    fieldName: reference.fieldName,
+    finalCompetency: reference.finalCompetency,
+    segmentGoal: reference.objective,
+    sessionNumber: reference.fieldSessionNumber,
+    globalNumber: reference.sequenceIndex,
+    weekNumber: Math.ceil(reference.sequenceIndex / 2),
+    type: reference.sessionType as any,
+    typeLabel: reference.sessionTypeLabel,
+    objective: reference.objective,
+    objectiveId: reference.objectiveId,
+    teacherObjectiveId: reference.teacherObjectiveId,
+    objectiveGroupId: reference.objectiveGroupId,
+    relatedObjectiveIds: reference.relatedObjectiveIds,
+    referenceSessionId: reference.referenceSessionId,
+    tools: field?.suggestedTools || [],
+  };
+  try {
+    const draft = generateLessonMemoDraft({
+      teacher: req.user as any,
+      classId: classRecord.id,
+      academicYearId: session.academicYearId,
+      classPlannedSessionId: session.id,
+      levelName: classRecord.levelId,
+      className: classRecord.name,
+      plannedDate: session.plannedDate.toISOString().slice(0, 10),
+      durationMinutes: session.durationMinutes,
+      plannedStartTime: session.startTime,
+      venue: session.venue,
+      source,
+      teacherObjective,
+      grade4WeeklyScheduleMode: mode,
+    });
+    return res.json({ success: true, lessonPlan: draft });
+  } catch {
+    return res.status(400).json({ error: 'تعذر توليد المذكرة المبرمجة.' });
+  }
+});
 
 apiRouter.get('/teacher/planning/annual-distribution', requireRole('teacher'), async (req, res) => {
   const parsed = classPlanningQuerySchema.safeParse(req.query);
@@ -3125,6 +3222,7 @@ const pedagogicalGenerationRequest = z.object({
   domainId: z.string().trim().min(1),
   finalCompetencyId: z.string().trim().nullable().optional(),
   objectiveIds: z.array(z.string().trim()).max(20).default([]),
+  objectiveText: z.string().trim().max(1000).optional(),
   lessonType: z.enum(['LEARNING', 'INTEGRATIVE', 'DIAGNOSTIC', 'SUMMATIVE']),
   motorSkills: z.array(z.string().trim()).max(30).default([]),
   requirements: z.array(z.string().trim()).max(30).default([]),
@@ -4500,6 +4598,82 @@ function jsonCollectionRoutes(opts: {
     });
     return Boolean(planned);
   };
+  const validateTeacherObjectiveReferences = async (
+    item: Record<string, unknown>,
+    user: { id: string }
+  ) => {
+    if (path !== 'lesson-plans') return true;
+    const refs = [
+      ...(Array.isArray(item.pedagogicalPartReferences) ? item.pedagogicalPartReferences : []),
+      ...(item.objectiveSnapshot && typeof item.objectiveSnapshot === 'object'
+        ? [item.objectiveSnapshot]
+        : []),
+    ].filter((value): value is Record<string, unknown> =>
+      Boolean(value && typeof value === 'object')
+    );
+    const ids = [
+      ...new Set(
+        refs
+          .map((ref) => ref.teacherObjectiveId)
+          .filter((id): id is string => typeof id === 'string' && Boolean(id))
+      ),
+    ];
+    if (!ids.length) return true;
+    const rows = await prisma.teacherObjective.findMany({
+      where: { id: { in: ids }, ownerId: user.id },
+      select: { id: true, gradeId: true, domainId: true, finalCompetencyId: true },
+    });
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const levelId =
+      typeof item.levelId === 'string' ? normalizePrimaryLevelId(item.levelId) : undefined;
+    return refs.every((ref) => {
+      const row = byId.get(String(ref.teacherObjectiveId));
+      return Boolean(
+        row &&
+        (!levelId || row.gradeId === levelId) &&
+        (typeof ref.domainId !== 'string' || row.domainId === ref.domainId) &&
+        (typeof ref.finalCompetencyId !== 'string' ||
+          row.finalCompetencyId === ref.finalCompetencyId)
+      );
+    });
+  };
+  const hydrateTeacherObjectiveSnapshot = async (
+    item: Record<string, unknown>,
+    user: { id: string }
+  ) => {
+    if (path !== 'lesson-plans') return item;
+    const snapshot = item.objectiveSnapshot;
+    if (!snapshot || typeof snapshot !== 'object') return item;
+    const ref = snapshot as Record<string, unknown>;
+    if (typeof ref.teacherObjectiveId !== 'string') return item;
+    const levelId =
+      typeof item.levelId === 'string' ? normalizePrimaryLevelId(item.levelId) : undefined;
+    const row = await prisma.teacherObjective.findFirst({
+      where: { id: ref.teacherObjectiveId, ownerId: user.id },
+      select: {
+        id: true,
+        ownerId: true,
+        gradeId: true,
+        domainId: true,
+        finalCompetencyId: true,
+        text: true,
+      },
+    });
+    if (!row || !levelId) throw new Error('OBJECTIVE_PRIVATE_REFERENCE_INVALID');
+    const resolved = resolveObjective(
+      levelId,
+      row.domainId,
+      {
+        id: row.id,
+        text: row.text,
+        orderIndex: 0,
+        teacherObjectiveId: row.id,
+        sourceReferenceId: null,
+      },
+      row
+    );
+    return { ...item, objectiveSnapshot: resolved };
+  };
   const canWrite = (existing: DbRecord | null, user: { id: string; role: string }) =>
     canWriteRecord(existing, user, ownerField);
 
@@ -4532,7 +4706,8 @@ function jsonCollectionRoutes(opts: {
     }
     if (
       !(await validatePlannedLesson(item as Record<string, unknown>, req.user!)) ||
-      !(await validateNotebookSession(item as Record<string, unknown>, req.user!))
+      !(await validateNotebookSession(item as Record<string, unknown>, req.user!)) ||
+      !(await validateTeacherObjectiveReferences(item as Record<string, unknown>, req.user!))
     ) {
       return res.status(403).json({ error: 'الحصة التشغيلية غير موجودة ضمن أقسامك.' });
     }
@@ -4565,9 +4740,14 @@ function jsonCollectionRoutes(opts: {
       }
     }
 
-    const safeItem = transformCreate
+    let safeItem = transformCreate
       ? transformCreate({ ...(item as Record<string, unknown>) }, req.user!)
       : item;
+    try {
+      safeItem = await hydrateTeacherObjectiveSnapshot(safeItem, req.user!);
+    } catch {
+      return res.status(403).json({ error: 'الهدف الخاص غير متاح ضمن نطاقك.' });
+    }
     const data: Record<string, unknown> = { data: safeItem };
     // لا يمكن تغيير مالك السجل عند التعديل (منع انتحال الملكية)؛ عند الإنشاء يُنسب دائماً
     // لصاحب الطلب ما لم يكن الحقل يمثّل طرفاً آخر (مثل مستلم الإشعار)
@@ -4613,6 +4793,12 @@ function jsonCollectionRoutes(opts: {
             continue;
           }
           if (!(await validateNotebookSession(item as Record<string, unknown>, req.user!))) {
+            outcome.skipped += 1;
+            continue;
+          }
+          if (
+            !(await validateTeacherObjectiveReferences(item as Record<string, unknown>, req.user!))
+          ) {
             outcome.skipped += 1;
             continue;
           }
@@ -5070,6 +5256,34 @@ apiRouter.post('/teacher/learning-plan', requireRole('teacher'), async (req, res
     return res.status(400).json({ error: 'المستوى لا يطابق خطة الأستاذ.' });
   }
   const plan = normalizeTeacherLearningPlan(parsed.data.plan);
+  const referencedIds = plan.domains.flatMap((domain) =>
+    domain.objectives
+      .map((objective) => objective.teacherObjectiveId)
+      .filter((id): id is string => Boolean(id))
+  );
+  if (referencedIds.length) {
+    const owned = await prisma.teacherObjective.findMany({
+      where: { id: { in: [...new Set(referencedIds)] }, ownerId: req.user!.id },
+      select: { id: true, gradeId: true, domainId: true, finalCompetencyId: true },
+    });
+    const ownedById = new Map(owned.map((item) => [item.id, item]));
+    for (const domain of plan.domains) {
+      for (const objective of domain.objectives) {
+        if (!objective.teacherObjectiveId) continue;
+        const record = ownedById.get(objective.teacherObjectiveId);
+        if (
+          !record ||
+          record.gradeId !== normalizedLevelId ||
+          record.domainId !== domain.fieldId ||
+          record.finalCompetencyId !== `fc_${normalizedLevelId}_${domain.fieldId}`
+        ) {
+          return res
+            .status(403)
+            .json({ error: 'لا يمكن استخدام هدف خاص بأستاذ آخر أو بسياق مختلف.' });
+        }
+      }
+    }
+  }
   const saved = await prisma.annualPlan.upsert({
     where: {
       teacherId_academicYearId_levelId_kind: {

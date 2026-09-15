@@ -40,6 +40,7 @@ export interface AutoGenerateSessionSource {
   /** الهدف المعتمد في التوزيع السنوي؛ لا يعاد توليده أو استبداله هنا. */
   objective: string;
   objectiveId?: string | null;
+  teacherObjectiveId?: string | null;
   objectiveGroupId?: string | null;
   relatedObjectiveIds?: string[];
   tools: string[];

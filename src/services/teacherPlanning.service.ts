@@ -49,6 +49,7 @@ export interface CanonicalPlanningSession {
   domainId: string;
   learningSectionId: string;
   objectiveId: string | null;
+  teacherObjectiveId?: string | null;
   objectiveGroupId: string | null;
   sequenceIndex: number;
   fieldSessionNumber: number;
@@ -98,6 +99,7 @@ export interface AnnualDistributionPedagogicalUnit {
   fieldName: string;
   objective: string;
   objectiveId: string | null;
+  teacherObjectiveId?: string | null;
   objectiveGroupId: string | null;
   meetingCount: 1 | 2;
   meetings: AnnualDistributionPedagogicalMeeting[];
@@ -113,6 +115,7 @@ export interface AnnualDistributionWeeklySlot {
   fieldId: string;
   fieldName: string;
   objectiveId: string | null;
+  teacherObjectiveId?: string | null;
   objectiveGroupId: string | null;
   meetingIndex: 1 | 2 | null;
   durationMinutes: number;
@@ -216,6 +219,7 @@ export function buildAnnualDistributionWeeks(
       fieldName: source.fieldName || session.fieldName || session.domainId,
       objective,
       objectiveId: source.objectiveId ?? session.objectiveId,
+      teacherObjectiveId: session.teacherObjectiveId ?? null,
       objectiveGroupId,
       meetingCount,
       meetings:
@@ -242,6 +246,7 @@ export function buildAnnualDistributionWeeks(
           fieldId: unit.fieldId,
           fieldName: unit.fieldName,
           objectiveId: unit.objectiveId,
+          teacherObjectiveId: unit.teacherObjectiveId,
           objectiveGroupId: unit.objectiveGroupId,
           meetingIndex: null,
           durationMinutes: unit.durationMinutes,
@@ -257,6 +262,7 @@ export function buildAnnualDistributionWeeks(
       fieldId: unit.fieldId,
       fieldName: unit.fieldName,
       objectiveId: unit.objectiveId,
+      teacherObjectiveId: unit.teacherObjectiveId,
       objectiveGroupId: unit.objectiveGroupId,
       meetingIndex: meeting.meetingIndex,
       durationMinutes: unit.durationMinutes,
@@ -460,6 +466,7 @@ type TeacherPlanSequenceItem = {
   sessionTypeLabel: string;
   objective: string;
   objectiveId: string | null;
+  teacherObjectiveId?: string | null;
   objectiveGroupId: string | null;
   fieldSessionNumber: number;
   referenceKey: string;
@@ -524,6 +531,7 @@ function teacherPlanSequence(
       sessionTypeLabel: string,
       objective: string,
       objectiveId: string | null,
+      teacherObjectiveId: string | null,
       objectiveGroupId: string | null,
       referenceKey: string
     ) => {
@@ -538,6 +546,7 @@ function teacherPlanSequence(
         sessionTypeLabel,
         objective,
         objectiveId,
+        teacherObjectiveId,
         objectiveGroupId,
         fieldSessionNumber: fieldSessionNumber++,
         referenceKey,
@@ -548,6 +557,7 @@ function teacherPlanSequence(
       'تقويم تشخيصي',
       'تقويم تشخيصي',
       officialSessionText(field, 'تقويم تشخيصي'),
+      null,
       null,
       `teacher-diagnostic:${levelId}:${fieldId}`,
       'diagnostic'
@@ -568,6 +578,7 @@ function teacherPlanSequence(
           point.label,
           point.objective?.trim() || officialSessionText(field, 'إدماجية', point.label),
           null,
+          null,
           point.id,
           `integration:${point.id}`
         );
@@ -584,6 +595,7 @@ function teacherPlanSequence(
           objectiveLabel,
           objective.text,
           objective.id,
+          objective.teacherObjectiveId ?? null,
           objective.id,
           meetingCount === 1
             ? `objective:${objective.id}`
@@ -596,6 +608,7 @@ function teacherPlanSequence(
       'تقويم تحصيلي',
       'تقويم تحصيلي',
       officialSessionText(field, 'تقويم تحصيلي'),
+      null,
       null,
       `teacher-summative:${levelId}:${fieldId}`,
       'summative'
@@ -730,6 +743,7 @@ export function canonicalPlanningSessions(
       domainId: item.domainId,
       learningSectionId: `${canonicalLevelId}:${item.domainId}`,
       objectiveId: item.objectiveId,
+      teacherObjectiveId: item.teacherObjectiveId,
       objectiveGroupId: item.objectiveGroupId,
       sequenceIndex: index + 1,
       fieldSessionNumber: item.fieldSessionNumber,

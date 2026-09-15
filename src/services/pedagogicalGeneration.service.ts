@@ -20,6 +20,7 @@ export interface PedagogicalSituationGenerationRequest {
   domainId: string;
   finalCompetencyId?: string | null;
   objectiveIds: string[];
+  objectiveText?: string;
   lessonType: EducationalSituationLessonType;
   motorSkills: string[];
   requirements: string[];
@@ -49,6 +50,7 @@ export interface PedagogicalGenerationContext {
   readonly finalCompetencyId: string;
   readonly finalCompetency: string;
   readonly objectiveIds: readonly string[];
+  readonly objectiveText: string;
   readonly objectiveLabels: readonly string[];
   readonly objectiveRequirements: readonly string[];
   readonly objectiveExecutionContent: readonly string[];
@@ -215,6 +217,7 @@ export function buildPedagogicalGenerationContext(
     finalCompetencyId,
     finalCompetency: field.finalCompetency,
     objectiveIds,
+    objectiveText: clean(request.objectiveText),
     objectiveLabels,
     objectiveRequirements: unique(objectiveRequirements),
     objectiveExecutionContent: unique(
@@ -367,6 +370,14 @@ export function validatePedagogicalCandidate(
 ): PedagogicalGenerationValidation {
   const errors: string[] = [];
   const normalized = normalizePedagogicalCandidate(candidate);
+  if (context.intent === 'GENERATE_OBJECTIVE' || context.intent === 'REFORMULATE_OBJECTIVE') {
+    if (!normalized.objectiveText?.trim()) errors.push('GENERATION_OBJECTIVE_OUTPUT_INCOMPLETE');
+    if (normalized.gradeId !== context.gradeId || normalized.domainId !== context.domainId)
+      errors.push('GENERATION_SCOPE_MISMATCH');
+    if (normalized.finalCompetencyId !== context.finalCompetencyId)
+      errors.push('GENERATION_COMPETENCY_MISMATCH');
+    return { status: errors.length ? 'INVALID' : 'VALID', errors, warnings: [] };
+  }
   if (
     !normalized.title ||
     !normalized.description ||

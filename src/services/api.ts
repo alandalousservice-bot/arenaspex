@@ -634,6 +634,7 @@ export interface TeacherPlanningReference {
   finalCompetency: string;
   learningSectionId: string;
   objectiveId: string | null;
+  teacherObjectiveId?: string | null;
   objectiveGroupId: string | null;
   relatedObjectiveIds?: string[];
   objective: string;
@@ -1824,6 +1825,18 @@ export async function syncLessonPlanToDB(lessonPlan: unknown) {
   const result = await offlinePost('/api/db/lesson-plans', { lessonPlan }, 'POST');
   if (!result.success) throw new Error('LESSON_MEMO_PERSISTENCE_FAILED');
   return result;
+}
+
+export async function generateScheduledLessonMemo(classPlannedSessionId: string) {
+  const response = await fetch('/api/teacher/lesson-memos/generate', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ classPlannedSessionId }),
+  });
+  const body = await response.json();
+  if (!response.ok || !body.lessonPlan)
+    throw new Error(body.error || 'LESSON_MEMO_GENERATION_FAILED');
+  return body.lessonPlan;
 }
 
 export async function syncLessonPlansBatchToDB(lessonPlans: unknown[]) {

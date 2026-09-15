@@ -6,6 +6,7 @@ import {
 } from './lessonPlan.generator.service';
 import { EducationalSituation } from '../types/spex';
 import type { CanonicalAssessmentScope } from '../domain/pedagogicalKnowledge/assessmentScopeAdapter';
+import { resolveObjective, type TeacherObjectiveRecord } from './objectiveResolver.service';
 
 export interface LessonMemoGenerationContext {
   teacher: User;
@@ -25,6 +26,7 @@ export interface LessonMemoGenerationContext {
   situations?: EducationalSituation[];
   assessmentScope?: CanonicalAssessmentScope;
   previousSituationIds?: string[];
+  teacherObjective?: TeacherObjectiveRecord;
 }
 
 export function resolveMemoGenerationContext(
@@ -39,6 +41,9 @@ export function resolveMemoGenerationContext(
   if (!context.source.referenceSessionId) {
     throw new Error('MEMO_GENERATION_REFERENCE_INVALID');
   }
+  if (context.source.teacherObjectiveId && !context.teacherObjective) {
+    throw new Error('OBJECTIVE_PRIVATE_REFERENCE_INVALID');
+  }
   if (!Number.isFinite(context.durationMinutes) || context.durationMinutes <= 0) {
     throw new Error('MEMO_GENERATION_DURATION_INVALID');
   }
@@ -47,6 +52,24 @@ export function resolveMemoGenerationContext(
 
 export function generateLessonMemoDraft(context: LessonMemoGenerationContext): LessonPlan {
   const resolved = resolveMemoGenerationContext(context);
+  const objectiveResolution = resolved.source.teacherObjectiveId
+    ? resolveObjective(
+        resolved.source.fieldId === 'f_locomotion' ||
+          resolved.source.fieldId === 'f_fundamentals' ||
+          resolved.source.fieldId === 'f_structuring'
+          ? `lvl_p${String(resolved.levelName).match(/[1-5]/)?.[0] || '1'}`
+          : `lvl_p${String(resolved.levelName).match(/[1-5]/)?.[0] || '1'}`,
+        resolved.source.fieldId,
+        {
+          id: resolved.source.teacherObjectiveId,
+          text: resolved.source.objective,
+          orderIndex: 0,
+          sourceReferenceId: null,
+          teacherObjectiveId: resolved.source.teacherObjectiveId,
+        },
+        resolved.teacherObjective
+      )
+    : undefined;
   const generationContext: AutoGenerateContext = {
     teacher: resolved.teacher,
     className: resolved.className,
@@ -66,7 +89,14 @@ export function generateLessonMemoDraft(context: LessonMemoGenerationContext): L
     grade4WeeklyScheduleMode: resolved.grade4WeeklyScheduleMode,
     pedagogicalParts: resolved.pedagogicalParts,
   };
-  return autoGenerateLessonPlan(resolved.source, generationContext);
+  const plan = autoGenerateLessonPlan(resolved.source, generationContext);
+  if (!objectiveResolution) return plan;
+  return {
+    ...plan,
+    generalObjective: objectiveResolution.text,
+    sessionTitle: objectiveResolution.text,
+    objectiveSnapshot: objectiveResolution,
+  };
 }
 
 /**
