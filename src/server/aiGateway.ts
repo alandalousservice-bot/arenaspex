@@ -9,9 +9,11 @@
 
 import { prisma } from './prismaClient.js';
 import { decryptApiKey } from './auth.js';
+import { configuredGeminiModel } from '../services/providers/geminiRuntimeConfig.js';
 
 type ChatRole = 'system' | 'user' | 'assistant';
-export type AIProviderType = 'openai' | 'nvidia' | 'anthropic' | 'gemini' | 'openai-compatible' | 'ollama';
+export type AIProviderType =
+  'openai' | 'nvidia' | 'anthropic' | 'gemini' | 'openai-compatible' | 'ollama';
 export type AIProviderId = string;
 
 export interface AIProviderRecord {
@@ -77,7 +79,7 @@ function envProviderRecords(): AIProviderRecord[] {
       model: env('NVIDIA_MODEL') || 'meta/llama-3.1-8b-instruct',
       enabled: Boolean(env('NVIDIA_API_KEY')),
       source: 'env',
-      keyConfigured: Boolean(env('NVIDIA_API_KEY'))
+      keyConfigured: Boolean(env('NVIDIA_API_KEY')),
     },
     {
       id: 'openai',
@@ -88,7 +90,7 @@ function envProviderRecords(): AIProviderRecord[] {
       model: env('OPENAI_MODEL') || 'gpt-4o-mini',
       enabled: Boolean(env('OPENAI_API_KEY')),
       source: 'env',
-      keyConfigured: Boolean(env('OPENAI_API_KEY'))
+      keyConfigured: Boolean(env('OPENAI_API_KEY')),
     },
     {
       id: 'anthropic',
@@ -98,17 +100,18 @@ function envProviderRecords(): AIProviderRecord[] {
       model: env('ANTHROPIC_MODEL') || 'claude-3-5-haiku-latest',
       enabled: Boolean(env('ANTHROPIC_API_KEY')),
       source: 'env',
-      keyConfigured: Boolean(env('ANTHROPIC_API_KEY'))
+      keyConfigured: Boolean(env('ANTHROPIC_API_KEY')),
     },
     {
       id: 'gemini',
       name: 'Google Gemini',
       type: 'gemini',
       apiKey: env('GEMINI_API_KEY'),
-      model: env('GEMINI_MODEL') || 'gemini-2.5-flash',
+      model: configuredGeminiModel(),
       enabled: Boolean(env('GEMINI_API_KEY')) && env('GEMINI_API_KEY') !== 'MY_GEMINI_API_KEY',
       source: 'env',
-      keyConfigured: Boolean(env('GEMINI_API_KEY')) && env('GEMINI_API_KEY') !== 'MY_GEMINI_API_KEY'
+      keyConfigured:
+        Boolean(env('GEMINI_API_KEY')) && env('GEMINI_API_KEY') !== 'MY_GEMINI_API_KEY',
     },
     {
       id: 'openai-compatible',
@@ -120,7 +123,7 @@ function envProviderRecords(): AIProviderRecord[] {
       // المفتاح اختياري: يدعم الخوادم المحلية/الخاصة بلا مصادقة (Ollama, LM Studio, vLLM...)
       enabled: Boolean(env('AI_COMPATIBLE_BASE_URL') && env('AI_COMPATIBLE_MODEL')),
       source: 'env',
-      keyConfigured: Boolean(env('AI_COMPATIBLE_API_KEY'))
+      keyConfigured: Boolean(env('AI_COMPATIBLE_API_KEY')),
     },
     {
       id: 'ollama',
@@ -131,8 +134,8 @@ function envProviderRecords(): AIProviderRecord[] {
       model: env('OLLAMA_MODEL') || 'llama3',
       enabled: env('OLLAMA_ENABLED') === 'true' || env('OLLAMA_ENABLED') === '1',
       source: 'env',
-      keyConfigured: false
-    }
+      keyConfigured: false,
+    },
   ];
   return records;
 }
@@ -142,7 +145,9 @@ function envProviderRecords(): AIProviderRecord[] {
 // -----------------------------------------------------------------------
 async function dbProviderRecords(): Promise<AIProviderRecord[]> {
   try {
-    const rows = await prisma.aIProviderConfig.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
+    const rows = await prisma.aIProviderConfig.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    });
     return rows.map((row) => {
       let apiKey: string | undefined;
       let keyConfigured = false;
@@ -163,12 +168,15 @@ async function dbProviderRecords(): Promise<AIProviderRecord[]> {
         model: row.model || undefined,
         enabled: row.enabled,
         source: 'db' as const,
-        keyConfigured
+        keyConfigured,
       };
     });
   } catch (err) {
     // قاعدة البيانات غير مهيأة/غير متاحة — نكتفي بمزودات البيئة دون تعطيل المنصة
-    console.warn('[AI Gateway] تعذّر قراءة مزودات AI من قاعدة البيانات (سيُستخدم مزودات البيئة فقط):', err);
+    console.warn(
+      '[AI Gateway] تعذّر قراءة مزودات AI من قاعدة البيانات (سيُستخدم مزودات البيئة فقط):',
+      err
+    );
     return [];
   }
 }
@@ -206,7 +214,12 @@ export function getAIProviderStatusSync() {
 // محوّلات الاستدعاء حسب النوع
 // -----------------------------------------------------------------------
 function parseJson(text: string): unknown {
-  const cleaned = text.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+  const cleaned = text
+    .trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```$/i, '')
+    .trim();
   return JSON.parse(cleaned);
 }
 
@@ -223,17 +236,20 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, tim
 async function callOpenAICompatible(config: ProviderConfig, req: AIRequest): Promise<AIResult> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
-  const response = await fetchWithTimeout(`${config.baseUrl!.replace(/\/$/, '')}/chat/completions`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      model: config.model,
-      messages: req.messages,
-      temperature: req.temperature ?? 0.7,
-      max_tokens: req.maxTokens ?? 4000,
-      ...(req.json ? { response_format: { type: 'json_object' } } : {})
-    })
-  });
+  const response = await fetchWithTimeout(
+    `${config.baseUrl!.replace(/\/$/, '')}/chat/completions`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: config.model,
+        messages: req.messages,
+        temperature: req.temperature ?? 0.7,
+        max_tokens: req.maxTokens ?? 4000,
+        ...(req.json ? { response_format: { type: 'json_object' } } : {}),
+      }),
+    }
+  );
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`${config.type} ${response.status}: ${JSON.stringify(data)}`);
   const text = data?.choices?.[0]?.message?.content;
@@ -242,52 +258,72 @@ async function callOpenAICompatible(config: ProviderConfig, req: AIRequest): Pro
 }
 
 async function callAnthropic(config: ProviderConfig, req: AIRequest): Promise<AIResult> {
-  const system = req.messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
-  const messages = req.messages.filter((m) => m.role !== 'system').map((m) => ({
-    role: m.role === 'assistant' ? 'assistant' : 'user',
-    content: m.content
-  }));
+  const system = req.messages
+    .filter((m) => m.role === 'system')
+    .map((m) => m.content)
+    .join('\n\n');
+  const messages = req.messages
+    .filter((m) => m.role !== 'system')
+    .map((m) => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: m.content,
+    }));
   const response = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': config.apiKey!,
-      'anthropic-version': '2023-06-01'
+      'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
       model: config.model,
       max_tokens: req.maxTokens ?? 4000,
       temperature: req.temperature ?? 0.7,
       ...(system ? { system } : {}),
-      messages
-    })
+      messages,
+    }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`anthropic ${response.status}: ${JSON.stringify(data)}`);
-  const text = Array.isArray(data?.content) ? data.content.filter((x: any) => x.type === 'text').map((x: any) => x.text).join('') : '';
+  const text = Array.isArray(data?.content)
+    ? data.content
+        .filter((x: any) => x.type === 'text')
+        .map((x: any) => x.text)
+        .join('')
+    : '';
   if (!text) throw new Error('anthropic: empty response');
   return { text, provider: config.id, model: config.model || '' };
 }
 
 async function callGemini(config: ProviderConfig, req: AIRequest): Promise<AIResult> {
-  const contents = req.messages.filter((m) => m.role !== 'system').map((m) => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }]
-  }));
-  const systemInstruction = req.messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
-  const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model!)}:generateContent?key=${encodeURIComponent(config.apiKey!)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ...(systemInstruction ? { systemInstruction: { parts: [{ text: systemInstruction }] } } : {}),
-      contents,
-      generationConfig: {
-        temperature: req.temperature ?? 0.7,
-        maxOutputTokens: req.maxTokens ?? 4000,
-        ...(req.json ? { responseMimeType: 'application/json' } : {})
-      }
-    })
-  });
+  const contents = req.messages
+    .filter((m) => m.role !== 'system')
+    .map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+  const systemInstruction = req.messages
+    .filter((m) => m.role === 'system')
+    .map((m) => m.content)
+    .join('\n\n');
+  const response = await fetchWithTimeout(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model!)}:generateContent?key=${encodeURIComponent(config.apiKey!)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...(systemInstruction
+          ? { systemInstruction: { parts: [{ text: systemInstruction }] } }
+          : {}),
+        contents,
+        generationConfig: {
+          temperature: req.temperature ?? 0.7,
+          maxOutputTokens: req.maxTokens ?? 4000,
+          ...(req.json ? { responseMimeType: 'application/json' } : {}),
+        },
+      }),
+    }
+  );
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`gemini ${response.status}: ${JSON.stringify(data)}`);
   const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('');
@@ -301,8 +337,22 @@ async function callProvider(config: ProviderConfig, req: AIRequest): Promise<AIR
   return callOpenAICompatible(config, req);
 }
 
-export async function generateAIWithUserCredential(req: AIRequest, credential: UserCredentialRuntime): Promise<AIResult> {
-  return callProvider({ id: credential.source === 'platform_fallback' ? 'platform-fallback-gemini' : 'user-account-gemini', type: 'gemini', apiKey: credential.apiKey, model: credential.model || env('GEMINI_MODEL') || 'gemini-2.5-flash' }, req);
+export async function generateAIWithUserCredential(
+  req: AIRequest,
+  credential: UserCredentialRuntime
+): Promise<AIResult> {
+  return callProvider(
+    {
+      id:
+        credential.source === 'platform_fallback'
+          ? 'platform-fallback-gemini'
+          : 'user-account-gemini',
+      type: 'gemini',
+      apiKey: credential.apiKey,
+      model: configuredGeminiModel(credential.model),
+    },
+    req
+  );
 }
 
 // -----------------------------------------------------------------------
@@ -315,8 +365,12 @@ export async function generateAI(req: AIRequest): Promise<AIResult> {
     throw new Error('لا يوجد مزود ذكاء اصطناعي مفعّل. أضف مفتاحاً في ملف .env أو من لوحة المشرف.');
   }
 
-  const preferred = req.preferredProvider ? available.filter((p) => p.id === req.preferredProvider) : [];
-  const fallback = available.filter((p) => !req.preferredProvider || p.id !== req.preferredProvider);
+  const preferred = req.preferredProvider
+    ? available.filter((p) => p.id === req.preferredProvider)
+    : [];
+  const fallback = available.filter(
+    (p) => !req.preferredProvider || p.id !== req.preferredProvider
+  );
   const ordered = [...preferred, ...fallback];
   const errors: string[] = [];
 
@@ -327,7 +381,10 @@ export async function generateAI(req: AIRequest): Promise<AIResult> {
         type: provider.type,
         apiKey: provider.apiKey,
         baseUrl: provider.baseUrl,
-        model: req.preferredModel && provider.id === req.preferredProvider ? req.preferredModel : provider.model
+        model:
+          req.preferredModel && provider.id === req.preferredProvider
+            ? req.preferredModel
+            : provider.model,
       };
       return await callProvider(selected, req);
     } catch (error) {
@@ -340,18 +397,24 @@ export async function generateAI(req: AIRequest): Promise<AIResult> {
   throw new Error(`All configured AI providers failed: ${errors.join(' | ')}`);
 }
 
-export async function testAIProvider(providerId: AIProviderId): Promise<{ valid: boolean; message: string; provider: AIProviderId }> {
+export async function testAIProvider(
+  providerId: AIProviderId
+): Promise<{ valid: boolean; message: string; provider: AIProviderId }> {
   const records = await allAIProviderRecords();
   const provider = records.find((p) => p.id === providerId);
   if (!provider?.enabled) {
-    return { valid: false, message: 'المزود غير مفعّل أو بياناته غير مكتملة.', provider: providerId };
+    return {
+      valid: false,
+      message: 'المزود غير مفعّل أو بياناته غير مكتملة.',
+      provider: providerId,
+    };
   }
   try {
     const result = await generateAI({
       preferredProvider: providerId,
       messages: [{ role: 'user', content: 'Reply with exactly: SPEX_OK' }],
       maxTokens: 10,
-      temperature: 0
+      temperature: 0,
     });
     const directHit = result.provider === providerId && result.text.trim().length > 0;
     const message = directHit
@@ -359,7 +422,11 @@ export async function testAIProvider(providerId: AIProviderId): Promise<{ valid:
       : `فشل المزود ${provider.name || providerId} وتم التحويل تلقائياً إلى ${result.provider}.`;
     return { valid: directHit, message, provider: providerId };
   } catch {
-    return { valid: false, message: 'فشل الاتصال بالمزود. تحقق من الرابط والمفتاح والنموذج وحدود الاستخدام.', provider: providerId };
+    return {
+      valid: false,
+      message: 'فشل الاتصال بالمزود. تحقق من الرابط والمفتاح والنموذج وحدود الاستخدام.',
+      provider: providerId,
+    };
   }
 }
 

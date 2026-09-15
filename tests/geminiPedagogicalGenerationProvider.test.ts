@@ -66,21 +66,20 @@ describe('governed Gemini provider', () => {
   it('resolves Gemini without selecting OpenAI and preserves canonical fields', async () => {
     vi.stubEnv('PEDAGOGICAL_GENERATION_PROVIDER', 'gemini');
     vi.stubEnv('GEMINI_API_KEY', 'test-only-key');
+    vi.stubEnv('GEMINI_PEDAGOGICAL_MODEL', 'gemini-3.6-flash');
     expect(resolveConfiguredPedagogicalGenerationProvider()).toBeInstanceOf(
       GeminiPedagogicalGenerationProvider
     );
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response(
-            JSON.stringify({
-              candidates: [{ content: { parts: [{ text: JSON.stringify(candidate) }] } }],
-            }),
-            { status: 200 }
-          )
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            candidates: [{ content: { parts: [{ text: JSON.stringify(candidate) }] } }],
+          }),
+          { status: 200 }
         )
+      )
     );
     const result = await new GeminiPedagogicalGenerationProvider().generateAsync(context);
     expect(result.gradeId).toBe(context.gradeId);
@@ -88,6 +87,8 @@ describe('governed Gemini provider', () => {
     expect(result.servedObjectiveIds).toEqual(context.objectiveIds);
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain('generateContent');
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain('/gemini-3.6-flash:');
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).not.toContain('gemini-2.5-flash');
   });
 
   it('fails safely when Gemini configuration is missing', () => {

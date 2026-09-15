@@ -333,7 +333,13 @@ function buildMainRows(
     };
   }
   const isLearning = canonicalLessonType === 'LEARNING';
-  const count = isLearning ? (hasComplexObjective(session.objective) ? 3 : 2) : 1;
+  const count = isLearning
+    ? mainMinutes < 40
+      ? 1
+      : hasComplexObjective(session.objective)
+        ? 3
+        : 2
+    : 1;
   const minutes = Array.from(
     { length: count },
     (_, index) => Math.floor(mainMinutes / count) + (index < mainMinutes % count ? 1 : 0)

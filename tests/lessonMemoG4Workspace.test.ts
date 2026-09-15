@@ -119,9 +119,7 @@ describe('MEMO-G4 teacher workspace contract', () => {
     expect(plan.generationWarnings?.map((warning) => warning.code)).toContain(
       'NO_ELIGIBLE_SITUATION'
     );
-    expect(plan.lessonRows?.some((row) => row.learningContent.includes('اختيار موقف تربوي'))).toBe(
-      true
-    );
+    expect(plan.lessonRows?.some((row) => row.learningContent.includes('مسودة مكملة'))).toBe(true);
     expect(
       plan.lessonRows?.every((row) => !row.executionContent.includes('ينفذ كل متعلم الحركة'))
     ).toBe(true);

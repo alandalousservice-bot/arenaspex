@@ -527,7 +527,7 @@ export const INITIAL_AI_LOGS: AILog[] = [
     userId: 'usr_teacher_1',
     userName: 'أحمد بن علي',
     provider: 'Google Gemini',
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3.6-flash',
     module: 'توليد مذكرة حصة',
     promptSummary: 'توليد مذكرة للألعاب الحركية والتوافق الحركي لمستوى 1 ابتدائي',
     tokensUsed: 1120,

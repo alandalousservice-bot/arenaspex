@@ -998,7 +998,7 @@ export interface InspectionVisit {
 // AI Engine Settings & Logs
 export interface AISetting {
   provider: 'gemini' | 'openai' | 'claude' | 'deepseek' | 'groq' | 'ollama';
-  activeModel: string; // e.g. gemini-2.5-flash
+  activeModel: string; // e.g. gemini-3.6-flash
   apiKeyConfigured: boolean;
   temperature: number;
   maxTokens: number;

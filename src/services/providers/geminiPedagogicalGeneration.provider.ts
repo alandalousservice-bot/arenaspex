@@ -3,6 +3,7 @@ import type {
   PedagogicalGenerationContext,
   PedagogicalGenerationProvider,
 } from '../pedagogicalGeneration.service.js';
+import { configuredGeminiModel } from './geminiRuntimeConfig.js';
 
 const candidateSchema = {
   type: 'OBJECT',
@@ -85,7 +86,7 @@ const safeContext = (context: PedagogicalGenerationContext) => ({
 export class GeminiPedagogicalGenerationProvider implements PedagogicalGenerationProvider {
   constructor(
     private readonly apiKey = process.env.GEMINI_API_KEY,
-    private readonly model = process.env.GEMINI_PEDAGOGICAL_MODEL || 'gemini-2.5-flash'
+    private readonly model = configuredGeminiModel()
   ) {
     if (!apiKey) throw new Error('GENERATION_API_KEY_MISSING');
   }
