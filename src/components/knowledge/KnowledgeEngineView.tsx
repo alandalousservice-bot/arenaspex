@@ -317,6 +317,9 @@ export const KnowledgeEngineView: React.FC<KnowledgeEngineViewProps> = ({
           pedagogicalTags: suggestionDraft.tags || [],
           difficulty: 'متوسط',
           durationMinutes: suggestionDraft.durationMinutes,
+          activityType: 'PEDAGOGICAL_ACTIVITY',
+          approvalStatus: 'PERSONAL',
+          productionEligibility: 'REVIEW_ONLY',
         }),
       });
       const body = await response.json();

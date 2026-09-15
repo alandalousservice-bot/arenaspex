@@ -51,6 +51,7 @@ export interface EducationalSituationSelectionInput {
   requirements?: string[];
   assessmentScope?: CanonicalAssessmentScope;
   maxSituations?: number;
+  ownerId?: string;
 }
 
 export interface AssessmentScopeCoverage {
@@ -139,13 +140,24 @@ export const referenceSituations: EducationalSituation[] = (seed as SeedSituatio
   })
 );
 
-export function isAutoGenerationEligible(situation: EducationalSituation): boolean {
+export function isAutoGenerationEligible(
+  situation: EducationalSituation,
+  ownerId?: string
+): boolean {
   const productionEligibility =
     situation.productionEligibility ??
     (situation.origin === 'TEACHER' ? 'AUTO_GENERATION_ELIGIBLE' : undefined);
+  const personal = Boolean(
+    ownerId &&
+    situation.ownerId === ownerId &&
+    situation.status === 'PRIVATE' &&
+    situation.approvalStatus === 'PERSONAL' &&
+    productionEligibility !== 'SOURCE_ARCHIVE_ONLY'
+  );
   return (
-    (situation.approvalStatus ?? situation.status) === 'APPROVED' &&
-    productionEligibility === 'AUTO_GENERATION_ELIGIBLE'
+    personal ||
+    ((situation.approvalStatus ?? situation.status) === 'APPROVED' &&
+      productionEligibility === 'AUTO_GENERATION_ELIGIBLE')
   );
 }
 
@@ -398,11 +410,13 @@ export function selectEducationalSituations(
   const excluded: ExcludedSituationCandidate[] = [];
   const eligible: SituationSelectionCandidate[] = [];
   for (const situation of items) {
-    if ((situation.approvalStatus ?? situation.status) !== 'APPROVED') {
+    const personalOwnerSituation =
+      situation.ownerId === input.ownerId && situation.status === 'PRIVATE';
+    if (!personalOwnerSituation && (situation.approvalStatus ?? situation.status) !== 'APPROVED') {
       excluded.push({ situationId: situation.id, reason: 'NOT_APPROVED' });
       continue;
     }
-    if (!isAutoGenerationEligible(situation)) {
+    if (!isAutoGenerationEligible(situation, input.ownerId)) {
       excluded.push({ situationId: situation.id, reason: 'NOT_AUTO_ELIGIBLE' });
       continue;
     }

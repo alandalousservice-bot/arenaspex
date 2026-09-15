@@ -274,6 +274,7 @@ function buildMainRows(
     previousSituationIds: ctx.previousSituationIds,
     availableEquipment: session.tools,
     maxSituations: Math.max(1, Math.min(3, Math.floor(mainMinutes / 20))),
+    ownerId: ctx.teacher?.id,
   });
   const hasExplicitObjectiveMatch =
     objectiveIds.length > 0 ||

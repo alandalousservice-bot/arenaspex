@@ -674,6 +674,7 @@ export interface EducationalSituation {
   rejectionReason?: string;
   createdAt?: string;
   updatedAt?: string;
+  usageCount?: number;
 }
 export interface EducationalSituationSnapshot {
   situationId: string;

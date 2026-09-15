@@ -87,6 +87,7 @@ import {
 import { deleteOwnedStudent, StudentDeletionError } from '../services/studentDeletion.service.js';
 import { buildStudentRosterReadModel } from '../services/studentRosterReadModel.service.js';
 import { persistStudentRosterRows } from '../services/studentRosterPersistence.service.js';
+import { collectSituationUsageCounts } from '../services/situationUsage.service.js';
 import {
   generatePedagogicalSituationAsync,
   type PedagogicalSituationGenerationRequest,
@@ -3237,12 +3238,17 @@ apiRouter.get('/educational-situations', async (req, res) => {
       },
     },
   });
+  const savedLessonPlans = await prisma.lessonPlan.findMany({
+    select: { ownerId: true, data: true },
+  });
+  const usageCounts = collectSituationUsageCounts(savedLessonPlans);
   const visibleRows = rows.filter(
     (row) => row.status === 'APPROVED' || row.ownerId === user.id || canReviewSituation(user.role)
   );
   res.json({
     situations: visibleRows.map(({ objectives, ...row }) => ({
       ...row,
+      usageCount: usageCounts.get(row.id) ?? 0,
       relationTypes: objectives.map((objective) => objective.relationType),
     })),
   });
@@ -3258,6 +3264,8 @@ apiRouter.post('/educational-situations', async (req, res) => {
       ...(input as any),
       origin: 'TEACHER',
       status: 'PRIVATE',
+      approvalStatus: 'PERSONAL',
+      productionEligibility: 'REVIEW_ONLY',
       ownerId: user.id,
     },
   });
