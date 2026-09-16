@@ -1,7 +1,7 @@
 import { knowledgeCoreRuntime } from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime';
 import { getObjectiveBank } from '../data/objectiveBankRegistry';
 
-export type LearningLessonCount = 7 | 8;
+export type LearningLessonCount = 6 | 7 | 8;
 
 export interface LearningObjectivePathRequest {
   teacherId?: string;
@@ -27,7 +27,7 @@ export interface LearningObjectivePath {
 }
 
 const isSupportedCount = (value: number): value is LearningLessonCount =>
-  value === 7 || value === 8;
+  value === 6 || value === 7 || value === 8;
 
 function partition<T>(items: readonly T[], count: number): T[][] {
   return Array.from({ length: count }, (_, index) =>
@@ -85,7 +85,11 @@ export function generateLearningObjectivePath(
         label: item.objectiveText,
       }));
   if (!requirements.length) throw new Error('OBJECTIVE_PATH_CONTEXT_INVALID');
+  if (request.learningLessonCount > requirements.length)
+    throw new Error('PATH_NOT_PEDAGOGICALLY_FEASIBLE');
   const groups = partition(requirements, request.learningLessonCount);
+  if (groups.some((group) => group.length === 0))
+    throw new Error('PATH_NOT_PEDAGOGICALLY_FEASIBLE');
   const path: LearningObjectivePath = {
     learningLessonCount: request.learningLessonCount,
     gradeId: request.gradeId,

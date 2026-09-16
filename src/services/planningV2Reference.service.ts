@@ -37,7 +37,22 @@ export const PLANNING_V2_SEQUENCE_7 = [
   'I2',
   'S',
 ] as const;
-export type PlanningV2Slot = (typeof PLANNING_V2_SEQUENCE)[number];
+export const PLANNING_V2_SEQUENCE_6 = [
+  'D',
+  'L1',
+  'L2',
+  'L3',
+  'I1',
+  'L4',
+  'L5',
+  'L6',
+  'I2',
+  'S',
+] as const;
+export type PlanningV2Slot =
+  | (typeof PLANNING_V2_SEQUENCE)[number]
+  | (typeof PLANNING_V2_SEQUENCE_7)[number]
+  | (typeof PLANNING_V2_SEQUENCE_6)[number];
 export type PlanningV2ObjectiveSource = 'CANONICAL' | 'TEACHER_OBJECTIVE' | 'LEGACY_EMBEDDED';
 
 export interface PlanningV2Reference {
@@ -91,7 +106,11 @@ export function buildPlanningV2References(
           : 8)
       : 8;
   const activeSequence: readonly PlanningV2Slot[] =
-    learningLessonCount === 7 ? PLANNING_V2_SEQUENCE_7 : PLANNING_V2_SEQUENCE;
+    learningLessonCount === 6
+      ? PLANNING_V2_SEQUENCE_6
+      : learningLessonCount === 7
+        ? PLANNING_V2_SEQUENCE_7
+        : PLANNING_V2_SEQUENCE;
   const objectives =
     domainPlan(plan, domainId)
       ?.objectives.slice()
@@ -124,11 +143,15 @@ export function buildPlanningV2References(
       slot === 'D' ? 'DIAGNOSTIC' : slot === 'S' ? 'SUMMATIVE' : 'INTEGRATIVE';
     const coveredSlots =
       slot === 'I1'
-        ? ['L1', 'L2', 'L3', 'L4']
+        ? learningLessonCount === 6
+          ? ['L1', 'L2', 'L3']
+          : ['L1', 'L2', 'L3', 'L4']
         : slot === 'I2'
-          ? learningLessonCount === 7
-            ? ['L5', 'L6', 'L7']
-            : ['L5', 'L6', 'L7', 'L8']
+          ? learningLessonCount === 6
+            ? ['L4', 'L5', 'L6']
+            : learningLessonCount === 7
+              ? ['L5', 'L6', 'L7']
+              : ['L5', 'L6', 'L7', 'L8']
           : [];
     return {
       version: PLANNING_V2_VERSION,
@@ -153,7 +176,7 @@ export function buildPlanningV2References(
 
 export function markPlanningV2Plan<T extends TeacherLearningPlanData | TeacherLearningPlan>(
   plan: T,
-  learningLessonCount: 7 | 8 = 8
+  learningLessonCount: 6 | 7 | 8 = 8
 ): T {
   return { ...plan, planningVersion: PLANNING_V2_VERSION, learningLessonCount } as T;
 }

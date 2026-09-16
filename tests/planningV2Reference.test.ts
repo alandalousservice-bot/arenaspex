@@ -84,4 +84,35 @@ describe('Planning V2 reference contract', () => {
       )
     ).toEqual(['D', 'L1', 'L2', 'L3', 'L4', 'I1', 'L5', 'L6', 'L7', 'I2', 'S']);
   });
+
+  it('composes six learning references with 3+3 integrative coverage', () => {
+    const plan = markPlanningV2Plan(seedTeacherLearningPlan('lvl_p1'), 6);
+    const refs = buildPlanningV2References('lvl_p1', 'f_locomotion', plan);
+    expect(refs.filter((ref) => ref.lessonType === 'LEARNING')).toHaveLength(6);
+    expect(refs).toHaveLength(10);
+    expect(refs.find((ref) => ref.slot === 'I1')?.coveredReferenceIds).toHaveLength(3);
+    expect(refs.find((ref) => ref.slot === 'I2')?.coveredReferenceIds).toHaveLength(3);
+  });
+
+  it('preserves heterogeneous 7/6/6 counts across plan serialization and reload', () => {
+    const plan = markPlanningV2Plan(seedTeacherLearningPlan('lvl_p1'), 7);
+    const persisted = {
+      ...plan,
+      domains: plan.domains.map((domain, index) => ({
+        ...domain,
+        objectives: domain.objectives.slice(0, index === 0 ? 7 : 6),
+      })),
+    };
+    const reloaded = JSON.parse(JSON.stringify(persisted));
+    expect(reloaded.learningLessonCount).toBe(7);
+    const counts = [7, 6, 6];
+    const references = reloaded.domains.map((domain: { fieldId: string }, index: number) =>
+      buildPlanningV2References('lvl_p1', domain.fieldId, {
+        ...reloaded,
+        learningLessonCount: counts[index],
+      })
+    );
+    expect(references.map((items) => items.length)).toEqual([11, 10, 10]);
+    expect(references.flat().map((item) => item.referenceSessionId)).toHaveLength(31);
+  });
 });

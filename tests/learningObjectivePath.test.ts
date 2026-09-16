@@ -5,7 +5,7 @@ import {
 } from '../src/services/learningObjectivePath.service';
 
 describe('adaptive learning objective paths', () => {
-  it.each([7, 8] as const)('generates complete %s-lesson coverage', (count) => {
+  it.each([6, 7, 8] as const)('generates complete %s-lesson coverage', (count) => {
     const path = generateLearningObjectivePath({
       gradeId: 'lvl_p1',
       domainId: 'f_fundamentals',
@@ -24,7 +24,7 @@ describe('adaptive learning objective paths', () => {
         gradeId: 'lvl_p1',
         domainId: 'f_fundamentals',
         finalCompetencyId: 'fc_lvl_p1_f_fundamentals',
-        learningLessonCount: 6 as 7,
+        learningLessonCount: 5 as 6,
       })
     ).toThrow('OBJECTIVE_PATH_COUNT_UNSUPPORTED');
     expect(() =>

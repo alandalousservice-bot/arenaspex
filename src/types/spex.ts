@@ -553,7 +553,7 @@ export interface TeacherLearningPlanData {
   version: 1;
   /** Present only on plans explicitly edited through the Planning V2 workspace. */
   planningVersion?: 'planning-v2';
-  learningLessonCount?: 7 | 8;
+  learningLessonCount?: 6 | 7 | 8;
   levelId: string;
   domains: TeacherLearningPlanDomain[];
 }
