@@ -67,8 +67,8 @@ describe('Daily Notebook timetable materialization', () => {
     const classBPedagogical = classB.seeds.filter(
       (item) => !item.referenceSessionId.includes(':intro:')
     );
-    expect(classAPedagogical).toHaveLength(33);
-    expect(classBPedagogical).toHaveLength(33);
+    expect(classAPedagogical).toHaveLength(29);
+    expect(classBPedagogical).toHaveLength(29);
     expect(classA.seeds[0].plannedDate.toISOString().slice(0, 10)).toBe(
       classB.seeds[0].plannedDate.toISOString().slice(0, 10)
     );
@@ -185,7 +185,7 @@ describe('Daily Notebook timetable materialization', () => {
 
     const g4Pedagogical = g4.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
     const g5Pedagogical = g5.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
-    expect(g4Pedagogical).toHaveLength(33);
+    expect(g4Pedagogical).toHaveLength(29);
     expect(g4Pedagogical.every((item) => item.durationMinutes === 90)).toBe(true);
     expect(g5Pedagogical).toHaveLength(33);
     expect(g5Pedagogical.every((item) => item.durationMinutes === 60)).toBe(true);
@@ -228,7 +228,7 @@ describe('Daily Notebook timetable materialization', () => {
     );
 
     const pedagogical = result.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));
-    expect(pedagogical).toHaveLength(33);
+    expect(pedagogical).toHaveLength(29);
     expect(
       result.seeds.every((item) => item.plannedDate.toISOString().endsWith('T00:00:00.000Z'))
     ).toBe(true);

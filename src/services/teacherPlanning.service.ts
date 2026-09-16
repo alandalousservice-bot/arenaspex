@@ -523,6 +523,17 @@ function planningSessionsPerWeek(
   return usesLearningPairs(grade, grade4WeeklyScheduleMode) ? 2 : 1;
 }
 
+function defaultLearningLessonCount(
+  levelId: string,
+  fieldId: string,
+  objectiveCount: number
+): 6 | 7 | 8 {
+  if (levelId === 'lvl_p4') {
+    return fieldId === 'f_locomotion' ? 7 : 6;
+  }
+  return objectiveCount === 7 ? 7 : 8;
+}
+
 function teacherPlanSequence(
   levelId: string,
   plan: TeacherLearningPlan,
@@ -539,9 +550,12 @@ function teacherPlanSequence(
     const domain = plan.domains.find((item) => item.fieldId === fieldId);
     if (!field || !domain) continue;
     const activeLearningCount =
-      plan.planningVersion === 'planning-v2'
-        ? plan.learningLessonCount || (domain.objectives.length === 7 ? 7 : 8)
-        : domain.objectives.length;
+      plan.learningLessonCount ||
+      (levelId === 'lvl_p4'
+        ? defaultLearningLessonCount(levelId, fieldId, domain.objectives.length)
+        : plan.planningVersion === 'planning-v2'
+          ? defaultLearningLessonCount(levelId, fieldId, domain.objectives.length)
+          : domain.objectives.length);
     let fieldSessionNumber = 1;
     const add = (
       sessionType: TeacherPlanSequenceItem['sessionType'],

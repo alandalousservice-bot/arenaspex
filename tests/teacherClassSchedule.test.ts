@@ -84,7 +84,7 @@ describe('class-scoped Teacher planning sessions', () => {
         )
       ).toBe(30);
       expect(canonicalPlanningSessions(levelId, '2025-09-22')).toHaveLength(
-        ['lvl_p1', 'lvl_p2', 'lvl_p3', 'lvl_p4'].includes(levelId) ? 54 : 33
+        levelId === 'lvl_p4' ? 48 : ['lvl_p1', 'lvl_p2', 'lvl_p3'].includes(levelId) ? 54 : 33
       );
     }
     const reference = canonicalPlanningSessions('lvl_p1', '2025-09-22').find(

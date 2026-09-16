@@ -30,8 +30,8 @@ describe('Grade 4 mode-aware annual distribution', () => {
     const learning = level.sessions.filter((session) => session.sessionType === 'تعلمية');
     const objectives = learning.map((session) => session.objectiveId);
 
-    expect(learning).toHaveLength(21);
-    expect(new Set(objectives).size).toBe(21);
+    expect(learning).toHaveLength(19);
+    expect(new Set(objectives).size).toBe(19);
     expect(level.sessions.map((session) => session.sequenceIndex)).toEqual(
       level.sessions.map((_, index) => index + 1)
     );
@@ -48,11 +48,11 @@ describe('Grade 4 mode-aware annual distribution', () => {
       .flatMap((week) => week.slots)
       .filter((slot) => slot.sessionType === 'تعلمية');
 
-    expect(level.sessionCount).toBe(34);
-    expect(level.annualHours).toBe(49.5);
-    expect(summary.weekCount).toBe(34);
-    expect(summary.learningUnitCount).toBe(21);
-    expect(learningSlots).toHaveLength(21);
+    expect(level.sessionCount).toBe(30);
+    expect(level.annualHours).toBe(43.5);
+    expect(summary.weekCount).toBe(30);
+    expect(summary.learningUnitCount).toBe(19);
+    expect(learningSlots).toHaveLength(19);
     expect(learningSlots.every((slot) => slot.meetingIndex === null)).toBe(true);
     expect(learningSlots.some((slot) => /\(أ|ب\)/u.test(slot.displayLabel))).toBe(false);
   });
@@ -69,8 +69,8 @@ describe('Grade 4 mode-aware annual distribution', () => {
     );
     const pedagogical = seeds.filter((seed) => !seed.referenceSessionId.includes(':intro:'));
 
-    expect(pedagogical).toHaveLength(33);
-    expect(new Set(pedagogical.map((seed) => seed.referenceSessionId)).size).toBe(33);
+    expect(pedagogical).toHaveLength(29);
+    expect(new Set(pedagogical.map((seed) => seed.referenceSessionId)).size).toBe(29);
     expect(pedagogical.every((seed) => seed.durationMinutes === 90)).toBe(true);
     expect(lessonPhaseBudgetsForDuration(90)).toEqual({ warmup: 15, main: 65, final: 10 });
   });
@@ -91,9 +91,9 @@ describe('Grade 4 mode-aware annual distribution', () => {
       learning.some((session) => session.referenceSessionId === seed.referenceSessionId)
     );
 
-    expect(learning).toHaveLength(42);
-    expect(groups).toHaveLength(21);
-    expect(learningSeeds).toHaveLength(42);
+    expect(learning).toHaveLength(38);
+    expect(groups).toHaveLength(19);
+    expect(learningSeeds).toHaveLength(38);
     expect(learningSeeds.every((seed) => seed.durationMinutes === 45)).toBe(true);
     expect(lessonPhaseBudgetsForDuration(45)).toEqual({ warmup: 10, main: 30, final: 5 });
     for (const group of groups) {

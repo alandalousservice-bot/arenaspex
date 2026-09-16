@@ -15,7 +15,7 @@ describe('academic-year annual distribution generation v2', () => {
   it('generates all five canonical level distributions from one start date', () => {
     const result = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
     expect(result.levels.map((level) => level.levelId)).toEqual(levelIds);
-    expect(result.levels.map((level) => level.sessionCount)).toEqual([34, 34, 34, 34, 34]);
+    expect(result.levels.map((level) => level.sessionCount)).toEqual([34, 34, 34, 30, 34]);
     expect(result.levels.map((level) => level.durationMinutes)).toEqual([60, 60, 60, 90, 60]);
     expect(result.levels.every((level) => level.status === 'generated')).toBe(true);
   });
@@ -39,7 +39,7 @@ describe('academic-year annual distribution generation v2', () => {
   it('uses the selected academic-year end boundary when the calendar has a provisional end', () => {
     const result = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
     expect(result.endDate).toBe('2027-05-09');
-    expect(result.levels.map((level) => level.sessionCount)).toEqual([34, 34, 34, 34, 34]);
+    expect(result.levels.map((level) => level.sessionCount)).toEqual([34, 34, 34, 30, 34]);
     expect(result.endDate).toBe('2027-05-09');
   });
 
@@ -153,7 +153,7 @@ describe('academic-year annual distribution generation v2', () => {
 
     expect(classA).toHaveLength(54);
     expect(classB).toHaveLength(54);
-    expect(classC).toHaveLength(54);
+    expect(classC).toHaveLength(48);
     expect(classA.every((session) => session.classId === 'class-2a')).toBe(true);
     expect(classB.every((session) => session.classId === 'class-2b')).toBe(true);
     expect(classA.map((session) => session.referenceSessionId)).toEqual(
@@ -230,7 +230,7 @@ describe('academic-year annual distribution generation v2', () => {
     const startDateA = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
     const startDateB = generateAllPrimaryLevelDistributions('2025-2026', '2025-10-05');
 
-    expect(startDateB.levels.map((level) => level.sessionCount)).toEqual([34, 34, 34, 34, 34]);
+    expect(startDateB.levels.map((level) => level.sessionCount)).toEqual([34, 34, 34, 30, 34]);
     for (const levelId of levelIds) {
       const first = startDateA.levels.find((level) => level.levelId === levelId)!;
       const second = startDateB.levels.find((level) => level.levelId === levelId)!;

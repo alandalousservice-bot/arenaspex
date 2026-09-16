@@ -88,6 +88,17 @@ function domainPlan(
   return (plan as TeacherLearningPlanData).domains.find((domain) => domain.fieldId === domainId);
 }
 
+function defaultLearningLessonCount(
+  gradeId: string,
+  domainId: string,
+  objectiveCount: number
+): 6 | 7 | 8 {
+  if (gradeId === 'lvl_p4') {
+    return domainId === 'f_locomotion' ? 7 : 6;
+  }
+  return objectiveCount === 7 ? 7 : 8;
+}
+
 export function buildPlanningV2References(
   gradeId: string,
   domainId: string,
@@ -98,13 +109,22 @@ export function buildPlanningV2References(
   if (!curriculum || !field) throw new Error('PLANNING_V2_CONTEXT_INVALID');
   const plan = resolveTeacherLearningPlan(gradeId, teacherLearningPlan);
   const learningLessonCount =
-    teacherLearningPlan?.planningVersion === PLANNING_V2_VERSION
-      ? teacherLearningPlan.learningLessonCount ||
-        (teacherLearningPlan.domains.find((item) => item.fieldId === domainId)?.objectives
-          .length === 7
-          ? 7
-          : 8)
-      : 8;
+    teacherLearningPlan?.learningLessonCount ||
+    (gradeId === 'lvl_p4'
+      ? defaultLearningLessonCount(
+          gradeId,
+          domainId,
+          teacherLearningPlan?.domains.find((item) => item.fieldId === domainId)?.objectives
+            .length || 0
+        )
+      : teacherLearningPlan?.planningVersion === PLANNING_V2_VERSION
+        ? defaultLearningLessonCount(
+            gradeId,
+            domainId,
+            teacherLearningPlan.domains.find((item) => item.fieldId === domainId)?.objectives
+              .length || 0
+          )
+        : 8);
   const activeSequence: readonly PlanningV2Slot[] =
     learningLessonCount === 6
       ? PLANNING_V2_SEQUENCE_6

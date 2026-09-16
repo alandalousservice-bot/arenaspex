@@ -12,10 +12,12 @@ describe('Planning V2 reference contract', () => {
     'builds the approved 12-slot sequence for %s',
     (gradeId) => {
       const refs = buildAllPlanningV2References(gradeId, seedTeacherLearningPlan(gradeId));
-      expect(refs).toHaveLength(36);
-      expect(refs.filter((ref) => ref.domainId === 'f_locomotion').map((ref) => ref.slot)).toEqual([
-        ...PLANNING_V2_SEQUENCE,
-      ]);
+      expect(refs).toHaveLength(gradeId === 'lvl_p4' ? 31 : 36);
+      expect(refs.filter((ref) => ref.domainId === 'f_locomotion').map((ref) => ref.slot)).toEqual(
+        gradeId === 'lvl_p4'
+          ? ['D', 'L1', 'L2', 'L3', 'L4', 'I1', 'L5', 'L6', 'L7', 'I2', 'S']
+          : [...PLANNING_V2_SEQUENCE]
+      );
     }
   );
 
