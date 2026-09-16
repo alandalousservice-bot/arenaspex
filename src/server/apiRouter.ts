@@ -59,7 +59,7 @@ import {
   PRIMARY_PLANNING_LEVEL_IDS,
 } from '../services/teacherPlanning.service.js';
 import { COMPLETE_ANNUAL_CURRICULUM } from '../data/algerianCurriculum.js';
-import { getObjectiveBank, getObjectiveBankItem } from '../data/objectiveBankRegistry.js';
+import { getObjectiveBank } from '../data/objectiveBankRegistry.js';
 import { getAcademicCalendar, isValidAcademicSchoolDate } from '../data/academicCalendars.js';
 import { generateLessonMemoDraft } from '../services/lessonMemoGeneration.service.js';
 import {
@@ -744,7 +744,6 @@ async function annualDistributionLevelViews(
         ...(level.grade === 4 && grade4WeeklyScheduleMode ? { grade4WeeklyScheduleMode } : {}),
         status: level.status,
         error: level.error,
-        capacity: level.capacity,
         weeks,
       };
     })
@@ -1340,17 +1339,11 @@ apiRouter.get('/teacher/planning/annual-distribution', requireRole('teacher'), a
     selectedClass && normalizePrimaryLevelId(selectedClass.levelId) === 'lvl_p4'
       ? await grade4WeeklyScheduleModeForClass(selectedClass.id, parsed.data.academicYearId)
       : 'ONE_90';
-  const selectedClassSlots = selectedClass
-    ? await weeklySlotsForTeacher(req.user!.id, parsed.data.academicYearId).then((slots) =>
-        slots.filter((slot) => slot.classId === selectedClass.id)
-      )
-    : undefined;
   const generation = generateAllPrimaryLevelDistributions(
     parsed.data.academicYearId,
     planningStartDate,
     teacherLearningPlans,
-    grade4WeeklyScheduleMode,
-    selectedClassSlots
+    grade4WeeklyScheduleMode
   );
   const levels = await annualDistributionLevelViews(
     generation,
@@ -1531,13 +1524,11 @@ apiRouter.post(
       req.user!.id,
       academicYearId
     );
-    const timetableSlots = await weeklySlotsForTeacher(req.user!.id, academicYearId);
     const generation = generateAllPrimaryLevelDistributions(
       academicYearId,
       planningStartDate,
       teacherLearningPlans,
-      grade4WeeklyScheduleMode,
-      timetableSlots
+      grade4WeeklyScheduleMode
     );
     const levels = await annualDistributionLevelViews(
       generation,
@@ -1545,6 +1536,28 @@ apiRouter.post(
       [],
       grade4WeeklyScheduleMode
     );
+    if (generation.levels.some((level) => level.status === 'failed')) {
+      return res.status(400).json({
+        error: 'تعذر إنشاء توزيع جميع المستويات ضمن السنة الدراسية المحددة.',
+        academicYearId,
+        planningStartDate,
+        endDate: generation.endDate,
+        levels,
+        classes: [],
+        linkedClasses: 0,
+        createdOrUpdatedSessions: 0,
+        status: 'blocked',
+        classesProcessed: 0,
+        sessionsCreated: 0,
+        sessionsReconciled: 0,
+        sessionsUnchanged: 0,
+        sessionsProtected: 0,
+        sessionsRemovedOrRetired: 0,
+        missingTimetableClasses: [],
+        conflicts: [],
+      });
+    }
+
     const distributionsByLevel = new Map(
       generation.levels.map((distribution) => [distribution.levelId, distribution] as const)
     );
@@ -1563,8 +1576,7 @@ apiRouter.post(
           academicYearId,
           planningStartDate,
           teacherLearningPlans,
-          classMode,
-          timetableSlots.filter((slot) => slot.classId === classRecord.id)
+          classMode
         ).levels.find((item) => item.levelId === normalizedLevelId);
       }
       if (distribution) distributionsByClass.set(classRecord.id, distribution);
@@ -1576,9 +1588,9 @@ apiRouter.post(
       existingRows.map((row) => [`${row.classId}|${row.referenceSessionId}`, row] as const)
     );
     const classLinks = classLinkViews(classes, generation.levels, distributionsByClass);
-    const persistedTimetableSlots = await weeklySlotsForTeacher(req.user!.id, academicYearId);
-    const timetableSlotsByClass = new Map<string, typeof persistedTimetableSlots>();
-    for (const slot of persistedTimetableSlots) {
+    const timetableSlots = await weeklySlotsForTeacher(req.user!.id, academicYearId);
+    const timetableSlotsByClass = new Map<string, typeof timetableSlots>();
+    for (const slot of timetableSlots) {
       const current = timetableSlotsByClass.get(slot.classId) || [];
       current.push(slot);
       timetableSlotsByClass.set(slot.classId, current);
@@ -1789,37 +1801,35 @@ apiRouter.post(
     const existingDistributionData = new Map(
       existingDistributionPlans.map((plan) => [plan.levelId, plan.data] as const)
     );
-    const distributionRecords = generation.levels
-      .filter((level) => level.status === 'generated')
-      .map((level) => {
-        const data = annualDistributionPersistenceData(
-          existingDistributionData.get(level.levelId),
-          planningStartDate
-        );
-        return prisma.annualPlan.upsert({
-          where: {
-            teacherId_academicYearId_levelId_kind: {
-              teacherId: req.user!.id,
-              academicYearId,
-              levelId: level.levelId,
-              kind: ANNUAL_DISTRIBUTION_KIND,
-            },
-          },
-          create: {
-            id: `ad_${req.user!.id}_${academicYearId}_${level.levelId}`,
+    const distributionRecords = generation.levels.map((level) => {
+      const data = annualDistributionPersistenceData(
+        existingDistributionData.get(level.levelId),
+        planningStartDate
+      );
+      return prisma.annualPlan.upsert({
+        where: {
+          teacherId_academicYearId_levelId_kind: {
             teacherId: req.user!.id,
             academicYearId,
             levelId: level.levelId,
             kind: ANNUAL_DISTRIBUTION_KIND,
-            status: 'draft',
-            data,
           },
-          update: {
-            status: 'draft',
-            data,
-          },
-        });
+        },
+        create: {
+          id: `ad_${req.user!.id}_${academicYearId}_${level.levelId}`,
+          teacherId: req.user!.id,
+          academicYearId,
+          levelId: level.levelId,
+          kind: ANNUAL_DISTRIBUTION_KIND,
+          status: 'draft',
+          data,
+        },
+        update: {
+          status: 'draft',
+          data,
+        },
       });
+    });
     await prisma.$transaction([...distributionRecords, ...allOperations]);
 
     res.status(201).json({
@@ -1829,13 +1839,11 @@ apiRouter.post(
       endDate: generation.endDate,
       levels,
       classes: classLinks,
-      status: generation.levels.some((level) => level.status === 'failed')
+      status: materializationErrors.length
         ? 'partial'
-        : materializationErrors.length
-          ? 'partial'
-          : allOperations.length
-            ? 'rebuilt'
-            : 'unchanged',
+        : allOperations.length
+          ? 'rebuilt'
+          : 'unchanged',
       classesProcessed: linkedClasses,
       sessionsCreated,
       sessionsReconciled,
@@ -5248,16 +5256,6 @@ apiRouter.post('/teacher/learning-plan', requireRole('teacher'), async (req, res
     return res.status(400).json({ error: 'المستوى لا يطابق خطة الأستاذ.' });
   }
   const plan = normalizeTeacherLearningPlan(parsed.data.plan);
-  for (const domain of plan.domains) {
-    for (const objective of domain.objectives) {
-      if (
-        objective.sourceReferenceId &&
-        !getObjectiveBankItem(normalizedLevelId, domain.fieldId, objective.sourceReferenceId)
-      ) {
-        return res.status(400).json({ error: 'الهدف المقترح لا ينتمي إلى سياق الميدان المحدد.' });
-      }
-    }
-  }
   const referencedIds = plan.domains.flatMap((domain) =>
     domain.objectives
       .map((objective) => objective.teacherObjectiveId)

@@ -68,7 +68,7 @@ describe('Grade 4 / Domain 2 objective bank', () => {
     const plan = generateTeacherLearningSectionStructure(
       seedTeacherLearningPlan('lvl_p4'),
       DOMAIN,
-      6,
+      10,
       2,
       { mode: 'replace', objectiveFillMode: 'bank-auto', allowDestructiveReplacement: true }
     );
@@ -76,8 +76,8 @@ describe('Grade 4 / Domain 2 objective bank', () => {
     const sessions = canonicalPlanningSessions('lvl_p4', '2026-09-21', '2026-2027', 0, plan).filter(
       (item) => item.domainId === DOMAIN
     );
-    expect(generated.objectives).toHaveLength(6);
-    expect(sessions.filter((item) => item.sessionType === 'تعلمية')).toHaveLength(12);
+    expect(generated.objectives).toHaveLength(10);
+    expect(sessions.filter((item) => item.sessionType === 'تعلمية')).toHaveLength(20);
     expect(sessions.filter((item) => item.sessionType !== 'تعلمية')).toHaveLength(4);
     for (const objective of generated.objectives)
       expect(sessions.filter((item) => item.objectiveId === objective.id)).toHaveLength(2);

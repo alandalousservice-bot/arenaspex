@@ -15,7 +15,7 @@ describe('academic-year annual distribution generation v2', () => {
   it('generates all five canonical level distributions from one start date', () => {
     const result = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
     expect(result.levels.map((level) => level.levelId)).toEqual(levelIds);
-    expect(result.levels.map((level) => level.sessionCount)).toEqual([34, 34, 34, 30, 34]);
+    expect(result.levels.map((level) => level.sessionCount)).toEqual([34, 34, 34, 34, 34]);
     expect(result.levels.map((level) => level.durationMinutes)).toEqual([60, 60, 60, 90, 60]);
     expect(result.levels.every((level) => level.status === 'generated')).toBe(true);
   });
@@ -38,9 +38,16 @@ describe('academic-year annual distribution generation v2', () => {
 
   it('uses the selected academic-year end boundary when the calendar has a provisional end', () => {
     const result = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
-    expect(result.endDate).toBe('2027-05-09');
-    expect(result.levels.map((level) => level.sessionCount)).toEqual([34, 34, 34, 30, 34]);
-    expect(result.endDate).toBe('2027-05-09');
+    expect(result.endDate).toBe('2027-08-31');
+    expect(result.levels.map((level) => level.sessionCount)).toEqual([34, 34, 34, 34, 34]);
+    expect(
+      result.levels.every((level) =>
+        level.sessions.every(
+          (session) =>
+            session.plannedDate >= result.planningStartDate && session.plannedDate <= result.endDate
+        )
+      )
+    ).toBe(true);
   });
 
   it('uses the 2026-2027 calendar bounds for launch-year generation', () => {
@@ -48,7 +55,14 @@ describe('academic-year annual distribution generation v2', () => {
     const calendar = getAcademicCalendar('2026-2027');
     expect(result.academicYearId).toBe('2026-2027');
     expect(result.planningStartDate).toBe('2026-09-21');
-    expect(result.endDate).toBe(calendar.instructionalEndDate);
+    expect(
+      result.levels.every((level) =>
+        level.sessions.every(
+          (session) =>
+            session.plannedDate >= calendar.schoolStart && session.plannedDate <= result.endDate
+        )
+      )
+    ).toBe(true);
   });
 
   it('starts the pedagogical sequence in the operational week after entry', () => {
@@ -153,7 +167,7 @@ describe('academic-year annual distribution generation v2', () => {
 
     expect(classA).toHaveLength(54);
     expect(classB).toHaveLength(54);
-    expect(classC).toHaveLength(48);
+    expect(classC).toHaveLength(54);
     expect(classA.every((session) => session.classId === 'class-2a')).toBe(true);
     expect(classB.every((session) => session.classId === 'class-2b')).toBe(true);
     expect(classA.map((session) => session.referenceSessionId)).toEqual(
@@ -195,8 +209,8 @@ describe('academic-year annual distribution generation v2', () => {
     expect(globalRoute).toContain(
       'level-owned Annual Distribution is independent from class timing'
     );
-    expect(globalRoute).toContain('materializationErrors');
-    expect(globalRoute).toContain('missingTimetableClasses');
+    expect(globalRoute).toContain("status: materializationErrors.length ? 'partial'");
+    expect(globalRoute).toContain('missingTimetableClasses: materializationErrors');
     expect(router).toContain("'/teacher/planning/annual-distribution'");
     expect(router).toContain('ANNUAL_DISTRIBUTION_KIND');
   });
@@ -221,7 +235,7 @@ describe('academic-year annual distribution generation v2', () => {
     expect(router).toContain(
       "status: preLaunchRebuild && allOperations.length ? 'partial' : 'blocked'"
     );
-    expect(router).toContain('allOperations.length');
+    expect(router).toContain("allOperations.length ? 'rebuilt' : 'unchanged'");
     expect(router).toContain('missingTimetableClasses');
     expect(router).toContain('orphaned-generated-session');
   });
@@ -230,7 +244,7 @@ describe('academic-year annual distribution generation v2', () => {
     const startDateA = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21');
     const startDateB = generateAllPrimaryLevelDistributions('2025-2026', '2025-10-05');
 
-    expect(startDateB.levels.map((level) => level.sessionCount)).toEqual([34, 34, 34, 30, 34]);
+    expect(startDateB.levels.map((level) => level.sessionCount)).toEqual([34, 34, 34, 34, 34]);
     for (const levelId of levelIds) {
       const first = startDateA.levels.find((level) => level.levelId === levelId)!;
       const second = startDateB.levels.find((level) => level.levelId === levelId)!;

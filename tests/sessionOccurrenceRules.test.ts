@@ -27,7 +27,7 @@ const seedsForCanonicalGroup = (
 describe('authoritative session occurrence rules', () => {
   it('keeps annual distribution level/week based and leaves timetable details operational', () => {
     const annual = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
-    expect(annual.levels.map((level) => level.sessionCount)).toEqual([34, 34, 34, 30, 34]);
+    expect(annual.levels.map((level) => level.sessionCount)).toEqual([34, 34, 34, 34, 34]);
 
     const canonical = canonicalPlanningSessions('lvl_p4', '2026-09-21', '2026-2027');
     expect(canonical.every((session) => !Object.hasOwn(session, 'weekday'))).toBe(true);
@@ -38,16 +38,14 @@ describe('authoritative session occurrence rules', () => {
       'class-a',
       '2026-2027',
       canonical,
-      [slot(1), slot(3, '10:00', '11:00'), slot(4, '15:00', '16:00')],
-      'ONE_90'
+      [slot(1), slot(3, '10:00', '11:00')]
     );
     const tuesdayThursday = materializeClassPlannedSessionSeedsFromTimetable(
       'teacher-1',
       'class-b',
       '2026-2027',
       canonical,
-      [slot(2), slot(4, '10:00', '11:00'), slot(4, '15:00', '16:00')],
-      'ONE_90'
+      [slot(2), slot(4, '10:00', '11:00')]
     );
 
     expect(mondayWednesday.error).toBeUndefined();
@@ -148,8 +146,7 @@ describe('authoritative session occurrence rules', () => {
         `class-special-${levelId}`,
         '2026-2027',
         canonical,
-        [slot(1), slot(3, '10:00', '11:00'), slot(4, '15:00', '16:00')],
-        levelId === 'lvl_p4' ? 'ONE_90' : undefined
+        [slot(1), slot(3, '10:00', '11:00')]
       );
       const seeds = pedagogicalSeeds(result.seeds);
 
@@ -170,8 +167,7 @@ describe('authoritative session occurrence rules', () => {
       'class-p5',
       '2026-2027',
       canonical,
-      [slot(1), slot(4, '15:00', '16:00')],
-      'ONE_90'
+      [slot(1)]
     );
     const seeds = pedagogicalSeeds(result.seeds);
 
@@ -190,16 +186,14 @@ describe('authoritative session occurrence rules', () => {
       'class-a',
       '2026-2027',
       canonical,
-      [slot(1), slot(3), slot(4, '15:00', '16:00')],
-      'ONE_90'
+      [slot(1), slot(3)]
     );
     const classB = materializeClassPlannedSessionSeedsFromTimetable(
       'teacher-1',
       'class-b',
       '2026-2027',
       canonical,
-      [slot(2), slot(4), slot(0, '15:00', '16:00')],
-      'ONE_90'
+      [slot(2), slot(4)]
     );
     const canonicalReferences = new Set(canonical.map((session) => session.referenceSessionId));
     const baseReferences = (seeds: typeof classA.seeds) =>

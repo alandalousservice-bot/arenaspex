@@ -7,12 +7,6 @@ import { getCurrentAcademicYear } from './academicYear';
 import type { AnnualPlanObjectiveOverride } from '../types/spex';
 import { normalizePrimaryLevelId, type PrimaryLevelId } from './primaryLevel.service';
 import { getAcademicCalendar, isValidAcademicSchoolDate } from '../data/academicCalendars';
-import {
-  expandPlanningReferencesToOperationalEncounters,
-  enumerateOperationalEncounterOpportunities,
-  getInstructionalCalendarCapacity,
-  recommendLearningLessonCounts,
-} from './instructionalCalendarCapacity.service';
 import type { TeacherLearningPlanData } from '../types/spex';
 import type { Grade4WeeklyScheduleMode } from '../types/spex';
 import {
@@ -90,13 +84,6 @@ export interface AnnualLevelDistribution {
   sessions: CanonicalPlanningSession[];
   status: 'generated' | 'failed';
   error?: string;
-  capacity?: {
-    availableOperationalEncounters: number;
-    requiredOperationalEncounters: number;
-    shortfall: number;
-    instructionalEndDate: string | null;
-    recommendation?: { counts: Record<string, 6 | 7 | 8>; requiredEncounters: number };
-  };
 }
 
 export interface AnnualDistributionPedagogicalMeeting {
@@ -523,17 +510,6 @@ function planningSessionsPerWeek(
   return usesLearningPairs(grade, grade4WeeklyScheduleMode) ? 2 : 1;
 }
 
-function defaultLearningLessonCount(
-  levelId: string,
-  fieldId: string,
-  objectiveCount: number
-): 6 | 7 | 8 {
-  if (levelId === 'lvl_p4') {
-    return fieldId === 'f_locomotion' ? 7 : 6;
-  }
-  return objectiveCount === 7 ? 7 : 8;
-}
-
 function teacherPlanSequence(
   levelId: string,
   plan: TeacherLearningPlan,
@@ -549,13 +525,6 @@ function teacherPlanSequence(
     const field = curriculum.fields[fieldId];
     const domain = plan.domains.find((item) => item.fieldId === fieldId);
     if (!field || !domain) continue;
-    const activeLearningCount =
-      plan.learningLessonCount ||
-      (levelId === 'lvl_p4'
-        ? defaultLearningLessonCount(levelId, fieldId, domain.objectives.length)
-        : plan.planningVersion === 'planning-v2'
-          ? defaultLearningLessonCount(levelId, fieldId, domain.objectives.length)
-          : domain.objectives.length);
     let fieldSessionNumber = 1;
     const add = (
       sessionType: TeacherPlanSequenceItem['sessionType'],
@@ -617,7 +586,7 @@ function teacherPlanSequence(
     };
 
     addIntegrations(null);
-    domain.objectives.slice(0, activeLearningCount).forEach((objective, objectiveIndex) => {
+    domain.objectives.forEach((objective, objectiveIndex) => {
       const objectiveLabel = `تعلمية ${objectiveIndex + 1}`;
       const meetingCount = learningMeetingCount(grade, grade4WeeklyScheduleMode);
       for (let meetingIndex = 1; meetingIndex <= meetingCount; meetingIndex += 1) {
@@ -659,11 +628,7 @@ function nextValidPlanningDate(from: string, academicYearId?: string): string {
     const valid = academicYearId
       ? (() => {
           const calendar = getAcademicCalendar(academicYearId);
-          const endDate =
-            calendar.instructionalEndDate ||
-            calendar.schoolEnd ||
-            `${academicYearId.slice(5)}-08-31`;
-          if (!endDate) return isValidSchoolDate(toDate(value));
+          const endDate = calendar.schoolEnd || `${academicYearId.slice(5)}-08-31`;
           return (
             value >= calendar.schoolStart &&
             value <= endDate &&
@@ -743,8 +708,7 @@ export function canonicalPlanningSessions(
   academicYearId?: string,
   _teachingDayOfWeek = 0,
   teacherLearningPlan?: TeacherLearningPlanData | TeacherLearningPlan,
-  grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null,
-  enforceInstructionalEndDate = false
+  grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null
 ): CanonicalPlanningSession[] {
   const canonicalLevelId = normalizePrimaryLevelId(levelId);
   if (!canonicalLevelId) return [];
@@ -760,15 +724,14 @@ export function canonicalPlanningSessions(
     : planningStartDate;
   const scheduleStartDate =
     planningStartDate > minimumPedagogicalDate ? planningStartDate : minimumPedagogicalDate;
-  const schedule =
-    academicYearId && enforceInstructionalEndDate
-      ? buildBoundedAnnualSchedule(
-          sequence.length,
-          scheduleStartDate,
-          sessionsPerWeek,
-          academicYearId
-        )
-      : buildUnboundedAnnualSchedule(sequence.length, scheduleStartDate, sessionsPerWeek);
+  const schedule = academicYearId
+    ? buildBoundedAnnualSchedule(
+        sequence.length,
+        scheduleStartDate,
+        sessionsPerWeek,
+        academicYearId
+      )
+    : buildUnboundedAnnualSchedule(sequence.length, scheduleStartDate, sessionsPerWeek);
 
   return sequence.map((item, index) => {
     const slot = schedule[index];
@@ -802,52 +765,18 @@ function buildLevelDistribution(
   planningStartDate: string,
   academicYearId: string,
   teacherLearningPlan?: TeacherLearningPlanData | TeacherLearningPlan,
-  grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null,
-  weeklySlots?: WeeklyTimetablePlanningSlot[]
+  grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null
 ): AnnualLevelDistribution {
   let lastError = 'لا توجد سعة تقويمية كافية ضمن السنة الدراسية المحددة.';
   for (const teachingDayOfWeek of [0, 1, 2, 3, 4]) {
     try {
-      if (teacherLearningPlan && weeklySlots?.length) {
-        const plannedReferences = teacherPlanSequence(
-          levelId,
-          teacherLearningPlan,
-          grade4WeeklyScheduleMode
-        );
-        const operationalReferences = expandPlanningReferencesToOperationalEncounters(
-          plannedReferences.map((reference) => ({
-            referenceSessionId: reference.referenceKey,
-            lessonType: reference.sessionType,
-          })),
-          {
-            grade: Number(levelId.slice(-1)),
-            grade4WeeklyScheduleMode: grade4WeeklyScheduleMode || undefined,
-          }
-        );
-        const capacity = getInstructionalCalendarCapacity(
-          academicYearId,
-          planningStartDate,
-          operationalReferences.length,
-          operationalReferences.length && Number(levelId.slice(-1)) <= 3
-            ? 2
-            : Number(levelId.slice(-1)) === 4 && grade4WeeklyScheduleMode === 'TWO_45'
-              ? 2
-              : 1,
-          weeklySlots
-        );
-        if (!capacity.configurationRequired && !capacity.fits) {
-          lastError = 'لا توجد سعة تقويمية كافية لتوليد التوزيع السنوي ضمن السنة المحددة.';
-          continue;
-        }
-      }
       const sessions = canonicalPlanningSessions(
         levelId,
         planningStartDate,
         academicYearId,
         teachingDayOfWeek,
         teacherLearningPlan,
-        grade4WeeklyScheduleMode,
-        Boolean(weeklySlots?.length)
+        grade4WeeklyScheduleMode
       );
       if (!sessions.length) {
         lastError = 'لا توجد حصص بيداغوجية قابلة للتوليد للمستوى المحدد.';
@@ -886,58 +815,6 @@ function buildLevelDistribution(
     sessions: [],
     status: 'failed',
     error: lastError,
-    capacity: teacherLearningPlan
-      ? (() => {
-          const references = teacherPlanSequence(
-            levelId,
-            teacherLearningPlan,
-            grade4WeeklyScheduleMode
-          );
-          const required = expandPlanningReferencesToOperationalEncounters(
-            references.map((reference) => ({
-              referenceSessionId: reference.referenceKey,
-              lessonType: reference.sessionType,
-            })),
-            {
-              grade: Number(levelId.slice(-1)),
-              grade4WeeklyScheduleMode: grade4WeeklyScheduleMode || undefined,
-            }
-          ).length;
-          const result = getInstructionalCalendarCapacity(
-            academicYearId,
-            planningStartDate,
-            required,
-            Number(levelId.slice(-1)) <= 3 ||
-              (Number(levelId.slice(-1)) === 4 && grade4WeeklyScheduleMode === 'TWO_45')
-              ? 2
-              : 1,
-            weeklySlots
-          );
-          return {
-            availableOperationalEncounters: result.availableEncounters,
-            requiredOperationalEncounters: required,
-            shortfall: Math.max(0, required - result.availableEncounters),
-            instructionalEndDate:
-              result.lastAvailableInstructionalDate ||
-              getAcademicCalendar(academicYearId).instructionalEndDate,
-            recommendation:
-              recommendLearningLessonCounts(
-                [...new Set(references.map((reference) => reference.domainId))],
-                Object.fromEntries(
-                  references.map((reference) => [
-                    reference.domainId,
-                    teacherLearningPlan.domains.find(
-                      (domain) => domain.fieldId === reference.domainId
-                    )?.objectives?.length === 7
-                      ? 7
-                      : 8,
-                  ])
-                ) as Record<string, 6 | 7 | 8>,
-                result.availableEncounters
-              ) || undefined,
-          };
-        })()
-      : undefined,
   };
 }
 
@@ -945,8 +822,7 @@ export function generateAllPrimaryLevelDistributions(
   academicYearId: string,
   planningStartDate: string,
   teacherLearningPlans?: Map<string, TeacherLearningPlanData | TeacherLearningPlan>,
-  grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null,
-  weeklySlots?: WeeklyTimetablePlanningSlot[]
+  grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null
 ): {
   academicYearId: string;
   planningStartDate: string;
@@ -954,8 +830,7 @@ export function generateAllPrimaryLevelDistributions(
   levels: AnnualLevelDistribution[];
 } {
   const calendar = getAcademicCalendar(academicYearId);
-  const endDate =
-    calendar.instructionalEndDate || calendar.schoolEnd || `${academicYearId.slice(5)}-08-31`;
+  const endDate = calendar.schoolEnd || `${academicYearId.slice(5)}-08-31`;
   return {
     academicYearId,
     planningStartDate,
@@ -966,8 +841,7 @@ export function generateAllPrimaryLevelDistributions(
         planningStartDate,
         academicYearId,
         teacherLearningPlans?.get(levelId),
-        grade4WeeklyScheduleMode,
-        weeklySlots
+        grade4WeeklyScheduleMode
       )
     ),
   };
@@ -1171,29 +1045,47 @@ export function materializeClassPlannedSessionSeedsFromTimetable(
   }
 
   const calendar = getAcademicCalendar(academicYearId);
-  const planningEndDate =
-    calendar.instructionalEndDate || calendar.schoolEnd || `${academicYearId.slice(5)}-08-31`;
+  const planningEndDate = calendar.schoolEnd || `${academicYearId.slice(5)}-08-31`;
   const levelId = sessions[0]?.levelId;
   if (!levelId) return { seeds: [], error: 'لا يمكن تحديد مستوى الحصص التشغيلية.' };
 
   const { startDate: introStartDate, endDate: introEndDate } = introWeekWindow(academicYearId);
-  const introOccurrences = enumerateOperationalEncounterOpportunities({
-    planningStart: introStartDate,
-    instructionalEndDate: introEndDate,
-    weeklySlots: slots,
-    academicYearId,
-  }).slice(0, 1);
+  const introOccurrences: Array<{ plannedDate: string; startTime: string }> = [];
+  for (
+    let requestedDate = introStartDate;
+    requestedDate <= introEndDate;
+    requestedDate = addPlanningDays(requestedDate, 1)
+  ) {
+    const weekday = toDate(requestedDate).getUTCDay();
+    for (const slot of slots.filter((item) => item.weekday === weekday)) {
+      if (!isValidAcademicSchoolDate(requestedDate, academicYearId)) continue;
+      introOccurrences.push({ plannedDate: requestedDate, startTime: slot.startTime });
+    }
+  }
 
   const firstPedagogicalDate = sessions[0]?.plannedDate || addPlanningDays(introEndDate, 3);
   const pedagogicalWeekStart = weekStartFor(firstPedagogicalDate);
-  const pedagogicalOccurrences: TimetableOccurrence[] = enumerateOperationalEncounterOpportunities({
-    planningStart: pedagogicalWeekStart,
-    instructionalEndDate: planningEndDate,
-    weeklySlots: slots,
-    academicYearId,
-  })
-    .filter((occurrence) => occurrence.plannedDate >= firstPedagogicalDate)
-    .map((occurrence) => ({ ...occurrence, weekStart: weekStartFor(occurrence.plannedDate) }));
+  const pedagogicalOccurrences: TimetableOccurrence[] = [];
+  for (let weekIndex = 0; weekIndex < 80; weekIndex += 1) {
+    for (const slot of slots) {
+      const requestedDate = addPlanningDays(pedagogicalWeekStart, weekIndex * 7 + slot.weekday);
+      if (
+        requestedDate < firstPedagogicalDate ||
+        requestedDate < calendar.schoolStart ||
+        requestedDate > planningEndDate
+      ) {
+        continue;
+      }
+      // A holiday consumes no occurrence; the same weekday resumes next week.
+      if (!isValidAcademicSchoolDate(requestedDate, academicYearId)) continue;
+      pedagogicalOccurrences.push({
+        plannedDate: requestedDate,
+        startTime: slot.startTime,
+        weekday: slot.weekday,
+        weekStart: weekStartFor(requestedDate),
+      });
+    }
+  }
 
   const units = pedagogicalOperationalUnits(
     sessions,

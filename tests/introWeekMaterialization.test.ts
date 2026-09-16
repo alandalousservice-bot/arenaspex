@@ -16,27 +16,14 @@ const slot = (weekday: number, startTime: string, endTime: string) => ({
 const materialize = (
   levelId: string,
   slots: Array<{ weekday: number; startTime: string; endTime: string }>
-) => {
-  const validSlots = slots.filter((item) => item.weekday >= 0 && item.weekday <= 4);
-  const expanded =
-    validSlots.length === 1
-      ? [
-          ...slots,
-          {
-            ...validSlots[0],
-            startTime: '15:00',
-            endTime: '16:00',
-          },
-        ]
-      : slots;
-  return materializeClassPlannedSessionSeedsFromTimetable(
+) =>
+  materializeClassPlannedSessionSeedsFromTimetable(
     'teacher-1',
     `class-${levelId}`,
     '2026-2027',
     canonicalPlanningSessions(levelId, '2026-09-21', '2026-2027'),
-    expanded
+    slots
   );
-};
 
 describe('official entry week operational materialization', () => {
   it('excludes Sunday before official entry and starts Sunday pedagogical work next week', () => {
@@ -95,13 +82,13 @@ describe('official entry week operational materialization', () => {
     const counts = ['lvl_p1', 'lvl_p2', 'lvl_p3', 'lvl_p4', 'lvl_p5'].map(
       (levelId) => canonicalPlanningSessions(levelId, '2026-09-21', '2026-2027').length
     );
-    expect(counts).toEqual([54, 54, 54, 48, 33]);
+    expect(counts).toEqual([54, 54, 54, 54, 33]);
 
     const result = materialize('lvl_p4', [slot(1, '08:00', '09:30'), slot(3, '08:00', '09:30')]);
     expect(result.seeds.filter((seed) => seed.referenceSessionId.includes(':intro:'))).toHaveLength(
-      1
+      2
     );
-    expect(result.seeds).toHaveLength(30);
+    expect(result.seeds).toHaveLength(35);
   });
 
   it('supports different same-level timetables without changing pedagogical identity order', () => {
@@ -125,7 +112,7 @@ describe('official entry week operational materialization', () => {
       1
     );
     expect(classB.seeds.filter((seed) => seed.referenceSessionId.includes(':intro:'))).toHaveLength(
-      1
+      2
     );
     expect(pedagogicalA[0].plannedDate.toISOString().slice(0, 10)).toBe('2026-09-27');
     expect(pedagogicalB[0].plannedDate.toISOString().slice(0, 10)).toBe('2026-09-28');
@@ -141,17 +128,17 @@ describe('official entry week operational materialization', () => {
       slot(1, '13:00', '14:00'),
     ]);
     expect(oneSlot.seeds[0].startTime).toBe('08:00');
+    expect(fiveSlots.seeds.slice(0, 5).map((seed) => seed.startTime)).toEqual([
+      '08:00',
+      '09:15',
+      '10:30',
+      '11:45',
+      '13:00',
+    ]);
     expect(
       fiveSlots.seeds
-        .filter((seed) => !seed.referenceSessionId.includes(':intro:'))
         .slice(0, 5)
-        .map((seed) => seed.startTime)
-    ).toEqual(['08:00', '09:15', '10:30', '11:45', '13:00']);
-    expect(
-      fiveSlots.seeds
-        .filter((seed) => !seed.referenceSessionId.includes(':intro:'))
-        .slice(0, 5)
-        .every((seed) => seed.plannedDate.toISOString().slice(0, 10) === '2026-09-28')
+        .every((seed) => seed.plannedDate.toISOString().slice(0, 10) === '2026-09-21')
     ).toBe(true);
   });
 

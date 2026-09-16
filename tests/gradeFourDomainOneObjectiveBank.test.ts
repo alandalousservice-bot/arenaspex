@@ -68,12 +68,12 @@ describe('Grade 4 / Domain 1 objective bank', () => {
     const plan = generateTeacherLearningSectionStructure(
       seedTeacherLearningPlan(GRADE_FOUR_LEVEL_ID),
       DOMAIN,
-      7,
+      8,
       2,
       { mode: 'replace', objectiveFillMode: 'bank-auto', allowDestructiveReplacement: true }
     );
     const generated = domain(plan);
-    expect(generated.objectives).toHaveLength(7);
+    expect(generated.objectives).toHaveLength(8);
     expect(
       generated.objectives.every((item) => item.sourceReferenceId?.startsWith('G4-D1-OBJ-'))
     ).toBe(true);

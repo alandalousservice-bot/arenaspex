@@ -65,16 +65,6 @@ import type {
 import { AcademicYearLabel } from '../common/AcademicYearLabel';
 import { LearningSectionPrintPreviewDialog } from './LearningSectionPrintPreviewDialog';
 import { mapLearningSectionForPrint } from '../../services/learningSectionPrint.service';
-import {
-  buildPlanningV2References,
-  markPlanningV2Plan,
-  type PlanningV2Slot,
-} from '../../services/planningV2Reference.service';
-import {
-  generateLearningObjectivePath,
-  type LearningLessonCount,
-  type LearningObjectivePath,
-} from '../../services/learningObjectivePath.service';
 
 interface LearningSegmentsViewProps {
   currentUser: User;
@@ -246,7 +236,6 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
   const [objectiveBankFieldId, setObjectiveBankFieldId] = useState<string | null>(null);
   const [objectiveBankTargetId, setObjectiveBankTargetId] = useState<string | null>(null);
   const [generatorDraft, setGeneratorDraft] = useState<SectionGeneratorDraft | null>(null);
-  const [objectivePathDraft, setObjectivePathDraft] = useState<LearningObjectivePath | null>(null);
   const [situationPickerKey, setSituationPickerKey] = useState<string | null>(null);
   const [printingFieldId, setPrintingFieldId] = useState<string | null>(null);
   const printPreviewDialogRef = useRef<HTMLDivElement>(null);
@@ -430,21 +419,18 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
     }
     try {
       savePlan(
-        markPlanningV2Plan(
-          generateTeacherLearningSectionStructure(
-            plan,
-            generatorDraft.fieldId,
-            objectiveCount,
-            integrationCount,
-            {
-              mode: generatorDraft.mode,
-              objectiveFillMode:
-                generatorDraft.generationMode === 'auto' ? 'bank-auto' : 'structure-only',
-              allowDestructiveReplacement,
-              allowObjectiveRemoval,
-            }
-          ),
-          objectiveCount === 7 ? 7 : 8
+        generateTeacherLearningSectionStructure(
+          plan,
+          generatorDraft.fieldId,
+          objectiveCount,
+          integrationCount,
+          {
+            mode: generatorDraft.mode,
+            objectiveFillMode:
+              generatorDraft.generationMode === 'auto' ? 'bank-auto' : 'structure-only',
+            allowDestructiveReplacement,
+            allowObjectiveRemoval,
+          }
         )
       );
       setGeneratorDraft(null);
@@ -474,22 +460,6 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
   const removeIntegration = (fieldId: string, integrationId: string) => {
     if (!plan || !window.confirm('هل تريد حذف هذه الحصة الإدماجية؟')) return;
     savePlan(deleteTeacherLearningIntegration(plan, fieldId, integrationId));
-  };
-
-  const generateObjectivePath = (domainId: string, count: LearningLessonCount) => {
-    try {
-      setObjectivePathDraft(
-        generateLearningObjectivePath({
-          teacherId: currentUser.id,
-          gradeId: selectedLevelId,
-          domainId,
-          finalCompetencyId: `fc_${selectedLevelId}_${domainId}`,
-          learningLessonCount: count,
-        })
-      );
-    } catch (reason: unknown) {
-      window.alert(reason instanceof Error ? reason.message : 'تعذر توليد مسار الأهداف.');
-    }
   };
 
   const suitableSituations = editingItem
@@ -701,25 +671,6 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
           );
           const officialComponents = getLearningSectionComponents(selectedLevelId, field.fieldId);
           const objectiveBank = getObjectiveBank(selectedLevelId, field.fieldId);
-          const planningV2References = buildPlanningV2References(
-            selectedLevelId,
-            field.fieldId,
-            plan || undefined
-          );
-          const planningV2Labels: Record<PlanningV2Slot, string> = {
-            D: 'تقويم تشخيصي',
-            L1: 'الحصة التعلمية 1',
-            L2: 'الحصة التعلمية 2',
-            L3: 'الحصة التعلمية 3',
-            L4: 'الحصة التعلمية 4',
-            I1: 'الحصة الإدماجية 1',
-            L5: 'الحصة التعلمية 5',
-            L6: 'الحصة التعلمية 6',
-            L7: 'الحصة التعلمية 7',
-            L8: 'الحصة التعلمية 8',
-            I2: 'الحصة الإدماجية 2',
-            S: 'تقويم تحصيلي',
-          };
           const objectiveCoverage = calculateObjectiveBankCoverage(
             selectedLevelId,
             field.fieldId,
@@ -794,25 +745,6 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                   </div>
                 </div>
               )}
-              <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3">
-                <p className="text-[11px] font-extrabold text-indigo-950">
-                  تسلسل المقطع التعلمي — 12 مرجعاً تربوياً
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {planningV2References.map((reference) => (
-                    <span
-                      key={reference.referenceSessionId}
-                      className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${reference.lessonType === 'LEARNING' && reference.objectiveId ? 'border-indigo-300 bg-white text-indigo-950' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
-                    >
-                      {planningV2Labels[reference.slot]}
-                      {reference.lessonType === 'INTEGRATIVE' &&
-                      reference.coveredReferenceIds?.length
-                        ? ` — يغطي ${reference.coveredReferenceIds.length} حصص`
-                        : ''}
-                    </span>
-                  ))}
-                </div>
-              </div>
               {objectiveCoverage.total > 0 && (
                 <details className="rounded-xl border border-sky-200 bg-sky-50/70 p-3 print:hidden">
                   <summary className="cursor-pointer text-[11px] font-extrabold text-sky-950">
@@ -879,15 +811,6 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                   <div className="flex flex-wrap items-center gap-2 print:hidden">
                     <button
                       type="button"
-                      onClick={() =>
-                        generateObjectivePath(field.fieldId, objectives.length === 7 ? 8 : 7)
-                      }
-                      className="inline-flex items-center gap-1 rounded-lg border border-indigo-300 bg-indigo-50 px-2.5 py-1.5 text-[11px] font-bold text-indigo-800"
-                    >
-                      توليد أهداف المقطع ({objectives.length === 7 ? '8' : '7'})
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => {
                         setObjectiveBankFieldId(null);
                         setNewSessionDraft(null);
@@ -896,7 +819,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                             ? null
                             : {
                                 fieldId: field.fieldId,
-                                objectiveCount: '8',
+                                objectiveCount: String(objectives.length),
                                 integrationCount: String(integrationPoints.length),
                                 mode: 'reorganize',
                                 generationMode: objectiveBank.length > 0 ? 'auto' : 'structure',
@@ -970,23 +893,6 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
                       <Plus className="h-3.5 w-3.5" /> إضافة حصة إدماجية
                     </button>
                   </div>
-                  {objectivePathDraft?.domainId === field.fieldId && (
-                    <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50/60 p-3">
-                      <p className="text-[11px] font-extrabold text-indigo-950">
-                        مقترح أهداف المقطع — راجعه قبل الاعتماد
-                      </p>
-                      <div className="mt-2 space-y-1 text-xs text-indigo-950">
-                        {objectivePathDraft.objectives.map((objective) => (
-                          <p key={objective.position}>
-                            الحصة التعلمية {objective.position}: {objective.text}
-                          </p>
-                        ))}
-                      </div>
-                      <p className="mt-2 text-[10px] text-indigo-700">
-                        هذا اقتراح غير محفوظ؛ الاعتماد النهائي يتم عبر مسار إعداد المقطع.
-                      </p>
-                    </div>
-                  )}
                 </div>
                 {generatorDraft?.fieldId === field.fieldId && (
                   <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-3 print:hidden">
