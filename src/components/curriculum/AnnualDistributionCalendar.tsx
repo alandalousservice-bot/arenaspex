@@ -344,6 +344,19 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
                   آخر تاريخ بيداغوجي: {selectedLevel.capacity.instructionalEndDate}
                 </p>
               )}
+              {selectedLevel.capacity.recommendation && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.location.assign(
+                      `/planning?section=segments&levelId=${encodeURIComponent(selectedLevel.levelId)}`
+                    )
+                  }
+                  className="mt-3 rounded-xl bg-amber-700 px-3 py-2 text-xs font-bold text-white"
+                >
+                  تهيئة المقاطع وفق المدة المتاحة
+                </button>
+              )}
             </div>
           )}
           <div className="flex flex-wrap items-center justify-between gap-2">

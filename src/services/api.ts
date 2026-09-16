@@ -45,6 +45,7 @@ export interface AuthResult {
     requiredOperationalEncounters: number;
     shortfall: number;
     instructionalEndDate: string | null;
+    recommendation?: { counts: Record<string, 7 | 8>; requiredEncounters: number };
   };
   offline?: boolean;
   disabled?: boolean;
@@ -831,6 +832,7 @@ export interface TeacherAnnualLevelDistributionSummary {
     requiredOperationalEncounters: number;
     shortfall: number;
     instructionalEndDate: string | null;
+    recommendation?: { counts: Record<string, 7 | 8>; requiredEncounters: number };
   };
   weeks: TeacherAnnualDistributionWeek[];
 }

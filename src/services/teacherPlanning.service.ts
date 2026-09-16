@@ -10,6 +10,7 @@ import { getAcademicCalendar, isValidAcademicSchoolDate } from '../data/academic
 import {
   expandPlanningReferencesToOperationalEncounters,
   getInstructionalCalendarCapacity,
+  recommendLearningLessonCounts,
 } from './instructionalCalendarCapacity.service';
 import type { TeacherLearningPlanData } from '../types/spex';
 import type { Grade4WeeklyScheduleMode } from '../types/spex';
@@ -93,6 +94,7 @@ export interface AnnualLevelDistribution {
     requiredOperationalEncounters: number;
     shortfall: number;
     instructionalEndDate: string | null;
+    recommendation?: { counts: Record<string, 7 | 8>; requiredEncounters: number };
   };
 }
 
@@ -897,6 +899,21 @@ function buildLevelDistribution(
             instructionalEndDate:
               result.lastAvailableInstructionalDate ||
               getAcademicCalendar(academicYearId).instructionalEndDate,
+            recommendation:
+              recommendLearningLessonCounts(
+                [...new Set(references.map((reference) => reference.domainId))],
+                Object.fromEntries(
+                  references.map((reference) => [
+                    reference.domainId,
+                    teacherLearningPlan.domains.find(
+                      (domain) => domain.fieldId === reference.domainId
+                    )?.objectives?.length === 7
+                      ? 7
+                      : 8,
+                  ])
+                ) as Record<string, 7 | 8>,
+                result.availableEncounters
+              ) || undefined,
           };
         })()
       : undefined,
