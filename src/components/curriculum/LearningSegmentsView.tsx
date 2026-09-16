@@ -443,7 +443,8 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
               allowDestructiveReplacement,
               allowObjectiveRemoval,
             }
-          )
+          ),
+          objectiveCount === 7 ? 7 : 8
         )
       );
       setGeneratorDraft(null);

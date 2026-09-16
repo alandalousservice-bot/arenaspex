@@ -73,6 +73,15 @@ describe('Planning V2 reference contract', () => {
   it('marks explicit V2 writes without mutating legacy plan identity', () => {
     const legacy = seedTeacherLearningPlan('lvl_p1');
     expect(legacy.planningVersion).toBeUndefined();
-    expect(markPlanningV2Plan(legacy).planningVersion).toBe('planning-v2');
+    expect(markPlanningV2Plan(legacy, 7).learningLessonCount).toBe(7);
+    expect(markPlanningV2Plan(legacy, 7).planningVersion).toBe('planning-v2');
+    expect(
+      buildPlanningV2References('lvl_p1', 'f_fundamentals', markPlanningV2Plan(legacy, 7))
+    ).toHaveLength(11);
+    expect(
+      buildPlanningV2References('lvl_p1', 'f_fundamentals', markPlanningV2Plan(legacy, 7)).map(
+        (item) => item.slot
+      )
+    ).toEqual(['D', 'L1', 'L2', 'L3', 'L4', 'I1', 'L5', 'L6', 'L7', 'I2', 'S']);
   });
 });
