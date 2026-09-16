@@ -7,6 +7,7 @@ import { getCurrentAcademicYear } from './academicYear';
 import type { AnnualPlanObjectiveOverride } from '../types/spex';
 import { normalizePrimaryLevelId, type PrimaryLevelId } from './primaryLevel.service';
 import { getAcademicCalendar, isValidAcademicSchoolDate } from '../data/academicCalendars';
+import { getInstructionalCalendarCapacity } from './instructionalCalendarCapacity.service';
 import type { TeacherLearningPlanData } from '../types/spex';
 import type { Grade4WeeklyScheduleMode } from '../types/spex';
 import {
@@ -525,6 +526,10 @@ function teacherPlanSequence(
     const field = curriculum.fields[fieldId];
     const domain = plan.domains.find((item) => item.fieldId === fieldId);
     if (!field || !domain) continue;
+    const activeLearningCount =
+      plan.planningVersion === 'planning-v2'
+        ? plan.learningLessonCount || (domain.objectives.length === 7 ? 7 : 8)
+        : domain.objectives.length;
     let fieldSessionNumber = 1;
     const add = (
       sessionType: TeacherPlanSequenceItem['sessionType'],
@@ -586,7 +591,7 @@ function teacherPlanSequence(
     };
 
     addIntegrations(null);
-    domain.objectives.forEach((objective, objectiveIndex) => {
+    domain.objectives.slice(0, activeLearningCount).forEach((objective, objectiveIndex) => {
       const objectiveLabel = `تعلمية ${objectiveIndex + 1}`;
       const meetingCount = learningMeetingCount(grade, grade4WeeklyScheduleMode);
       for (let meetingIndex = 1; meetingIndex <= meetingCount; meetingIndex += 1) {
@@ -628,7 +633,11 @@ function nextValidPlanningDate(from: string, academicYearId?: string): string {
     const valid = academicYearId
       ? (() => {
           const calendar = getAcademicCalendar(academicYearId);
-          const endDate = calendar.schoolEnd || `${academicYearId.slice(5)}-08-31`;
+          const endDate =
+            calendar.instructionalEndDate ||
+            calendar.schoolEnd ||
+            `${academicYearId.slice(5)}-08-31`;
+          if (!endDate) return isValidSchoolDate(toDate(value));
           return (
             value >= calendar.schoolStart &&
             value <= endDate &&
@@ -770,6 +779,22 @@ function buildLevelDistribution(
   let lastError = 'لا توجد سعة تقويمية كافية ضمن السنة الدراسية المحددة.';
   for (const teachingDayOfWeek of [0, 1, 2, 3, 4]) {
     try {
+      if (teacherLearningPlan) {
+        const plannedReferences = teacherPlanSequence(
+          levelId,
+          teacherLearningPlan,
+          grade4WeeklyScheduleMode
+        );
+        const capacity = getInstructionalCalendarCapacity(
+          academicYearId,
+          planningStartDate,
+          plannedReferences.length
+        );
+        if (!capacity.configurationRequired && !capacity.fits) {
+          lastError = 'لا توجد سعة تقويمية كافية لتوليد التوزيع السنوي ضمن السنة المحددة.';
+          continue;
+        }
+      }
       const sessions = canonicalPlanningSessions(
         levelId,
         planningStartDate,
@@ -830,7 +855,8 @@ export function generateAllPrimaryLevelDistributions(
   levels: AnnualLevelDistribution[];
 } {
   const calendar = getAcademicCalendar(academicYearId);
-  const endDate = calendar.schoolEnd || `${academicYearId.slice(5)}-08-31`;
+  const endDate =
+    calendar.instructionalEndDate || calendar.schoolEnd || `${academicYearId.slice(5)}-08-31`;
   return {
     academicYearId,
     planningStartDate,
@@ -1045,7 +1071,8 @@ export function materializeClassPlannedSessionSeedsFromTimetable(
   }
 
   const calendar = getAcademicCalendar(academicYearId);
-  const planningEndDate = calendar.schoolEnd || `${academicYearId.slice(5)}-08-31`;
+  const planningEndDate =
+    calendar.instructionalEndDate || calendar.schoolEnd || `${academicYearId.slice(5)}-08-31`;
   const levelId = sessions[0]?.levelId;
   if (!levelId) return { seeds: [], error: 'لا يمكن تحديد مستوى الحصص التشغيلية.' };
 

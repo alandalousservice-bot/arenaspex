@@ -21,6 +21,7 @@ export interface AcademicCalendar {
   academicYearId: string;
   schoolStart: string;
   schoolEnd: string | null;
+  instructionalEndDate: string | null;
   events: AcademicCalendarEvent[];
   source: string;
   complete: boolean;
@@ -31,6 +32,7 @@ export const ALGERIAN_ACADEMIC_CALENDARS: Record<string, AcademicCalendar> = {
     academicYearId: '2025-2026',
     schoolStart: '2025-09-21',
     schoolEnd: '2026-06-30',
+    instructionalEndDate: '2026-06-30',
     source: 'وزارة التربية الوطنية — رزنامة السنة الدراسية 2025-2026',
     complete: true,
     events: [
@@ -88,6 +90,7 @@ export const ALGERIAN_ACADEMIC_CALENDARS: Record<string, AcademicCalendar> = {
     academicYearId: '2026-2027',
     schoolStart: '2026-09-21',
     schoolEnd: null,
+    instructionalEndDate: null,
     source: 'وزارة التربية الوطنية — البلاغ المحين لرزنامة الدخول المدرسي 2026-2027',
     complete: false,
     events: [
@@ -201,6 +204,7 @@ export function getAcademicCalendar(academicYearId: string): AcademicCalendar {
       academicYearId,
       schoolStart: `${academicYearId.slice(0, 4)}-09-01`,
       schoolEnd: null,
+      instructionalEndDate: null,
       source: 'لا توجد رزنامة رسمية مكتملة مهيأة لهذه السنة الدراسية',
       complete: false,
       events: [],
