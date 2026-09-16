@@ -46,7 +46,8 @@ export function expandPlanningReferencesToOperationalEncounters(
 export function getInstructionalCalendarCapacity(
   academicYearId: string,
   startDate: string,
-  requiredEncounters: number
+  requiredEncounters: number,
+  encountersPerWeek = 1
 ): InstructionalCalendarCapacity {
   const calendar = getAcademicCalendar(academicYearId);
   const endDate = calendar.instructionalEndDate;
@@ -73,8 +74,10 @@ export function getInstructionalCalendarCapacity(
       lastAvailableInstructionalDate = cursor;
     }
   }
+  const normalizedWeeklyRate = Math.max(1, encountersPerWeek);
+  const weeklyCapacity = Math.floor(availableEncounters / normalizedWeeklyRate);
   return {
-    availableEncounters,
+    availableEncounters: weeklyCapacity,
     requiredEncounters,
     fits: availableEncounters >= requiredEncounters,
     lastAvailableInstructionalDate,

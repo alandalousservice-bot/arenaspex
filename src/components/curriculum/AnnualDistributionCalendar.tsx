@@ -329,6 +329,23 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
 
       {annualGeneration && selectedLevel && (
         <section className="annual-distribution-summary-card rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+          {selectedLevel.status === 'failed' && selectedLevel.capacity && (
+            <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950">
+              <h2 className="font-bold">
+                المدة البيداغوجية المتاحة لا تكفي لإتمام التوزيع الحالي.
+              </h2>
+              <p className="mt-2 text-sm">
+                الحصص المتاحة: {selectedLevel.capacity.availableOperationalEncounters} · الحصص
+                المطلوبة: {selectedLevel.capacity.requiredOperationalEncounters} · العجز:{' '}
+                {selectedLevel.capacity.shortfall} حصص
+              </p>
+              {selectedLevel.capacity.instructionalEndDate && (
+                <p className="mt-1 text-sm">
+                  آخر تاريخ بيداغوجي: {selectedLevel.capacity.instructionalEndDate}
+                </p>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 className="text-sm font-bold text-slate-900">ملخص {levelName}</h2>

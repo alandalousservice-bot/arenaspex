@@ -40,6 +40,12 @@ export interface AuthResult {
   success: boolean;
   user?: User;
   error?: string;
+  capacity?: {
+    availableOperationalEncounters: number;
+    requiredOperationalEncounters: number;
+    shortfall: number;
+    instructionalEndDate: string | null;
+  };
   offline?: boolean;
   disabled?: boolean;
   isOfflineSession?: boolean;
@@ -820,6 +826,12 @@ export interface TeacherAnnualLevelDistributionSummary {
   grade4WeeklyScheduleMode?: 'TWO_45' | 'ONE_90';
   status: 'generated' | 'failed';
   error?: string;
+  capacity?: {
+    availableOperationalEncounters: number;
+    requiredOperationalEncounters: number;
+    shortfall: number;
+    instructionalEndDate: string | null;
+  };
   weeks: TeacherAnnualDistributionWeek[];
 }
 

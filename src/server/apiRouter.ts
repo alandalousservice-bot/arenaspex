@@ -744,6 +744,7 @@ async function annualDistributionLevelViews(
         ...(level.grade === 4 && grade4WeeklyScheduleMode ? { grade4WeeklyScheduleMode } : {}),
         status: level.status,
         error: level.error,
+        capacity: level.capacity,
         weeks,
       };
     })
@@ -1536,28 +1537,6 @@ apiRouter.post(
       [],
       grade4WeeklyScheduleMode
     );
-    if (generation.levels.some((level) => level.status === 'failed')) {
-      return res.status(400).json({
-        error: 'تعذر إنشاء توزيع جميع المستويات ضمن السنة الدراسية المحددة.',
-        academicYearId,
-        planningStartDate,
-        endDate: generation.endDate,
-        levels,
-        classes: [],
-        linkedClasses: 0,
-        createdOrUpdatedSessions: 0,
-        status: 'blocked',
-        classesProcessed: 0,
-        sessionsCreated: 0,
-        sessionsReconciled: 0,
-        sessionsUnchanged: 0,
-        sessionsProtected: 0,
-        sessionsRemovedOrRetired: 0,
-        missingTimetableClasses: [],
-        conflicts: [],
-      });
-    }
-
     const distributionsByLevel = new Map(
       generation.levels.map((distribution) => [distribution.levelId, distribution] as const)
     );
@@ -1801,35 +1780,37 @@ apiRouter.post(
     const existingDistributionData = new Map(
       existingDistributionPlans.map((plan) => [plan.levelId, plan.data] as const)
     );
-    const distributionRecords = generation.levels.map((level) => {
-      const data = annualDistributionPersistenceData(
-        existingDistributionData.get(level.levelId),
-        planningStartDate
-      );
-      return prisma.annualPlan.upsert({
-        where: {
-          teacherId_academicYearId_levelId_kind: {
+    const distributionRecords = generation.levels
+      .filter((level) => level.status === 'generated')
+      .map((level) => {
+        const data = annualDistributionPersistenceData(
+          existingDistributionData.get(level.levelId),
+          planningStartDate
+        );
+        return prisma.annualPlan.upsert({
+          where: {
+            teacherId_academicYearId_levelId_kind: {
+              teacherId: req.user!.id,
+              academicYearId,
+              levelId: level.levelId,
+              kind: ANNUAL_DISTRIBUTION_KIND,
+            },
+          },
+          create: {
+            id: `ad_${req.user!.id}_${academicYearId}_${level.levelId}`,
             teacherId: req.user!.id,
             academicYearId,
             levelId: level.levelId,
             kind: ANNUAL_DISTRIBUTION_KIND,
+            status: 'draft',
+            data,
           },
-        },
-        create: {
-          id: `ad_${req.user!.id}_${academicYearId}_${level.levelId}`,
-          teacherId: req.user!.id,
-          academicYearId,
-          levelId: level.levelId,
-          kind: ANNUAL_DISTRIBUTION_KIND,
-          status: 'draft',
-          data,
-        },
-        update: {
-          status: 'draft',
-          data,
-        },
+          update: {
+            status: 'draft',
+            data,
+          },
+        });
       });
-    });
     await prisma.$transaction([...distributionRecords, ...allOperations]);
 
     res.status(201).json({
@@ -1839,11 +1820,13 @@ apiRouter.post(
       endDate: generation.endDate,
       levels,
       classes: classLinks,
-      status: materializationErrors.length
+      status: generation.levels.some((level) => level.status === 'failed')
         ? 'partial'
-        : allOperations.length
-          ? 'rebuilt'
-          : 'unchanged',
+        : materializationErrors.length
+          ? 'partial'
+          : allOperations.length
+            ? 'rebuilt'
+            : 'unchanged',
       classesProcessed: linkedClasses,
       sessionsCreated,
       sessionsReconciled,

@@ -7,7 +7,10 @@ import { getCurrentAcademicYear } from './academicYear';
 import type { AnnualPlanObjectiveOverride } from '../types/spex';
 import { normalizePrimaryLevelId, type PrimaryLevelId } from './primaryLevel.service';
 import { getAcademicCalendar, isValidAcademicSchoolDate } from '../data/academicCalendars';
-import { getInstructionalCalendarCapacity } from './instructionalCalendarCapacity.service';
+import {
+  expandPlanningReferencesToOperationalEncounters,
+  getInstructionalCalendarCapacity,
+} from './instructionalCalendarCapacity.service';
 import type { TeacherLearningPlanData } from '../types/spex';
 import type { Grade4WeeklyScheduleMode } from '../types/spex';
 import {
@@ -85,6 +88,12 @@ export interface AnnualLevelDistribution {
   sessions: CanonicalPlanningSession[];
   status: 'generated' | 'failed';
   error?: string;
+  capacity?: {
+    availableOperationalEncounters: number;
+    requiredOperationalEncounters: number;
+    shortfall: number;
+    instructionalEndDate: string | null;
+  };
 }
 
 export interface AnnualDistributionPedagogicalMeeting {
@@ -785,10 +794,25 @@ function buildLevelDistribution(
           teacherLearningPlan,
           grade4WeeklyScheduleMode
         );
+        const operationalReferences = expandPlanningReferencesToOperationalEncounters(
+          plannedReferences.map((reference) => ({
+            referenceSessionId: reference.referenceKey,
+            lessonType: reference.sessionType,
+          })),
+          {
+            grade: Number(levelId.slice(-1)),
+            grade4WeeklyScheduleMode: grade4WeeklyScheduleMode || undefined,
+          }
+        );
         const capacity = getInstructionalCalendarCapacity(
           academicYearId,
           planningStartDate,
-          plannedReferences.length
+          operationalReferences.length,
+          operationalReferences.length && Number(levelId.slice(-1)) <= 3
+            ? 2
+            : Number(levelId.slice(-1)) === 4 && grade4WeeklyScheduleMode === 'TWO_45'
+              ? 2
+              : 1
         );
         if (!capacity.configurationRequired && !capacity.fits) {
           lastError = 'لا توجد سعة تقويمية كافية لتوليد التوزيع السنوي ضمن السنة المحددة.';
@@ -840,6 +864,42 @@ function buildLevelDistribution(
     sessions: [],
     status: 'failed',
     error: lastError,
+    capacity: teacherLearningPlan
+      ? (() => {
+          const references = teacherPlanSequence(
+            levelId,
+            teacherLearningPlan,
+            grade4WeeklyScheduleMode
+          );
+          const required = expandPlanningReferencesToOperationalEncounters(
+            references.map((reference) => ({
+              referenceSessionId: reference.referenceKey,
+              lessonType: reference.sessionType,
+            })),
+            {
+              grade: Number(levelId.slice(-1)),
+              grade4WeeklyScheduleMode: grade4WeeklyScheduleMode || undefined,
+            }
+          ).length;
+          const result = getInstructionalCalendarCapacity(
+            academicYearId,
+            planningStartDate,
+            required,
+            Number(levelId.slice(-1)) <= 3 ||
+              (Number(levelId.slice(-1)) === 4 && grade4WeeklyScheduleMode === 'TWO_45')
+              ? 2
+              : 1
+          );
+          return {
+            availableOperationalEncounters: result.availableEncounters,
+            requiredOperationalEncounters: required,
+            shortfall: Math.max(0, required - result.availableEncounters),
+            instructionalEndDate:
+              result.lastAvailableInstructionalDate ||
+              getAcademicCalendar(academicYearId).instructionalEndDate,
+          };
+        })()
+      : undefined,
   };
 }
 
