@@ -96,6 +96,7 @@ const teacherLearningPlanDomainSchema = z.object({
 const teacherLearningPlanShapeSchema = z.object({
   version: z.literal(1),
   planningVersion: z.literal('planning-v2').optional(),
+  learningLessonCount: z.union([z.literal(7), z.literal(8)]).optional(),
   levelId: z.string().trim().min(1),
   domains: z.array(teacherLearningPlanDomainSchema).min(1),
 });
