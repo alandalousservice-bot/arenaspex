@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { getInstructionalCalendarCapacity } from '../src/services/instructionalCalendarCapacity.service';
+import {
+  getInstructionalCalendarCapacity,
+  recommendLearningLessonCounts,
+} from '../src/services/instructionalCalendarCapacity.service';
 import { generateAllPrimaryLevelDistributions } from '../src/services/teacherPlanning.service';
 
 describe('instructional calendar capacity', () => {
@@ -25,5 +28,19 @@ describe('instructional calendar capacity', () => {
         .flatMap((level) => level.sessions)
         .every((session) => session.plannedDate <= result.endDate)
     ).toBe(true);
+  });
+
+  it('selects the highest fitting deterministic 7/8 combination without mutation', () => {
+    const recommendation = recommendLearningLessonCounts(
+      ['f_locomotion', 'f_fundamentals', 'f_structuring'],
+      { f_locomotion: 8, f_fundamentals: 8, f_structuring: 8 },
+      33
+    );
+    expect(recommendation?.counts).toEqual({
+      f_locomotion: 7,
+      f_fundamentals: 7,
+      f_structuring: 7,
+    });
+    expect(recommendation?.requiredEncounters).toBe(33);
   });
 });

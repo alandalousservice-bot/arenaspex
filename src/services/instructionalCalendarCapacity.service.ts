@@ -16,6 +16,52 @@ export interface InstructionalCalendarCapacity {
   configurationRequired: boolean;
 }
 
+export type LearningLessonCount = 7 | 8;
+export interface PlanningCapacityRecommendation {
+  counts: Record<string, LearningLessonCount>;
+  requiredEncounters: number;
+  availableEncounters: number;
+}
+
+export function recommendLearningLessonCounts(
+  domains: readonly string[],
+  currentCounts: Readonly<Record<string, LearningLessonCount>>,
+  availableEncounters: number,
+  encountersPerReference = 1
+): PlanningCapacityRecommendation | null {
+  const candidates: PlanningCapacityRecommendation[] = [];
+  const total = 1 << domains.length;
+  for (let mask = 0; mask < total; mask += 1) {
+    const counts = Object.fromEntries(
+      domains.map((domain, index) => [domain, (mask & (1 << index)) === 0 ? 7 : 8])
+    ) as Record<string, LearningLessonCount>;
+    const requiredEncounters =
+      domains.reduce((sum, domain) => sum + counts[domain] + 4, 0) * encountersPerReference;
+    if (requiredEncounters <= availableEncounters) {
+      candidates.push({ counts, requiredEncounters, availableEncounters });
+    }
+  }
+  candidates.sort((left, right) => {
+    const learningDelta =
+      Object.values(right.counts).reduce((a, b) => a + b, 0) -
+      Object.values(left.counts).reduce((a, b) => a + b, 0);
+    if (learningDelta) return learningDelta;
+    const changedLeft = domains.filter(
+      (domain) => left.counts[domain] !== currentCounts[domain]
+    ).length;
+    const changedRight = domains.filter(
+      (domain) => right.counts[domain] !== currentCounts[domain]
+    ).length;
+    if (changedLeft !== changedRight) return changedLeft - changedRight;
+    return (
+      domains
+        .map((domain) => left.counts[domain] - right.counts[domain])
+        .find((value) => value !== 0) || 0
+    );
+  });
+  return candidates[0] || null;
+}
+
 export function getInstructionalEndDate(academicYearId: string): string | null {
   return getAcademicCalendar(academicYearId).instructionalEndDate;
 }
@@ -75,7 +121,8 @@ export function getInstructionalCalendarCapacity(
     }
   }
   const normalizedWeeklyRate = Math.max(1, encountersPerWeek);
-  const weeklyCapacity = Math.floor(availableEncounters / normalizedWeeklyRate);
+  const instructionalWeeks = Math.floor(availableEncounters / 5);
+  const weeklyCapacity = instructionalWeeks * normalizedWeeklyRate;
   return {
     availableEncounters: weeklyCapacity,
     requiredEncounters,
