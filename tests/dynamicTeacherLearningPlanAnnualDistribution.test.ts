@@ -226,7 +226,7 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
     expect(seedTeacherLearningPlan('lvl_p1').domains[0].objectives).toHaveLength(7);
   });
 
-  it('falls back safely and reports capacity instead of truncating', () => {
+  it('keeps level generation independent from class timetable capacity', () => {
     const fallback = canonicalPlanningSessions('lvl_p1', '2026-09-21', '2026-2027');
     expect(
       new Set(
@@ -246,8 +246,8 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
       '2026-09-21',
       new Map([['lvl_p1', oversized]])
     );
-    expect(generation.levels[0].status).toBe('failed');
-    expect(generation.levels[0].error).toContain('سعة');
+    expect(generation.levels[0].status).toBe('generated');
+    expect(generation.levels[0].sessions.length).toBeGreaterThan(0);
   });
 
   it('keeps API resolution, operational protection, and shared screen/print model connected', () => {

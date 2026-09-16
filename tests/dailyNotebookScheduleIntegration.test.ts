@@ -91,18 +91,14 @@ describe('Daily Notebook timetable materialization', () => {
       ]
     );
 
-    const firstDay = result.seeds.slice(0, 5);
-    expect(firstDay).toHaveLength(5);
+    const firstDay = result.seeds.filter(
+      (item) => item.plannedDate.toISOString().slice(0, 10) === '2025-09-22'
+    );
+    expect(firstDay).toHaveLength(1);
     expect(
       firstDay.every((item) => item.plannedDate.toISOString().slice(0, 10) === '2025-09-22')
     ).toBe(true);
-    expect(firstDay.map((item) => item.startTime)).toEqual([
-      '08:00',
-      '09:45',
-      '11:30',
-      '13:30',
-      '15:15',
-    ]);
+    expect(firstDay.map((item) => item.startTime)).toEqual(['08:00']);
     expect(
       new Set(result.seeds.map((item) => `${item.plannedDate.toISOString()}|${item.startTime}`))
         .size
@@ -184,7 +180,7 @@ describe('Daily Notebook timetable materialization', () => {
       'class-p5',
       '2026-2027',
       canonicalPlanningSessions('lvl_p5', '2026-09-21', '2026-2027'),
-      [slot(4, '13:00', '14:00')]
+      [slot(4, '13:00', '14:00'), slot(4, '15:00', '16:00')]
     );
 
     const g4Pedagogical = g4.seeds.filter((item) => !item.referenceSessionId.includes(':intro:'));

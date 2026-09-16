@@ -1340,11 +1340,17 @@ apiRouter.get('/teacher/planning/annual-distribution', requireRole('teacher'), a
     selectedClass && normalizePrimaryLevelId(selectedClass.levelId) === 'lvl_p4'
       ? await grade4WeeklyScheduleModeForClass(selectedClass.id, parsed.data.academicYearId)
       : 'ONE_90';
+  const selectedClassSlots = selectedClass
+    ? await weeklySlotsForTeacher(req.user!.id, parsed.data.academicYearId).then((slots) =>
+        slots.filter((slot) => slot.classId === selectedClass.id)
+      )
+    : undefined;
   const generation = generateAllPrimaryLevelDistributions(
     parsed.data.academicYearId,
     planningStartDate,
     teacherLearningPlans,
-    grade4WeeklyScheduleMode
+    grade4WeeklyScheduleMode,
+    selectedClassSlots
   );
   const levels = await annualDistributionLevelViews(
     generation,
@@ -1525,11 +1531,13 @@ apiRouter.post(
       req.user!.id,
       academicYearId
     );
+    const timetableSlots = await weeklySlotsForTeacher(req.user!.id, academicYearId);
     const generation = generateAllPrimaryLevelDistributions(
       academicYearId,
       planningStartDate,
       teacherLearningPlans,
-      grade4WeeklyScheduleMode
+      grade4WeeklyScheduleMode,
+      timetableSlots
     );
     const levels = await annualDistributionLevelViews(
       generation,
@@ -1555,7 +1563,8 @@ apiRouter.post(
           academicYearId,
           planningStartDate,
           teacherLearningPlans,
-          classMode
+          classMode,
+          timetableSlots.filter((slot) => slot.classId === classRecord.id)
         ).levels.find((item) => item.levelId === normalizedLevelId);
       }
       if (distribution) distributionsByClass.set(classRecord.id, distribution);
@@ -1567,9 +1576,9 @@ apiRouter.post(
       existingRows.map((row) => [`${row.classId}|${row.referenceSessionId}`, row] as const)
     );
     const classLinks = classLinkViews(classes, generation.levels, distributionsByClass);
-    const timetableSlots = await weeklySlotsForTeacher(req.user!.id, academicYearId);
-    const timetableSlotsByClass = new Map<string, typeof timetableSlots>();
-    for (const slot of timetableSlots) {
+    const persistedTimetableSlots = await weeklySlotsForTeacher(req.user!.id, academicYearId);
+    const timetableSlotsByClass = new Map<string, typeof persistedTimetableSlots>();
+    for (const slot of persistedTimetableSlots) {
       const current = timetableSlotsByClass.get(slot.classId) || [];
       current.push(slot);
       timetableSlotsByClass.set(slot.classId, current);

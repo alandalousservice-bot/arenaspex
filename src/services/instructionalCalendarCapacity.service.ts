@@ -7,16 +7,63 @@ export interface OperationalEncounterDescriptor {
   durationMinutes: number;
 }
 
+export interface OperationalEncounterOpportunity {
+  plannedDate: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+}
+
+export interface OperationalEncounterEnumerationInput {
+  planningStart: string;
+  instructionalEndDate: string;
+  weeklySlots: readonly { weekday: number; startTime: string; endTime: string }[];
+  academicYearId: string;
+}
+
+export function enumerateOperationalEncounterOpportunities(
+  input: OperationalEncounterEnumerationInput
+): OperationalEncounterOpportunity[] {
+  const slots = input.weeklySlots
+    .filter((slot) => Number.isInteger(slot.weekday) && slot.weekday >= 0 && slot.weekday <= 4)
+    .slice()
+    .sort((a, b) => a.weekday - b.weekday || a.startTime.localeCompare(b.startTime));
+  const opportunities: OperationalEncounterOpportunity[] = [];
+  for (
+    let cursor = input.planningStart;
+    cursor <= input.instructionalEndDate;
+    cursor = new Date(new Date(`${cursor}T00:00:00Z`).getTime() + 86400000)
+      .toISOString()
+      .slice(0, 10)
+  ) {
+    const weekday = new Date(`${cursor}T00:00:00Z`).getUTCDay();
+    if (!isValidAcademicSchoolDate(cursor, input.academicYearId)) continue;
+    for (const slot of slots.filter((item) => item.weekday === weekday)) {
+      opportunities.push({
+        plannedDate: cursor,
+        weekday,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+      });
+    }
+  }
+  return opportunities;
+}
+
 export interface InstructionalCalendarCapacity {
   availableEncounters: number;
   requiredEncounters: number;
+  totalOperationalOpportunities?: number;
+  orientationOperationalRequired?: number;
+  pedagogicalOperationalCapacity?: number;
+  totalOperationalRequired?: number;
   fits: boolean;
   lastAvailableInstructionalDate: string | null;
   projectedCompletionDate: string | null;
   configurationRequired: boolean;
 }
 
-export type LearningLessonCount = 7 | 8;
+export type LearningLessonCount = 6 | 7 | 8;
 export interface PlanningCapacityRecommendation {
   counts: Record<string, LearningLessonCount>;
   requiredEncounters: number;
@@ -30,17 +77,23 @@ export function recommendLearningLessonCounts(
   encountersPerReference = 1
 ): PlanningCapacityRecommendation | null {
   const candidates: PlanningCapacityRecommendation[] = [];
-  const total = 1 << domains.length;
-  for (let mask = 0; mask < total; mask += 1) {
-    const counts = Object.fromEntries(
-      domains.map((domain, index) => [domain, (mask & (1 << index)) === 0 ? 7 : 8])
-    ) as Record<string, LearningLessonCount>;
-    const requiredEncounters =
-      domains.reduce((sum, domain) => sum + counts[domain] + 4, 0) * encountersPerReference;
-    if (requiredEncounters <= availableEncounters) {
-      candidates.push({ counts, requiredEncounters, availableEncounters });
+  const candidatesPerDomain: LearningLessonCount[][] = domains.map(() => [6, 7, 8]);
+  const visit = (index: number, partial: Record<string, LearningLessonCount>) => {
+    if (index === domains.length) {
+      const counts = { ...partial };
+      const requiredEncounters =
+        domains.reduce((sum, domain) => sum + counts[domain] + 4, 0) * encountersPerReference;
+      if (requiredEncounters <= availableEncounters) {
+        candidates.push({ counts, requiredEncounters, availableEncounters });
+      }
+      return;
     }
-  }
+    for (const count of candidatesPerDomain[index]) {
+      partial[domains[index]] = count;
+      visit(index + 1, partial);
+    }
+  };
+  visit(0, {});
   candidates.sort((left, right) => {
     const learningDelta =
       Object.values(right.counts).reduce((a, b) => a + b, 0) -
@@ -93,7 +146,8 @@ export function getInstructionalCalendarCapacity(
   academicYearId: string,
   startDate: string,
   requiredEncounters: number,
-  encountersPerWeek = 1
+  encountersPerWeek = 1,
+  weeklySlots?: readonly { weekday: number; startTime: string; endTime: string }[]
 ): InstructionalCalendarCapacity {
   const calendar = getAcademicCalendar(academicYearId);
   const endDate = calendar.instructionalEndDate;
@@ -101,11 +155,41 @@ export function getInstructionalCalendarCapacity(
     return {
       availableEncounters: 0,
       requiredEncounters,
+      totalOperationalOpportunities: 0,
+      orientationOperationalRequired: 0,
+      pedagogicalOperationalCapacity: 0,
+      totalOperationalRequired: requiredEncounters,
       fits: false,
       lastAvailableInstructionalDate: null,
       projectedCompletionDate: null,
       configurationRequired: true,
     };
+  if (weeklySlots?.length) {
+    const opportunities = enumerateOperationalEncounterOpportunities({
+      planningStart: startDate,
+      instructionalEndDate: endDate,
+      weeklySlots,
+      academicYearId,
+    });
+    const availableEncounters = opportunities.length;
+    const orientationOperationalRequired = availableEncounters > 0 ? 1 : 0;
+    const pedagogicalOperationalCapacity = Math.max(
+      0,
+      availableEncounters - orientationOperationalRequired
+    );
+    return {
+      availableEncounters: pedagogicalOperationalCapacity,
+      requiredEncounters,
+      totalOperationalOpportunities: availableEncounters,
+      orientationOperationalRequired,
+      pedagogicalOperationalCapacity,
+      totalOperationalRequired: requiredEncounters + orientationOperationalRequired,
+      fits: requiredEncounters <= pedagogicalOperationalCapacity,
+      lastAvailableInstructionalDate: opportunities.at(-1)?.plannedDate || null,
+      projectedCompletionDate: null,
+      configurationRequired: false,
+    };
+  }
   let availableEncounters = 0;
   let lastAvailableInstructionalDate: string | null = null;
   for (
@@ -126,7 +210,11 @@ export function getInstructionalCalendarCapacity(
   return {
     availableEncounters: weeklyCapacity,
     requiredEncounters,
-    fits: availableEncounters >= requiredEncounters,
+    totalOperationalOpportunities: availableEncounters,
+    orientationOperationalRequired: 0,
+    pedagogicalOperationalCapacity: weeklyCapacity,
+    totalOperationalRequired: requiredEncounters,
+    fits: requiredEncounters <= weeklyCapacity,
     lastAvailableInstructionalDate,
     projectedCompletionDate: null,
     configurationRequired: false,
