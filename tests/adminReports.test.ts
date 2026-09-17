@@ -14,6 +14,7 @@ describe('admin operational reports', () => {
     expect(api).not.toContain('content: true');
     expect(page).not.toContain('fallbackUsers');
     expect(page).toContain('fetchAdminReportsOverview');
+    expect(page).toContain('الإحصاءات والتحليل');
   });
   it('renders report sections, refresh, loading and failure states', () => {
     expect(page).toContain('جودة البيانات');

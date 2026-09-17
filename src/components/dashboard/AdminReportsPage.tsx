@@ -15,6 +15,10 @@ const labels: Record<string, string> = {
   Active: 'نشط',
   Changed: 'تغير المفتش',
   Removed: 'مزال',
+  APPROVED: 'معتمد',
+  PENDING_APPROVAL: 'بانتظار الاعتماد',
+  REJECTED: 'مرفوض',
+  DRAFT: 'مسودة',
 };
 function Card({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -64,7 +68,7 @@ export const AdminReportsPage: React.FC = () => {
         <div className="flex items-center justify-between gap-4">
           <div>
             <div className="text-xs font-bold text-purple-200">مساحة التحليلات التشغيلية</div>
-            <h1 className="mt-1 text-2xl font-black">التقارير التشغيلية</h1>
+            <h1 className="mt-1 text-2xl font-black">الإحصاءات والتحليل</h1>
             <p className="mt-2 text-sm text-purple-100/80">
               بيانات حقيقية من السجلات الحالية للمنصة.
             </p>
