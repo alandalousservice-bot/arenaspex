@@ -2,25 +2,31 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // نموذج مبسّط لعميل Prisma يحاكي الاستدعاءات التي يستخدمها assignmentService فقط،
 const mockPrisma = {
+  $transaction: vi.fn(),
   user: {
     findUnique: vi.fn(),
     findMany: vi.fn(),
-    findFirst: vi.fn()
+    findFirst: vi.fn(),
   },
   inspectorAssignment: {
     findUnique: vi.fn(),
     findMany: vi.fn(),
     upsert: vi.fn(),
     update: vi.fn(),
-    delete: vi.fn()
-  }
+    delete: vi.fn(),
+  },
 };
 
 vi.mock('../src/server/prismaClient.js', () => ({ prisma: mockPrisma }));
 
-const { reassignTeacher, reassignAllForInspector, bulkReassignAll, removeAssignment, acceptAssignment, rejectAssignment } = await import(
-  '../src/server/assignmentService'
-);
+const {
+  reassignTeacher,
+  reassignAllForInspector,
+  bulkReassignAll,
+  removeAssignment,
+  acceptAssignment,
+  rejectAssignment,
+} = await import('../src/server/assignmentService');
 
 function makeTeacher(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -31,7 +37,7 @@ function makeTeacher(overrides: Partial<Record<string, unknown>> = {}) {
     eduDirectorateId: null,
     eduDistrictId: null,
     status: 'active',
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -44,17 +50,27 @@ function makeInspector(overrides: Partial<Record<string, unknown>> = {}) {
     eduDirectorateId: null,
     eduDistrictId: null,
     status: 'active',
-    ...overrides
+    ...overrides,
   };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockPrisma.$transaction.mockImplementation(async (callback: (tx: typeof mockPrisma) => unknown) =>
+    callback(mockPrisma)
+  );
 });
 
 describe('reassignTeacher - PART B new policy (Pending, no auto Active)', () => {
   it('لا يُسنِد أستاذاً لم يستكمل بياناته المهنية بعد (بلا مديرية/مقاطعة)', async () => {
-    mockPrisma.user.findUnique.mockResolvedValue(makeTeacher({ directorateId: '', districtId: '', eduDirectorateId: null, eduDistrictId: null }));
+    mockPrisma.user.findUnique.mockResolvedValue(
+      makeTeacher({
+        directorateId: '',
+        districtId: '',
+        eduDirectorateId: null,
+        eduDistrictId: null,
+      })
+    );
 
     const result = await reassignTeacher('t1');
 
@@ -91,7 +107,7 @@ describe('reassignTeacher - PART B new policy (Pending, no auto Active)', () => 
       teacherId: 't1',
       inspectorId: 'i1',
       status: 'Active',
-      assignedAt: new Date()
+      assignedAt: new Date(),
     });
 
     const result = await reassignTeacher('t1');
@@ -118,7 +134,7 @@ describe('reassignTeacher - PART B new policy (Pending, no auto Active)', () => 
     mockPrisma.inspectorAssignment.findUnique.mockResolvedValue({
       teacherId: 't1',
       inspectorId: 'i1',
-      status: 'Active'
+      status: 'Active',
     });
     mockPrisma.inspectorAssignment.upsert.mockImplementation(({ update }: any) => update);
 
@@ -133,12 +149,12 @@ describe('acceptAssignment / rejectAssignment - PART B', () => {
     mockPrisma.inspectorAssignment.findUnique.mockResolvedValue({
       teacherId: 't1',
       inspectorId: 'i1',
-      status: 'Pending'
+      status: 'Pending',
     });
     mockPrisma.inspectorAssignment.update.mockImplementation(async ({ data }: any) => ({
       teacherId: 't1',
       inspectorId: 'i1',
-      ...data
+      ...data,
     }));
 
     const result = await acceptAssignment('t1', 'i1');
@@ -155,7 +171,7 @@ describe('acceptAssignment / rejectAssignment - PART B', () => {
     mockPrisma.inspectorAssignment.findUnique.mockResolvedValue({
       teacherId: 't1',
       inspectorId: 'i2',
-      status: 'Pending'
+      status: 'Pending',
     });
     await expect(acceptAssignment('t1', 'i1')).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
@@ -164,7 +180,7 @@ describe('acceptAssignment / rejectAssignment - PART B', () => {
     mockPrisma.inspectorAssignment.findUnique.mockResolvedValue({
       teacherId: 't1',
       inspectorId: 'i1',
-      status: 'Active'
+      status: 'Active',
     });
     await expect(acceptAssignment('t1', 'i1')).rejects.toMatchObject({ code: 'ALREADY_HANDLED' });
   });
@@ -173,11 +189,11 @@ describe('acceptAssignment / rejectAssignment - PART B', () => {
     mockPrisma.inspectorAssignment.findUnique.mockResolvedValue({
       teacherId: 't1',
       inspectorId: 'i1',
-      status: 'Pending'
+      status: 'Pending',
     });
     mockPrisma.inspectorAssignment.update.mockImplementation(async ({ data }: any) => ({
       teacherId: 't1',
-      ...data
+      ...data,
     }));
     const result = await rejectAssignment('t1', 'i1', 'سبب تجريبي');
     expect(result).toMatchObject({ status: 'Removed', inspectorId: null, assignedAt: null });
@@ -226,7 +242,14 @@ describe('bulkReassignAll', () => {
     mockPrisma.user.findMany.mockResolvedValue([{ id: 't1' }, { id: 't2' }]);
     mockPrisma.user.findUnique.mockImplementation(async ({ where: { id } }: any) => {
       if (id === 't1') return makeTeacher({ id: 't1' });
-      if (id === 't2') return makeTeacher({ id: 't2', directorateId: '', districtId: '', eduDirectorateId: null, eduDistrictId: null });
+      if (id === 't2')
+        return makeTeacher({
+          id: 't2',
+          directorateId: '',
+          districtId: '',
+          eduDirectorateId: null,
+          eduDistrictId: null,
+        });
       return null;
     });
     mockPrisma.user.findFirst.mockResolvedValue(makeInspector());
@@ -251,7 +274,11 @@ describe('removeAssignment', () => {
   });
 
   it('يضبط الحالة Removed ويصفّر المفتش وتاريخ الإسناد', async () => {
-    mockPrisma.inspectorAssignment.findUnique.mockResolvedValue({ teacherId: 't1', inspectorId: 'i1', status: 'Active' });
+    mockPrisma.inspectorAssignment.findUnique.mockResolvedValue({
+      teacherId: 't1',
+      inspectorId: 'i1',
+      status: 'Active',
+    });
     mockPrisma.inspectorAssignment.update.mockImplementation(({ data }: any) => data);
 
     const result = await removeAssignment('t1');

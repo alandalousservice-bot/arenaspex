@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const assignmentRouter = readFileSync('src/server/assignmentRouter.ts', 'utf8');
 const apiRouter = readFileSync('src/server/apiRouter.ts', 'utf8');
+const assignmentService = readFileSync('src/server/assignmentService.ts', 'utf8');
 
 describe('Admin mutation security boundaries', () => {
   it('protects the admin assignment router and bulk action with explicit confirmation', () => {
@@ -27,5 +28,11 @@ describe('Admin mutation security boundaries', () => {
     expect(assignmentRouter).toContain('لا يمكن حذف بلدية مرتبطة ببيانات أخرى');
     expect(assignmentRouter).toContain('لا يمكن حذف مؤسسة مرتبطة بحسابات');
     expect(assignmentRouter).toContain('لا يمكن حذف مقاطعة مرتبطة ببيانات');
+  });
+
+  it('executes bulk reassignment through one transaction client', () => {
+    expect(assignmentService).toContain('return prisma.$transaction(async (tx) =>');
+    expect(assignmentService).toContain('reassignTeacher(t.id, tx)');
+    expect(assignmentService).toContain('db.inspectorAssignment.upsert');
   });
 });

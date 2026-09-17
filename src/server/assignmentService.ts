@@ -8,6 +8,9 @@
  */
 
 import { prisma } from './prismaClient.js';
+import type { Prisma } from '@prisma/client';
+
+type AssignmentDb = Prisma.TransactionClient | typeof prisma;
 
 export type AssignmentStatus = 'Pending' | 'Active' | 'Changed' | 'Removed';
 export const ACCEPTED_ASSIGNMENT_STATUSES: AssignmentStatus[] = ['Active', 'Changed'];
@@ -73,9 +76,13 @@ function getInspectorDirectorateAndDistrict(inspector: any): {
 /**
  * يبحث عن أول مفتش نشط يطابق مديرية التربية والمقاطعة التفتيشية معاً
  */
-async function findMatchingInspector(directorateId: string, districtId: string) {
+async function findMatchingInspector(
+  directorateId: string,
+  districtId: string,
+  db: AssignmentDb = prisma
+) {
   if (!directorateId || !districtId) return null;
-  return prisma.user.findFirst({
+  return db.user.findFirst({
     where: {
       role: 'inspector',
       status: 'active',
@@ -105,8 +112,8 @@ export class AssignmentError extends Error {
  * لكن السياسة الجديدة: لا تفعيل تلقائي إطلاقاً — أي مطابقة تنتهي بـ Pending موجه للمفتش المطابق
  * (inspectorId معبأ, assignedAt=null)؛ إلا إن كان بنفس المفتش وActive بالفعل (فلا نعيد إخضاعه).
  */
-export async function reassignTeacher(teacherId: string) {
-  const teacher = await prisma.user.findUnique({ where: { id: teacherId } });
+export async function reassignTeacher(teacherId: string, db: AssignmentDb = prisma) {
+  const teacher = await db.user.findUnique({ where: { id: teacherId } });
   if (!teacher || teacher.role !== 'teacher') return null;
 
   const { directorateId, districtId } = getTeacherDirectorateAndDistrict(teacher);
@@ -114,8 +121,8 @@ export async function reassignTeacher(teacherId: string) {
   // بيانات مهنية غير مكتملة بعد (لم يختر المديرية أو المقاطعة) — لا يوجد ما يُسنَد
   if (!directorateId || !districtId) return null;
 
-  const existing = await prisma.inspectorAssignment.findUnique({ where: { teacherId } });
-  const inspector = await findMatchingInspector(directorateId, districtId);
+  const existing = await db.inspectorAssignment.findUnique({ where: { teacherId } });
+  const inspector = await findMatchingInspector(directorateId, districtId, db);
 
   // الحالة الخاصة: نفس المفتش وActive بالفعل — لا نعيد إخضاعه
   if (
@@ -141,7 +148,7 @@ export async function reassignTeacher(teacherId: string) {
     assignedAt = null;
   }
 
-  return prisma.inspectorAssignment.upsert({
+  return db.inspectorAssignment.upsert({
     where: { teacherId },
     create: { teacherId, inspectorId, status, assignedAt },
     update: { inspectorId, status, assignedAt },
@@ -192,24 +199,24 @@ export async function reassignAllForInspector(inspectorId: string) {
  * إعادة إسناد جماعي شامل لكل الأساتذة
  */
 export async function bulkReassignAll() {
-  const teachers = await prisma.user.findMany({
-    where: { role: 'teacher' },
-    select: { id: true },
+  return prisma.$transaction(async (tx) => {
+    const teachers = await tx.user.findMany({
+      where: { role: 'teacher' },
+      select: { id: true },
+    });
+
+    let active = 0;
+    let pending = 0;
+    let changed = 0;
+    for (const t of teachers) {
+      const result = await reassignTeacher(t.id, tx);
+      if (!result) continue;
+      if (result.status === 'Active') active++;
+      else if (result.status === 'Pending') pending++;
+      else if (result.status === 'Changed') changed++;
+    }
+    return { total: teachers.length, active, pending, changed };
   });
-
-  let active = 0;
-  let pending = 0;
-  let changed = 0;
-
-  for (const t of teachers) {
-    const result = await reassignTeacher(t.id);
-    if (!result) continue;
-    if (result.status === 'Active') active++;
-    else if (result.status === 'Pending') pending++;
-    else if (result.status === 'Changed') changed++;
-  }
-
-  return { total: teachers.length, active, pending, changed };
 }
 
 /**
