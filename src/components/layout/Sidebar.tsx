@@ -208,13 +208,13 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
           { id: 'admin_accounts' as NavTab, label: 'الحسابات', icon: Users },
           { id: 'admin_pending_users' as NavTab, label: 'طلبات التفعيل', icon: UserCheck },
           { id: 'admin_inspectors' as NavTab, label: 'المفتشون والإسنادات', icon: ShieldCheck },
-          { id: 'admin_services' as NavTab, label: 'الخدمات المساعدة', icon: Key },
+          { id: 'admin_services' as NavTab, label: 'الخدمات', icon: Key },
           { id: 'admin_approvals' as NavTab, label: 'الاعتمادات والمراجعة', icon: CheckCircle2 },
           { id: 'admin_curriculum' as NavTab, label: 'المناهج والمراجع', icon: BookMarked },
           { id: 'admin_reports' as NavTab, label: 'الإحصاءات والتحليل', icon: FileSpreadsheet },
           {
             id: 'professional_hub' as NavTab,
-            label: 'التواصل المهني',
+            label: 'التواصل',
             icon: Users,
             badge: 'فضاء موحّد',
           },
@@ -277,6 +277,16 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                     {userRole === 'admin' && item.id === 'admin_reports' && !collapsed && (
                       <div className="px-2 pt-4 pb-1 text-[11px] font-extrabold text-slate-400">
                         المتابعة والتحليل
+                      </div>
+                    )}
+                    {userRole === 'admin' && item.id === 'admin_services' && !collapsed && (
+                      <div className="px-2 pt-4 pb-1 text-[11px] font-extrabold text-slate-400">
+                        الخدمات والمنصة
+                      </div>
+                    )}
+                    {userRole === 'admin' && item.id === 'professional_hub' && !collapsed && (
+                      <div className="px-2 pt-4 pb-1 text-[11px] font-extrabold text-slate-400">
+                        التواصل
                       </div>
                     )}
                     <button
@@ -345,7 +355,13 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                     <Icon
                       className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`}
                     />
-                    {!collapsed && <span className="truncate">{item.label}</span>}
+                    {!collapsed && (
+                      <span className="truncate">
+                        {userRole === 'admin' && item.id === 'settings'
+                          ? 'الملف الشخصي'
+                          : item.label}
+                      </span>
+                    )}
                   </button>
                 );
               })}

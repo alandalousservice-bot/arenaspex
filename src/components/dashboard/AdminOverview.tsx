@@ -97,7 +97,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ users = [] }) => {
       tone: 'violet',
     },
     {
-      label: 'الخدمات المساعدة المفعلة',
+      label: 'الخدمات المفعلة',
       value: serviceCount,
       href: '/admin/services',
       icon: KeyRound,

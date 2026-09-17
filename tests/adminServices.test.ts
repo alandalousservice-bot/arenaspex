@@ -38,4 +38,10 @@ describe('admin service access workspace', () => {
     expect(page).not.toContain('customApiKey');
     expect(page).not.toContain('encryptedApiKey');
   });
+
+  it('keeps provider controls inside the Admin services boundary', () => {
+    expect(page).toContain('إدارة الخدمات المركزية');
+    expect(page).toContain('الخدمات والحسابات');
+    expect(page).not.toContain('TeacherLearningPlan');
+  });
 });
