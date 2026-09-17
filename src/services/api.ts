@@ -1192,6 +1192,54 @@ export async function saveTeacherAttendanceByDate(input: {
   return data as TeacherDateAttendanceDto;
 }
 
+export interface TeacherAttendanceAnalyticsDto {
+  success: boolean;
+  class: { id: string; name: string };
+  month: string | null;
+  summary: {
+    totalRecorded: number;
+    eligible: number;
+    present: number;
+    absent: number;
+    justified: number;
+    exempt: number;
+    attendanceRate: number | null;
+    absenceRate: number | null;
+  };
+  monthly: TeacherAttendanceAnalyticsDto['summary'];
+  trend: Array<TeacherAttendanceAnalyticsDto['summary'] & { month: string; hasData: boolean }>;
+  absences: Array<{
+    id: string;
+    studentId: string;
+    student: { firstName: string; lastName: string };
+    date: string;
+    status: string | null;
+    note: string | null;
+    sessionId: string | null;
+  }>;
+  studentSummary: TeacherAttendanceAnalyticsDto['summary'] | null;
+}
+
+export async function fetchTeacherAttendanceAnalytics(input: {
+  classId: string;
+  academicYearId: string;
+  month?: string;
+  studentId?: string;
+  status?: AttendanceStatus;
+}): Promise<TeacherAttendanceAnalyticsDto> {
+  const query = new URLSearchParams({
+    classId: input.classId,
+    academicYearId: input.academicYearId,
+  });
+  if (input.month) query.set('month', input.month);
+  if (input.studentId) query.set('studentId', input.studentId);
+  if (input.status) query.set('status', input.status);
+  const res = await fetch(`/api/teacher/attendance/analytics?${query.toString()}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل الإحصائيات.');
+  return data as TeacherAttendanceAnalyticsDto;
+}
+
 export async function deleteTeacherStudent(studentId: string) {
   const res = await fetch(`/api/students/${encodeURIComponent(studentId)}`, { method: 'DELETE' });
   const data = await res.json().catch(() => ({}));

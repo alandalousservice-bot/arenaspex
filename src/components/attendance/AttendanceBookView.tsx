@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, Trash2 } from 'lucide-react';
-import { fetchTeacherAttendanceByDate, saveTeacherAttendanceByDate } from '../../services/api';
-import type { TeacherDateAttendanceDto } from '../../services/api';
+import { Calendar, Trash2, BarChart3 } from 'lucide-react';
+import {
+  fetchTeacherAttendanceAnalytics,
+  fetchTeacherAttendanceByDate,
+  saveTeacherAttendanceByDate,
+} from '../../services/api';
+import type { TeacherAttendanceAnalyticsDto, TeacherDateAttendanceDto } from '../../services/api';
 import { getCurrentAcademicYear, isOperationalAcademicYear } from '../../services/academicYear';
 import type { AttendanceStatus, ClassRoom, Student, User } from '../../types/spex';
 
@@ -51,6 +55,11 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
   const [savingStudentId, setSavingStudentId] = useState('');
   const [deletingStudentId, setDeletingStudentId] = useState('');
   const [error, setError] = useState('');
+  const [analytics, setAnalytics] = useState<TeacherAttendanceAnalyticsDto | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState<AttendanceStatus | ''>('');
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   const classStudents = useMemo(
     () => students.filter((student) => student.classId === selectedClassId),
@@ -95,6 +104,34 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
       active = false;
     };
   }, [academicYearId, ownedClasses, selectedClassId, selectedDate]);
+
+  useEffect(() => {
+    if (!selectedClassId) {
+      setAnalytics(null);
+      return;
+    }
+    let active = true;
+    setAnalyticsLoading(true);
+    fetchTeacherAttendanceAnalytics({
+      classId: selectedClassId,
+      academicYearId,
+      month: selectedMonth || undefined,
+      studentId: selectedStudentId || undefined,
+      status: selectedStatus || undefined,
+    })
+      .then((value) => {
+        if (active) setAnalytics(value);
+      })
+      .catch((caught) => {
+        if (active) setError(caught instanceof Error ? caught.message : 'تعذر تحميل الإحصائيات.');
+      })
+      .finally(() => {
+        if (active) setAnalyticsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [academicYearId, selectedClassId, selectedMonth, selectedStudentId, selectedStatus]);
 
   const statusForStudent = (studentId: string): AttendanceStatus =>
     statusOverrides[studentId] || recordsByStudent.get(studentId)?.status || 'حاضر';
@@ -195,6 +232,87 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
           </p>
         )}
 
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="الملخص الإحصائي">
+          {[
+            ['إجمالي الحضور', analytics?.summary.present ?? 0],
+            ['إجمالي الغياب', analytics?.summary.absent ?? 0],
+            [
+              'نسبة الحضور',
+              analytics?.summary.attendanceRate == null
+                ? '—'
+                : `${analytics.summary.attendanceRate}%`,
+            ],
+            [
+              'نسبة الغياب',
+              analytics?.summary.absenceRate == null ? '—' : `${analytics.summary.absenceRate}%`,
+            ],
+          ].map(([label, value]) => (
+            <div
+              key={String(label)}
+              className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+            >
+              <p className="text-xs text-slate-500">{label}</p>
+              <strong className="mt-1 block text-2xl text-slate-900">
+                {analyticsLoading ? '…' : value}
+              </strong>
+            </div>
+          ))}
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="flex items-center gap-2 font-bold">
+                <BarChart3 className="h-4 w-4" />
+                إحصائيات الشهر
+              </h4>
+              <input
+                aria-label="الشهر"
+                type="month"
+                value={selectedMonth}
+                onChange={(event) => setSelectedMonth(event.target.value)}
+                className="rounded-lg border p-2 text-xs"
+              />
+            </div>
+            {analytics?.monthly.eligible ? (
+              <div className="mt-4 flex items-center gap-5">
+                <div
+                  className="grid h-28 w-28 place-items-center rounded-full"
+                  style={{
+                    background: `conic-gradient(#059669 ${analytics.monthly.attendanceRate ?? 0}%, #e11d48 0)`,
+                  }}
+                >
+                  <div className="grid h-20 w-20 place-items-center rounded-full bg-white text-sm font-bold">
+                    {analytics.monthly.attendanceRate}%
+                  </div>
+                </div>
+                <p className="text-sm">
+                  حضور: {analytics.monthly.present}
+                  <br />
+                  غياب: {analytics.monthly.absent}
+                  <br />
+                  مبرر: {analytics.monthly.justified}
+                </p>
+              </div>
+            ) : (
+              <p className="mt-5 text-sm text-slate-500">لا توجد بيانات محفوظة لهذا الشهر.</p>
+            )}
+          </div>
+          <div className="rounded-2xl border border-slate-200 p-4">
+            <h4 className="font-bold">تطور الغياب عبر الأشهر</h4>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(analytics?.trend ?? []).map((item) => (
+                <span
+                  key={item.month}
+                  className={`rounded-lg px-2 py-1 text-xs ${item.hasData ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-400'}`}
+                >
+                  {item.month}: {item.hasData ? `${item.absenceRate}%` : 'لا بيانات'}
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <div className="overflow-x-auto rounded-2xl border border-slate-200">
           <table className="w-full text-right text-xs">
             <thead>
@@ -266,6 +384,60 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
             </tbody>
           </table>
         </div>
+        <section className="rounded-2xl border border-slate-200 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="font-bold">أرشيف غيابات التلاميذ</h4>
+            <div className="flex flex-wrap gap-2">
+              <select
+                aria-label="تصفية التلميذ"
+                value={selectedStudentId}
+                onChange={(event) => setSelectedStudentId(event.target.value)}
+                className="rounded-lg border p-2 text-xs"
+              >
+                <option value="">كل التلاميذ</option>
+                {classStudents.map((student) => (
+                  <option key={student.id} value={student.id}>
+                    {student.firstName} {student.lastName}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="تصفية الحالة"
+                value={selectedStatus}
+                onChange={(event) => setSelectedStatus(event.target.value as AttendanceStatus | '')}
+                className="rounded-lg border p-2 text-xs"
+              >
+                <option value="">كل أنواع الغياب</option>
+                <option value="غائب">غائب</option>
+                <option value="غائب بمبرر">غائب بمبرر</option>
+              </select>
+            </div>
+          </div>
+          {analytics?.absences.length ? (
+            <div className="mt-3 divide-y divide-slate-100">
+              {analytics.absences.map((item) => (
+                <div key={item.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm">
+                  <span>
+                    {item.student.firstName} {item.student.lastName}
+                  </span>
+                  <span>
+                    {item.date} · {item.status}
+                    {item.note ? ` · ${item.note}` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-slate-500">لا توجد غيابات محفوظة.</p>
+          )}
+          {selectedStudentId && analytics?.studentSummary && (
+            <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm">
+              ملخص التلميذ: {analytics.studentSummary.present} حضور ·{' '}
+              {analytics.studentSummary.absent} غياب · نسبة الحضور{' '}
+              {analytics.studentSummary.attendanceRate ?? '—'}%
+            </p>
+          )}
+        </section>
       </div>
     </div>
   );

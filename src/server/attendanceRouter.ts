@@ -39,6 +39,14 @@ const attendanceSummaryQuerySchema = z.object({
   classId: z.string().trim().min(1),
   academicYearId: z.string().trim().min(1),
 });
+const attendanceAnalyticsQuerySchema = attendanceSummaryQuerySchema.extend({
+  month: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, 'الشهر غير صالح.')
+    .optional(),
+  studentId: z.string().trim().min(1).optional(),
+  status: attendanceStatusSchema.optional(),
+});
 const attendanceDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'التاريخ يجب أن يكون بصيغة YYYY-MM-DD.')
@@ -109,6 +117,105 @@ function activeExemptionForDate(
       (!item.expiresOn || item.expiresOn >= date)
   );
 }
+
+function attendanceAnalytics(records: Array<{ status: string | null; attendanceDate: Date }>) {
+  const present = records.filter((record) => record.status === 'حاضر').length;
+  const justified = records.filter((record) => record.status === 'غائب بمبرر').length;
+  const absent = records.filter(
+    (record) => record.status === 'غائب' || record.status === 'غائب بمبرر'
+  ).length;
+  const exempt = records.filter((record) => record.status === 'معفى').length;
+  const eligible = records.length - exempt;
+  return {
+    totalRecorded: records.length,
+    eligible,
+    present,
+    absent,
+    justified,
+    exempt,
+    attendanceRate: eligible ? Math.round((present / eligible) * 100) : null,
+    absenceRate: eligible ? Math.round((absent / eligible) * 100) : null,
+  };
+}
+
+teacherAttendanceRouter.get(
+  '/teacher/attendance/analytics',
+  requireRole('teacher'),
+  async (req, res) => {
+    const parsed = attendanceAnalyticsQuerySchema.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ error: 'القسم والسنة الدراسية مطلوبان.' });
+    const { classId, academicYearId, month, studentId, status } = parsed.data;
+    const classRecord = await prisma.studentClass.findFirst({
+      where: { id: classId, teacherId: req.user!.id },
+      select: { id: true, name: true },
+    });
+    if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+    if (studentId) {
+      const ownedStudent = await prisma.student.findFirst({
+        where: { id: studentId, classId, teacherId: req.user!.id },
+        select: { id: true },
+      });
+      if (!ownedStudent)
+        return res.status(403).json({ error: 'التلميذ غير موجود ضمن القسم المحدد.' });
+    }
+    const today = new Date();
+    const records = await prisma.studentAttendance.findMany({
+      where: {
+        teacherId: req.user!.id,
+        classId,
+        academicYearId,
+        attendanceDate: { lte: today },
+        ...(studentId ? { studentId } : {}),
+        ...(status ? { status } : {}),
+      },
+      select: {
+        id: true,
+        studentId: true,
+        status: true,
+        note: true,
+        attendanceDate: true,
+        classPlannedSessionId: true,
+        student: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: [{ attendanceDate: 'desc' }, { studentId: 'asc' }],
+    });
+    const monthRecords = month
+      ? records.filter((record) => record.attendanceDate.toISOString().slice(0, 7) === month)
+      : records;
+    const academicStart = Number(academicYearId.slice(0, 4));
+    const months = Number.isFinite(academicStart)
+      ? Array.from({ length: 9 }, (_, index) => {
+          const date = new Date(Date.UTC(academicStart, 8 + index, 1));
+          const key = date.toISOString().slice(0, 7);
+          const monthRows = records.filter(
+            (record) => record.attendanceDate.toISOString().slice(0, 7) === key
+          );
+          return { month: key, ...attendanceAnalytics(monthRows), hasData: monthRows.length > 0 };
+        })
+      : [];
+    const absences = monthRecords
+      .filter((record) => record.status === 'غائب' || record.status === 'غائب بمبرر')
+      .map((record) => ({
+        id: record.id,
+        studentId: record.studentId,
+        student: record.student,
+        date: record.attendanceDate.toISOString().slice(0, 10),
+        status: record.status,
+        note: record.note,
+        sessionId: record.classPlannedSessionId,
+      }));
+    res.json({
+      success: true,
+      class: classRecord,
+      month: month || null,
+      summary: attendanceAnalytics(records),
+      monthly: attendanceAnalytics(monthRecords),
+      trend: months,
+      absences,
+      studentSummary: studentId ? attendanceAnalytics(records) : null,
+    });
+  }
+);
 
 function exemptionView(row: {
   id: string;
