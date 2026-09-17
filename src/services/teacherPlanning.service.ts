@@ -510,6 +510,11 @@ function planningSessionsPerWeek(
   return usesLearningPairs(grade, grade4WeeklyScheduleMode) ? 2 : 1;
 }
 
+function targetLearningObjectiveCount(levelId: string, fieldId: string): number | null {
+  if (levelId !== 'lvl_p4' && levelId !== 'lvl_p5') return null;
+  return fieldId === 'f_locomotion' ? 7 : fieldId === 'f_fundamentals' ? 6 : 5;
+}
+
 function teacherPlanSequence(
   levelId: string,
   plan: TeacherLearningPlan,
@@ -585,8 +590,31 @@ function teacherPlanSequence(
       }
     };
 
-    addIntegrations(null);
-    domain.objectives.forEach((objective, objectiveIndex) => {
+    const targetCount =
+      domain.objectives.length === 7 ? targetLearningObjectiveCount(levelId, fieldId) : null;
+    const learningObjectives = targetCount
+      ? domain.objectives.slice(0, targetCount)
+      : domain.objectives;
+    const integrationAnchors = new Set(
+      targetCount ? [Math.ceil(learningObjectives.length / 2), learningObjectives.length] : []
+    );
+    const targetIntegrationPoints = [...domain.integrationPoints].sort(
+      (left, right) => left.orderIndex - right.orderIndex
+    );
+    const addTargetIntegration = (integrationIndex: number) => {
+      const point = targetIntegrationPoints[integrationIndex];
+      add(
+        'إدماجية',
+        point?.label || `إدماجية ${integrationIndex + 1}`,
+        point?.objective?.trim() || officialSessionText(field, 'إدماجية', point?.label),
+        null,
+        null,
+        point?.id || `teacher-integration:${levelId}:${fieldId}:${integrationIndex + 1}`,
+        `integration:${point?.id || `teacher-${integrationIndex + 1}`}`
+      );
+    };
+    if (!targetCount) addIntegrations(null);
+    learningObjectives.forEach((objective, objectiveIndex) => {
       const objectiveLabel = `تعلمية ${objectiveIndex + 1}`;
       const meetingCount = learningMeetingCount(grade, grade4WeeklyScheduleMode);
       for (let meetingIndex = 1; meetingIndex <= meetingCount; meetingIndex += 1) {
@@ -602,7 +630,15 @@ function teacherPlanSequence(
             : `objective:${objective.id}:meeting:${meetingIndex}`
         );
       }
-      addIntegrations(objective.id);
+      if (targetCount) {
+        if (integrationAnchors.has(objectiveIndex + 1)) {
+          addTargetIntegration(
+            objectiveIndex === Math.ceil(learningObjectives.length / 2) - 1 ? 0 : 1
+          );
+        }
+      } else {
+        addIntegrations(objective.id);
+      }
     });
     add(
       'تقويم تحصيلي',

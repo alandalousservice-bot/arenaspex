@@ -105,11 +105,11 @@ describe('MEMO-G3B planned session integration', () => {
       (seed) => !seed.referenceSessionId.includes(':intro:')
     );
 
-    expect(two45Learning).toHaveLength(54);
-    expect(new Set(two45Learning.map((seed) => seed.referenceSessionId)).size).toBe(54);
+    expect(two45Learning).toHaveLength(48);
+    expect(new Set(two45Learning.map((seed) => seed.referenceSessionId)).size).toBe(48);
     expect(two45Learning.every((seed) => seed.durationMinutes === 45)).toBe(true);
-    expect(one90Learning).toHaveLength(33);
-    expect(new Set(one90Learning.map((seed) => seed.referenceSessionId)).size).toBe(33);
+    expect(one90Learning).toHaveLength(30);
+    expect(new Set(one90Learning.map((seed) => seed.referenceSessionId)).size).toBe(30);
     expect(one90Learning.every((seed) => seed.durationMinutes === 90)).toBe(true);
     expect(one90Learning.some((seed) => seed.referenceSessionId.includes(':meeting:2'))).toBe(
       false
@@ -200,7 +200,7 @@ describe('MEMO-G3B planned session integration', () => {
       null
     );
     expect(result.every((seed) => seed.durationMinutes === 60)).toBe(true);
-    expect(result.filter((seed) => !seed.referenceSessionId.includes(':intro:'))).toHaveLength(33);
+    expect(result.filter((seed) => !seed.referenceSessionId.includes(':intro:'))).toHaveLength(30);
   });
 
   it('supports multi-target selection without changing snapshot identity', () => {

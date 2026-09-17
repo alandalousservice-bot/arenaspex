@@ -82,13 +82,13 @@ describe('official entry week operational materialization', () => {
     const counts = ['lvl_p1', 'lvl_p2', 'lvl_p3', 'lvl_p4', 'lvl_p5'].map(
       (levelId) => canonicalPlanningSessions(levelId, '2026-09-21', '2026-2027').length
     );
-    expect(counts).toEqual([54, 54, 54, 54, 33]);
+    expect(counts).toEqual([54, 54, 54, 48, 30]);
 
     const result = materialize('lvl_p4', [slot(1, '08:00', '09:30'), slot(3, '08:00', '09:30')]);
     expect(result.seeds.filter((seed) => seed.referenceSessionId.includes(':intro:'))).toHaveLength(
       2
     );
-    expect(result.seeds).toHaveLength(35);
+    expect(result.seeds).toHaveLength(32);
   });
 
   it('supports different same-level timetables without changing pedagogical identity order', () => {

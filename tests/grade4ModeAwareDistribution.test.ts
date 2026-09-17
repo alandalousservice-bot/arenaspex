@@ -30,8 +30,8 @@ describe('Grade 4 mode-aware annual distribution', () => {
     const learning = level.sessions.filter((session) => session.sessionType === 'تعلمية');
     const objectives = learning.map((session) => session.objectiveId);
 
-    expect(learning).toHaveLength(21);
-    expect(new Set(objectives).size).toBe(21);
+    expect(learning).toHaveLength(18);
+    expect(new Set(objectives).size).toBe(18);
     expect(level.sessions.map((session) => session.sequenceIndex)).toEqual(
       level.sessions.map((_, index) => index + 1)
     );
@@ -48,11 +48,11 @@ describe('Grade 4 mode-aware annual distribution', () => {
       .flatMap((week) => week.slots)
       .filter((slot) => slot.sessionType === 'تعلمية');
 
-    expect(level.sessionCount).toBe(34);
-    expect(level.annualHours).toBe(49.5);
-    expect(summary.weekCount).toBe(34);
-    expect(summary.learningUnitCount).toBe(21);
-    expect(learningSlots).toHaveLength(21);
+    expect(level.sessionCount).toBe(31);
+    expect(level.annualHours).toBe(45);
+    expect(summary.weekCount).toBe(31);
+    expect(summary.learningUnitCount).toBe(18);
+    expect(learningSlots).toHaveLength(18);
     expect(learningSlots.every((slot) => slot.meetingIndex === null)).toBe(true);
     expect(learningSlots.some((slot) => /\(أ|ب\)/u.test(slot.displayLabel))).toBe(false);
   });
@@ -69,8 +69,8 @@ describe('Grade 4 mode-aware annual distribution', () => {
     );
     const pedagogical = seeds.filter((seed) => !seed.referenceSessionId.includes(':intro:'));
 
-    expect(pedagogical).toHaveLength(33);
-    expect(new Set(pedagogical.map((seed) => seed.referenceSessionId)).size).toBe(33);
+    expect(pedagogical).toHaveLength(30);
+    expect(new Set(pedagogical.map((seed) => seed.referenceSessionId)).size).toBe(30);
     expect(pedagogical.every((seed) => seed.durationMinutes === 90)).toBe(true);
     expect(lessonPhaseBudgetsForDuration(90)).toEqual({ warmup: 15, main: 65, final: 10 });
   });
@@ -91,9 +91,9 @@ describe('Grade 4 mode-aware annual distribution', () => {
       learning.some((session) => session.referenceSessionId === seed.referenceSessionId)
     );
 
-    expect(learning).toHaveLength(42);
-    expect(groups).toHaveLength(21);
-    expect(learningSeeds).toHaveLength(42);
+    expect(learning).toHaveLength(36);
+    expect(groups).toHaveLength(18);
+    expect(learningSeeds).toHaveLength(36);
     expect(learningSeeds.every((seed) => seed.durationMinutes === 45)).toBe(true);
     expect(lessonPhaseBudgetsForDuration(45)).toEqual({ warmup: 10, main: 30, final: 5 });
     for (const group of groups) {
@@ -116,6 +116,6 @@ describe('Grade 4 mode-aware annual distribution', () => {
     expect(grade1.filter((session) => session.sessionType === 'تعلمية')).toHaveLength(42);
     expect(grade2.filter((session) => session.sessionType === 'تعلمية')).toHaveLength(42);
     expect(grade3.filter((session) => session.sessionType === 'تعلمية')).toHaveLength(42);
-    expect(grade5.filter((session) => session.sessionType === 'تعلمية')).toHaveLength(21);
+    expect(grade5.filter((session) => session.sessionType === 'تعلمية')).toHaveLength(18);
   });
 });

@@ -26,6 +26,11 @@ const getLearningSectionComponents = (levelId: string, fieldId: string) =>
 
 export const TEACHER_LEARNING_PLAN_KIND = 'teacher_learning_plan' as const;
 
+function defaultLearningObjectiveCount(levelId: string, fieldId: string): number | null {
+  if (levelId !== 'lvl_p4' && levelId !== 'lvl_p5') return null;
+  return fieldId === 'f_locomotion' ? 7 : fieldId === 'f_fundamentals' ? 6 : 5;
+}
+
 const objectiveSchema = z.object({
   id: z.string().trim().min(1).max(160),
   text: z.string().trim().max(2000),
@@ -632,7 +637,9 @@ export function seedTeacherLearningPlan(
         domainId: field.fieldId,
         finalCompetency: field.finalCompetency,
       });
-      const learningSessions = field.sessionsList.filter((session) => session.type === 'تعلمية');
+      const learningSessions = field.sessionsList
+        .filter((session) => session.type === 'تعلمية')
+        .slice(0, defaultLearningObjectiveCount(levelId, field.fieldId) || undefined);
       const domainReference = getLearningSectionReference(levelId, field.fieldId);
       const candidateCell =
         referenceRuntime.getStatus().authority === 'candidate'

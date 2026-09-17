@@ -166,8 +166,8 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
       (session) => session.objectiveGroupId === movedIntegration.id
     );
     expect(movedIntegration.label).toBe('إدماجية 1');
-    expect(movedIntegrationIndex).toBe(2);
-    expect(sessions[movedIntegrationIndex + 1].objectiveId).toBe(domain.objectives[1].id);
+    expect(movedIntegrationIndex).toBe(5);
+    expect(sessions[movedIntegrationIndex + 1].objectiveId).toBe(domain.objectives[4].id);
   });
 
   it('keeps stable identity through reorder and text edits', () => {
