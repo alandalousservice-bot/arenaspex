@@ -745,6 +745,11 @@ assignmentRouter.post('/admin/municipalities', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message });
   try {
     const { name, directorateId } = parsed.data;
+    const directorate = await prisma.directorate.findUnique({
+      where: { id: directorateId },
+      select: { id: true },
+    });
+    if (!directorate) return res.status(400).json({ error: 'المديرية المحددة غير موجودة.' });
     const municipality = await prisma.municipality.create({ data: { name, directorateId } });
     res.json({ success: true, municipality });
   } catch (err: unknown) {
@@ -768,6 +773,11 @@ assignmentRouter.post('/admin/schools', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message });
   try {
     const { name, municipalityId } = parsed.data;
+    const municipality = await prisma.municipality.findUnique({
+      where: { id: municipalityId },
+      select: { id: true },
+    });
+    if (!municipality) return res.status(400).json({ error: 'البلدية المحددة غير موجودة.' });
     const school = await prisma.school.create({ data: { name, municipalityId } });
     res.json({ success: true, school });
   } catch (err: unknown) {
@@ -812,33 +822,64 @@ assignmentRouter.post('/admin/districts', async (req, res) => {
 
 assignmentRouter.delete('/admin/directorates/:id', async (req, res) => {
   try {
-    await prisma.directorate.delete({ where: { id: req.params.id } });
+    const existing = await prisma.directorate.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true,
+        _count: { select: { districts: true, municipalities: true, eduUsers: true } },
+      },
+    });
+    if (!existing) return res.status(404).json({ error: 'المديرية غير موجودة.' });
+    if (existing._count.districts || existing._count.municipalities || existing._count.eduUsers)
+      return res.status(409).json({ error: 'لا يمكن حذف مديرية مرتبطة ببيانات أخرى.' });
+    await prisma.directorate.delete({ where: { id: existing.id } });
   } catch {
-    /* غير موجودة مسبقاً */
+    return res.status(409).json({ error: 'تعذر حذف المديرية بسبب تبعيات مرتبطة.' });
   }
   res.json({ success: true });
 });
 assignmentRouter.delete('/admin/municipalities/:id', async (req, res) => {
   try {
-    await prisma.municipality.delete({ where: { id: req.params.id } });
+    const existing = await prisma.municipality.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, _count: { select: { schools: true } } },
+    });
+    if (!existing) return res.status(404).json({ error: 'البلدية غير موجودة.' });
+    if (existing._count.schools)
+      return res.status(409).json({ error: 'لا يمكن حذف بلدية مرتبطة ببيانات أخرى.' });
+    await prisma.municipality.delete({ where: { id: existing.id } });
   } catch {
-    /* غير موجودة مسبقاً */
+    return res.status(409).json({ error: 'تعذر حذف البلدية بسبب تبعيات مرتبطة.' });
   }
   res.json({ success: true });
 });
 assignmentRouter.delete('/admin/schools/:id', async (req, res) => {
   try {
-    await prisma.school.delete({ where: { id: req.params.id } });
+    const existing = await prisma.school.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, _count: { select: { eduUsers: true } } },
+    });
+    if (!existing) return res.status(404).json({ error: 'المؤسسة غير موجودة.' });
+    if (existing._count.eduUsers)
+      return res.status(409).json({ error: 'لا يمكن حذف مؤسسة مرتبطة بحسابات.' });
+    await prisma.school.delete({ where: { id: existing.id } });
   } catch {
-    /* غير موجودة مسبقاً */
+    return res.status(409).json({ error: 'تعذر حذف المؤسسة بسبب تبعيات مرتبطة.' });
   }
   res.json({ success: true });
 });
 assignmentRouter.delete('/admin/districts/:id', async (req, res) => {
   try {
-    await prisma.inspectionDistrict.delete({ where: { id: req.params.id } });
+    const existing = await prisma.inspectionDistrict.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, _count: { select: { eduUsers: true, schools: true } } },
+    });
+    if (!existing) return res.status(404).json({ error: 'المقاطعة غير موجودة.' });
+    if (existing._count.eduUsers || existing._count.schools)
+      return res.status(409).json({ error: 'لا يمكن حذف مقاطعة مرتبطة ببيانات.' });
+    await prisma.inspectionDistrict.delete({ where: { id: existing.id } });
   } catch {
-    /* غير موجودة مسبقاً */
+    return res.status(409).json({ error: 'تعذر حذف المقاطعة بسبب تبعيات مرتبطة.' });
   }
   await bulkReassignAll();
   res.json({ success: true });
@@ -1145,6 +1186,8 @@ assignmentRouter.get('/admin/assignments', async (req, res) => {
 
 // إعادة تنفيذ الإسناد الجماعي عند الحاجة
 assignmentRouter.post('/admin/assignments/reassign-all', async (req, res) => {
+  if (req.body?.confirm !== true)
+    return res.status(400).json({ error: 'يجب تأكيد إعادة إسناد جميع الأساتذة قبل التنفيذ.' });
   const result = await bulkReassignAll();
   res.json({ success: true, ...result });
 });

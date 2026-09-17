@@ -4355,6 +4355,11 @@ apiRouter.post('/db/users', async (req, res) => {
     }
 
     const data = await buildUserWriteData(user, isAdmin, isAdmin);
+    if (existing?.role === 'admin' && data.role && data.role !== 'admin') {
+      const adminCount = await prisma.user.count({ where: { role: 'admin' } });
+      if (adminCount <= 1)
+        return res.status(409).json({ error: 'لا يمكن إزالة دور آخر مشرف عامل في المنصة.' });
+    }
     if (requestedRole === 'admin' && isSuperAdmin)
       data.isPlatformOwner = Boolean(existing?.isPlatformOwner);
     await enforceRoleAssignment(data, existing);
