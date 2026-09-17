@@ -123,7 +123,8 @@ describe('Learning Sections pedagogical core', () => {
       ).filter(
         (session) => session.domainId === domain.fieldId && session.sessionType === 'تعلمية'
       );
-      for (const objective of domain.objectives) {
+      const objectives = levelId === 'lvl_p4' ? domain.objectives.slice(0, 6) : domain.objectives;
+      for (const objective of objectives) {
         const pair = sessions.filter((session) => session.objectiveId === objective.id);
         expect(pair).toHaveLength(2);
         expect(new Set(pair.map((session) => session.objectiveGroupId))).toEqual(
@@ -135,13 +136,23 @@ describe('Learning Sections pedagogical core', () => {
         expect(domain.objectives.find((item) => item.id === pair[0].objectiveId)).toBe(objective);
         expect(domain.objectives.find((item) => item.id === pair[1].objectiveId)).toBe(objective);
       }
+      if (levelId === 'lvl_p4') {
+        expect(sessions.some((session) => session.objectiveId === domain.objectives[6]?.id)).toBe(
+          false
+        );
+      }
     }
   );
 
   it('maps every Grade 5 objective to one meeting', () => {
     const sessions = domainSessions('lvl_p5').filter((session) => session.sessionType === 'تعلمية');
-    expect(sessions).toHaveLength(domainOne('lvl_p5').objectives.length);
+    expect(sessions).toHaveLength(6);
     expect(new Set(sessions.map((session) => session.objectiveId)).size).toBe(sessions.length);
+    expect(sessions.map((session) => session.objectiveId)).toEqual(
+      domainOne('lvl_p5')
+        .objectives.slice(0, 6)
+        .map((objective) => objective.id)
+    );
   });
 
   it.each(['lvl_p1', 'lvl_p2', 'lvl_p3', 'lvl_p4', 'lvl_p5'])(

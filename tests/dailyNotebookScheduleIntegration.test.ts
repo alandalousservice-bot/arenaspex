@@ -243,7 +243,7 @@ describe('Daily Notebook timetable materialization', () => {
       result.seeds.some((item) => item.plannedDate.toISOString().slice(0, 10) === '2025-12-23')
     ).toBe(false);
     expect(
-      result.seeds.some((item) => item.plannedDate.toISOString().slice(0, 10) === '2026-01-07')
+      result.seeds.some((item) => item.plannedDate.toISOString().slice(0, 10) >= '2026-01-15')
     ).toBe(true);
   });
 

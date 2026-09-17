@@ -512,7 +512,7 @@ function planningSessionsPerWeek(
 
 function targetLearningObjectiveCount(levelId: string, fieldId: string): number | null {
   if (levelId !== 'lvl_p4' && levelId !== 'lvl_p5') return null;
-  return fieldId === 'f_locomotion' ? 7 : fieldId === 'f_fundamentals' ? 6 : 5;
+  return 6;
 }
 
 function teacherPlanSequence(

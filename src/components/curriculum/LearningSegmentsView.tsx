@@ -162,6 +162,7 @@ function draftFromSpecial(item: TeacherLearningSpecialEntry): EditableDraft {
 }
 
 function sequenceFor(
+  levelId: string,
   field: (typeof COMPLETE_ANNUAL_CURRICULUM)[string]['fields'][string],
   domain: Pick<
     TeacherLearningPlanData['domains'][number],
@@ -191,7 +192,11 @@ function sequenceFor(
       );
   };
   addIntegrations(null);
-  domain.objectives.forEach((objective, index) => {
+  const learningObjectives =
+    levelId === 'lvl_p4' || levelId === 'lvl_p5'
+      ? domain.objectives.slice(0, 6)
+      : domain.objectives;
+  learningObjectives.forEach((objective, index) => {
     items.push({
       kind: 'objective',
       id: objective.id,
@@ -659,7 +664,7 @@ export const LearningSegmentsView: React.FC<LearningSegmentsViewProps> = ({
           if (!domain) return null;
           const objectives = domain.objectives || [];
           const integrationPoints = domain.integrationPoints || [];
-          const sequence = sequenceFor(field, {
+          const sequence = sequenceFor(selectedLevelId, field, {
             objectives,
             integrationPoints,
             diagnostic: domain.diagnostic,
