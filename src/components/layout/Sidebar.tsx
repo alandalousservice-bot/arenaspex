@@ -205,8 +205,8 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
         title: 'إدارة النظام وقواعد البيانات',
         items: [
           { id: 'admin_portal' as NavTab, label: 'الرئيسية', icon: Building2 },
-          { id: 'admin_accounts' as NavTab, label: 'إدارة الحسابات', icon: Users },
-          { id: 'admin_pending_users' as NavTab, label: 'طلبات تفعيل الحسابات', icon: UserCheck },
+          { id: 'admin_accounts' as NavTab, label: 'الحسابات', icon: Users },
+          { id: 'admin_pending_users' as NavTab, label: 'طلبات التفعيل', icon: UserCheck },
           { id: 'admin_inspectors' as NavTab, label: 'المفتشون والإسنادات', icon: ShieldCheck },
           { id: 'admin_services' as NavTab, label: 'الخدمات المساعدة', icon: Key },
           { id: 'admin_approvals' as NavTab, label: 'اعتمادات الموارد', icon: CheckCircle2 },
@@ -263,39 +263,45 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                 const Icon = item.icon;
                 const isActive = currentTab === item.id;
                 return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleItemClick(item.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer relative group ${
-                      isActive
-                        ? userRole === 'inspector'
-                          ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/25'
-                          : userRole === 'director'
-                            ? 'bg-teal-700 text-white shadow-md shadow-teal-700/25'
-                            : userRole === 'admin'
-                              ? 'bg-slate-800 text-white shadow-md shadow-slate-800/25'
-                              : 'bg-emerald-700 text-white shadow-md shadow-emerald-700/25'
-                        : 'text-slate-700 hover:bg-slate-100/80 hover:text-emerald-600'
-                    }`}
-                    title={collapsed ? item.label : undefined}
-                  >
-                    <Icon
-                      className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-emerald-300'}`}
-                    />
-                    {!collapsed && <span className="truncate">{item.label}</span>}
-                    {!collapsed && item.badge && (
-                      <span
-                        className={`mr-auto text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
-                          isActive ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
-                        }`}
-                      >
-                        {item.badge}
-                      </span>
+                  <React.Fragment key={item.id}>
+                    {userRole === 'admin' && item.id === 'admin_accounts' && !collapsed && (
+                      <div className="px-2 pt-1 pb-1 text-[11px] font-extrabold text-slate-400">
+                        إدارة المستخدمين
+                      </div>
                     )}
-                    {!collapsed && item.highlight && !isActive && (
-                      <Sparkles className="w-3.5 h-3.5 text-amber-500 mr-auto animate-pulse" />
-                    )}
-                  </button>
+                    <button
+                      onClick={() => handleItemClick(item.id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer relative group ${
+                        isActive
+                          ? userRole === 'inspector'
+                            ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/25'
+                            : userRole === 'director'
+                              ? 'bg-teal-700 text-white shadow-md shadow-teal-700/25'
+                              : userRole === 'admin'
+                                ? 'bg-slate-800 text-white shadow-md shadow-slate-800/25'
+                                : 'bg-emerald-700 text-white shadow-md shadow-emerald-700/25'
+                          : 'text-slate-700 hover:bg-slate-100/80 hover:text-emerald-600'
+                      }`}
+                      title={collapsed ? item.label : undefined}
+                    >
+                      <Icon
+                        className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-emerald-300'}`}
+                      />
+                      {!collapsed && <span className="truncate">{item.label}</span>}
+                      {!collapsed && item.badge && (
+                        <span
+                          className={`mr-auto text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
+                            isActive ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                      {!collapsed && item.highlight && !isActive && (
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500 mr-auto animate-pulse" />
+                      )}
+                    </button>
+                  </React.Fragment>
                 );
               })}
             </nav>
