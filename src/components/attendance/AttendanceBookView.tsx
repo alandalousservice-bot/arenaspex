@@ -52,7 +52,8 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
   const [attendanceData, setAttendanceData] = useState<TeacherDateAttendanceDto | null>(null);
   const [statusOverrides, setStatusOverrides] = useState<Record<string, AttendanceStatus>>({});
   const [loading, setLoading] = useState(false);
-  const [savingStudentId, setSavingStudentId] = useState('');
+  const [savingSheet, setSavingSheet] = useState(false);
+  const [sheetSaved, setSheetSaved] = useState(false);
   const [deletingStudentId, setDeletingStudentId] = useState('');
   const [error, setError] = useState('');
   const [analytics, setAnalytics] = useState<TeacherAttendanceAnalyticsDto | null>(null);
@@ -87,9 +88,13 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
     setError('');
     setAttendanceData(null);
     setStatusOverrides({});
+    setSheetSaved(false);
     fetchTeacherAttendanceByDate(selectedClassId, selectedDate, academicYearId)
       .then((response) => {
-        if (active) setAttendanceData(response);
+        if (active) {
+          setAttendanceData(response);
+          setSheetSaved(response.records.length > 0);
+        }
       })
       .catch((caught) => {
         if (active) {
@@ -136,39 +141,33 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
   const statusForStudent = (studentId: string): AttendanceStatus =>
     statusOverrides[studentId] || recordsByStudent.get(studentId)?.status || 'حاضر';
 
-  const saveStatus = async (studentId: string, status: AttendanceStatus) => {
-    const previousStatus = statusForStudent(studentId);
+  const saveStatus = (studentId: string, status: AttendanceStatus) => {
     setStatusOverrides((current) => ({ ...current, [studentId]: status }));
-    setSavingStudentId(studentId);
+    setSheetSaved(false);
+  };
+
+  const saveAttendanceSheet = async () => {
+    if (!selectedClassId || classStudents.length === 0) return;
+    setSavingSheet(true);
     setError('');
     try {
       const response = await saveTeacherAttendanceByDate({
         classId: selectedClassId,
         date: selectedDate,
         academicYearId,
-        records: [{ studentId, status, note: recordsByStudent.get(studentId)?.note || null }],
+        records: classStudents.map((student) => ({
+          studentId: student.id,
+          status: statusForStudent(student.id),
+          note: recordsByStudent.get(student.id)?.note || null,
+        })),
       });
       setAttendanceData(response);
-      setStatusOverrides((current) => {
-        const next = { ...current };
-        delete next[studentId];
-        return next;
-      });
+      setStatusOverrides({});
+      setSheetSaved(true);
     } catch (caught) {
-      setStatusOverrides((current) => ({ ...current, [studentId]: previousStatus }));
-      try {
-        const refreshed = await fetchTeacherAttendanceByDate(
-          selectedClassId,
-          selectedDate,
-          academicYearId
-        );
-        setAttendanceData(refreshed);
-      } catch {
-        // Keep the prior authoritative response when the recovery read also fails.
-      }
-      setError(caught instanceof Error ? caught.message : 'تعذر حفظ حالة الحضور.');
+      setError(caught instanceof Error ? caught.message : 'تعذر حفظ الحضور.');
     } finally {
-      setSavingStudentId('');
+      setSavingSheet(false);
     }
   };
 
@@ -226,6 +225,13 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
         </div>
 
         {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+        <div
+          className={`rounded-xl p-3 text-sm ${sheetSaved && !Object.keys(statusOverrides).length ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}
+        >
+          {sheetSaved && !Object.keys(statusOverrides).length
+            ? 'تم حفظ الحضور لهذه الحصة.'
+            : 'لم يتم حفظ حضور هذه الحصة بعد. الحالة الظاهرة قابلة للتعديل ولا تدخل الإحصائيات قبل الحفظ.'}
+        </div>
         {loading && (
           <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center text-xs text-slate-500">
             جاري تحميل دفتر الحضور...
@@ -353,7 +359,7 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
                             <button
                               key={nextStatus}
                               type="button"
-                              disabled={Boolean(savingStudentId) || Boolean(deletingStudentId)}
+                              disabled={savingSheet || Boolean(deletingStudentId)}
                               onClick={() => void saveStatus(student.id, nextStatus)}
                               className={`cursor-pointer rounded-lg px-2.5 py-1 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                                 status === nextStatus
@@ -370,7 +376,7 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
                         <button
                           type="button"
                           onClick={() => void deleteStudent(student)}
-                          disabled={Boolean(savingStudentId) || Boolean(deletingStudentId)}
+                          disabled={savingSheet || Boolean(deletingStudentId)}
                           className="cursor-pointer rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
                           title="حذف التلميذ"
                         >
@@ -383,6 +389,16 @@ export const AttendanceBookView: React.FC<AttendanceBookViewProps> = ({
               )}
             </tbody>
           </table>
+        </div>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => void saveAttendanceSheet()}
+            disabled={savingSheet || !classStudents.length}
+            className="rounded-xl bg-emerald-700 px-5 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {savingSheet ? 'جاري حفظ الحضور...' : 'حفظ الحضور'}
+          </button>
         </div>
         <section className="rounded-2xl border border-slate-200 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
