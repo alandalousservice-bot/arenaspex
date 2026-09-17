@@ -209,7 +209,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
           { id: 'admin_pending_users' as NavTab, label: 'طلبات التفعيل', icon: UserCheck },
           { id: 'admin_inspectors' as NavTab, label: 'المفتشون والإسنادات', icon: ShieldCheck },
           { id: 'admin_services' as NavTab, label: 'الخدمات المساعدة', icon: Key },
-          { id: 'admin_approvals' as NavTab, label: 'اعتمادات الموارد', icon: CheckCircle2 },
+          { id: 'admin_approvals' as NavTab, label: 'الاعتمادات والمراجعة', icon: CheckCircle2 },
           { id: 'admin_curriculum' as NavTab, label: 'المناهج والمراجع', icon: BookMarked },
           { id: 'admin_reports' as NavTab, label: 'الإحصاءات والتقارير', icon: FileSpreadsheet },
           {
@@ -267,6 +267,11 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
                     {userRole === 'admin' && item.id === 'admin_accounts' && !collapsed && (
                       <div className="px-2 pt-1 pb-1 text-[11px] font-extrabold text-slate-400">
                         إدارة المستخدمين
+                      </div>
+                    )}
+                    {userRole === 'admin' && item.id === 'admin_approvals' && !collapsed && (
+                      <div className="px-2 pt-4 pb-1 text-[11px] font-extrabold text-slate-400">
+                        الإدارة البيداغوجية
                       </div>
                     )}
                     <button
