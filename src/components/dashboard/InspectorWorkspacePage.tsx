@@ -20,11 +20,7 @@ import { InspectorReportsView } from './inspector/InspectorReportsView';
 import { InspectorCurriculumAuditView } from './inspector/InspectorCurriculumAuditView';
 import { InspectorBroadcastsView } from './inspector/InspectorBroadcastsView';
 import { InspectorDirectChat } from './inspector/InspectorDirectChat';
-import { InspectorPedagogicalProfile } from './inspector/InspectorPedagogicalProfile';
 import { WeeklyTimetableView } from '../schedule/WeeklyTimetableView';
-import { useTeacher } from '../../hooks/useTeacher';
-import { useLessonPlans } from '../../hooks/useLessonPlans';
-import { useReports } from '../../hooks/useReports';
 import { fetchInspectorTeacherFollowUp, fetchInspectorWeeklyTimetable } from '../../services/api';
 import {
   formatAcademicYearLabel,
@@ -70,11 +66,8 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
     visits,
     broadcasts,
     directMessages,
-    classes,
-    students,
     weeklySchedule,
     lessonPlans,
-    dailyNotebook,
   } = props;
   const [selectedTeacherId, setSelectedTeacherId] = useState(
     props.teacherId || teachers[0]?.id || ''
@@ -101,16 +94,12 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
     .sort((a: any, b: any) =>
       `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, 'ar')
     );
-  const { teacherClasses, totalStudentsTaught, maleCount, femaleCount, weeklyHoursCount } =
-    useTeacher(teachers, selectedTeacherId, classes, students, weeklySchedule);
-  const { filteredTeacherPlans } = useLessonPlans(lessonPlans, selectedTeacher, teachers);
-  const { teacherVisits, teacherNotes } = useReports(visits, notes);
 
   const refreshTeacherDetail = React.useCallback(async () => {
     if (!props.teacherId) return;
-    const data = await fetchInspectorTeacherFollowUp(props.teacherId);
+    const data = await fetchInspectorTeacherFollowUp(props.teacherId, academicYearId);
     setDetail(data);
-  }, [props.teacherId]);
+  }, [academicYearId, props.teacherId]);
 
   React.useEffect(() => {
     if (module !== 'inspector_teachers' || !props.teacherId) return;
@@ -262,6 +251,42 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
           schoolName={teacher?.schoolName || 'المؤسسة غير محددة'}
           readOnly
         />
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+          <h2 className="font-black">المتابعة البيداغوجية المحفوظة</h2>
+          <p className="text-xs text-slate-500">
+            عرض للقراءة فقط من السجلات المحفوظة للأستاذ في السنة الدراسية المختارة.
+          </p>
+          {detail.annualPlans?.length ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {detail.annualPlans.map((plan: any) => (
+                <div key={plan.id} className="rounded-xl bg-slate-50 p-3 text-sm">
+                  <b>{plan.kind === 'annual_distribution' ? 'التوزيع السنوي' : 'المخطط السنوي'}</b>
+                  <span className="mr-2 text-xs text-slate-500">{plan.levelId}</span>
+                  <div className="text-xs text-slate-500">الحالة: {plan.status}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">
+              لا يوجد مخطط محفوظ لهذه السنة.
+            </p>
+          )}
+          <div className="border-t border-slate-100 pt-3">
+            <b className="text-sm">الحصص التشغيلية: {detail.operationalSessions?.length || 0}</b>
+            {detail.operationalSessions?.length ? (
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {detail.operationalSessions.slice(0, 12).map((session: any) => (
+                  <div key={session.id} className="rounded-xl border border-slate-100 p-2 text-xs">
+                    {new Date(session.plannedDate).toLocaleDateString('ar-DZ')} · {session.status} ·{' '}
+                    {session.durationMinutes} دقيقة
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-slate-500">لا توجد حصص تشغيلية مجدولة لهذه السنة.</p>
+            )}
+          </div>
+        </section>
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="font-black">الأقسام والتلاميذ</h2>
           {detail.classes?.length ? (
@@ -384,31 +409,6 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
             لا يوجد أساتذة مسندون إليك حالياً.
           </div>
-        )}
-        {selectedTeacher && (
-          <InspectorPedagogicalProfile
-            inspector={inspector}
-            selectedTeacher={selectedTeacher}
-            teacherClasses={teacherClasses}
-            totalStudentsTaught={totalStudentsTaught}
-            maleCount={maleCount}
-            femaleCount={femaleCount}
-            weeklyHoursCount={weeklyHoursCount}
-            teacherSubTab="annual_plan"
-            onSetTeacherSubTab={() => undefined}
-            selectedInspectorLevelId=""
-            onSetSelectedInspectorLevelId={() => undefined}
-            teacherLessonPlans={filteredTeacherPlans}
-            teacherNotebook={dailyNotebook.filter((item) => item.teacherId === selectedTeacher.id)}
-            teacherScheduleSlots={weeklySchedule.filter(
-              (item) => !item.teacherId || item.teacherId === selectedTeacher.id
-            )}
-            visits={teacherVisits(selectedTeacher.id)}
-            notes={teacherNotes(selectedTeacher.id)}
-            onOpenVisitModal={() => props.onNavigate('inspector_visits')}
-            onOpenNoteModal={() => props.onNavigate('inspector_visits')}
-            onSelectLessonPlanModal={() => undefined}
-          />
         )}
       </div>
     );

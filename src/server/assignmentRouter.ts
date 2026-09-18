@@ -523,43 +523,79 @@ assignmentRouter.get(
     ) {
       return res.status(404).json({ error: 'الأستاذ غير موجود ضمن إسناداتك المقبولة.' });
     }
-    const [teacher, classes, students, visits, notes, plans] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: teacherId },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          phone: true,
-          schoolName: true,
-          institutionId: true,
-          status: true,
-        },
-      }),
-      prisma.studentClass.findMany({
-        where: { teacherId },
-        orderBy: { createdAt: 'asc' },
-        select: { id: true, name: true, teacherId: true },
-      }),
-      prisma.student.findMany({
-        where: { teacherId },
-        select: { id: true, classId: true },
-      }),
-      prisma.inspectionVisitRecord.findMany({
-        where: { teacherId, inspectorId: req.user!.id },
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.inspectorNote.findMany({
-        where: { authorId: req.user!.id },
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.lessonPlan.findMany({
-        where: { ownerId: teacherId },
-        orderBy: { updatedAt: 'desc' },
-        take: 50,
-      }),
-    ]);
+    const academicYearId = /^\d{4}-\d{4}$/.test(String(req.query.academicYearId || ''))
+      ? String(req.query.academicYearId)
+      : null;
+    const [teacher, classes, students, visits, notes, plans, annualPlans, operationalSessions] =
+      await Promise.all([
+        prisma.user.findUnique({
+          where: { id: teacherId },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            schoolName: true,
+            institutionId: true,
+            status: true,
+          },
+        }),
+        prisma.studentClass.findMany({
+          where: { teacherId },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, name: true, teacherId: true },
+        }),
+        prisma.student.findMany({
+          where: { teacherId },
+          select: { id: true, classId: true },
+        }),
+        prisma.inspectionVisitRecord.findMany({
+          where: { teacherId, inspectorId: req.user!.id },
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.inspectorNote.findMany({
+          where: { authorId: req.user!.id },
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.lessonPlan.findMany({
+          where: { ownerId: teacherId },
+          orderBy: { updatedAt: 'desc' },
+          take: 50,
+        }),
+        academicYearId
+          ? prisma.annualPlan.findMany({
+              where: { teacherId, academicYearId },
+              select: {
+                id: true,
+                levelId: true,
+                kind: true,
+                status: true,
+                data: true,
+                updatedAt: true,
+              },
+              orderBy: { updatedAt: 'desc' },
+            })
+          : Promise.resolve([]),
+        academicYearId
+          ? prisma.classPlannedSession.findMany({
+              where: { teacherId, academicYearId },
+              select: {
+                id: true,
+                classId: true,
+                academicYearId: true,
+                referenceSessionId: true,
+                plannedDate: true,
+                durationMinutes: true,
+                status: true,
+                startTime: true,
+                venue: true,
+                operationalNote: true,
+              },
+              orderBy: { plannedDate: 'asc' },
+            })
+          : Promise.resolve([]),
+      ]);
     const guidance = notes
       .filter((note) => (note.data as Record<string, unknown>)?.teacherId === teacherId)
       .map((note) => note.data);
@@ -573,6 +609,9 @@ assignmentRouter.get(
       guidance,
       reports: visits.map((row) => row.data),
       lessonPlans: plans.map((row) => ({ id: row.id, data: row.data, updatedAt: row.updatedAt })),
+      academicYearId,
+      annualPlans,
+      operationalSessions,
     });
   }
 );

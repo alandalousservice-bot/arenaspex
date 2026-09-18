@@ -2121,8 +2121,11 @@ export async function fetchInspectorSummary() {
   return data.summary || {};
 }
 
-export async function fetchInspectorTeacherFollowUp(teacherId: string) {
-  const res = await fetch(`/api/inspector/teachers/${encodeURIComponent(teacherId)}/follow-up`);
+export async function fetchInspectorTeacherFollowUp(teacherId: string, academicYearId?: string) {
+  const query = academicYearId ? `?academicYearId=${encodeURIComponent(academicYearId)}` : '';
+  const res = await fetch(
+    `/api/inspector/teachers/${encodeURIComponent(teacherId)}/follow-up${query}`
+  );
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'تعذر تحميل ملف متابعة الأستاذ.');
   return data;
