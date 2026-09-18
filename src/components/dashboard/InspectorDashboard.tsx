@@ -1,13 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Award,
-  Bell,
-  BookOpenCheck,
-  ClipboardList,
-  FileCheck2,
-  MessageSquare,
-  Users,
-} from 'lucide-react';
+import { Award, Bell, BookOpenCheck, ClipboardList, MessageSquare, Users } from 'lucide-react';
 import { User } from '../../types/spex';
 import { NavTab } from '../layout/Sidebar';
 import { fetchInspectorSummary } from '../../services/api';
@@ -84,13 +76,6 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
       value: summary.pendingAssignmentsCount,
       icon: ClipboardList,
       color: 'amber',
-    },
-    {
-      tab: 'inspector_approvals',
-      label: 'موارد بانتظار الاعتماد',
-      value: summary.pendingApprovalsCount,
-      icon: FileCheck2,
-      color: 'blue',
     },
     {
       tab: 'inspector_visits',

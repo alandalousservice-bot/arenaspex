@@ -37,9 +37,9 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
   >('توجيهية');
   const [visitDate, setVisitDate] = useState(new Date().toISOString().split('T')[0]);
   const [lessonTitle, setLessonTitle] = useState('');
-  const [adminGrade, setAdminGrade] = useState('4.5'); // /5
-  const [pedagogicalGrade, setPedagogicalGrade] = useState('8.5'); // /10
-  const [safetyGrade, setSafetyGrade] = useState('4.0'); // /5
+  const [adminGrade, setAdminGrade] = useState(''); // /5, optional persisted observation
+  const [pedagogicalGrade, setPedagogicalGrade] = useState(''); // /10, optional persisted observation
+  const [safetyGrade, setSafetyGrade] = useState(''); // /5, optional persisted observation
   const [positivesText, setPositivesText] = useState(
     'التزام بدفتر اليوميات والتوزيع السنوي، تحكم بيداغوجي وتوزيع محكم للمجموعات.'
   );
@@ -80,7 +80,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
       visitDate,
       visitType,
       lessonObservedTitle: lessonTitle.trim() || 'حصة التربية البدنية والرياضية',
-      pedagogicalGrade: totalScore,
+      ...(adminGrade || pedagogicalGrade || safetyGrade ? { pedagogicalGrade: totalScore } : {}),
       positivePoints: positivesText
         .split('،')
         .map((s) => s.trim())
@@ -251,10 +251,12 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
 
                     <div className="bg-amber-50 border border-amber-200 rounded-2xl px-3 py-1.5 text-center">
                       <span className="text-[9px] text-amber-700 font-bold block">
-                        العلامة الرسمية
+                        الملاحظة المحفوظة
                       </span>
                       <span className="text-base font-black text-amber-900">
-                        {visit.pedagogicalGrade || 16} / 20
+                        {typeof visit.pedagogicalGrade === 'number'
+                          ? `${visit.pedagogicalGrade} / 20`
+                          : 'غير مسجلة'}
                       </span>
                     </div>
                   </div>
