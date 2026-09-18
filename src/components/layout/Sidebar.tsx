@@ -141,20 +141,20 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
               badge:
                 unreadInspectorNotesCount > 0 ? `${unreadInspectorNotesCount} ملاحظة` : undefined,
             },
-            { id: 'inspector_teachers' as NavTab, label: 'متابعة الأساتذة بالمقاطعة', icon: Users },
+            { id: 'inspector_teachers' as NavTab, label: 'الأساتذة', icon: Users },
             {
               id: 'inspector_approvals' as NavTab,
-              label: 'مركز اعتمادات الموارد',
+              label: 'مراجعة الموارد',
               icon: BrainCircuit,
             },
             {
               id: 'inspector_visits' as NavTab,
-              label: 'تقارير وتوجيهات المعاينات',
+              label: 'الزيارات والتوجيه',
               icon: FileSpreadsheet,
             },
             {
               id: 'inspector_curriculum' as NavTab,
-              label: 'التدقيق البيداغوجي للمنهاج',
+              label: 'تدقيق المنهاج',
               icon: BookMarked,
             },
             {
@@ -168,15 +168,8 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
               icon: Users,
             },
             {
-              id: 'professional_hub' as NavTab,
-              label: 'التواصل المهني',
-              icon: Users,
-              badge: 'فضاء موحّد',
-              highlight: true,
-            },
-            {
               id: 'knowledge_engine' as NavTab,
-              label: 'بنك المعرفة والاعتماد',
+              label: 'بنك المعرفة',
               icon: BrainCircuit,
             },
           ],

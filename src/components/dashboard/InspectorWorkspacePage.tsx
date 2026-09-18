@@ -419,7 +419,7 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
       <section className="space-y-5">
         <h1 className="text-lg font-black flex items-center gap-2">
           <ShieldCheck className="text-emerald-600" />
-          مركز اعتمادات الموارد
+          مراجعة الموارد
         </h1>
         <InspectorResourceValidationView
           resources={props.communityResources}

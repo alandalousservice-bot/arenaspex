@@ -9,10 +9,23 @@ describe('Inspector workspace information architecture', () => {
   it('defines role-specific Inspector routes and navigation entries', () => {
     const routes = read('src/lib/routes.ts');
     const sidebar = read('src/components/layout/Sidebar.tsx');
-    for (const pathName of ['/inspector/teachers', '/inspector/approvals', '/inspector/visits', '/inspector/curriculum-audit', '/inspector/guidance', '/inspector/communication']) expect(routes).toContain(pathName);
-    expect(sidebar).toContain('متابعة الأساتذة بالمقاطعة');
-    expect(sidebar).toContain('مركز اعتمادات الموارد');
+    for (const pathName of [
+      '/inspector/teachers',
+      '/inspector/approvals',
+      '/inspector/visits',
+      '/inspector/curriculum-audit',
+      '/inspector/guidance',
+      '/inspector/communication',
+    ])
+      expect(routes).toContain(pathName);
+    expect(sidebar).toContain("label: 'الأساتذة'");
+    expect(sidebar).toContain('مراجعة الموارد');
     expect(sidebar).toContain('التواصل المباشر مع الأستاذ');
+    const inspectorBlock = sidebar.slice(
+      sidebar.indexOf("if (userRole === 'inspector')"),
+      sidebar.indexOf("if (userRole === 'director')")
+    );
+    expect(inspectorBlock).not.toContain("label: 'التواصل المهني'");
   });
 
   it('keeps dedicated modules separate from the home dashboard', () => {
