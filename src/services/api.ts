@@ -1686,6 +1686,22 @@ export async function syncUserToDB(
   return { success: true };
 }
 
+export async function syncAdminUserToDB(
+  user: User
+): Promise<{ success: boolean; user?: User; error?: string }> {
+  try {
+    const res = await fetch('/api/db/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user, privilegedAccountMutation: true }),
+    });
+    const data = await res.json();
+    return res.ok ? { success: true, user: data.user } : { success: false, error: data.error };
+  } catch {
+    return { success: false, error: 'تعذر حفظ بيانات الحساب الإداري.' };
+  }
+}
+
 export async function deleteUserFromDB(userId: string) {
   await offlineDelete(`/api/db/users/${userId}`);
 }

@@ -12,6 +12,7 @@ import { LAUNCH_ACADEMIC_YEAR_ID } from '../services/academicYear';
 import { NavTab } from '../components/layout/Sidebar';
 import {
   syncUserToDB,
+  syncAdminUserToDB,
   deleteUserFromDB,
   syncUsersBatchToDB,
   fetchUsersFromDB,
@@ -1061,7 +1062,7 @@ export function usePlatformStore({
     };
     // نرسل كلمة المرور للخادم ليشفّرها فوراً، ثم نستبدل الحالة المحلية بالنسخة الآمنة
     // المُعادة من الخادم بدل الاحتفاظ بكلمة المرور نص عادي في ذاكرة المتصفح
-    const result = await syncUserToDB(newUser);
+    const result = await syncAdminUserToDB(newUser);
     if (!result.success || !result.user) {
       console.warn('DB user create failed:', result.error);
       window.alert(result.error || 'تعذر إنشاء الحساب على الخادم.');
@@ -1083,6 +1084,16 @@ export function usePlatformStore({
     if (currentUser.id === finalUser.id) {
       setCurrentUser(finalUser);
     }
+  };
+
+  const handleAdminUpdateUser = async (updatedUser: User) => {
+    const result = await syncAdminUserToDB(updatedUser);
+    if (!result.success || !result.user) {
+      console.warn('Admin user update failed:', result.error);
+      window.alert(result.error || 'تعذر حفظ التغييرات على الخادم.');
+      return;
+    }
+    setAllUsersList((prev) => prev.map((u) => (u.id === result.user!.id ? result.user! : u)));
   };
 
   const handleDeleteUser = (userId: string) => {
@@ -1738,6 +1749,7 @@ export function usePlatformStore({
     // Admin handlers
     handleAddUser,
     handleUpdateUser,
+    handleAdminUpdateUser,
     handleDeleteUser,
     // Community handlers
     createCommunityNotification,

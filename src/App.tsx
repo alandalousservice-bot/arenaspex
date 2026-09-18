@@ -210,6 +210,7 @@ export default function App() {
     handleAddDirectMessageFromInspector,
     handleAddUser,
     handleUpdateUser,
+    handleAdminUpdateUser,
     handleDeleteUser,
     handleDeleteCommunityNotification,
     handleSendDistrictGroupMessage,
@@ -696,7 +697,7 @@ export default function App() {
                 onDeleteKnowledgeItem={handleDeleteKnowledgeItem}
                 users={allUsersList}
                 onAddUser={handleAddUser}
-                onUpdateUser={handleUpdateUser}
+                onUpdateUser={handleAdminUpdateUser}
                 onDeleteUser={handleDeleteUser}
                 communityResources={communityResources}
               />

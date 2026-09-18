@@ -18,7 +18,7 @@ import {
   fetchAdminInspectorWorkspace,
   fetchGeoDirectorates,
   fetchGeoDistricts,
-  syncUserToDB,
+  syncAdminUserToDB,
 } from '../../services/api';
 import { User } from '../../types/spex';
 
@@ -141,7 +141,7 @@ export const AdminInspectorWorkspacePage: React.FC<WorkspaceProps> = ({
   const saveAffiliation = async () => {
     if (!editing) return;
     setSaving(true);
-    const r = await syncUserToDB({
+    const r = await syncAdminUserToDB({
       ...editing,
       directorateId: editing.directorateId,
       districtId: editing.districtId,

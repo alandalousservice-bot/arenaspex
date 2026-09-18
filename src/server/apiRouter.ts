@@ -4307,6 +4307,7 @@ apiRouter.post('/db/users', async (req, res) => {
 
   const isSelf = req.user!.id === user.id;
   const isAdmin = req.user!.role === 'admin';
+  const privilegedAccountMutation = isAdmin && req.body?.privilegedAccountMutation === true;
   const isSuperAdmin = Boolean(req.user!.isPlatformOwner);
   const isManager = isAdmin || req.user!.role === 'inspector';
 
@@ -4373,7 +4374,11 @@ apiRouter.post('/db/users', async (req, res) => {
       }
     }
 
-    const data = await buildUserWriteData(user, isAdmin, isAdmin);
+    const data = await buildUserWriteData(
+      user,
+      privilegedAccountMutation,
+      privilegedAccountMutation
+    );
     if (existing?.role === 'admin' && data.role && data.role !== 'admin') {
       const adminCount = await prisma.user.count({ where: { role: 'admin' } });
       if (adminCount <= 1)
