@@ -34,20 +34,21 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
       res.authorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       res.description.toLowerCase().includes(searchTerm.toLowerCase());
 
+    const isAdminApproved = res.approvalStatus === 'APPROVED' || res.approved === true;
     const matchesStatus =
-      filterType === 'all'
-        ? true
-        : filterType === 'pending'
-          ? !res.isApprovedByInspector
-          : res.isApprovedByInspector;
+      filterType === 'all' ? true : filterType === 'pending' ? !isAdminApproved : isAdminApproved;
 
     const matchesCategory = categoryFilter === 'all' ? true : res.type === categoryFilter;
 
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
-  const pendingCount = resources.filter((r) => !r.isApprovedByInspector).length;
-  const approvedCount = resources.filter((r) => r.isApprovedByInspector).length;
+  const pendingCount = resources.filter(
+    (r) => r.approvalStatus !== 'APPROVED' && r.approved !== true
+  ).length;
+  const approvedCount = resources.filter(
+    (r) => r.approvalStatus === 'APPROVED' || r.approved === true
+  ).length;
 
   const handleSendFeedback = (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,14 +82,14 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>مراجعة وتوثيق الموارد البيداغوجية للمقاطعة 07</span>
+              <span>مراجعة الموارد البيداغوجية</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white">
-              مركز المصادقة والاعتماد البيداغوجي للموارد المرفوعة
+              مركز المراجعة البيداغوجية للموارد المرفوعة
             </h2>
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-              فحص ومراجعة المذكرات والألعاب التربوية والوثائق البيداغوجية المنشورة من طرف أساتذة
-              المقاطعة، وتوثيق المكتمل منها بختم المفتشية الرسمي.
+              فحص الموارد المنشورة وتسجيل الملاحظات التربوية عند الحاجة. الاعتماد النهائي من
+              الإدارة.
             </p>
           </div>
 
@@ -98,7 +99,7 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
               <span className="text-lg font-black text-amber-400">{pendingCount} مورد</span>
             </div>
             <div className="bg-emerald-500/20 border border-emerald-500/30 rounded-2xl px-4 py-2.5 text-center">
-              <span className="text-[10px] text-emerald-200 block font-bold">معتمد رسمياً</span>
+              <span className="text-[10px] text-emerald-200 block font-bold">معتمد إدارياً</span>
               <span className="text-lg font-black text-emerald-400">{approvedCount} مورد</span>
             </div>
           </div>
@@ -185,7 +186,7 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
               <div
                 key={res.id}
                 className={`p-5 rounded-3xl border transition-all flex flex-col justify-between space-y-4 ${
-                  res.isApprovedByInspector
+                  res.approvalStatus === 'APPROVED' || res.approved === true
                     ? 'bg-emerald-50/40 border-emerald-200/80 hover:border-emerald-300'
                     : 'bg-white border-amber-200 hover:border-amber-300 shadow-xs'
                 }`}
@@ -203,15 +204,15 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
                             : '📁 وثيقة بيداغوجية'}
                     </span>
 
-                    {res.isApprovedByInspector ? (
+                    {res.approvalStatus === 'APPROVED' || res.approved === true ? (
                       <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-300">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>معتمد من المفتشية</span>
+                        <span>معتمد إدارياً</span>
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-xl bg-amber-100 text-amber-800 border border-amber-300">
                         <Clock className="w-3.5 h-3.5 text-amber-600" />
-                        <span>بانتظار المصادقة</span>
+                        <span>بانتظار المراجعة الإدارية</span>
                       </span>
                     )}
                   </div>

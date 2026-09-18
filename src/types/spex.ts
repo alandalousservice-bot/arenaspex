@@ -200,6 +200,8 @@ export interface CommunityResource {
   savesCount: number;
   likedByUserIds?: string[];
   isApprovedByInspector?: boolean;
+  approvalStatus?: string;
+  approved?: boolean;
   createdAt: string;
 }
 
