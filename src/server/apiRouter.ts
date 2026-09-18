@@ -2951,6 +2951,8 @@ const communicationUserSelect = {
   avatar: true,
   districtId: true,
   directorateId: true,
+  eduDistrictId: true,
+  eduDirectorateId: true,
   status: true,
 } as const;
 
@@ -2962,9 +2964,13 @@ async function canContactUser(requesterId: string, requesterRole: string, target
   if (!requester || !target || target.status !== 'active' || requester.id === target.id)
     return false;
   if (requesterRole === 'admin' || target.role === 'admin') return true;
-  if (requester.directorateId === target.directorateId) {
+  const requesterDistrict = requester.districtId || requester.eduDistrictId;
+  const targetDistrict = target.districtId || target.eduDistrictId;
+  const requesterDirectorate = requester.directorateId || requester.eduDirectorateId;
+  const targetDirectorate = target.directorateId || target.eduDirectorateId;
+  if (requesterDirectorate === targetDirectorate) {
     if (requester.role === 'director' || target.role === 'director') return true;
-    if (requester.districtId === target.districtId) return true;
+    if (requesterDistrict === targetDistrict) return true;
   }
   const assignment = await prisma.inspectorAssignment.findFirst({
     where: {
@@ -3107,6 +3113,10 @@ apiRouter.post('/communication/direct-messages/:id/read', async (req, res) => {
 });
 
 apiRouter.get('/communication/district-messages', async (req, res) => {
+  const currentDistrictId =
+    req.user!.districtId ||
+    (req.user as typeof req.user & { eduDistrictId?: string }).eduDistrictId ||
+    '';
   const rows = await prisma.districtMessage.findMany({
     orderBy: { createdAt: 'asc' },
     take: 500,
@@ -3114,7 +3124,7 @@ apiRouter.get('/communication/district-messages', async (req, res) => {
   const visible = rows.filter((row) =>
     canReadDistrictMessage(
       { districtId: row.districtId, legacyDistrictId: String((row.data as any)?.districtId || '') },
-      req.user!.districtId,
+      currentDistrictId,
       req.user!.role === 'admin'
     )
   );
@@ -3133,11 +3143,17 @@ apiRouter.get('/communication/district-messages', async (req, res) => {
 apiRouter.post('/communication/district-messages', async (req, res) => {
   const text = normalizeMessageText(req.body?.text);
   if (!text) return res.status(400).json({ error: 'الرسالة مطلوبة وبحد أقصى 4000 حرف.' });
+  const currentDistrictId =
+    req.user!.districtId ||
+    (req.user as typeof req.user & { eduDistrictId?: string }).eduDistrictId ||
+    '';
+  if (!currentDistrictId)
+    return res.status(403).json({ error: 'لا ينتمي حسابك إلى مقاطعة صالحة.' });
   const created = await prisma.districtMessage.create({
     data: {
       id: `district_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       authorId: req.user!.id,
-      districtId: req.user!.districtId,
+      districtId: currentDistrictId,
       content: text,
       data: { text },
     },
@@ -4297,6 +4313,9 @@ apiRouter.post('/db/users', async (req, res) => {
   // يُسمح لأي مستخدم بتعديل ملفّه الشخصي (الإعدادات، كلمة المرور)، وللمشرف/المفتش بإدارة أي حساب
   if (!isSelf && !isManager) {
     return res.status(403).json({ error: 'لا تملك الصلاحية لتعديل بيانات مستخدم آخر.' });
+  }
+  if (!isSelf && req.user!.role === 'inspector') {
+    return res.status(403).json({ error: 'المفتش لا يمكنه تعديل ملف مستخدم آخر.' });
   }
 
   // مستخدم عادي لا يمكنه ترقية نفسه إلى دور أعلى أو اعتماد نفسه إدارياً
