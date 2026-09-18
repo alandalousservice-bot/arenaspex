@@ -1,5 +1,15 @@
 import React, { useState } from 'react';
-import { Megaphone, Plus, Calendar, ShieldCheck, Users, Send, CheckCircle2, Clock, Sparkles } from 'lucide-react';
+import {
+  Megaphone,
+  Plus,
+  Calendar,
+  ShieldCheck,
+  Users,
+  Send,
+  CheckCircle2,
+  Clock,
+  Sparkles,
+} from 'lucide-react';
 import { DistrictBroadcast, InspectorNote, User } from '../../../types/spex';
 
 interface InspectorBroadcastsViewProps {
@@ -24,7 +34,9 @@ export const InspectorBroadcastsView: React.FC<InspectorBroadcastsViewProps> = (
   const [showModal, setShowModal] = useState(false);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [category, setCategory] = useState<'دعوة_اجتماع' | 'توجيه_بيداغوجي' | 'إشعار_مستعجل' | 'ندوة_تكوينية'>('توجيه_بيداغوجي');
+  const [category, setCategory] = useState<
+    'دعوة_اجتماع' | 'توجيه_بيداغوجي' | 'إشعار_مستعجل' | 'ندوة_تكوينية'
+  >('توجيه_بيداغوجي');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +60,9 @@ export const InspectorBroadcastsView: React.FC<InspectorBroadcastsViewProps> = (
 
   const [noteTitle, setNoteTitle] = useState('');
   const [noteContent, setNoteContent] = useState('');
-  const [noteSaved, setNoteSaved] = useState<'idle' | 'success' | 'refresh-error' | 'save-error'>('idle');
+  const [noteSaved, setNoteSaved] = useState<'idle' | 'success' | 'refresh-error' | 'save-error'>(
+    'idle'
+  );
   const handleTeacherNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!teacherContext || !onAddNote || !noteTitle.trim() || !noteContent.trim()) return;
@@ -82,35 +96,93 @@ export const InspectorBroadcastsView: React.FC<InspectorBroadcastsViewProps> = (
   };
 
   if (teacherContext) {
-    return <div className="space-y-6 dir-rtl animate-in fade-in duration-200">
-      <div className="rounded-3xl bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 p-6 text-white shadow-md border border-emerald-700/50">
-        <div className="flex flex-wrap items-start justify-between gap-3"><div><span className="text-xs font-bold text-emerald-200">توجيه خاص بالأستاذ</span><h2 className="mt-2 text-xl font-black">{teacherContext.firstName} {teacherContext.lastName}</h2><p className="mt-1 text-xs text-emerald-100/80">المؤسسة: {teacherContext.schoolName || 'غير محددة'}</p></div><button onClick={onClearTeacherContext} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-bold hover:bg-white/20">إلغاء تحديد الأستاذ</button></div>
+    return (
+      <div className="space-y-6 dir-rtl animate-in fade-in duration-200">
+        <div className="rounded-3xl bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 p-6 text-white shadow-md border border-emerald-700/50">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <span className="text-xs font-bold text-emerald-200">توجيه خاص بالأستاذ</span>
+              <h2 className="mt-2 text-xl font-black">
+                {teacherContext.firstName} {teacherContext.lastName}
+              </h2>
+              <p className="mt-1 text-xs text-emerald-100/80">
+                المؤسسة: {teacherContext.schoolName || 'غير محددة'}
+              </p>
+            </div>
+            <button
+              onClick={onClearTeacherContext}
+              className="rounded-xl bg-white/10 px-3 py-2 text-xs font-bold hover:bg-white/20"
+            >
+              إلغاء تحديد الأستاذ
+            </button>
+          </div>
+        </div>
+        <form
+          onSubmit={handleTeacherNote}
+          className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs space-y-4"
+        >
+          <h3 className="text-sm font-black text-slate-900">إضافة توجيه أو ملاحظة</h3>
+          <input
+            value={noteTitle}
+            onChange={(event) => setNoteTitle(event.target.value)}
+            placeholder="العنوان / الموضوع"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-emerald-500"
+            required
+          />
+          <textarea
+            value={noteContent}
+            onChange={(event) => setNoteContent(event.target.value)}
+            placeholder="نص التوجيه أو الملاحظة"
+            rows={6}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-emerald-500"
+            required
+          />
+          <div className="flex items-center justify-between">
+            <span
+              className={`text-xs ${noteSaved === 'refresh-error' || noteSaved === 'save-error' ? 'text-rose-700' : 'text-emerald-700'}`}
+            >
+              {noteSaved === 'success'
+                ? 'تم حفظ التوجيه بنجاح.'
+                : noteSaved === 'refresh-error'
+                  ? 'تم حفظ التوجيه، وتعذر تحديث العرض فوراً.'
+                  : noteSaved === 'save-error'
+                    ? 'تعذر حفظ التوجيه.'
+                    : 'سيُحفظ التوجيه كسجل InspectorNote خاص بهذا الأستاذ.'}
+            </span>
+            <button
+              type="submit"
+              className="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-emerald-500"
+            >
+              حفظ التوجيه
+            </button>
+          </div>
+        </form>
       </div>
-      <form onSubmit={handleTeacherNote} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
-        <h3 className="text-sm font-black text-slate-900">إضافة توجيه أو ملاحظة</h3>
-        <input value={noteTitle} onChange={(event) => setNoteTitle(event.target.value)} placeholder="العنوان / الموضوع" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-emerald-500" required />
-        <textarea value={noteContent} onChange={(event) => setNoteContent(event.target.value)} placeholder="نص التوجيه أو الملاحظة" rows={6} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-emerald-500" required />
-        <div className="flex items-center justify-between"><span className={`text-xs ${noteSaved === 'refresh-error' || noteSaved === 'save-error' ? 'text-rose-700' : 'text-emerald-700'}`}>{noteSaved === 'success' ? 'تم حفظ التوجيه بنجاح.' : noteSaved === 'refresh-error' ? 'تم حفظ التوجيه، وتعذر تحديث العرض فوراً.' : noteSaved === 'save-error' ? 'تعذر حفظ التوجيه.' : 'سيُحفظ التوجيه كسجل InspectorNote خاص بهذا الأستاذ.'}</span><button type="submit" className="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-emerald-500">حفظ التوجيه</button></div>
-      </form>
-    </div>;
+    );
   }
 
   return (
     <div className="space-y-6 dir-rtl animate-in fade-in duration-200">
-      {teacherContext && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-900">متابعة الأستاذ: {teacherContext.firstName} {teacherContext.lastName} — التوجيهات الخاصة بالأستاذ تستخدم InspectorNote.</div>}
+      {teacherContext && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-900">
+          متابعة الأستاذ: {teacherContext.firstName} {teacherContext.lastName} — التوجيهات الخاصة
+          بالأستاذ تستخدم InspectorNote.
+        </div>
+      )}
       {/* Banner */}
       <div className="bg-gradient-to-r from-amber-900 via-amber-800 to-slate-900 text-white rounded-3xl p-6 shadow-md border border-amber-700/50">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-amber-200 text-xs font-bold border border-white/20">
               <Megaphone className="w-4 h-4 text-amber-300" />
-              <span>التعليمات الرسمية والندوات التربوية — المقاطعة 07</span>
+              <span>التعليمات الرسمية والندوات التربوية — نطاق المفتش</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white">
               منصة التوجيهات والبث الجماعي للمفتشية
             </h2>
             <p className="text-xs text-amber-100/90 max-w-2xl leading-relaxed">
-              إصدار المنشورات التوجيهية، الدعوة للندوات التربوية والأيام الدراسية، وإرسال التنبيهات الرسمية لجميع أساتذة المقاطعة.
+              إصدار المنشورات التوجيهية، الدعوة للندوات التربوية والأيام الدراسية، وإرسال التنبيهات
+              الرسمية لجميع أساتذة المقاطعة.
             </p>
           </div>
 
@@ -131,13 +203,17 @@ export const InspectorBroadcastsView: React.FC<InspectorBroadcastsViewProps> = (
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
             <span>سجل المنشورات والتعليمات الموجهة لأساتذة المقاطعة</span>
           </h3>
-          <span className="text-xs text-slate-500 font-bold">{broadcasts.length} منشورات سابقة</span>
+          <span className="text-xs text-slate-500 font-bold">
+            {broadcasts.length} منشورات سابقة
+          </span>
         </div>
 
         {broadcasts.length === 0 ? (
           <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
             <Megaphone className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-            <p className="text-xs font-bold text-slate-500">لم يتم نشر أي منشورات أو تعليمات جماعية بعد.</p>
+            <p className="text-xs font-bold text-slate-500">
+              لم يتم نشر أي منشورات أو تعليمات جماعية بعد.
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -152,19 +228,19 @@ export const InspectorBroadcastsView: React.FC<InspectorBroadcastsViewProps> = (
                       bc.category === 'ندوة_تكوينية'
                         ? 'bg-purple-100 text-purple-800'
                         : bc.category === 'إشعار_مستعجل'
-                        ? 'bg-rose-100 text-rose-800'
-                        : bc.category === 'دعوة_اجتماع'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-emerald-100 text-emerald-800'
+                          ? 'bg-rose-100 text-rose-800'
+                          : bc.category === 'دعوة_اجتماع'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-emerald-100 text-emerald-800'
                     }`}
                   >
                     {bc.category === 'ندوة_تكوينية'
                       ? '🎓 ندوة تربوية / يوم دراسي'
                       : bc.category === 'إشعار_مستعجل'
-                      ? '⚠️ إشعار هام ومستعجل'
-                      : bc.category === 'دعوة_اجتماع'
-                      ? '📅 دعوة لاجتماع بيداغوجي'
-                      : '📜 توجيه بيداغوجي رسمـي'}
+                        ? '⚠️ إشعار هام ومستعجل'
+                        : bc.category === 'دعوة_اجتماع'
+                          ? '📅 دعوة لاجتماع بيداغوجي'
+                          : '📜 توجيه بيداغوجي رسمـي'}
                   </span>
 
                   <span className="text-[10px] text-slate-400 font-bold">
@@ -202,13 +278,18 @@ export const InspectorBroadcastsView: React.FC<InspectorBroadcastsViewProps> = (
                   <Megaphone className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-slate-900">نشر توجيه أو ندوة تربوية للمقاطعة</h3>
+                  <h3 className="text-sm font-black text-slate-900">
+                    نشر توجيه أو ندوة تربوية للمقاطعة
+                  </h3>
                   <p className="text-[10px] text-slate-500 font-bold">
-                    سيظهر هذا المنشور مباشرة في لوحة تحكم أساتذة المقاطعة 07
+                    سيظهر هذا المنشور مباشرة في لوحة تحكم الأساتذة المعنيين
                   </p>
                 </div>
               </div>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
                 ✕
               </button>
             </div>
@@ -241,7 +322,9 @@ export const InspectorBroadcastsView: React.FC<InspectorBroadcastsViewProps> = (
               </div>
 
               <div>
-                <label className="block font-extrabold text-slate-700 mb-1">محتوى وتفاصيل التعليمة الرسمية</label>
+                <label className="block font-extrabold text-slate-700 mb-1">
+                  محتوى وتفاصيل التعليمة الرسمية
+                </label>
                 <textarea
                   rows={5}
                   required

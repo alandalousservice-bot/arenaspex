@@ -537,8 +537,15 @@ assignmentRouter.get(
           status: true,
         },
       }),
-      prisma.studentClass.findMany({ where: { teacherId }, orderBy: { createdAt: 'asc' } }),
-      prisma.student.findMany({ where: { teacherId }, orderBy: { lastName: 'asc' } }),
+      prisma.studentClass.findMany({
+        where: { teacherId },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, name: true, teacherId: true },
+      }),
+      prisma.student.findMany({
+        where: { teacherId },
+        select: { id: true, classId: true },
+      }),
       prisma.inspectionVisitRecord.findMany({
         where: { teacherId, inspectorId: req.user!.id },
         orderBy: { createdAt: 'desc' },

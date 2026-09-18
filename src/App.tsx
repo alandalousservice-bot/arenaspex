@@ -216,7 +216,6 @@ export default function App() {
     handleSendDirectMessageFromChat,
     handleSendDirectMessage,
     handleToggleLikeResource,
-    handleToggleApproveResource,
     handleToggleFollowTeacher,
     handleUpdateCurrentUser,
     handleAddCommunityResource,
@@ -650,7 +649,6 @@ export default function App() {
                   onRefreshVisits={refreshInspectionVisits}
                   onAddBroadcast={handleAddBroadcast}
                   onAddDirectMessage={handleAddDirectMessageFromInspector}
-                  onToggleApproveResource={handleToggleApproveResource}
                   teacherId={inspectorTeacherContext}
                   onOpenTeacher={(teacherId) =>
                     navigate(`/inspector/teachers/${encodeURIComponent(teacherId)}`)

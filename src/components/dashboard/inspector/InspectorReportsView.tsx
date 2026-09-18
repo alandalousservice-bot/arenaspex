@@ -169,7 +169,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
             </h2>
             <p className="text-xs text-emerald-100/90 max-w-2xl leading-relaxed">
               توثيق وطباعة تقارير الزيارات التفتيشية البيداغوجية الرسمية لأساتذة التربية البدنية
-              والرياضية بالمقاطعة 07 سطيف.
+              والرياضية ضمن نطاق الإسنادات المقبولة للمفتش.
             </p>
           </div>
 

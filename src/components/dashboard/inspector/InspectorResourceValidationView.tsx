@@ -5,7 +5,6 @@ import { CommunityResource, User } from '../../../types/spex';
 interface InspectorResourceValidationViewProps {
   resources: CommunityResource[];
   teachers: User[];
-  onToggleApproveResource: (resourceId: string) => void;
   onSendNoteToTeacher: (
     teacherId: string,
     teacherName: string,
@@ -17,7 +16,6 @@ interface InspectorResourceValidationViewProps {
 export const InspectorResourceValidationView: React.FC<InspectorResourceValidationViewProps> = ({
   resources,
   teachers,
-  onToggleApproveResource,
   onSendNoteToTeacher,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -261,19 +259,9 @@ export const InspectorResourceValidationView: React.FC<InspectorResourceValidati
                     <span>توجيه ملاحظة للأستاذ</span>
                   </button>
 
-                  <button
-                    onClick={() => onToggleApproveResource(res.id)}
-                    className={`flex-1 px-3.5 py-2 rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
-                      res.isApprovedByInspector
-                        ? 'bg-slate-200 hover:bg-rose-100 text-slate-800 hover:text-rose-800'
-                        : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
-                    }`}
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>
-                      {res.isApprovedByInspector ? 'إلغاء الاعتماد' : 'اعتماد وختم المفتشية'}
-                    </span>
-                  </button>
+                  <span className="flex-1 rounded-2xl bg-slate-50 px-3.5 py-2 text-center text-[11px] font-bold text-slate-500">
+                    عرض وملاحظة فقط — الاعتماد الرسمي من الإدارة
+                  </span>
                 </div>
               </div>
             ))}

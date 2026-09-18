@@ -56,7 +56,6 @@ interface Props {
   onRefreshVisits: () => Promise<void>;
   onAddBroadcast: (broadcast: Partial<DistrictBroadcast>) => void;
   onAddDirectMessage: (msg: { receiverId: string; receiverName: string; message: string }) => void;
-  onToggleApproveResource: (id: string) => void;
   teacherId?: string;
   onOpenTeacher?: (teacherId: string) => void;
   onNavigateWithTeacher?: (tab: NavTab, teacherId: string) => void;
@@ -425,7 +424,6 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
         <InspectorResourceValidationView
           resources={props.communityResources}
           teachers={teachers}
-          onToggleApproveResource={props.onToggleApproveResource}
           onSendNoteToTeacher={(teacherId, teacherName, title, content) =>
             props.onAddNote({
               teacherId,
