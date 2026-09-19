@@ -4170,6 +4170,57 @@ apiRouter.post('/admin/users/:id/activate', requireRole('admin'), async (req, re
   res.json({ success: true, user: sanitizeUser(user) });
 });
 
+// دورة الحساب عقد صريح منفصل عن تعديل الملف الشخصي. لا يقبل هذا المسار
+// تركيبات role/status اعتباطية من العميل؛ الخادم يقرر الحالة النهائية.
+apiRouter.post('/admin/users/:id/lifecycle', requireRole('admin'), async (req, res) => {
+  const action = req.body?.action;
+  const allowed = ['activate', 'deactivate', 'reject', 'reactivate'];
+  if (!allowed.includes(action)) {
+    return res.status(400).json({ error: 'إجراء دورة الحساب غير صالح.' });
+  }
+  const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: 'الحساب غير موجود.' });
+  if (existing.isPlatformOwner) {
+    return res.status(403).json({ error: 'حساب مالك المنصة محمي.' });
+  }
+  if (existing.id === req.user!.id && action === 'deactivate') {
+    return res.status(403).json({ error: 'لا يمكن للمشرف تعطيل حسابه الحالي.' });
+  }
+  if (existing.role === 'admin') {
+    return res.status(403).json({ error: 'إدارة دورة حسابات المشرفين غير متاحة من هذا المسار.' });
+  }
+  if (action === 'reject' && existing.status !== 'pending_approval' && existing.isApprovedByAdmin) {
+    return res.status(409).json({ error: 'لا يمكن رفض حساب معتمد؛ استخدم التعطيل.' });
+  }
+  if (action === 'activate' || action === 'reactivate') {
+    if (existing.role === 'inspector') {
+      try {
+        await enforceRoleAssignment(
+          {
+            role: existing.role,
+            directorateId: existing.directorateId,
+            districtId: existing.districtId,
+          },
+          existing,
+          { allowUnassignedInspector: true }
+        );
+      } catch (error) {
+        return res.status(400).json({
+          error: error instanceof Error ? error.message : 'يرجى استكمال مديرية ومقاطعة المفتش.',
+        });
+      }
+    }
+  }
+  const data =
+    action === 'activate' || action === 'reactivate'
+      ? { status: 'active', isApprovedByAdmin: true }
+      : action === 'reject'
+        ? { status: 'inactive', isApprovedByAdmin: false }
+        : { status: 'inactive', isApprovedByAdmin: false };
+  const user = await prisma.user.update({ where: { id: existing.id }, data });
+  return res.json({ success: true, user: sanitizeUser(user) });
+});
+
 // الحقول الوحيدة المسموح كتابتها في جدول User — قائمة بيضاء صارمة.
 // أي حقل زائد يصله من الواجهة (مثل apiKeyConfigured، wilaya، teachingExperienceYears،
 // followingCount...) يُتجاهل بدل إسقاط عملية التحديث بخطأ Prisma P2009 (Unknown argument)

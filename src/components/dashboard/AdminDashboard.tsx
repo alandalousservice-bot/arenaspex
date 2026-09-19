@@ -452,7 +452,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     e.preventDefault();
     if (!editingUser || !onUpdateUser) return;
     // إن لم يكتب المشرف كلمة مرور جديدة صراحة، لا نرسل الحقل أصلاً حتى لا تتغير كلمة المرور الحالية
-    const payload = { ...editingUser };
+    // الدور والحالة والاعتماد ليست حقول ملف شخصي؛ دورة الحساب لها مسار
+    // privileged صريح في صفحة الحساب، لذلك لا نرسلها من نموذج G2.
+    const {
+      role: _role,
+      status: _status,
+      isApprovedByAdmin: _approved,
+      ...profilePayload
+    } = editingUser;
+    const payload = { ...profilePayload };
     if (!payload.password || !String(payload.password).trim()) {
       delete payload.password;
     } else if (String(payload.password).trim().length < 8) {
@@ -461,7 +469,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       );
       return;
     }
-    onUpdateUser(payload);
+    onUpdateUser(payload as User);
     setEditingUser(null);
   };
 
@@ -864,40 +872,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                           <td className="p-3 text-left">
                             <div className="flex items-center justify-end gap-1.5">
-                              {onUpdateUser &&
-                                (!u.isApprovedByAdmin ||
-                                u.status === 'pending_approval' ||
-                                u.status === 'inactive' ? (
-                                  <button
-                                    onClick={() =>
-                                      onUpdateUser({
-                                        ...u,
-                                        isApprovedByAdmin: true,
-                                        status: 'active',
-                                      })
-                                    }
-                                    className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
-                                    title="تفعيل حساب المستخدم فوراً"
-                                  >
-                                    <UserCheck className="w-3 h-3" />
-                                    <span>تفعيل</span>
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() =>
-                                      onUpdateUser({
-                                        ...u,
-                                        isApprovedByAdmin: false,
-                                        status: 'inactive',
-                                      })
-                                    }
-                                    className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-[10px] rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                                    title="تعطيل الحساب وتجميد الوصول"
-                                  >
-                                    <EyeOff className="w-3 h-3 text-rose-600" />
-                                    <span>تعطيل</span>
-                                  </button>
-                                ))}
+                              <span className="px-2 py-1 text-[10px] font-bold text-slate-400">
+                                إدارة دورة الحساب من صفحة التفاصيل
+                              </span>
 
                               <button
                                 onClick={() => setEditingUser(u)}
@@ -1910,29 +1887,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <label className="font-bold text-slate-700 block mb-1">
                   الصفة والدور في المنصة
                 </label>
-                <select
-                  value={editingUser.role}
-                  onChange={(e: any) => {
-                    const role = e.target.value;
-                    setEditingUser({
-                      ...editingUser,
-                      role,
-                      ...(role === 'inspector'
-                        ? {
-                            institutionId: undefined,
-                            schoolName: undefined,
-                            municipality: undefined,
-                          }
-                        : { districtId: '' }),
-                    });
-                  }}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 font-extrabold text-slate-900 outline-none"
-                >
-                  <option value="teacher">⚽ أستاذ تربية بدنية ورياضية (ابتدائي)</option>
-                  <option value="inspector">🛡️ مفتش بيداغوجي (المقاطعة 07 - عين أزال)</option>
-                  <option value="director">🏫 مدير مدرسة ابتدائية</option>
-                  {isPlatformOwner && <option value="admin">🔑 مشرف النظام (أدمن)</option>}
-                </select>
+                <div className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-extrabold text-slate-700">
+                  {editingUser.role === 'teacher'
+                    ? '⚽ أستاذ تربية بدنية ورياضية (ابتدائي)'
+                    : editingUser.role === 'inspector'
+                      ? '🛡️ مفتش بيداغوجي'
+                      : editingUser.role === 'admin'
+                        ? '🔑 مشرف النظام (أدمن)'
+                        : '🏫 مدير مدرسة ابتدائية'}
+                  <div className="mt-1 text-[10px] font-normal text-slate-500">
+                    تغيير الدور يتم فقط من إجراء privileged مستقل.
+                  </div>
+                </div>
               </div>
 
               {editingUser.role !== 'inspector' && (
@@ -2005,16 +1971,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <label className="font-bold text-slate-700 block mb-1">
                     حالة الحساب والتفعيل
                   </label>
-                  <select
-                    value={editingUser.status}
-                    onChange={(e: any) =>
-                      setEditingUser({ ...editingUser, status: e.target.value })
-                    }
-                    className="w-full p-2.5 rounded-xl border border-slate-200 outline-none font-bold text-slate-800"
-                  >
-                    <option value="active">نشط ومفعل</option>
-                    <option value="inactive">معطل مؤقتاً</option>
-                  </select>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-bold text-slate-700">
+                    {editingUser.status === 'pending_approval'
+                      ? 'بانتظار التفعيل'
+                      : editingUser.status === 'active'
+                        ? 'نشط'
+                        : 'معطل'}
+                    <div className="mt-1 text-[10px] font-normal text-slate-500">
+                      التفعيل والتعطيل يتمان من إدارة الحساب.
+                    </div>
+                  </div>
                 </div>
               </div>
 

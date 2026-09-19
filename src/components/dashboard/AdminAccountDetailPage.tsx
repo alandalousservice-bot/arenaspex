@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  activateUserAccount,
+  applyAdminAccountLifecycle,
   AdminAccountDetail,
   fetchAdminAccount,
   fetchGeoDirectorates,
@@ -164,7 +164,8 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
   };
   const activate = async () => {
     if (!user) return;
-    const result = await activateUserAccount(user.id);
+    if (!window.confirm(`تأكيد تفعيل حساب ${user.firstName} ${user.lastName}؟`)) return;
+    const result = await applyAdminAccountLifecycle(user.id, 'activate');
     if (!result.success || !result.user) {
       setNotice(result.error || 'تعذر تفعيل الحساب.');
       return;
@@ -172,18 +173,17 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
     setUser({ ...user, ...result.user, status: 'active', isApprovedByAdmin: true });
     setNotice('تم تفعيل الحساب، وبقي في الدليل.');
   };
-  const toggleDisabled = async () => {
-    if (!user || user.isPlatformOwner || !currentUser.isPlatformOwner) return;
-    const result = await syncAdminUserToDB({
-      ...user,
-      status: user.status === 'inactive' ? 'active' : 'inactive',
-    } as User);
+  const applyLifecycle = async (action: 'deactivate' | 'reactivate' | 'reject') => {
+    if (!user || user.isPlatformOwner) return;
+    const labels = { deactivate: 'تعطيل', reactivate: 'إعادة تفعيل', reject: 'رفض' };
+    if (!window.confirm(`تأكيد ${labels[action]} حساب ${user.firstName} ${user.lastName}؟`)) return;
+    const result = await applyAdminAccountLifecycle(user.id, action);
     if (!result.success || !result.user) {
       setNotice(result.error || 'تعذر تغيير حالة الحساب.');
       return;
     }
     setUser({ ...user, ...result.user });
-    setNotice('تم تحديث حالة الحساب.');
+    setNotice(`تم ${labels[action]} الحساب.`);
   };
   if (loading)
     return (
@@ -255,14 +255,23 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
                   تفعيل الحساب
                 </button>
               )}
+            {!user.isPlatformOwner && user.status !== 'pending_approval' && (
+              <button
+                onClick={() =>
+                  applyLifecycle(user.status === 'inactive' ? 'reactivate' : 'deactivate')
+                }
+                className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white"
+              >
+                {user.status === 'inactive' ? 'إعادة التفعيل' : 'تعطيل الحساب'}
+              </button>
+            )}
             {!user.isPlatformOwner &&
-              currentUser.isPlatformOwner &&
-              user.status !== 'pending_approval' && (
+              (user.status === 'pending_approval' || user.isApprovedByAdmin === false) && (
                 <button
-                  onClick={toggleDisabled}
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white"
+                  onClick={() => applyLifecycle('reject')}
+                  className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white"
                 >
-                  {user.status === 'inactive' ? 'إعادة التفعيل' : 'تعطيل الحساب'}
+                  رفض الحساب
                 </button>
               )}
           </div>

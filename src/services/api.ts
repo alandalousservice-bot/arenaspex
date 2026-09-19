@@ -1885,6 +1885,25 @@ export async function activateUserAccount(
   }
 }
 
+export type AdminLifecycleAction = 'activate' | 'deactivate' | 'reject' | 'reactivate';
+
+export async function applyAdminAccountLifecycle(
+  userId: string,
+  action: AdminLifecycleAction
+): Promise<{ success: boolean; user?: User; error?: string }> {
+  try {
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/lifecycle`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    const data = await res.json();
+    return res.ok ? { success: true, user: data.user } : { success: false, error: data.error };
+  } catch {
+    return { success: false, error: 'تعذر تنفيذ إجراء دورة الحساب.' };
+  }
+}
+
 export async function syncLessonPlanToDB(lessonPlan: unknown) {
   const result = await offlinePost('/api/db/lesson-plans', { lessonPlan }, 'POST');
   if (!result.success) throw new Error('LESSON_MEMO_PERSISTENCE_FAILED');
