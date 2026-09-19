@@ -18,12 +18,12 @@ describe('authoritative Admin pending accounts', () => {
     expect(page).not.toContain('DEMO_USERS');
   });
 
-  it('reviews the same account and uses the protected activation endpoint', () => {
+  it('reviews the same account and uses the shared protected lifecycle endpoint', () => {
     expect(page).toContain('/admin/accounts/${encodeURIComponent(user.id)}');
-    expect(page).toContain('activateUserAccount(user.id)');
+    expect(page).toContain("lifecycle(user, 'activate')");
     expect(page).toContain('setUsers((current) => current.filter');
-    expect(api).toContain('/api/admin/users/${encodeURIComponent(userId)}/activate');
-    expect(router).toContain("apiRouter.post('/admin/users/:id/activate', requireRole('admin')");
+    expect(api).toContain('/api/admin/users/${encodeURIComponent(userId)}/lifecycle');
+    expect(router).toContain("apiRouter.post('/admin/users/:id/lifecycle', requireRole('admin')");
   });
 
   it('keeps one pending definition and removes legacy operational duplication', () => {

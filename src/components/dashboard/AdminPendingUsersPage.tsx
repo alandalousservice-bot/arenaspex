@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
-  activateUserAccount,
+  applyAdminAccountLifecycle,
   AdminAccountDetail,
   fetchAdminPendingAccounts,
 } from '../../services/api';
@@ -83,19 +83,20 @@ export const AdminPendingUsersPage: React.FC = () => {
         ),
     [users, query, sort]
   );
-  const activate = async (user: AdminAccountDetail) => {
+  const lifecycle = async (user: AdminAccountDetail, action: 'activate' | 'reject') => {
     if (activatingId) return;
-    if (!window.confirm(`تفعيل حساب ${user.firstName} ${user.lastName}؟`)) return;
+    const label = action === 'activate' ? 'تفعيل' : 'رفض';
+    if (!window.confirm(`${label} حساب ${user.firstName} ${user.lastName}؟`)) return;
     setActivatingId(user.id);
     setMessage('');
-    const result = await activateUserAccount(user.id);
+    const result = await applyAdminAccountLifecycle(user.id, action);
     setActivatingId(null);
     if (!result.success) {
       setMessage(result.error || 'تعذر تفعيل الحساب.');
       return;
     }
     setUsers((current) => current.filter((item) => item.id !== user.id));
-    setMessage('تم تفعيل الحساب نفسه وإزالته من قائمة الطلبات.');
+    setMessage(`تم ${label} الحساب نفسه وإزالته من قائمة الطلبات.`);
   };
   const oldest = users[0]?.createdAt;
   return (
@@ -237,7 +238,7 @@ export const AdminPendingUsersPage: React.FC = () => {
                   مراجعة الطلب
                 </button>
                 <button
-                  onClick={() => void activate(user)}
+                  onClick={() => void lifecycle(user, 'activate')}
                   disabled={activatingId === user.id}
                   className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
                 >
@@ -247,6 +248,13 @@ export const AdminPendingUsersPage: React.FC = () => {
                     <CheckCircle2 className="h-4 w-4" />
                   )}
                   تفعيل الحساب
+                </button>
+                <button
+                  onClick={() => void lifecycle(user, 'reject')}
+                  disabled={activatingId === user.id}
+                  className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-black text-rose-700 disabled:opacity-50"
+                >
+                  رفض الطلب
                 </button>
               </div>
             </article>

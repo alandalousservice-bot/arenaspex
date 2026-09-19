@@ -69,6 +69,8 @@ export const AdminAccountsPage: React.FC = () => {
             u.lastName,
             `${u.firstName} ${u.lastName}`,
             u.email,
+            u.username,
+            u.spexId,
             u.phone,
             u.adminAffiliation?.institutionName,
             u.adminAffiliation?.directorateName,
