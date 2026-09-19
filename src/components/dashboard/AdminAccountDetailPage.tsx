@@ -16,7 +16,9 @@ import {
   activateUserAccount,
   AdminAccountDetail,
   fetchAdminAccount,
-  syncUserToDB,
+  fetchGeoDirectorates,
+  fetchGeoDistricts,
+  syncAdminUserToDB,
 } from '../../services/api';
 import { User } from '../../types/spex';
 
@@ -48,12 +50,20 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
     firstName: '',
     lastName: '',
     email: '',
+    username: '',
+    spexId: '',
     phone: '',
     schoolName: '',
     municipality: '',
+    directorateId: '',
+    districtId: '',
+    yearsExperience: '',
+    cycle: '',
     specialization: '',
     bio: '',
   });
+  const [directorates, setDirectorates] = useState<Array<{ id: string; name: string }>>([]);
+  const [districts, setDistricts] = useState<Array<{ id: string; name: string }>>([]);
   const load = async () => {
     if (!userId) return;
     setLoading(true);
@@ -66,30 +76,91 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
         firstName: result.user.firstName,
         lastName: result.user.lastName,
         email: result.user.email,
+        username: result.user.username || '',
+        spexId: result.user.spexId || '',
         phone: result.user.phone || '',
         schoolName: result.user.schoolName || '',
         municipality: result.user.municipality || '',
+        directorateId: result.user.directorateId || '',
+        districtId: result.user.districtId || '',
+        yearsExperience:
+          result.user.yearsExperience == null ? '' : String(result.user.yearsExperience),
+        cycle: result.user.cycle || '',
         specialization: result.user.specialization || '',
         bio: result.user.bio || '',
       });
+      const geo = await fetchGeoDirectorates();
+      setDirectorates(Array.isArray(geo?.directorates) ? geo.directorates : []);
     }
   };
   useEffect(() => {
     void load();
   }, [userId]);
+  useEffect(() => {
+    if (!form.directorateId) {
+      setDistricts([]);
+      return;
+    }
+    void fetchGeoDistricts(form.directorateId).then((data: any) => {
+      setDistricts(Array.isArray(data?.districts) ? data.districts : []);
+    });
+  }, [form.directorateId]);
   const save = async () => {
     if (!user) return;
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim()) {
+      setNotice('الاسم واللقب والبريد الإلكتروني حقول إلزامية.');
+      return;
+    }
+    const yearsExperience =
+      form.yearsExperience.trim() === '' ? undefined : Number(form.yearsExperience);
+    if (
+      yearsExperience !== undefined &&
+      (!Number.isInteger(yearsExperience) || yearsExperience < 0)
+    ) {
+      setNotice('سنوات الخبرة يجب أن تكون عدداً صحيحاً غير سالب.');
+      return;
+    }
+    if (
+      isInspector &&
+      form.directorateId &&
+      form.districtId &&
+      !districts.some((d) => d.id === form.districtId)
+    ) {
+      setNotice('المقاطعة المختارة لا تنتمي إلى المديرية المحددة.');
+      return;
+    }
     setSaving(true);
     setNotice('');
-    const result = await syncUserToDB({ ...user, ...form } as User);
+    const editable = isInspector
+      ? {
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          email: form.email,
+          username: form.username.trim(),
+          spexId: form.spexId.trim(),
+          phone: form.phone.trim(),
+          directorateId: form.directorateId,
+          districtId: form.districtId,
+        }
+      : {
+          ...form,
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          email: form.email,
+          username: form.username.trim(),
+          spexId: form.spexId.trim(),
+          phone: form.phone.trim(),
+          yearsExperience,
+        };
+    const result = await syncAdminUserToDB({ ...user, ...editable } as User);
     setSaving(false);
     if (!result.success || !result.user) {
       setNotice(result.error || 'تعذر حفظ التغييرات.');
       return;
     }
-    setUser({ ...user, ...result.user, ...form });
+    setUser({ ...user, ...result.user });
     setEditing(false);
-    setNotice('تم حفظ التغييرات.');
+    setNotice('تم حفظ معلومات الحساب بنجاح.');
   };
   const activate = async () => {
     if (!user) return;
@@ -103,7 +174,7 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
   };
   const toggleDisabled = async () => {
     if (!user || user.isPlatformOwner || !currentUser.isPlatformOwner) return;
-    const result = await syncUserToDB({
+    const result = await syncAdminUserToDB({
       ...user,
       status: user.status === 'inactive' ? 'active' : 'inactive',
     } as User);
@@ -210,6 +281,8 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
               ['lastName', 'اللقب'],
               ['email', 'البريد الإلكتروني'],
               ['phone', 'الهاتف'],
+              ['username', 'اسم المستخدم'],
+              ['spexId', 'المعرّف المهني'],
             ].map(([key, label]) => (
               <Field
                 key={key}
@@ -226,6 +299,14 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
                 user.createdAt ? new Date(user.createdAt).toLocaleDateString('ar-DZ') : 'غير محدد'
               }
             />
+            {isTeacher && (
+              <Field
+                label="سنوات الخبرة"
+                value={form.yearsExperience}
+                editing={editing}
+                onChange={(v) => setForm({ ...form, yearsExperience: v })}
+              />
+            )}
             <Info
               label="حالة الاعتماد"
               value={user.isApprovedByAdmin === false ? 'بانتظار اعتماد الإدارة' : 'معتمد'}
@@ -234,14 +315,31 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
         </Section>
         <Section title="الانتساب المهني" icon={<ShieldCheck className="h-4 w-4" />}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Info
-              label="المديرية"
-              value={fallback(affiliation.directorateName || user.directorateId, 'غير محددة')}
-            />
-            <Info
-              label="المقاطعة التفتيشية"
-              value={fallback(affiliation.districtName || user.districtId, 'غير محددة')}
-            />
+            {editing && (isTeacher || isInspector) ? (
+              <>
+                <SelectField
+                  label="المديرية"
+                  value={form.directorateId}
+                  options={directorates}
+                  onChange={(v) => setForm({ ...form, directorateId: v, districtId: '' })}
+                />
+                <SelectField
+                  label="المقاطعة التفتيشية"
+                  value={form.districtId}
+                  options={districts}
+                  onChange={(v) => setForm({ ...form, districtId: v })}
+                  disabled={!form.directorateId}
+                />
+              </>
+            ) : (
+              <>
+                <Info label="المديرية" value={fallback(affiliation.directorateName, 'غير محددة')} />
+                <Info
+                  label="المقاطعة التفتيشية"
+                  value={fallback(affiliation.districtName, 'غير محددة')}
+                />
+              </>
+            )}
             {isTeacher && (
               <Field
                 label="المؤسسة"
@@ -326,7 +424,10 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
                   {saving ? 'جارٍ الحفظ...' : 'حفظ التغييرات'}
                 </button>
                 <button
-                  onClick={() => setEditing(false)}
+                  onClick={() => {
+                    setEditing(false);
+                    void load();
+                  }}
                   className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold"
                 >
                   <XCircle className="h-4 w-4" />
@@ -390,6 +491,30 @@ const Field: React.FC<{
     ) : (
       <div className="mt-1 text-sm font-bold text-slate-800">{fallback(value)}</div>
     )}
+  </div>
+);
+const SelectField: React.FC<{
+  label: string;
+  value: string;
+  options: Array<{ id: string; name: string }>;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}> = ({ label, value, options, onChange, disabled }) => (
+  <div>
+    <div className="text-[11px] font-bold text-slate-400">{label}</div>
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+      className="mt-1 w-full rounded-lg border border-purple-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-purple-500 disabled:bg-slate-100"
+    >
+      <option value="">غير محددة</option>
+      {options.map((option) => (
+        <option key={option.id} value={option.id}>
+          {option.name}
+        </option>
+      ))}
+    </select>
   </div>
 );
 const Metric: React.FC<{ label: string; value: number | string }> = ({ label, value }) => (

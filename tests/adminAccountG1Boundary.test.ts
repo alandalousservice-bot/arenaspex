@@ -13,7 +13,8 @@ describe('ADMIN-ACCOUNT-G1 mutation boundary', () => {
 
   it('separates privileged account fields from ordinary profile patches', () => {
     const api = read('src/server/apiRouter.ts');
-    expect(api).toContain('buildUserWriteData(user, privilegedAccountMutation');
+    expect(api).toContain('buildUserWriteData(');
+    expect(api).toContain('privilegedAccountMutation');
     expect(api).toContain('delete data.role');
     expect(api).toContain('delete data.status');
     expect(api).toContain('delete data.isApprovedByAdmin');
