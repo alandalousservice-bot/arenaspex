@@ -33,6 +33,19 @@ describe('ADMIN-ACCOUNT-G4 account workflow consolidation', () => {
     expect(directory).toContain('لا توجد حسابات مطابقة للفلاتر الحالية.');
   });
 
+  it('uses a dedicated role-aware profile mutation contract with dependent geographic validation', () => {
+    const api = read('src/services/api.ts');
+    const detail = read('src/components/dashboard/AdminAccountDetailPage.tsx');
+    expect(api).toContain('/api/admin/users/${encodeURIComponent(userId)}/profile');
+    expect(detail).toContain('updateAdminAccountProfile');
+    expect(read('src/server/apiRouter.ts')).toContain("apiRouter.put('/admin/users/:id/profile'");
+    expect(read('src/server/apiRouter.ts')).toContain('adminAccountProfileSchema');
+    expect(read('src/server/apiRouter.ts')).toContain(
+      'المقاطعة التفتيشية لا تنتمي إلى المديرية المختارة'
+    );
+    expect(read('src/server/apiRouter.ts')).not.toContain('data: req.body');
+  });
+
   it('does not expose routine hard delete or private pedagogical data in account views', () => {
     const detail = read('src/components/dashboard/AdminAccountDetailPage.tsx');
     const pending = read('src/components/dashboard/AdminPendingUsersPage.tsx');

@@ -1702,6 +1702,23 @@ export async function syncAdminUserToDB(
   }
 }
 
+export async function updateAdminAccountProfile(
+  userId: string,
+  profile: Record<string, unknown>
+): Promise<{ success: boolean; user?: AdminAccountDetail; error?: string }> {
+  try {
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/profile`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profile),
+    });
+    const data = await res.json();
+    return res.ok ? { success: true, user: data.user } : { success: false, error: data.error };
+  } catch {
+    return { success: false, error: 'تعذر حفظ معلومات الحساب.' };
+  }
+}
+
 export async function deleteUserFromDB(userId: string) {
   await offlineDelete(`/api/db/users/${userId}`);
 }

@@ -4221,6 +4221,135 @@ apiRouter.post('/admin/users/:id/lifecycle', requireRole('admin'), async (req, r
   return res.json({ success: true, user: sanitizeUser(user) });
 });
 
+const adminAccountProfileSchema = z.object({
+  firstName: z.string().trim().min(1).max(120),
+  lastName: z.string().trim().min(1).max(120),
+  email: z.string().trim().toLowerCase().email(),
+  username: z.string().trim().min(1).max(120),
+  spexId: z.string().trim().min(1).max(120),
+  phone: z.string().trim().max(40).optional(),
+  schoolName: z.string().trim().max(200).optional(),
+  municipality: z.string().trim().max(200).optional(),
+  municipalityId: z.string().trim().min(1).optional(),
+  directorateId: z.string().trim().min(1),
+  districtId: z.string().trim().min(1),
+  institutionId: z.string().trim().min(1).optional(),
+  eduDirectorateId: z.string().trim().min(1).optional(),
+  eduDistrictId: z.string().trim().min(1).optional(),
+  eduSchoolId: z.string().trim().min(1).optional(),
+  yearsExperience: z.number().int().min(0).max(80).optional(),
+  cycle: z.string().trim().max(120).optional(),
+  specialization: z.string().trim().max(200).optional(),
+  bio: z.string().trim().max(2000).optional(),
+});
+
+apiRouter.put('/admin/users/:id/profile', requireRole('admin'), async (req, res) => {
+  const parsed = adminAccountProfileSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'بيانات الحساب غير صالحة.' });
+  const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: 'الحساب غير موجود.' });
+  if (existing.isPlatformOwner) return res.status(403).json({ error: 'حساب مالك المنصة محمي.' });
+
+  const input = parsed.data;
+  const directorate = await prisma.directorate.findUnique({ where: { id: input.directorateId } });
+  if (!directorate) return res.status(400).json({ error: 'مديرية التربية المحددة غير موجودة.' });
+  const district = await prisma.inspectionDistrict.findUnique({
+    where: { id: input.districtId },
+    select: { directorateId: true },
+  });
+  if (!district || district.directorateId !== input.directorateId) {
+    return res.status(400).json({ error: 'المقاطعة التفتيشية لا تنتمي إلى المديرية المختارة.' });
+  }
+  if (input.eduDirectorateId) {
+    const eduDirectorate = await prisma.directorate.findUnique({
+      where: { id: input.eduDirectorateId },
+    });
+    if (!eduDirectorate)
+      return res.status(400).json({ error: 'المديرية التعليمية المحددة غير موجودة.' });
+  }
+  if (input.eduDistrictId) {
+    const eduDistrict = await prisma.inspectionDistrict.findUnique({
+      where: { id: input.eduDistrictId },
+      select: { directorateId: true },
+    });
+    if (
+      !eduDistrict ||
+      eduDistrict.directorateId !== (input.eduDirectorateId || existing.eduDirectorateId)
+    ) {
+      return res
+        .status(400)
+        .json({ error: 'المقاطعة التعليمية لا تنتمي إلى المديرية التعليمية المختارة.' });
+    }
+  }
+  if (input.eduSchoolId) {
+    const school = await prisma.school.findUnique({
+      where: { id: input.eduSchoolId },
+      select: { municipality: { select: { directorateId: true } } },
+    });
+    if (
+      !school ||
+      school.municipality.directorateId !== (input.eduDirectorateId || existing.eduDirectorateId)
+    ) {
+      return res.status(400).json({ error: 'المؤسسة التعليمية لا تنتمي إلى المديرية المختارة.' });
+    }
+  }
+  try {
+    const user = await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        firstName: input.firstName,
+        lastName: input.lastName,
+        email: input.email,
+        username: input.username,
+        spexId: input.spexId,
+        phone: input.phone || null,
+        schoolName: input.schoolName || null,
+        municipality: input.municipality || null,
+        municipalityId: input.municipalityId || null,
+        directorateId: input.directorateId,
+        districtId: input.districtId,
+        institutionId:
+          input.institutionId !== undefined ? input.institutionId : existing.institutionId,
+        eduDirectorateId:
+          input.eduDirectorateId !== undefined ? input.eduDirectorateId : existing.eduDirectorateId,
+        eduDistrictId:
+          input.eduDistrictId !== undefined ? input.eduDistrictId : existing.eduDistrictId,
+        eduSchoolId: input.eduSchoolId !== undefined ? input.eduSchoolId : existing.eduSchoolId,
+        yearsExperience: input.yearsExperience ?? null,
+        cycle: input.cycle || null,
+        specialization: input.specialization || null,
+        bio: input.bio || null,
+      },
+      include: {
+        eduDirectorate: { select: { name: true } },
+        eduDistrict: { select: { name: true } },
+        eduSchool: { select: { name: true, municipality: { select: { name: true } } } },
+      },
+    });
+    const safe = sanitizeUser(user as any) as any;
+    const { eduDirectorate, eduDistrict, eduSchool, ...base } = safe;
+    return res.json({
+      success: true,
+      user: {
+        ...base,
+        adminAffiliation: {
+          directorateName: eduDirectorate?.name || undefined,
+          districtName: eduDistrict?.name || undefined,
+          institutionName: eduSchool?.name || user.schoolName || undefined,
+          municipalityName: eduSchool?.municipality?.name || user.municipality || undefined,
+        },
+      },
+    });
+  } catch (error: any) {
+    if (error?.code === 'P2002')
+      return res
+        .status(409)
+        .json({ error: 'البريد الإلكتروني أو اسم المستخدم أو المعرّف المهني مستخدم بالفعل.' });
+    console.error('Admin account profile update failed:', error);
+    return res.status(500).json({ error: 'تعذر حفظ معلومات الحساب.' });
+  }
+});
+
 // الحقول الوحيدة المسموح كتابتها في جدول User — قائمة بيضاء صارمة.
 // أي حقل زائد يصله من الواجهة (مثل apiKeyConfigured، wilaya، teachingExperienceYears،
 // followingCount...) يُتجاهل بدل إسقاط عملية التحديث بخطأ Prisma P2009 (Unknown argument)

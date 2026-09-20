@@ -18,7 +18,7 @@ import {
   fetchAdminAccount,
   fetchGeoDirectorates,
   fetchGeoDistricts,
-  syncAdminUserToDB,
+  updateAdminAccountProfile,
 } from '../../services/api';
 import { User } from '../../types/spex';
 
@@ -152,7 +152,7 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
           phone: form.phone.trim(),
           yearsExperience,
         };
-    const result = await syncAdminUserToDB({ ...user, ...editable } as User);
+    const result = await updateAdminAccountProfile(user.id, editable);
     setSaving(false);
     if (!result.success || !result.user) {
       setNotice(result.error || 'تعذر حفظ التغييرات.');
