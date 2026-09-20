@@ -6,6 +6,7 @@ import {
 } from '../src/services/assessmentMastery';
 import { getRegisteredKnowledgeCoreRelease } from '../src/domain/pedagogicalKnowledge/runtime/knowledgeCoreReleaseRegistry';
 import { P1FC_RELEASE_ID } from '../src/domain/pedagogicalKnowledge/releases/p1fcCombinedSemanticRelease';
+import { canonicalTeacherAssessmentType, TEACHER_ASSESSMENT_TYPE_LABELS } from '../src/types/spex';
 
 const read = (file: string) => readFileSync(file, 'utf8');
 const schema = read('prisma/schema.prisma');
@@ -18,6 +19,26 @@ const gradebook = read('src/components/gradebook/SmartGradebookView.tsx');
 const notebook = read('src/components/assessment/AssessmentNotebookView.tsx');
 
 describe('persisted Teacher assessment foundation', () => {
+  it('uses one closed canonical application assessment-type contract', () => {
+    expect(Object.keys(TEACHER_ASSESSMENT_TYPE_LABELS)).toEqual([
+      'LEARNING',
+      'INTEGRATIVE',
+      'DIAGNOSTIC',
+      'SUMMATIVE',
+    ]);
+    expect(canonicalTeacherAssessmentType('تقويم تشخيصي')).toBe('DIAGNOSTIC');
+    expect(canonicalTeacherAssessmentType('تقويم تحصيلي')).toBe('SUMMATIVE');
+    expect(canonicalTeacherAssessmentType('REMEDIATION')).toBeNull();
+    expect(router).toContain("z.enum(['LEARNING', 'INTEGRATIVE', 'DIAGNOSTIC', 'SUMMATIVE'])");
+  });
+
+  it('requires a canonical final competency for diagnostic, integrative, and summative sessions', () => {
+    expect(router).toContain("input.assessmentType === 'DIAGNOSTIC'");
+    expect(router).toContain("input.assessmentType === 'INTEGRATIVE'");
+    expect(router).toContain("input.assessmentType === 'SUMMATIVE'");
+    expect(router).toContain('هذا النوع من التقويم يتطلب كفاءة ختامية معتمدة');
+  });
+
   it('declares the three additive models and cascade policy', () => {
     expect(schema).toContain('model AssessmentSession');
     expect(schema).toContain('model StudentAssessment');

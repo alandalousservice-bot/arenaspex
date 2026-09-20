@@ -890,8 +890,23 @@ export interface ClassRoom {
 
 export type AssessmentGrade = 'أ' | 'ب' | 'ج' | 'د'; // أ: تحكم تام, ب: تحكم مقبول, ج: تحكم أدنى, د: لم يتحقق
 
-export type TeacherAssessmentType =
-  'تشخيصية' | 'تعلمية' | 'إدماجية' | 'تقويمية' | 'تقويم تشخيصي' | 'تقويم تحصيلي';
+export type TeacherAssessmentType = 'LEARNING' | 'INTEGRATIVE' | 'DIAGNOSTIC' | 'SUMMATIVE';
+
+export const TEACHER_ASSESSMENT_TYPE_LABELS: Record<TeacherAssessmentType, string> = {
+  LEARNING: 'تقويم تكويني / تعلمي',
+  INTEGRATIVE: 'تقويم إدماجي',
+  DIAGNOSTIC: 'تقويم تشخيصي',
+  SUMMATIVE: 'تقويم تحصيلي / ختامي',
+};
+
+export function canonicalTeacherAssessmentType(value: string): TeacherAssessmentType | null {
+  if (value === 'LEARNING' || value === 'تعلمية' || value === 'تقويمية') return 'LEARNING';
+  if (value === 'INTEGRATIVE' || value === 'إدماجية') return 'INTEGRATIVE';
+  if (value === 'DIAGNOSTIC' || value === 'تشخيصية' || value === 'تقويم تشخيصي')
+    return 'DIAGNOSTIC';
+  if (value === 'SUMMATIVE' || value === 'تقويم تحصيلي') return 'SUMMATIVE';
+  return null;
+}
 
 export interface AssessmentSessionDto {
   id: string;

@@ -602,7 +602,7 @@ describe('Teacher G1.1-A runtime ownership harness', () => {
       id: assessmentSessionAId,
       classId: classAId,
       academicYearId,
-      assessmentType: 'تقويم تشخيصي',
+      assessmentType: 'DIAGNOSTIC',
       gradeLevelId: 'lvl_p1',
       domainId: 'f_fundamentals',
       finalCompetencyId: 'fc_lvl_p1_f_fundamentals',

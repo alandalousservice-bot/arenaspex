@@ -104,7 +104,7 @@ async function ensureSession(
     id: sessionIdFor(classId, term),
     classId,
     academicYearId,
-    assessmentType: 'تقويمية',
+    assessmentType: 'LEARNING',
     gradeLevelId,
     domainId: SMART_DOMAIN_ID,
     finalCompetencyId: null,

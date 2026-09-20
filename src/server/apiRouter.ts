@@ -2041,14 +2041,7 @@ apiRouter.patch(
   }
 );
 
-const assessmentTypeSchema = z.enum([
-  'تشخيصية',
-  'تعلمية',
-  'إدماجية',
-  'تقويمية',
-  'تقويم تشخيصي',
-  'تقويم تحصيلي',
-]);
+const assessmentTypeSchema = z.enum(['LEARNING', 'INTEGRATIVE', 'DIAGNOSTIC', 'SUMMATIVE']);
 const masteryLevelSchema = z.enum(['أ', 'ب', 'ج', 'د']);
 const assessmentSessionCreateSchema = z.object({
   id: z.string().trim().min(1).max(160).optional(),
@@ -2237,6 +2230,14 @@ apiRouter.post('/teacher/assessment-sessions', requireRole('teacher'), async (re
   );
   if (!finalCompetency)
     return res.status(400).json({ error: 'الكفاءة الختامية لا تطابق المستوى والميدان.' });
+  if (
+    (input.assessmentType === 'DIAGNOSTIC' ||
+      input.assessmentType === 'INTEGRATIVE' ||
+      input.assessmentType === 'SUMMATIVE') &&
+    !input.finalCompetencyId
+  ) {
+    return res.status(400).json({ error: 'هذا النوع من التقويم يتطلب كفاءة ختامية معتمدة.' });
+  }
   let planned = null;
   if (input.classPlannedSessionId) {
     planned = await prisma.classPlannedSession.findFirst({

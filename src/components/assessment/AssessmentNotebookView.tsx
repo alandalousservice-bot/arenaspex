@@ -25,6 +25,7 @@ import {
   upsertTeacherStudentAssessment,
   type TeacherPlanningSession,
 } from '../../services/api';
+import { TEACHER_ASSESSMENT_TYPE_LABELS } from '../../types/spex';
 import type {
   CriterionDefinition,
   IndicatorDefinition,
@@ -72,12 +73,12 @@ const MASTERY: Array<{ value: AssessmentGrade; label: string }> = [
   { value: 'د', label: 'د — تملك محدود' },
 ];
 const ASSESSMENT_TYPES: Array<{ value: TeacherAssessmentType; label: string }> = [
-  { value: 'تقويم تشخيصي', label: 'تقويم تشخيصي' },
-  { value: 'تعلمية', label: 'تقويم تكويني / تعلمي' },
-  { value: 'إدماجية', label: 'تقويم إدماجي' },
-  { value: 'تقويم تحصيلي', label: 'تقويم تحصيلي / ختامي' },
+  { value: 'DIAGNOSTIC', label: TEACHER_ASSESSMENT_TYPE_LABELS.DIAGNOSTIC },
+  { value: 'LEARNING', label: TEACHER_ASSESSMENT_TYPE_LABELS.LEARNING },
+  { value: 'INTEGRATIVE', label: TEACHER_ASSESSMENT_TYPE_LABELS.INTEGRATIVE },
+  { value: 'SUMMATIVE', label: TEACHER_ASSESSMENT_TYPE_LABELS.SUMMATIVE },
 ];
-const ASSESSMENT_REFERENCE_TYPES = new Set(['تقويم تشخيصي', 'تقويم تحصيلي']);
+const ASSESSMENT_REFERENCE_TYPES = new Set(['DIAGNOSTIC', 'SUMMATIVE']);
 
 function isAssessmentReference(type?: string): boolean {
   return Boolean(type && ASSESSMENT_REFERENCE_TYPES.has(type));
@@ -141,7 +142,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
   const [batchPrintOpen, setBatchPrintOpen] = useState(false);
   const [studentHistory, setStudentHistory] = useState<StudentAssessmentHistoryDto[]>([]);
   const [manualOpen, setManualOpen] = useState(false);
-  const [manualType, setManualType] = useState<TeacherAssessmentType>('تقويم تشخيصي');
+  const [manualType, setManualType] = useState<TeacherAssessmentType>('DIAGNOSTIC');
   const [manualDomainId, setManualDomainId] = useState('f_locomotion');
   const [savingStudentId, setSavingStudentId] = useState<string | null>(null);
   const [bulkSaving, setBulkSaving] = useState(false);
@@ -253,7 +254,14 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                 classId: selectedClassId,
                 academicYearId,
                 classPlannedSessionId: scheduled.id,
-                assessmentType: reference.sessionType as TeacherAssessmentType,
+                assessmentType:
+                  reference.sessionType === 'DIAGNOSTIC'
+                    ? 'DIAGNOSTIC'
+                    : reference.sessionType === 'SUMMATIVE'
+                      ? 'SUMMATIVE'
+                      : reference.sessionType === 'INTEGRATIVE'
+                        ? 'INTEGRATIVE'
+                        : 'LEARNING',
                 gradeLevelId: activeClass?.levelId || '',
                 domainId: reference.domainId,
                 finalCompetencyId: `fc_${activeClass?.levelId}_${reference.domainId}`,
