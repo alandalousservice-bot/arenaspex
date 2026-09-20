@@ -7,6 +7,10 @@ const GRADE_SCORES: Record<AssessmentGrade, number> = {
   د: 1,
 };
 
+export function isDiagnosticWeakMastery(value: string | null | undefined): value is 'د' {
+  return value === 'د';
+}
+
 /**
  * Derives the official overall mastery from the persisted criterion levels.
  * An empty set remains explicitly unassessed; no default level is invented.

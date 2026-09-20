@@ -39,6 +39,10 @@ import { teacherAttendanceRouter } from './attendanceRouter.js';
 import { findActiveMedicalExemption } from './medicalExemption.service.js';
 import { calculateAssessmentMastery, isAssessmentComplete } from '../services/assessmentMastery.js';
 import {
+  deriveDiagnosticRemediationCandidates,
+  type DiagnosticSession,
+} from '../services/diagnosticRemediation.service.js';
+import {
   DEFAULT_CANDIDATE_RELEASE_ID,
   getRegisteredKnowledgeCoreRelease,
 } from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreReleaseRegistry.js';
@@ -2318,6 +2322,53 @@ apiRouter.get(
       orderBy: { studentId: 'asc' },
     });
     res.json({ success: true, results: results.map(studentAssessmentView) });
+  }
+);
+
+apiRouter.get(
+  '/teacher/assessment-sessions/:sessionId/remediation-candidates',
+  requireRole('teacher'),
+  async (req, res) => {
+    const session = (await prisma.assessmentSession.findFirst({
+      where: { id: req.params.sessionId, teacherId: req.user!.id },
+      select: {
+        id: true,
+        teacherId: true,
+        assessmentType: true,
+        gradeLevelId: true,
+        domainId: true,
+        finalCompetencyId: true,
+        studentAssessments: {
+          orderBy: { studentId: 'asc' },
+          select: {
+            id: true,
+            studentId: true,
+            student: {
+              select: { firstName: true, lastName: true, teacherId: true, classId: true },
+            },
+            criterionResults: {
+              orderBy: { criterionId: 'asc' },
+              select: { id: true, criterionId: true, masteryLevel: true, note: true },
+            },
+          },
+        },
+      },
+    })) as DiagnosticSession | null;
+    if (!session) return res.status(404).json({ error: 'جلسة التقويم غير موجودة ضمن سجلاتك.' });
+    if (session.assessmentType !== 'DIAGNOSTIC')
+      return res.status(400).json({ error: 'مرشحات المعالجة متاحة للتقويم التشخيصي فقط.' });
+    const candidates = deriveDiagnosticRemediationCandidates(session);
+    res.json({
+      success: true,
+      session: {
+        id: session.id,
+        assessmentType: session.assessmentType,
+        gradeLevelId: session.gradeLevelId,
+        domainId: session.domainId,
+        finalCompetencyId: session.finalCompetencyId,
+      },
+      candidates,
+    });
   }
 );
 
