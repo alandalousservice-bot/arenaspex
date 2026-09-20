@@ -15,6 +15,14 @@ const studentAId = `${marker}-student-a`;
 const studentBId = `${marker}-student-b`;
 const academicYearId = '2026-2027';
 const attendanceDate = '2026-09-20';
+const slotAId = `${marker}-slot-a`;
+const slotBId = `${marker}-slot-b`;
+const extraSlotIds = [1, 2, 3, 4].flatMap((day) => [
+  `${marker}-slot-a-${day}`,
+  `${marker}-slot-b-${day}`,
+]);
+const standaloneMemoId = `${marker}-standalone-memo`;
+const scheduledMemoId = `${marker}-scheduled-memo`;
 
 type Session = { cookie: string };
 
@@ -144,6 +152,48 @@ describe('Teacher G1.1-A runtime ownership harness', () => {
         },
       ],
     });
+    await prisma.teacherWeeklySlot.createMany({
+      data: [
+        {
+          id: slotAId,
+          teacherId: teacherAId,
+          classId: classAId,
+          academicYearId,
+          weekday: 0,
+          startTime: '08:00',
+          endTime: '08:45',
+        },
+        {
+          id: slotBId,
+          teacherId: teacherBId,
+          classId: classBId,
+          academicYearId,
+          weekday: 0,
+          startTime: '09:00',
+          endTime: '09:45',
+        },
+        ...[1, 2, 3, 4].flatMap((weekday) => [
+          {
+            id: `${marker}-slot-a-${weekday}`,
+            teacherId: teacherAId,
+            classId: classAId,
+            academicYearId,
+            weekday,
+            startTime: '08:00',
+            endTime: '08:45',
+          },
+          {
+            id: `${marker}-slot-b-${weekday}`,
+            teacherId: teacherBId,
+            classId: classBId,
+            academicYearId,
+            weekday,
+            startTime: '09:00',
+            endTime: '09:45',
+          },
+        ]),
+      ],
+    });
     await prisma.communityNotification.create({
       data: {
         id: notificationId,
@@ -169,6 +219,18 @@ describe('Teacher G1.1-A runtime ownership harness', () => {
       });
       await prisma.studentAttendance.deleteMany({
         where: { studentId: { in: [studentAId, studentBId] } },
+      });
+      await prisma.lessonPlan.deleteMany({
+        where: { id: { in: [standaloneMemoId, scheduledMemoId] } },
+      });
+      await prisma.classPlannedSession.deleteMany({
+        where: { classId: { in: [classAId, classBId] } },
+      });
+      await prisma.annualPlan.deleteMany({
+        where: { teacherId: { in: [teacherAId, teacherBId] }, academicYearId },
+      });
+      await prisma.teacherWeeklySlot.deleteMany({
+        where: { id: { in: [slotAId, slotBId, ...extraSlotIds] } },
       });
       await prisma.student.deleteMany({ where: { id: { in: [studentAId, studentBId] } } });
       await prisma.studentClass.deleteMany({ where: { id: { in: [classAId, classBId] } } });
@@ -332,4 +394,171 @@ describe('Teacher G1.1-A runtime ownership harness', () => {
     expect(ownDelete.status).toBe(200);
     expect(await prisma.medicalExemption.findUnique({ where: { id: exemptionId } })).toBeNull();
   }, 30000);
+
+  it('enforces planning, CPS, scheduled memo, and standalone memo ownership', async () => {
+    const planningPayload = { academicYearId, planningStartDate: '2026-09-21' };
+    const initA = await request(sessionA, '/api/teacher/planning/annual-distribution/initialize', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(planningPayload),
+    });
+    if (initA.status !== 201)
+      throw new Error(
+        `annual init A failed: ${initA.status} ${(await initA.text()).slice(0, 300)}`
+      );
+    const initB = await request(sessionB, '/api/teacher/planning/annual-distribution/initialize', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(planningPayload),
+    });
+    if (initB.status !== 201)
+      throw new Error(
+        `annual init B failed: ${initB.status} ${(await initB.text()).slice(0, 300)}`
+      );
+    const [plansA, plansB] = await Promise.all([
+      prisma.annualPlan.findMany({
+        where: { teacherId: teacherAId, academicYearId, kind: 'annual_distribution' },
+      }),
+      prisma.annualPlan.findMany({
+        where: { teacherId: teacherBId, academicYearId, kind: 'annual_distribution' },
+      }),
+    ]);
+    expect(plansA.length).toBeGreaterThan(0);
+    expect(plansB.length).toBeGreaterThan(0);
+    expect(plansA.every((row) => row.teacherId === teacherAId)).toBe(true);
+    expect(plansB.every((row) => row.teacherId === teacherBId)).toBe(true);
+    const classInitA = await request(
+      sessionA,
+      `/api/teacher/planning/classes/${classAId}/sessions/initialize`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(planningPayload),
+      }
+    );
+    if (classInitA.status !== 201)
+      throw new Error(
+        `class init failed: ${classInitA.status} ${(await classInitA.text()).slice(0, 500)}`
+      );
+
+    const ownDistribution = await request(
+      sessionA,
+      `/api/teacher/planning/annual-distribution?academicYearId=${academicYearId}`
+    );
+    expect(ownDistribution.status).toBe(200);
+    const foreignDistribution = await request(
+      sessionB,
+      `/api/teacher/planning/annual-distribution?academicYearId=${academicYearId}&classId=${classAId}`
+    );
+    expect(foreignDistribution.status).toBe(404);
+    const ownSessions = await request(
+      sessionA,
+      `/api/teacher/planning/classes/${classAId}/sessions?academicYearId=${academicYearId}`
+    );
+    expect(ownSessions.status).toBe(200);
+    const ownSessionsBody = await ownSessions.json();
+    const sessionId = ownSessionsBody.sessions?.[0]?.id as string | undefined;
+    if (!sessionId)
+      throw new Error(`no CPS sessions: ${JSON.stringify(ownSessionsBody).slice(0, 1000)}`);
+    const foreignSessions = await request(
+      sessionB,
+      `/api/teacher/planning/classes/${classAId}/sessions?academicYearId=${academicYearId}`
+    );
+    expect(foreignSessions.status).toBe(404);
+    const foreignSessionUpdate = await request(
+      sessionB,
+      `/api/teacher/planning/classes/${classAId}/sessions/${sessionId}`,
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ operationalNote: 'foreign' }),
+      }
+    );
+    expect(foreignSessionUpdate.status).toBe(404);
+    const beforeSession = await prisma.classPlannedSession.findUniqueOrThrow({
+      where: { id: sessionId! },
+    });
+    expect({ teacherId: beforeSession.teacherId, classId: beforeSession.classId }).toEqual({
+      teacherId: teacherAId,
+      classId: classAId,
+    });
+
+    const scheduledGenerate = await request(sessionA, '/api/teacher/lesson-memos/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ classPlannedSessionId: sessionId }),
+    });
+    expect([200, 409]).toContain(scheduledGenerate.status);
+    const foreignGenerate = await request(sessionB, '/api/teacher/lesson-memos/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ classPlannedSessionId: sessionId }),
+    });
+    expect(foreignGenerate.status).toBe(404);
+    const scheduledSave = await request(sessionA, '/api/db/lesson-plans', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        lessonPlan: {
+          id: scheduledMemoId,
+          memoSource: 'operational',
+          classId: classAId,
+          academicYearId,
+          classPlannedSessionId: sessionId,
+          title: marker,
+        },
+      }),
+    });
+    expect(scheduledSave.status).toBe(200);
+    const foreignScheduledSave = await request(sessionB, '/api/db/lesson-plans', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        lessonPlan: {
+          id: `${marker}-foreign-scheduled`,
+          memoSource: 'operational',
+          classId: classAId,
+          academicYearId,
+          classPlannedSessionId: sessionId,
+          title: 'foreign',
+        },
+      }),
+    });
+    expect(foreignScheduledSave.status).toBe(403);
+    const ownStandalone = await request(sessionA, '/api/db/lesson-plans', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        lessonPlan: { id: standaloneMemoId, memoSource: 'standalone', title: marker },
+      }),
+    });
+    expect(ownStandalone.status).toBe(200);
+    const ownList = await request(sessionA, '/api/db/lesson-plans');
+    expect(ownList.status).toBe(200);
+    const ownListBody = await ownList.json();
+    expect(
+      ownListBody.lessonPlans.some((item: { id: string }) => item.id === standaloneMemoId)
+    ).toBe(true);
+    const foreignList = await request(sessionB, '/api/db/lesson-plans');
+    expect(foreignList.status).toBe(200);
+    const foreignListBody = await foreignList.json();
+    expect(
+      foreignListBody.lessonPlans.some((item: { id: string }) => item.id === standaloneMemoId)
+    ).toBe(false);
+    const foreignStandaloneUpdate = await request(sessionB, '/api/db/lesson-plans', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        lessonPlan: { id: standaloneMemoId, memoSource: 'standalone', title: 'foreign-update' },
+      }),
+    });
+    expect(foreignStandaloneUpdate.status).toBe(403);
+    const standaloneRow = await prisma.lessonPlan.findUniqueOrThrow({
+      where: { id: standaloneMemoId },
+    });
+    expect({
+      ownerId: standaloneRow.ownerId,
+      title: (standaloneRow.data as { title?: string }).title,
+    }).toEqual({ ownerId: teacherAId, title: marker });
+  }, 60000);
 });
