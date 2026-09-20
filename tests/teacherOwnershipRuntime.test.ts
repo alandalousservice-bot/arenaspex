@@ -9,6 +9,12 @@ const emailA = `${marker}-a@local.test`;
 const emailB = `${marker}-b@local.test`;
 const directorateId = `${marker}-directorate`;
 const notificationId = `${marker}-notification`;
+const classAId = `${marker}-class-a`;
+const classBId = `${marker}-class-b`;
+const studentAId = `${marker}-student-a`;
+const studentBId = `${marker}-student-b`;
+const academicYearId = '2026-2027';
+const attendanceDate = '2026-09-20';
 
 type Session = { cookie: string };
 
@@ -108,6 +114,36 @@ describe('Teacher G1.1-A runtime ownership harness', () => {
     });
     teacherAId = a.id;
     teacherBId = b.id;
+    await prisma.studentClass.createMany({
+      data: [
+        { id: classAId, teacherId: teacherAId, levelId: 'lvl_p1', name: `${marker} Class A` },
+        { id: classBId, teacherId: teacherBId, levelId: 'lvl_p1', name: `${marker} Class B` },
+      ],
+    });
+    await prisma.student.createMany({
+      data: [
+        {
+          id: studentAId,
+          teacherId: teacherAId,
+          classId: classAId,
+          matricule: `${marker}-mat-a`,
+          firstName: 'QA',
+          lastName: 'Student A',
+          grade: 1,
+          schoolYear: academicYearId,
+        },
+        {
+          id: studentBId,
+          teacherId: teacherBId,
+          classId: classBId,
+          matricule: `${marker}-mat-b`,
+          firstName: 'QA',
+          lastName: 'Student B',
+          grade: 1,
+          schoolYear: academicYearId,
+        },
+      ],
+    });
     await prisma.communityNotification.create({
       data: {
         id: notificationId,
@@ -122,18 +158,26 @@ describe('Teacher G1.1-A runtime ownership harness', () => {
     });
     sessionA = await login(emailA, passwordA);
     sessionB = await login(emailB, passwordB);
-  });
+  }, 30000);
 
   afterAll(async () => {
     try {
       await prisma.communityNotification.deleteMany({ where: { id: notificationId } });
       await prisma.directMessage.deleteMany({ where: { content: marker } });
+      await prisma.medicalExemption.deleteMany({
+        where: { studentId: { in: [studentAId, studentBId] } },
+      });
+      await prisma.studentAttendance.deleteMany({
+        where: { studentId: { in: [studentAId, studentBId] } },
+      });
+      await prisma.student.deleteMany({ where: { id: { in: [studentAId, studentBId] } } });
+      await prisma.studentClass.deleteMany({ where: { id: { in: [classAId, classBId] } } });
       await prisma.user.deleteMany({ where: { id: { in: [teacherAId, teacherBId] } } });
       await prisma.directorate.deleteMany({ where: { id: directorateId } });
     } finally {
       await prisma.$disconnect();
     }
-  });
+  }, 30000);
 
   it('authenticates two independent teachers and rejects unauthenticated /me', async () => {
     const [meA, meB, anonymous] = await Promise.all([
@@ -190,4 +234,102 @@ describe('Teacher G1.1-A runtime ownership harness', () => {
     expect(message.senderId).toBe(teacherBId);
     expect(message.senderId).not.toBe(teacherAId);
   });
+
+  it('enforces attendance ownership for reads, writes, and persisted records', async () => {
+    const ownWrite = await request(sessionA, '/api/teacher/attendance', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        classId: classAId,
+        academicYearId,
+        date: attendanceDate,
+        records: [{ studentId: studentAId, status: 'حاضر', note: marker }],
+      }),
+    });
+    expect(ownWrite.status).toBe(200);
+    const ownRead = await request(
+      sessionA,
+      `/api/teacher/attendance?classId=${classAId}&academicYearId=${academicYearId}&date=${attendanceDate}`
+    );
+    expect(ownRead.status).toBe(200);
+    const foreignRead = await request(
+      sessionB,
+      `/api/teacher/attendance?classId=${classAId}&academicYearId=${academicYearId}&date=${attendanceDate}`
+    );
+    expect(foreignRead.status).toBe(404);
+    const foreignWrite = await request(sessionB, '/api/teacher/attendance', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        classId: classAId,
+        academicYearId,
+        date: attendanceDate,
+        records: [{ studentId: studentAId, status: 'غائب' }],
+      }),
+    });
+    expect(foreignWrite.status).toBe(404);
+    const row = await prisma.studentAttendance.findFirstOrThrow({
+      where: { studentId: studentAId, classId: classAId, academicYearId },
+    });
+    expect({
+      teacherId: row.teacherId,
+      classId: row.classId,
+      studentId: row.studentId,
+      status: row.status,
+    }).toEqual({ teacherId: teacherAId, classId: classAId, studentId: studentAId, status: 'حاضر' });
+    expect(
+      await prisma.studentAttendance.count({
+        where: { teacherId: teacherBId, classId: classAId, studentId: studentAId },
+      })
+    ).toBe(0);
+  }, 30000);
+
+  it('enforces MedicalExemption ownership for read, create, update, and delete', async () => {
+    const ownCreate = await request(sessionA, `/api/teacher/classes/${classAId}/exemptions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        studentId: studentAId,
+        issuedOn: attendanceDate,
+        expiresOn: '2026-09-30',
+        reason: marker,
+        note: marker,
+      }),
+    });
+    expect(ownCreate.status).toBe(201);
+    const created = await ownCreate.json();
+    const exemptionId = created.exemption.id as string;
+    const ownRead = await request(sessionA, `/api/teacher/classes/${classAId}/exemptions`);
+    expect(ownRead.status).toBe(200);
+    const foreignRead = await request(sessionB, `/api/teacher/classes/${classAId}/exemptions`);
+    expect(foreignRead.status).toBe(404);
+    const foreignCreate = await request(sessionB, `/api/teacher/classes/${classAId}/exemptions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ studentId: studentAId, issuedOn: attendanceDate, reason: marker }),
+    });
+    expect(foreignCreate.status).toBe(404);
+    const foreignUpdate = await request(sessionB, `/api/teacher/exemptions/${exemptionId}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ note: 'foreign' }),
+    });
+    expect(foreignUpdate.status).toBe(404);
+    const foreignDelete = await request(sessionB, `/api/teacher/exemptions/${exemptionId}`, {
+      method: 'DELETE',
+    });
+    expect(foreignDelete.status).toBe(404);
+    const row = await prisma.medicalExemption.findUniqueOrThrow({ where: { id: exemptionId } });
+    expect({
+      teacherId: row.teacherId,
+      studentId: row.studentId,
+      reason: row.reason,
+      note: row.note,
+    }).toEqual({ teacherId: teacherAId, studentId: studentAId, reason: marker, note: marker });
+    const ownDelete = await request(sessionA, `/api/teacher/exemptions/${exemptionId}`, {
+      method: 'DELETE',
+    });
+    expect(ownDelete.status).toBe(200);
+    expect(await prisma.medicalExemption.findUnique({ where: { id: exemptionId } })).toBeNull();
+  }, 30000);
 });
