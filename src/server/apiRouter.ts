@@ -48,6 +48,7 @@ import {
   transitionIntervention,
   type InterventionInput,
 } from '../services/diagnosticIntervention.service.js';
+import { listCompatibleRemedialResources } from '../services/diagnosticRemedialResource.service.js';
 import {
   DEFAULT_CANDIDATE_RELEASE_ID,
   getRegisteredKnowledgeCoreRelease,
@@ -2418,11 +2419,53 @@ apiRouter.post(
         INTERVENTION_CONTENT_REQUIRED: 'أدخل معالجة مخصصة أو اختر مورداً علاجياً معتمداً.',
         INTERVENTION_SINGLE_SOURCE_REQUIRED: 'اختر معالجة مخصصة أو مورداً علاجياً واحداً فقط.',
         INTERVENTION_RESOURCE_INVALID: 'المورد العلاجي غير موجود أو غير معتمد.',
+        INTERVENTION_RESOURCE_INCOMPATIBLE: 'المورد العلاجي لا يطابق سياق التقويم التشخيصي.',
       };
       return res.status(code === 'INTERVENTION_SESSION_NOT_FOUND' ? 404 : 400).json({
         error: messages[code] || 'تعذر حفظ المعالجة التصحيحية.',
       });
     }
+  }
+);
+
+apiRouter.get(
+  '/teacher/assessment-sessions/:sessionId/remediation-candidates/:criterionResultId/resources',
+  requireRole('teacher'),
+  async (req, res) => {
+    const session = await prisma.assessmentSession.findFirst({
+      where: { id: req.params.sessionId, teacherId: req.user!.id, assessmentType: 'DIAGNOSTIC' },
+      select: {
+        id: true,
+        gradeLevelId: true,
+        domainId: true,
+        finalCompetencyId: true,
+        studentAssessments: {
+          where: { criterionResults: { some: { id: req.params.criterionResultId } } },
+          select: {
+            id: true,
+            criterionResults: {
+              where: { id: req.params.criterionResultId },
+              select: { masteryLevel: true },
+            },
+          },
+        },
+      },
+    });
+    const studentAssessment = session?.studentAssessments[0];
+    const criterion = studentAssessment?.criterionResults[0];
+    if (!session || !studentAssessment || !criterion)
+      return res.status(404).json({ error: 'معيار التقويم غير موجود ضمن جلسة التقويم.' });
+    if (criterion.masteryLevel !== 'د')
+      return res.status(400).json({ error: 'الموارد العلاجية متاحة للمعايير الضعيفة فقط.' });
+    return res.json({
+      success: true,
+      resources: listCompatibleRemedialResources({
+        gradeLevelId: session.gradeLevelId,
+        domainId: session.domainId,
+        finalCompetencyId: session.finalCompetencyId,
+        criterionId: req.params.criterionResultId,
+      }),
+    });
   }
 );
 

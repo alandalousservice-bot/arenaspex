@@ -51,7 +51,7 @@ runtimeDescribe('Teacher G2.2-B2 diagnostic intervention runtime', () => {
     assertTarget();
     const catalog = getRegisteredKnowledgeCoreRelease(DEFAULT_CANDIDATE_RELEASE_ID)!.catalog;
     const finalCompetency = catalog.finalCompetencies.find(
-      (item) => item.gradeId === 'lvl_p1' && item.domainId === 'f_fundamentals'
+      (item) => item.gradeId === 'lvl_p1' && item.domainId === 'f_locomotion'
     )!;
     const criterion = catalog.criteria.find(
       (item) => item.finalCompetencyId === finalCompetency.id
@@ -117,7 +117,7 @@ runtimeDescribe('Teacher G2.2-B2 diagnostic intervention runtime', () => {
         academicYearId: '2026-2027',
         assessmentType: 'DIAGNOSTIC',
         gradeLevelId: 'lvl_p1',
-        domainId: 'f_fundamentals',
+        domainId: 'f_locomotion',
         finalCompetencyId: finalCompetency.id,
         assessedAt: new Date(),
       },
@@ -150,6 +150,14 @@ runtimeDescribe('Teacher G2.2-B2 diagnostic intervention runtime', () => {
     const created = await create.json();
     interventionId = created.intervention.id;
     expect(created.intervention.status).toBe('SELECTED');
+    const resources = await request(
+      `/api/teacher/assessment-sessions/${sessionId}/remediation-candidates/${criterionResultId}/resources`
+    );
+    expect(resources.status).toBe(200);
+    expect((await resources.json()).resources[0]).toMatchObject({
+      resourceId: 'k_r1',
+      compatibility: { level: 'CONTEXTUAL' },
+    });
     const resourceCreate = await request(
       `/api/teacher/assessment-sessions/${sessionId}/interventions`,
       {
@@ -170,6 +178,15 @@ runtimeDescribe('Teacher G2.2-B2 diagnostic intervention runtime', () => {
     expect(resourceIntervention.intervention.resourceId).toBe('k_r1');
     expect(resourceIntervention.intervention.resourceTitleSnapshot).not.toBe('client-forged-title');
     expect(resourceIntervention.intervention.resourceBodySnapshot.forged).toBeUndefined();
+    const incompatible = await request(
+      `/api/teacher/assessment-sessions/${sessionId}/interventions`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ studentAssessmentId, criterionResultId, resourceId: 'k_g1' }),
+      }
+    );
+    expect(incompatible.status).toBe(400);
     const applied = await request(`/api/teacher/diagnostic-interventions/${interventionId}`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },

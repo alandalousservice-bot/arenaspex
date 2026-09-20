@@ -1,6 +1,10 @@
-import { INITIAL_KNOWLEDGE_BANK } from '../data/knowledgeBankData';
 import type { PrismaClient } from '@prisma/client';
 import { isDiagnosticWeakMastery } from './assessmentMastery.js';
+import {
+  buildRemedialResourceSnapshot,
+  evaluateRemedialCompatibility,
+  getRemedialResource,
+} from './diagnosticRemedialResource.service.js';
 
 export const DIAGNOSTIC_INTERVENTION_STATUSES = [
   'SELECTED',
@@ -18,8 +22,6 @@ export type InterventionInput = {
   teacherNote?: string | null;
 };
 
-const resourceById = new Map(INITIAL_KNOWLEDGE_BANK.map((item) => [item.id, item]));
-
 export function isDiagnosticInterventionStatus(
   value: unknown
 ): value is DiagnosticInterventionStatus {
@@ -30,16 +32,7 @@ export function isDiagnosticInterventionStatus(
 }
 
 export function interventionResourceSnapshot(resourceId: string) {
-  const resource = resourceById.get(resourceId);
-  if (!resource || resource.category !== 'remedial' || !resource.approved) return null;
-  return {
-    title: resource.title,
-    description: resource.description,
-    remedialProblem: resource.remedialProblem || null,
-    targetSkill: resource.targetSkill || null,
-    equipment: resource.equipment || [],
-    source: resource.origin || null,
-  };
+  return buildRemedialResourceSnapshot(resourceId);
 }
 
 export async function createDiagnosticIntervention(
@@ -50,7 +43,14 @@ export async function createDiagnosticIntervention(
 ) {
   const session = await prisma.assessmentSession.findFirst({
     where: { id: sessionId, teacherId },
-    select: { id: true, teacherId: true, assessmentType: true },
+    select: {
+      id: true,
+      teacherId: true,
+      assessmentType: true,
+      gradeLevelId: true,
+      domainId: true,
+      finalCompetencyId: true,
+    },
   });
   if (!session) throw new Error('INTERVENTION_SESSION_NOT_FOUND');
   if (session.assessmentType !== 'DIAGNOSTIC') throw new Error('INTERVENTION_DIAGNOSTIC_ONLY');
@@ -69,6 +69,17 @@ export async function createDiagnosticIntervention(
   const resourceId = input.resourceId?.trim() || null;
   if (customText && resourceId) throw new Error('INTERVENTION_SINGLE_SOURCE_REQUIRED');
   if (!customText && !resourceId) throw new Error('INTERVENTION_CONTENT_REQUIRED');
+  const resource = resourceId ? getRemedialResource(resourceId) : null;
+  if (resourceId && !resource) throw new Error('INTERVENTION_RESOURCE_INVALID');
+  const compatibility = resource
+    ? evaluateRemedialCompatibility(resource, {
+        gradeLevelId: session.gradeLevelId,
+        domainId: session.domainId,
+        finalCompetencyId: session.finalCompetencyId,
+      })
+    : null;
+  if (resourceId && (!compatibility || !compatibility.compatible))
+    throw new Error('INTERVENTION_RESOURCE_INCOMPATIBLE');
   const snapshot = resourceId ? interventionResourceSnapshot(resourceId) : null;
   if (resourceId && !snapshot) throw new Error('INTERVENTION_RESOURCE_INVALID');
   return prisma.diagnosticIntervention.create({
