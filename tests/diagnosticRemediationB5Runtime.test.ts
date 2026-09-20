@@ -395,6 +395,193 @@ describeRuntime('Teacher G2.2-B5 dedicated runtime lifecycle gate', () => {
       (await prisma.diagnosticIntervention.findUnique({ where: { id: interventionId } }))?.status
     ).toBe('COMPLETED');
   }, 120_000);
+  it('closes the final delta matrix with relationship, teacher B, terminal, and side-effect evidence', async () => {
+    const before = {
+      interventions: await prisma.diagnosticIntervention.count(),
+      sessions: await prisma.assessmentSession.findMany({
+        where: { teacherId: ids.user },
+        select: {
+          id: true,
+          teacherId: true,
+          classId: true,
+          academicYearId: true,
+          assessmentType: true,
+          gradeLevelId: true,
+          domainId: true,
+          finalCompetencyId: true,
+        },
+      }),
+      assessments: await prisma.studentAssessment.findMany({
+        where: { assessmentSession: { teacherId: ids.user } },
+        select: { id: true, assessmentSessionId: true, studentId: true },
+      }),
+      criteria: await prisma.criterionResult.findMany({
+        where: { studentAssessment: { assessmentSession: { teacherId: ids.user } } },
+        select: { id: true, studentAssessmentId: true, criterionId: true, masteryLevel: true },
+      }),
+      cps: await prisma.classPlannedSession.count({ where: { teacherId: ids.user } }),
+      plans: await prisma.annualPlan.count({ where: { teacherId: ids.user } }),
+      lessonPlans: await prisma.lessonPlan.count({ where: { ownerId: ids.user } }),
+      notebook: await prisma.notebookEntry.count({ where: { ownerId: ids.user } }),
+    };
+    const post = async (payload: Record<string, unknown>) =>
+      request(`/api/teacher/assessment-sessions/${ids.session}/interventions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    const mismatchB = await post({
+      studentAssessmentId: ids.assessment,
+      criterionResultId: `${ids.learningAssessment}-criterion`,
+      customText: 'mismatch-b',
+    });
+    expect(mismatchB.status).toBe(400);
+    const mismatchC = await post({
+      studentAssessmentId: ids.learningAssessment,
+      criterionResultId: ids.criterion,
+      customText: 'mismatch-c',
+    });
+    expect(mismatchC.status).toBe(400);
+    const pairMismatch = await post({
+      studentAssessmentId: ids.assessment,
+      criterionResultId: `${ids.learningAssessment}-criterion`,
+      customText: 'pair-mismatch',
+    });
+    expect(pairMismatch.status).toBe(400);
+    const resource = await post({
+      studentAssessmentId: ids.assessment,
+      criterionResultId: ids.criterion,
+      resourceId: 'k_r1',
+      compatibilityLevel: 'EXACT',
+      gradeLevelId: 'lvl_p5',
+      domainId: 'f_structuring',
+      resourceTitleSnapshot: 'forged',
+      resourceBodySnapshot: { forged: true },
+      createdAt: '2000-01-01T00:00:00.000Z',
+    });
+    expect(resource.status).toBe(201);
+    const resourceJson = await resource.json();
+    const resourceId = resourceJson.intervention.id as string;
+    expect(resourceJson.intervention.resourceBodySnapshot.forged).toBeUndefined();
+    const custom = await post({
+      studentAssessmentId: ids.assessment,
+      criterionResultId: ids.criterion,
+      customText: 'B5 custom current run',
+      teacherId: ids.teacherB,
+      appliedAt: '2000-01-01T00:00:00.000Z',
+      completedAt: '2000-01-01T00:00:00.000Z',
+    });
+    expect(custom.status).toBe(201);
+    const customId = (await custom.json()).intervention.id as string;
+    const injection = await request(`/api/teacher/diagnostic-interventions/${resourceId}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        studentAssessmentId: ids.learningAssessment,
+        criterionResultId: `${ids.learningAssessment}-criterion`,
+        sessionId: ids.learning,
+        teacherId: ids.teacherB,
+        createdAt: '2000-01-01T00:00:00.000Z',
+        appliedAt: '2000-01-01T00:00:00.000Z',
+        completedAt: '2000-01-01T00:00:00.000Z',
+        compatibilityLevel: 'EXACT',
+      }),
+    });
+    expect([200, 400]).toContain(injection.status);
+    const storedResource = await prisma.diagnosticIntervention.findUnique({
+      where: { id: resourceId },
+    });
+    expect(storedResource).toMatchObject({
+      teacherId: ids.user,
+      studentAssessmentId: ids.assessment,
+      criterionResultId: ids.criterion,
+    });
+    const invalidStatus = await request(`/api/teacher/diagnostic-interventions/${customId}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'INVALID_STATUS' }),
+    });
+    expect(invalidStatus.status).toBe(400);
+    const cancelled = await request(`/api/teacher/diagnostic-interventions/${customId}`, {
+      method: 'DELETE',
+    });
+    expect(cancelled.status).toBe(200);
+    for (const status of ['SELECTED', 'APPLIED', 'COMPLETED']) {
+      const reversal = await request(`/api/teacher/diagnostic-interventions/${customId}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      expect(reversal.status).toBe(400);
+    }
+    const requestB = async (path: string, init: RequestInit = {}) => {
+      const headers = new Headers(init.headers);
+      headers.set('cookie', cookieB);
+      return fetch(`${baseUrl}${path}`, { ...init, headers });
+    };
+    for (const operation of [
+      requestB(`/api/teacher/assessment-sessions/${ids.session}/interventions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          studentAssessmentId: ids.assessment,
+          criterionResultId: ids.criterion,
+          customText: 'teacher-b-assessment-injection',
+        }),
+      }),
+      requestB(`/api/teacher/assessment-sessions/${ids.session}/interventions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          studentAssessmentId: ids.learningAssessment,
+          criterionResultId: `${ids.learningAssessment}-criterion`,
+          customText: 'teacher-b-criterion-injection',
+        }),
+      }),
+      requestB(`/api/teacher/diagnostic-interventions/${resourceId}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: 'CANCELLED' }),
+      }),
+      requestB(`/api/teacher/diagnostic-interventions/${resourceId}`, { method: 'DELETE' }),
+    ])
+      expect([403, 404]).toContain((await operation).status);
+    const after = {
+      interventions: await prisma.diagnosticIntervention.count(),
+      sessions: await prisma.assessmentSession.findMany({
+        where: { teacherId: ids.user },
+        select: {
+          id: true,
+          teacherId: true,
+          classId: true,
+          academicYearId: true,
+          assessmentType: true,
+          gradeLevelId: true,
+          domainId: true,
+          finalCompetencyId: true,
+        },
+      }),
+      assessments: await prisma.studentAssessment.findMany({
+        where: { assessmentSession: { teacherId: ids.user } },
+        select: { id: true, assessmentSessionId: true, studentId: true },
+      }),
+      criteria: await prisma.criterionResult.findMany({
+        where: { studentAssessment: { assessmentSession: { teacherId: ids.user } } },
+        select: { id: true, studentAssessmentId: true, criterionId: true, masteryLevel: true },
+      }),
+      cps: await prisma.classPlannedSession.count({ where: { teacherId: ids.user } }),
+      plans: await prisma.annualPlan.count({ where: { teacherId: ids.user } }),
+      lessonPlans: await prisma.lessonPlan.count({ where: { ownerId: ids.user } }),
+      notebook: await prisma.notebookEntry.count({ where: { ownerId: ids.user } }),
+    };
+    expect(after.sessions).toEqual(before.sessions);
+    expect(after.assessments).toEqual(before.assessments);
+    expect(after.criteria).toEqual(before.criteria);
+    expect(after.cps - before.cps).toBe(0);
+    expect(after.plans - before.plans).toBe(0);
+    expect(after.lessonPlans - before.lessonPlans).toBe(0);
+    expect(after.notebook - before.notebook).toBe(0);
+  }, 120_000);
   afterAll(async () => {
     await prisma.diagnosticIntervention.deleteMany({
       where: {
