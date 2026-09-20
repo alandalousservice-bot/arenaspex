@@ -111,3 +111,13 @@ export function transitionIntervention(
       : {}),
   };
 }
+
+export function isAllowedInterventionTransition(
+  from: DiagnosticInterventionStatus,
+  to: DiagnosticInterventionStatus
+) {
+  if (from === to) return true;
+  if (from === 'SELECTED' && (to === 'APPLIED' || to === 'CANCELLED')) return true;
+  if (from === 'APPLIED' && (to === 'COMPLETED' || to === 'CANCELLED')) return true;
+  return false;
+}

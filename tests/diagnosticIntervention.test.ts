@@ -4,6 +4,7 @@ import {
   interventionResourceSnapshot,
   isDiagnosticInterventionStatus,
   transitionIntervention,
+  isAllowedInterventionTransition,
 } from '../src/services/diagnosticIntervention.service';
 
 describe('diagnostic intervention contract', () => {
@@ -40,5 +41,15 @@ describe('diagnostic intervention contract', () => {
     });
     expect(interventionResourceSnapshot('k_g1')).toBeNull();
     expect(interventionResourceSnapshot('client-injected-resource')).toBeNull();
+  });
+
+  it('blocks terminal lifecycle reversals', () => {
+    expect(isAllowedInterventionTransition('SELECTED', 'APPLIED')).toBe(true);
+    expect(isAllowedInterventionTransition('APPLIED', 'COMPLETED')).toBe(true);
+    expect(isAllowedInterventionTransition('COMPLETED', 'SELECTED')).toBe(false);
+    expect(isAllowedInterventionTransition('COMPLETED', 'APPLIED')).toBe(false);
+    expect(isAllowedInterventionTransition('CANCELLED', 'SELECTED')).toBe(false);
+    expect(isAllowedInterventionTransition('CANCELLED', 'APPLIED')).toBe(false);
+    expect(isAllowedInterventionTransition('CANCELLED', 'COMPLETED')).toBe(false);
   });
 });

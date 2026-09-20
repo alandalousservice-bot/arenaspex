@@ -45,6 +45,7 @@ import {
 import {
   createDiagnosticIntervention,
   isDiagnosticInterventionStatus,
+  isAllowedInterventionTransition,
   transitionIntervention,
   type InterventionInput,
 } from '../services/diagnosticIntervention.service.js';
@@ -2499,6 +2500,8 @@ apiRouter.put('/teacher/diagnostic-interventions/:id', requireRole('teacher'), a
     return res.status(400).json({ error: 'حالة المعالجة التصحيحية غير صالحة.' });
   const status = (parsed.data.status || existing.status) as
     'SELECTED' | 'APPLIED' | 'COMPLETED' | 'CANCELLED';
+  if (!isAllowedInterventionTransition(existing.status as any, status))
+    return res.status(400).json({ error: 'لا يمكن إعادة تفعيل أو عكس حالة المعالجة التاريخية.' });
   const lifecycle = transitionIntervention(status, existing);
   const intervention = await prisma.diagnosticIntervention.update({
     where: { id: existing.id },
