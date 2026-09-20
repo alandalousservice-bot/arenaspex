@@ -105,16 +105,17 @@ model User {
   eduSchool        School?             @relation("EduSchool", fields: [eduSchoolId], references: [id], onDelete: SetNull)
   birthDate        DateTime?
 
-  resetTokens        PasswordResetToken[]
-  pedagogicalGames   PedagogicalGame[]
-  generationAccess   UserGenerationAccess?
-  students           Student[]
-  studentClasses     StudentClass[]
-  plannedSessions    ClassPlannedSession[] @relation("TeacherPlannedSessions")
-  assessmentSessions AssessmentSession[]
-  attendanceRecords  StudentAttendance[]   @relation("TeacherAttendance")
-  medicalExemptions  MedicalExemption[]    @relation("TeacherMedicalExemptions")
-  weeklySlots        TeacherWeeklySlot[]
+  resetTokens             PasswordResetToken[]
+  pedagogicalGames        PedagogicalGame[]
+  generationAccess        UserGenerationAccess?
+  students                Student[]
+  studentClasses          StudentClass[]
+  plannedSessions         ClassPlannedSession[]    @relation("TeacherPlannedSessions")
+  assessmentSessions      AssessmentSession[]
+  diagnosticInterventions DiagnosticIntervention[]
+  attendanceRecords       StudentAttendance[]      @relation("TeacherAttendance")
+  medicalExemptions       MedicalExemption[]       @relation("TeacherMedicalExemptions")
+  weeklySlots             TeacherWeeklySlot[]
 
   // نظام الإسناد التلقائي للأساتذة إلى المفتشين
   teacherAssignment    InspectorAssignment?  @relation("TeacherAssignment")
@@ -154,18 +155,18 @@ model Student {
 }
 
 model StudentClass {
-  id                 String                @id
-  teacherId          String
-  institutionId      String?
-  levelId            String
-  name               String
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
-  teacher            User                  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  plannedSessions    ClassPlannedSession[]
-  attendanceRecords  StudentAttendance[]
-  assessmentSessions AssessmentSession[]
-  weeklySlots        TeacherWeeklySlot[]
+  id                     String                       @id
+  teacherId              String
+  institutionId          String?
+  levelId                String
+  name                   String
+  createdAt              DateTime                     @default(now())
+  updatedAt              DateTime                     @updatedAt
+  teacher                User                         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  plannedSessions        ClassPlannedSession[]
+  attendanceRecords      StudentAttendance[]
+  assessmentSessions     AssessmentSession[]
+  weeklySlots            TeacherWeeklySlot[]
   planningConfigurations ClassPlanningConfiguration[]
 
   @@index([teacherId])
@@ -173,12 +174,12 @@ model StudentClass {
 }
 
 model ClassPlanningConfiguration {
-  id                       String                   @id @default(cuid())
+  id                       String                    @id @default(cuid())
   classId                  String
   academicYearId           String
   grade4WeeklyScheduleMode Grade4WeeklyScheduleMode?
-  createdAt                DateTime                 @default(now())
-  updatedAt                DateTime                 @updatedAt
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
 
   class StudentClass @relation(fields: [classId], references: [id], onDelete: Cascade)
 
@@ -461,9 +462,10 @@ model StudentAssessment {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  assessmentSession AssessmentSession @relation(fields: [assessmentSessionId], references: [id], onDelete: Cascade)
-  student           Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  criterionResults  CriterionResult[]
+  assessmentSession       AssessmentSession        @relation(fields: [assessmentSessionId], references: [id], onDelete: Cascade)
+  student                 Student                  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  criterionResults        CriterionResult[]
+  diagnosticInterventions DiagnosticIntervention[]
 
   @@unique([assessmentSessionId, studentId])
   @@index([assessmentSessionId])
@@ -479,11 +481,37 @@ model CriterionResult {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  studentAssessment StudentAssessment @relation(fields: [studentAssessmentId], references: [id], onDelete: Cascade)
+  studentAssessment       StudentAssessment        @relation(fields: [studentAssessmentId], references: [id], onDelete: Cascade)
+  diagnosticInterventions DiagnosticIntervention[]
 
   @@unique([studentAssessmentId, criterionId])
   @@index([studentAssessmentId])
   @@index([criterionId])
+}
+
+model DiagnosticIntervention {
+  id                    String    @id
+  teacherId             String
+  studentAssessmentId   String
+  criterionResultId     String
+  resourceId            String?
+  resourceTitleSnapshot String?
+  resourceBodySnapshot  Json?
+  customText            String?
+  teacherNote           String?
+  status                String    @default("SELECTED")
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  appliedAt             DateTime?
+  completedAt           DateTime?
+
+  teacher           User              @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  studentAssessment StudentAssessment @relation(fields: [studentAssessmentId], references: [id], onDelete: Restrict)
+  criterionResult   CriterionResult   @relation(fields: [criterionResultId], references: [id], onDelete: Restrict)
+
+  @@index([teacherId, studentAssessmentId])
+  @@index([criterionResultId])
+  @@index([resourceId])
 }
 
 model LessonPlan {
@@ -777,20 +805,20 @@ model AnnualPlan {
 }
 
 model TeacherObjective {
-  id                  String   @id
-  ownerId             String
-  gradeId             String
-  domainId            String
-  finalCompetencyId   String
-  text                String
-  status              String   @default("PERSONAL")
-  provenanceType      String
-  sourceReferenceId   String?
-  sourceObjectiveId   String?
-  canonicalResourceIds String[] @default([])
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  adoptedAt           DateTime?
+  id                   String    @id
+  ownerId              String
+  gradeId              String
+  domainId             String
+  finalCompetencyId    String
+  text                 String
+  status               String    @default("PERSONAL")
+  provenanceType       String
+  sourceReferenceId    String?
+  sourceObjectiveId    String?
+  canonicalResourceIds String[]  @default([])
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  adoptedAt            DateTime?
 
   @@index([ownerId, gradeId, domainId, finalCompetencyId])
   @@index([sourceReferenceId])

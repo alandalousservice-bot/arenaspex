@@ -43,6 +43,12 @@ import {
   type DiagnosticSession,
 } from '../services/diagnosticRemediation.service.js';
 import {
+  createDiagnosticIntervention,
+  isDiagnosticInterventionStatus,
+  transitionIntervention,
+  type InterventionInput,
+} from '../services/diagnosticIntervention.service.js';
+import {
   DEFAULT_CANDIDATE_RELEASE_ID,
   getRegisteredKnowledgeCoreRelease,
 } from '../domain/pedagogicalKnowledge/runtime/knowledgeCoreReleaseRegistry.js';
@@ -2369,6 +2375,113 @@ apiRouter.get(
       },
       candidates,
     });
+  }
+);
+
+const diagnosticInterventionCreateSchema = z.object({
+  studentAssessmentId: z.string().min(1),
+  criterionResultId: z.string().min(1),
+  resourceId: z.string().min(1).nullable().optional(),
+  customText: z.string().trim().max(2000).nullable().optional(),
+  teacherNote: z.string().trim().max(2000).nullable().optional(),
+});
+
+const diagnosticInterventionUpdateSchema = z.object({
+  customText: z.string().trim().max(2000).nullable().optional(),
+  teacherNote: z.string().trim().max(2000).nullable().optional(),
+  status: z.string().optional(),
+});
+
+apiRouter.post(
+  '/teacher/assessment-sessions/:sessionId/interventions',
+  requireRole('teacher'),
+  async (req, res) => {
+    const parsed = diagnosticInterventionCreateSchema.safeParse(req.body);
+    if (!parsed.success)
+      return res.status(400).json({ error: 'بيانات المعالجة التصحيحية غير صحيحة.' });
+    try {
+      const intervention = await createDiagnosticIntervention(
+        prisma,
+        req.user!.id,
+        req.params.sessionId,
+        parsed.data as InterventionInput
+      );
+      return res.status(201).json({ success: true, intervention });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : 'INTERVENTION_INVALID';
+      const messages: Record<string, string> = {
+        INTERVENTION_SESSION_NOT_FOUND: 'جلسة التقويم غير موجودة ضمن سجلاتك.',
+        INTERVENTION_DIAGNOSTIC_ONLY: 'المعالجة التصحيحية متاحة للتقويم التشخيصي فقط.',
+        INTERVENTION_ASSESSMENT_MISMATCH: 'نتيجة التلميذ لا تنتمي إلى جلسة التقويم.',
+        INTERVENTION_CRITERION_MISMATCH: 'معيار التقويم لا ينتمي إلى نتيجة التلميذ.',
+        INTERVENTION_NOT_WEAK: 'لا يمكن إنشاء معالجة لمعيار غير مصنف بدرجة د.',
+        INTERVENTION_CONTENT_REQUIRED: 'أدخل معالجة مخصصة أو اختر مورداً علاجياً معتمداً.',
+        INTERVENTION_SINGLE_SOURCE_REQUIRED: 'اختر معالجة مخصصة أو مورداً علاجياً واحداً فقط.',
+        INTERVENTION_RESOURCE_INVALID: 'المورد العلاجي غير موجود أو غير معتمد.',
+      };
+      return res.status(code === 'INTERVENTION_SESSION_NOT_FOUND' ? 404 : 400).json({
+        error: messages[code] || 'تعذر حفظ المعالجة التصحيحية.',
+      });
+    }
+  }
+);
+
+apiRouter.get(
+  '/teacher/assessment-sessions/:sessionId/interventions',
+  requireRole('teacher'),
+  async (req, res) => {
+    const session = await prisma.assessmentSession.findFirst({
+      where: { id: req.params.sessionId, teacherId: req.user!.id, assessmentType: 'DIAGNOSTIC' },
+      select: { id: true },
+    });
+    if (!session) return res.status(404).json({ error: 'جلسة التقويم غير موجودة ضمن سجلاتك.' });
+    const interventions = await prisma.diagnosticIntervention.findMany({
+      where: { teacherId: req.user!.id, studentAssessment: { assessmentSessionId: session.id } },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    return res.json({ success: true, interventions });
+  }
+);
+
+apiRouter.put('/teacher/diagnostic-interventions/:id', requireRole('teacher'), async (req, res) => {
+  const parsed = diagnosticInterventionUpdateSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ error: 'بيانات المعالجة التصحيحية غير صحيحة.' });
+  const existing = await prisma.diagnosticIntervention.findFirst({
+    where: { id: req.params.id, teacherId: req.user!.id },
+  });
+  if (!existing)
+    return res.status(404).json({ error: 'المعالجة التصحيحية غير موجودة ضمن سجلاتك.' });
+  if (parsed.data.status !== undefined && !isDiagnosticInterventionStatus(parsed.data.status))
+    return res.status(400).json({ error: 'حالة المعالجة التصحيحية غير صالحة.' });
+  const status = (parsed.data.status || existing.status) as
+    'SELECTED' | 'APPLIED' | 'COMPLETED' | 'CANCELLED';
+  const lifecycle = transitionIntervention(status, existing);
+  const intervention = await prisma.diagnosticIntervention.update({
+    where: { id: existing.id },
+    data: {
+      ...(parsed.data.customText !== undefined ? { customText: parsed.data.customText } : {}),
+      ...(parsed.data.teacherNote !== undefined ? { teacherNote: parsed.data.teacherNote } : {}),
+      ...lifecycle,
+    },
+  });
+  return res.json({ success: true, intervention });
+});
+
+apiRouter.delete(
+  '/teacher/diagnostic-interventions/:id',
+  requireRole('teacher'),
+  async (req, res) => {
+    const existing = await prisma.diagnosticIntervention.findFirst({
+      where: { id: req.params.id, teacherId: req.user!.id },
+    });
+    if (!existing)
+      return res.status(404).json({ error: 'المعالجة التصحيحية غير موجودة ضمن سجلاتك.' });
+    const intervention = await prisma.diagnosticIntervention.update({
+      where: { id: existing.id },
+      data: { status: 'CANCELLED' },
+    });
+    return res.json({ success: true, intervention });
   }
 );
 
