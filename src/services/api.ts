@@ -1442,6 +1442,91 @@ export async function upsertTeacherCriterionResult(
   if (!res.ok) throw new Error(data.error || 'تعذر حفظ معيار التقويم.');
   return data as { success: boolean; created: boolean; result: CriterionResultDto };
 }
+
+export type DiagnosticRemediationCandidate = {
+  studentAssessmentId: string;
+  studentId: string;
+  studentName: string;
+  criterionResultId: string;
+  criterionId: string;
+  criterionLabel: string;
+  masteryLevel: AssessmentGrade;
+  note: string | null;
+};
+export type RemedialResourceView = {
+  resourceId: string;
+  title: string;
+  description: string;
+  targetSkill?: string;
+  remedialProblem?: string;
+  equipment: string[];
+  compatibility: 'EXACT' | 'CONTEXTUAL';
+  compatibilityReasons: string[];
+};
+export type DiagnosticInterventionDto = {
+  id: string;
+  studentAssessmentId: string;
+  criterionResultId: string;
+  resourceId: string | null;
+  resourceTitleSnapshot: string | null;
+  resourceBodySnapshot: Record<string, unknown> | null;
+  customText: string | null;
+  teacherNote: string | null;
+  status: 'SELECTED' | 'APPLIED' | 'COMPLETED' | 'CANCELLED';
+  createdAt: string;
+  updatedAt: string;
+};
+async function teacherRemediationRequest<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل بيانات المعالجة.');
+  return data as T;
+}
+export async function fetchDiagnosticRemediationCandidates(sessionId: string) {
+  return teacherRemediationRequest<{
+    success: boolean;
+    candidates: DiagnosticRemediationCandidate[];
+  }>(`/api/teacher/assessment-sessions/${encodeURIComponent(sessionId)}/remediation-candidates`);
+}
+export async function fetchRemedialResources(sessionId: string, criterionResultId: string) {
+  return teacherRemediationRequest<{ success: boolean; resources: RemedialResourceView[] }>(
+    `/api/teacher/assessment-sessions/${encodeURIComponent(sessionId)}/remediation-candidates/${encodeURIComponent(criterionResultId)}/resources`
+  );
+}
+export async function fetchDiagnosticInterventions(sessionId: string) {
+  return teacherRemediationRequest<{
+    success: boolean;
+    interventions: DiagnosticInterventionDto[];
+  }>(`/api/teacher/assessment-sessions/${encodeURIComponent(sessionId)}/interventions`);
+}
+export async function createDiagnosticIntervention(
+  sessionId: string,
+  input: {
+    studentAssessmentId: string;
+    criterionResultId: string;
+    resourceId?: string | null;
+    customText?: string | null;
+    teacherNote?: string | null;
+  }
+) {
+  return teacherRemediationRequest<{ success: boolean; intervention: DiagnosticInterventionDto }>(
+    `/api/teacher/assessment-sessions/${encodeURIComponent(sessionId)}/interventions`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }
+  );
+}
+export async function updateDiagnosticIntervention(
+  id: string,
+  status: DiagnosticInterventionDto['status']
+) {
+  return teacherRemediationRequest<{ success: boolean; intervention: DiagnosticInterventionDto }>(
+    `/api/teacher/diagnostic-interventions/${encodeURIComponent(id)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    }
+  );
+}
 type ApiRecord = Record<string, unknown>;
 
 function asApiRecord(value: unknown): ApiRecord {

@@ -23,6 +23,14 @@ import {
   createTeacherMedicalExemption,
   upsertTeacherCriterionResult,
   upsertTeacherStudentAssessment,
+  fetchDiagnosticRemediationCandidates,
+  fetchRemedialResources,
+  fetchDiagnosticInterventions,
+  createDiagnosticIntervention,
+  updateDiagnosticIntervention,
+  type DiagnosticRemediationCandidate,
+  type RemedialResourceView,
+  type DiagnosticInterventionDto,
   type TeacherPlanningSession,
 } from '../../services/api';
 import { TEACHER_ASSESSMENT_TYPE_LABELS } from '../../types/spex';
@@ -166,6 +174,19 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
   const [exemptionNote, setExemptionNote] = useState('');
   const [exemptionSaving, setExemptionSaving] = useState(false);
   const [exemptionSaveError, setExemptionSaveError] = useState('');
+  const [remediationCandidates, setRemediationCandidates] = useState<
+    DiagnosticRemediationCandidate[]
+  >([]);
+  const [interventions, setInterventions] = useState<DiagnosticInterventionDto[]>([]);
+  const [resourcesByCriterion, setResourcesByCriterion] = useState<
+    Record<string, RemedialResourceView[]>
+  >({});
+  const [remediationLoading, setRemediationLoading] = useState(false);
+  const [remediationError, setRemediationError] = useState('');
+  const [resourceLoading, setResourceLoading] = useState<string | null>(null);
+  const [interventionSaving, setInterventionSaving] = useState(false);
+  const [customText, setCustomText] = useState<Record<string, string>>({});
+  const [selectedResource, setSelectedResource] = useState<Record<string, string>>({});
 
   const activeClass = ownedClasses.find((item) => item.id === selectedClassId) || null;
   const classStudents = useMemo(
@@ -655,6 +676,104 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
   const remediationStudents = classStudents.filter(
     (student) => calculateAssessmentMastery((drafts[student.id] || emptyDraft()).criteria) === 'د'
   );
+
+  useEffect(() => {
+    if (!activeSession || activeSession.assessmentType !== 'DIAGNOSTIC') {
+      setRemediationCandidates([]);
+      setInterventions([]);
+      setRemediationError('');
+      return;
+    }
+    let active = true;
+    setRemediationLoading(true);
+    setRemediationError('');
+    Promise.all([
+      fetchDiagnosticRemediationCandidates(activeSession.id),
+      fetchDiagnosticInterventions(activeSession.id),
+    ])
+      .then(([candidateResponse, interventionResponse]) => {
+        if (!active) return;
+        setRemediationCandidates(candidateResponse.candidates);
+        setInterventions(interventionResponse.interventions);
+      })
+      .catch((caught) => {
+        if (active)
+          setRemediationError(
+            caught instanceof Error ? caught.message : 'تعذر تحميل خطة المعالجة.'
+          );
+      })
+      .finally(() => {
+        if (active) setRemediationLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeSession?.id, activeSession?.assessmentType, reloadNonce]);
+
+  const loadResources = async (candidate: DiagnosticRemediationCandidate) => {
+    if (!activeSession || resourcesByCriterion[candidate.criterionResultId]) return;
+    setResourceLoading(candidate.criterionResultId);
+    setRemediationError('');
+    try {
+      const response = await fetchRemedialResources(activeSession.id, candidate.criterionResultId);
+      setResourcesByCriterion((current) => ({
+        ...current,
+        [candidate.criterionResultId]: response.resources,
+      }));
+    } catch (caught) {
+      setRemediationError(
+        caught instanceof Error ? caught.message : 'تعذر تحميل الموارد العلاجية.'
+      );
+    } finally {
+      setResourceLoading(null);
+    }
+  };
+  const refreshInterventions = async () => {
+    if (!activeSession) return;
+    const response = await fetchDiagnosticInterventions(activeSession.id);
+    setInterventions(response.interventions);
+  };
+  const saveIntervention = async (candidate: DiagnosticRemediationCandidate) => {
+    if (!activeSession || interventionSaving) return;
+    const resourceId = selectedResource[candidate.criterionResultId] || null;
+    const text = customText[candidate.criterionResultId]?.trim() || null;
+    if (!resourceId && !text) {
+      setRemediationError('اختر مورداً علاجياً أو أدخل معالجة مخصصة.');
+      return;
+    }
+    setInterventionSaving(true);
+    setRemediationError('');
+    try {
+      await createDiagnosticIntervention(activeSession.id, {
+        studentAssessmentId: candidate.studentAssessmentId,
+        criterionResultId: candidate.criterionResultId,
+        ...(resourceId ? { resourceId } : { customText: text }),
+      });
+      await refreshInterventions();
+      setSelectedResource((current) => ({ ...current, [candidate.criterionResultId]: '' }));
+      setCustomText((current) => ({ ...current, [candidate.criterionResultId]: '' }));
+    } catch (caught) {
+      setRemediationError(caught instanceof Error ? caught.message : 'تعذر حفظ المعالجة.');
+    } finally {
+      setInterventionSaving(false);
+    }
+  };
+  const changeInterventionStatus = async (
+    intervention: DiagnosticInterventionDto,
+    status: DiagnosticInterventionDto['status']
+  ) => {
+    if (interventionSaving) return;
+    setInterventionSaving(true);
+    setRemediationError('');
+    try {
+      await updateDiagnosticIntervention(intervention.id, status);
+      await refreshInterventions();
+    } catch (caught) {
+      setRemediationError(caught instanceof Error ? caught.message : 'تعذر تحديث حالة المعالجة.');
+    } finally {
+      setInterventionSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-5" dir="rtl">
@@ -1350,6 +1469,172 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                 )}
               </div>
             </div>
+          </div>
+        </section>
+      )}
+
+      {activeSession?.assessmentType === 'DIAGNOSTIC' && section === 'competency' && (
+        <section
+          className="space-y-4 rounded-3xl border border-rose-200 bg-rose-50 p-5"
+          aria-label="خطة المعالجة"
+        >
+          <div>
+            <h2 className="font-extrabold text-rose-950">خطة المعالجة التشخيصية</h2>
+            <p className="mt-1 text-xs text-rose-800">
+              اختر الأستاذُ المعالجة المناسبة لكل معيار ضعيف؛ لا يتم اختيارها أو تطبيقها تلقائياً.
+            </p>
+          </div>
+          {remediationError && (
+            <p className="rounded-xl bg-red-100 p-3 text-sm text-red-800">{remediationError}</p>
+          )}
+          {remediationLoading && <p className="text-sm text-rose-800">جارٍ تحميل الحالات...</p>}
+          {!remediationLoading && !remediationCandidates.length && (
+            <p className="rounded-2xl border border-dashed border-rose-300 bg-white p-4 text-sm text-rose-800">
+              لا توجد حالات تحتاج معالجة حالياً.
+            </p>
+          )}
+          <div className="grid gap-3">
+            {remediationCandidates.map((candidate) => {
+              const resources = resourcesByCriterion[candidate.criterionResultId] || [];
+              const history = interventions.filter(
+                (item) => item.criterionResultId === candidate.criterionResultId
+              );
+              return (
+                <article
+                  key={candidate.criterionResultId}
+                  className="rounded-2xl border border-rose-200 bg-white p-4"
+                >
+                  <div className="flex flex-wrap justify-between gap-2 text-sm">
+                    <strong>{candidate.studentName}</strong>
+                    <span>المعيار: {candidate.criterionLabel}</span>
+                    <span className="font-bold text-rose-700">
+                      التملك: {candidate.masteryLevel}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void loadResources(candidate)}
+                      disabled={resourceLoading === candidate.criterionResultId}
+                      className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800 disabled:opacity-50"
+                    >
+                      {resourceLoading === candidate.criterionResultId
+                        ? 'جارٍ التحميل...'
+                        : 'عرض الموارد العلاجية'}
+                    </button>
+                    <select
+                      aria-label="المورد العلاجي"
+                      value={selectedResource[candidate.criterionResultId] || ''}
+                      onChange={(event) =>
+                        setSelectedResource((current) => ({
+                          ...current,
+                          [candidate.criterionResultId]: event.target.value,
+                        }))
+                      }
+                      className="min-w-[220px] rounded-xl border border-slate-200 px-3 py-2 text-xs"
+                    >
+                      <option value="">اختر مورداً علاجياً</option>
+                      {resources.map((resource) => (
+                        <option key={resource.resourceId} value={resource.resourceId}>
+                          {resource.title} —{' '}
+                          {resource.compatibility === 'EXACT' ? 'مطابقة مباشرة' : 'مناسبة للسياق'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {resources.length > 0 && (
+                    <div className="mt-2 grid gap-2 text-xs text-slate-700">
+                      {resources.map((resource) => (
+                        <div key={resource.resourceId} className="rounded-xl bg-emerald-50 p-3">
+                          <strong>{resource.title}</strong> ·{' '}
+                          {resource.compatibility === 'EXACT' ? 'مطابقة مباشرة' : 'مناسبة للسياق'}
+                          <div>{resource.description}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {resourcesByCriterion[candidate.criterionResultId] && resources.length === 0 && (
+                    <p className="mt-2 text-xs text-slate-600">
+                      لا توجد موارد مرجعية مناسبة؛ يمكنك إدخال معالجة مخصصة.
+                    </p>
+                  )}
+                  <textarea
+                    aria-label="معالجة مخصصة"
+                    value={customText[candidate.criterionResultId] || ''}
+                    onChange={(event) =>
+                      setCustomText((current) => ({
+                        ...current,
+                        [candidate.criterionResultId]: event.target.value,
+                      }))
+                    }
+                    placeholder="أو اكتب معالجة مخصصة"
+                    className="mt-3 min-h-20 w-full rounded-xl border border-slate-200 p-3 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void saveIntervention(candidate)}
+                    disabled={interventionSaving}
+                    className="mt-2 rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+                  >
+                    حفظ المعالجة
+                  </button>
+                  {history.length > 0 && (
+                    <div className="mt-4 space-y-2 border-t border-slate-100 pt-3">
+                      <strong className="text-xs">سجل المعالجات</strong>
+                      {history.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-3 text-xs"
+                        >
+                          <span>
+                            {item.resourceTitleSnapshot || item.customText || 'معالجة محفوظة'}
+                          </span>
+                          <span className="font-bold">
+                            {item.status === 'SELECTED'
+                              ? 'مختارة'
+                              : item.status === 'APPLIED'
+                                ? 'قيد التطبيق'
+                                : item.status === 'COMPLETED'
+                                  ? 'مكتملة'
+                                  : 'ملغاة'}
+                          </span>
+                          {item.status === 'SELECTED' && (
+                            <button
+                              type="button"
+                              onClick={() => void changeInterventionStatus(item, 'APPLIED')}
+                              disabled={interventionSaving}
+                              className="rounded-lg border px-2 py-1"
+                            >
+                              تطبيق
+                            </button>
+                          )}
+                          {item.status === 'APPLIED' && (
+                            <button
+                              type="button"
+                              onClick={() => void changeInterventionStatus(item, 'COMPLETED')}
+                              disabled={interventionSaving}
+                              className="rounded-lg border px-2 py-1"
+                            >
+                              إكمال
+                            </button>
+                          )}
+                          {item.status !== 'CANCELLED' && item.status !== 'COMPLETED' && (
+                            <button
+                              type="button"
+                              onClick={() => void changeInterventionStatus(item, 'CANCELLED')}
+                              disabled={interventionSaving}
+                              className="rounded-lg border border-red-200 px-2 py-1 text-red-700"
+                            >
+                              إلغاء
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
           </div>
         </section>
       )}
