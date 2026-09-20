@@ -23,6 +23,13 @@ const extraSlotIds = [1, 2, 3, 4].flatMap((day) => [
 ]);
 const standaloneMemoId = `${marker}-standalone-memo`;
 const scheduledMemoId = `${marker}-scheduled-memo`;
+const municipalityId = `${marker}-municipality`;
+const schoolId = `${marker}-school`;
+const assessmentSessionAId = `${marker}-assessment-a`;
+const assessmentSessionBId = `${marker}-assessment-b`;
+const foreignRosterClassId = `${marker}-foreign-roster-class`;
+const foreignLessonBatchId = `${marker}-foreign-lesson-batch`;
+const foreignNotebookBatchId = `${marker}-foreign-notebook-batch`;
 
 type Session = { cookie: string };
 
@@ -76,6 +83,8 @@ describe('Teacher G1.1-A runtime ownership harness', () => {
   const passwordB = `${marker}-password-b`;
   let teacherAId = '';
   let teacherBId = '';
+  let situationARecordId = '';
+  let situationBRecordId = '';
   let sessionA: Session;
   let sessionB: Session;
 
@@ -194,6 +203,12 @@ describe('Teacher G1.1-A runtime ownership harness', () => {
         ]),
       ],
     });
+    await prisma.municipality.create({
+      data: { id: municipalityId, name: `${marker} Municipality`, directorateId },
+    });
+    await prisma.school.create({
+      data: { id: schoolId, name: `${marker} School`, municipalityId },
+    });
     await prisma.communityNotification.create({
       data: {
         id: notificationId,
@@ -232,6 +247,17 @@ describe('Teacher G1.1-A runtime ownership harness', () => {
       await prisma.teacherWeeklySlot.deleteMany({
         where: { id: { in: [slotAId, slotBId, ...extraSlotIds] } },
       });
+      await prisma.educationalSituation.deleteMany({
+        where: { id: { in: [situationARecordId, situationBRecordId].filter(Boolean) } },
+      });
+      await prisma.assessmentSession.deleteMany({
+        where: { id: { in: [assessmentSessionAId, assessmentSessionBId] } },
+      });
+      await prisma.lessonPlan.deleteMany({ where: { id: foreignLessonBatchId } });
+      await prisma.notebookEntry.deleteMany({ where: { id: foreignNotebookBatchId } });
+      await prisma.studentClass.deleteMany({ where: { id: foreignRosterClassId } });
+      await prisma.school.deleteMany({ where: { id: schoolId } });
+      await prisma.municipality.deleteMany({ where: { id: municipalityId } });
       await prisma.student.deleteMany({ where: { id: { in: [studentAId, studentBId] } } });
       await prisma.studentClass.deleteMany({ where: { id: { in: [classAId, classBId] } } });
       await prisma.user.deleteMany({ where: { id: { in: [teacherAId, teacherBId] } } });
@@ -560,5 +586,295 @@ describe('Teacher G1.1-A runtime ownership harness', () => {
       ownerId: standaloneRow.ownerId,
       title: (standaloneRow.data as { title?: string }).title,
     }).toEqual({ ownerId: teacherAId, title: marker });
+  }, 60000);
+
+  it('enforces assessment, private situation, and professional profile ownership', async () => {
+    const catalogResponse = await request(
+      sessionA,
+      '/api/teacher/assessment-catalog?gradeLevelId=lvl_p1&domainId=f_fundamentals&finalCompetencyId=fc_lvl_p1_f_fundamentals'
+    );
+    expect(catalogResponse.status).toBe(200);
+    const catalog = await catalogResponse.json();
+    const criterionId = catalog.criteria?.[0]?.id as string | undefined;
+    expect(criterionId).toBeTruthy();
+
+    const assessmentPayload = {
+      id: assessmentSessionAId,
+      classId: classAId,
+      academicYearId,
+      assessmentType: 'تقويم تشخيصي',
+      gradeLevelId: 'lvl_p1',
+      domainId: 'f_fundamentals',
+      finalCompetencyId: 'fc_lvl_p1_f_fundamentals',
+      title: marker,
+      assessedAt: '2026-09-20T00:00:00.000Z',
+    };
+    const createAssessment = await request(sessionA, '/api/teacher/assessment-sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(assessmentPayload),
+    });
+    expect(createAssessment.status).toBe(201);
+    const createAssessmentB = await request(sessionB, '/api/teacher/assessment-sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...assessmentPayload, id: assessmentSessionBId, classId: classBId }),
+    });
+    expect(createAssessmentB.status).toBe(201);
+    const ownResult = await request(
+      sessionA,
+      `/api/teacher/assessment-sessions/${assessmentSessionAId}/students/${studentAId}`,
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ numericMark: 8, note: marker }),
+      }
+    );
+    expect(ownResult.status).toBe(200);
+    const ownCriterion = await request(
+      sessionA,
+      `/api/teacher/assessment-sessions/${assessmentSessionAId}/students/${studentAId}/criteria/${criterionId}`,
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ masteryLevel: 'ب', note: marker }),
+      }
+    );
+    expect(ownCriterion.status).toBe(200);
+    const foreignAssessmentRead = await request(
+      sessionB,
+      `/api/teacher/assessment-sessions/${assessmentSessionAId}`
+    );
+    expect(foreignAssessmentRead.status).toBe(404);
+    const foreignResultUpdate = await request(
+      sessionB,
+      `/api/teacher/assessment-sessions/${assessmentSessionAId}/students/${studentAId}`,
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ numericMark: 1 }),
+      }
+    );
+    expect(foreignResultUpdate.status).toBe(404);
+    const foreignCriterionUpdate = await request(
+      sessionB,
+      `/api/teacher/assessment-sessions/${assessmentSessionAId}/students/${studentAId}/criteria/${criterionId}`,
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ masteryLevel: 'د' }),
+      }
+    );
+    expect(foreignCriterionUpdate.status).toBe(404);
+    const foreignClassCreate = await request(sessionB, '/api/teacher/assessment-sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        ...assessmentPayload,
+        id: `${marker}-assessment-foreign-class`,
+        classId: classAId,
+      }),
+    });
+    expect(foreignClassCreate.status).toBe(404);
+    const foreignStudentCreate = await request(
+      sessionB,
+      `/api/teacher/assessment-sessions/${assessmentSessionBId}/students/${studentAId}`,
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ numericMark: 2 }),
+      }
+    );
+    expect(foreignStudentCreate.status).toBe(403);
+    const assessmentRow = await prisma.assessmentSession.findUniqueOrThrow({
+      where: { id: assessmentSessionAId },
+    });
+    const resultRow = await prisma.studentAssessment.findUniqueOrThrow({
+      where: {
+        assessmentSessionId_studentId: {
+          assessmentSessionId: assessmentSessionAId,
+          studentId: studentAId,
+        },
+      },
+    });
+    const criterionRow = await prisma.criterionResult.findUniqueOrThrow({
+      where: {
+        studentAssessmentId_criterionId: {
+          studentAssessmentId: resultRow.id,
+          criterionId: criterionId!,
+        },
+      },
+    });
+    expect({
+      teacherId: assessmentRow.teacherId,
+      classId: assessmentRow.classId,
+      studentId: resultRow.studentId,
+      numericMark: resultRow.numericMark,
+      masteryLevel: criterionRow.masteryLevel,
+    }).toEqual({
+      teacherId: teacherAId,
+      classId: classAId,
+      studentId: studentAId,
+      numericMark: 8,
+      masteryLevel: 'ب',
+    });
+
+    const situationInput = {
+      name: `${marker} situation`,
+      grade: 1,
+      fieldId: 'f_fundamentals',
+      fieldName: 'المهارات الأساسية',
+      objectiveIds: [],
+      objectiveTexts: [],
+      sourceGoal: marker,
+      organization: 'QA',
+      equipment: ['كرة'],
+      executionConditions: marker,
+      successCriteria: marker,
+      observationIndicators: marker,
+      motorActions: ['qa'],
+    };
+    const createSituationA = await request(sessionA, '/api/educational-situations', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(situationInput),
+    });
+    expect(createSituationA.status).toBe(201);
+    const situationA = (await createSituationA.json()).situation;
+    const situationBResponse = await request(sessionB, '/api/educational-situations', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...situationInput, name: `${marker} situation B` }),
+    });
+    expect(situationBResponse.status).toBe(201);
+    const situationB = (await situationBResponse.json()).situation;
+    situationARecordId = situationA.id;
+    situationBRecordId = situationB.id;
+    const situationList = await request(sessionB, '/api/educational-situations');
+    expect(situationList.status).toBe(200);
+    const situationListBody = await situationList.json();
+    expect(
+      situationListBody.situations.some((row: { id: string }) => row.id === situationA.id)
+    ).toBe(false);
+    const foreignSituationUpdate = await request(
+      sessionB,
+      `/api/educational-situations/${situationA.id}`,
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ...situationInput, name: 'foreign update' }),
+      }
+    );
+    expect(foreignSituationUpdate.status).toBe(403);
+    const foreignSituationDelete = await request(
+      sessionB,
+      `/api/educational-situations/${situationA.id}`,
+      { method: 'DELETE' }
+    );
+    expect(foreignSituationDelete.status).toBe(403);
+    const situationRow = await prisma.educationalSituation.findUniqueOrThrow({
+      where: { id: situationA.id },
+    });
+    expect({
+      ownerId: situationRow.ownerId,
+      status: situationRow.status,
+      name: situationRow.name,
+    }).toEqual({ ownerId: teacherAId, status: 'PRIVATE', name: `${marker} situation` });
+
+    const profilePayload = {
+      directorateId,
+      municipalityId,
+      institutionId: schoolId,
+      firstName: 'QA-A-Updated',
+      lastName: 'Teacher A',
+    };
+    const ownProfile = await request(sessionA, '/api/teacher/professional-data', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(profilePayload),
+    });
+    expect(ownProfile.status).toBe(200);
+    const foreignProfile = await request(sessionB, '/api/teacher/professional-data', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...profilePayload, userId: teacherAId, firstName: 'HACKED' }),
+    });
+    expect(foreignProfile.status).toBe(200);
+    const [profileA, profileB] = await Promise.all([
+      prisma.user.findUniqueOrThrow({ where: { id: teacherAId } }),
+      prisma.user.findUniqueOrThrow({ where: { id: teacherBId } }),
+    ]);
+    expect(profileA.firstName).toBe('QA-A-Updated');
+    expect(profileB.firstName).toBe('HACKED');
+    expect(profileA.id).not.toBe(profileB.id);
+
+    const foreignRosterImport = await request(sessionB, '/api/students/import/confirm', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        classId: classAId,
+        className: 'QA Class A',
+        levelId: 'lvl_p1',
+        grade: 1,
+        rows: [
+          {
+            rowNumber: 2,
+            firstName: 'QA',
+            lastName: 'Foreign',
+            matricule: '990001',
+            schoolYear: academicYearId,
+          },
+        ],
+      }),
+    });
+    expect(foreignRosterImport.status).toBe(403);
+    expect(
+      await prisma.student.findFirst({ where: { matricule: '990001', teacherId: teacherBId } })
+    ).toBeNull();
+    const foreignLessonBatch = await request(sessionB, '/api/db/lesson-plans/batch', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        lessonPlans: [
+          {
+            id: foreignLessonBatchId,
+            memoSource: 'operational',
+            classId: classAId,
+            academicYearId,
+            classPlannedSessionId: (
+              await prisma.classPlannedSession.findFirstOrThrow({
+                where: { classId: classAId, teacherId: teacherAId, academicYearId },
+              })
+            ).id,
+            title: 'foreign batch',
+          },
+        ],
+      }),
+    });
+    expect(foreignLessonBatch.status).toBe(200);
+    expect(await prisma.lessonPlan.findUnique({ where: { id: foreignLessonBatchId } })).toBeNull();
+    const foreignNotebookBatch = await request(sessionB, '/api/db/notebook/batch', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        dailyNotebook: [
+          {
+            id: foreignNotebookBatchId,
+            classId: classAId,
+            academicYearId,
+            classPlannedSessionId: (
+              await prisma.classPlannedSession.findFirstOrThrow({
+                where: { classId: classAId, teacherId: teacherAId, academicYearId },
+              })
+            ).id,
+            note: 'foreign batch',
+          },
+        ],
+      }),
+    });
+    expect(foreignNotebookBatch.status).toBe(200);
+    expect(
+      await prisma.notebookEntry.findUnique({ where: { id: foreignNotebookBatchId } })
+    ).toBeNull();
   }, 60000);
 });
