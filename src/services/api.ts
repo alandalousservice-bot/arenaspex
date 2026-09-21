@@ -14,6 +14,7 @@ import {
   User,
   KnowledgeItem,
   AssessmentSessionDto,
+  TeacherIntegrativeAssessmentOption,
   StudentAssessmentHistoryDto,
   StudentAssessmentDto,
   CriterionResultDto,
@@ -1123,6 +1124,20 @@ export async function fetchTeacherAssessmentCatalog(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'تعذر تحميل معايير الكفاءة.');
   return data as TeacherAssessmentCatalog;
+}
+
+export async function fetchTeacherIntegrativeAssessmentOptions(input: {
+  classId: string;
+  academicYearId: string;
+  gradeLevelId: string;
+  domainId: string;
+  finalCompetencyId: string;
+}): Promise<{ success: boolean; options: TeacherIntegrativeAssessmentOption[] }> {
+  const query = new URLSearchParams(input);
+  const res = await fetch(`/api/teacher/integrative-assessment-options?${query.toString()}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل خيارات الإدماجية.');
+  return data as { success: boolean; options: TeacherIntegrativeAssessmentOption[] };
 }
 
 export async function fetchTeacherAttendance(sessionId: string): Promise<TeacherAttendanceDto> {

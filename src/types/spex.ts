@@ -941,6 +941,23 @@ export interface IntegrativeEvidenceReadModel {
   coveredReferences: IntegrativeEvidenceReference[];
 }
 
+export interface TeacherIntegrativeAssessmentOption {
+  integrationPointId: string;
+  slot: 1 | 2;
+  displayLabel: string;
+  coveredLearningScope: Array<{
+    referenceId: string;
+    objectiveId: string;
+    teacherObjectiveId?: string | null;
+    objectiveText: string;
+    orderIndex: number;
+  }>;
+  finalCompetency: {
+    id: string;
+    label: string;
+  };
+}
+
 export interface StudentAssessmentDto {
   id: string;
   assessmentSessionId: string;

@@ -67,3 +67,23 @@ export function deriveIntegrativeEvidence(
     coveredReferences: covered,
   };
 }
+
+export function deriveIntegrativeOptions(
+  plan: TeacherLearningPlan,
+  domainId: string,
+  context: { gradeLevelId: string; finalCompetencyId: string | null }
+): IntegrativeEvidenceSnapshot[] {
+  const domain = plan.domains.find((item) => item.fieldId === domainId);
+  if (!domain) return [];
+  return [...domain.integrationPoints]
+    .sort((a, b) => a.orderIndex - b.orderIndex)
+    .slice(0, 2)
+    .flatMap((point) => {
+      try {
+        const evidence = deriveIntegrativeEvidence(plan, domainId, point.id, context);
+        return [{ ...evidence, label: `إدماجية ${evidence.number}` }];
+      } catch {
+        return [];
+      }
+    });
+}

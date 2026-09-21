@@ -125,7 +125,10 @@ import {
   TEACHER_LEARNING_PLAN_KIND,
 } from '../services/teacherLearningPlan.service.js';
 import type { TeacherLearningPlan } from '../services/teacherLearningPlan.service.js';
-import { deriveIntegrativeEvidence } from '../services/integrativeEvidence.service.js';
+import {
+  deriveIntegrativeEvidence,
+  deriveIntegrativeOptions,
+} from '../services/integrativeEvidence.service.js';
 import {
   deleteOwnedStudentClass,
   StudentClassDeletionError,
@@ -2231,6 +2234,67 @@ apiRouter.get('/teacher/assessment-sessions', requireRole('teacher'), async (req
   });
   res.json({ success: true, sessions: rows.map(assessmentSessionView) });
 });
+
+apiRouter.get(
+  '/teacher/integrative-assessment-options',
+  requireRole('teacher'),
+  async (req, res) => {
+    const parsed = z
+      .object({
+        classId: z.string().trim().min(1),
+        academicYearId: z.string().trim().min(1),
+        gradeLevelId: z.string().trim().min(1),
+        domainId: z.string().trim().min(1),
+        finalCompetencyId: z.string().trim().min(1),
+      })
+      .safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ error: 'سياق الإدماجية غير صحيح.' });
+    const input = parsed.data;
+    const classRecord = await prisma.studentClass.findFirst({
+      where: { id: input.classId, teacherId: req.user!.id },
+      select: { id: true, levelId: true },
+    });
+    if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+    if (classRecord.levelId !== input.gradeLevelId)
+      return res.status(400).json({ error: 'المستوى الدراسي لا يطابق القسم.' });
+    const catalog = getRegisteredKnowledgeCoreRelease(DEFAULT_CANDIDATE_RELEASE_ID)?.catalog;
+    const finalCompetency = catalog?.finalCompetencies.find(
+      (item) =>
+        item.id === input.finalCompetencyId &&
+        item.gradeId === input.gradeLevelId &&
+        item.domainId === input.domainId
+    );
+    if (!finalCompetency) return res.status(400).json({ error: 'الكفاءة الختامية غير صالحة.' });
+    const planRow = await prisma.annualPlan.findFirst({
+      where: {
+        teacherId: req.user!.id,
+        academicYearId: input.academicYearId,
+        levelId: input.gradeLevelId,
+        kind: TEACHER_LEARNING_PLAN_KIND,
+      },
+      select: { data: true },
+    });
+    if (!planRow) return res.json({ success: true, options: [] });
+    const plan = parseTeacherLearningPlan(planRow.data);
+    const domain = plan.domains.find((item) => item.fieldId === input.domainId);
+    if (
+      !domain ||
+      (domain.finalCompetencyId && domain.finalCompetencyId !== input.finalCompetencyId)
+    )
+      return res.json({ success: true, options: [] });
+    const options = deriveIntegrativeOptions(plan, input.domainId, {
+      gradeLevelId: input.gradeLevelId,
+      finalCompetencyId: input.finalCompetencyId,
+    }).map((item) => ({
+      integrationPointId: item.pointId,
+      slot: item.number,
+      displayLabel: `إدماجية ${item.number}`,
+      coveredLearningScope: item.coveredReferences,
+      finalCompetency: { id: finalCompetency.id, label: finalCompetency.label },
+    }));
+    res.json({ success: true, options });
+  }
+);
 
 apiRouter.post('/teacher/assessment-sessions', requireRole('teacher'), async (req, res) => {
   const parsed = assessmentSessionCreateSchema.safeParse(req.body);

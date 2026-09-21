@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { deriveIntegrativeEvidence } from '../src/services/integrativeEvidence.service';
+import {
+  deriveIntegrativeEvidence,
+  deriveIntegrativeOptions,
+} from '../src/services/integrativeEvidence.service';
 
 function plan(objectiveCount: number) {
   const objectives = Array.from({ length: objectiveCount }, (_, index) => ({
@@ -70,5 +73,30 @@ describe('durable integrative evidence', () => {
     });
     expect(first.coveredReferences).toHaveLength(1);
     expect(new Set(first.coveredReferences.map((item) => item.referenceId)).size).toBe(1);
+  });
+
+  it('exposes standalone options in server order with semantic labels', () => {
+    const options = deriveIntegrativeOptions(plan(7), 'f_fundamentals', {
+      gradeLevelId: 'lvl_p4',
+      finalCompetencyId: 'fc_lvl_p4_fundamentals',
+    });
+    expect(options.map((item) => [item.pointId, item.number, item.label])).toEqual([
+      ['integration-1', 1, 'إدماجية 1'],
+      ['integration-2', 2, 'إدماجية 2'],
+    ]);
+    expect(options[0].coveredReferences.map((item) => item.objectiveText)).toEqual([
+      'هدف 1',
+      'هدف 2',
+      'هدف 3',
+    ]);
+  });
+
+  it('does not fabricate options for an unknown domain', () => {
+    expect(
+      deriveIntegrativeOptions(plan(6), 'f_locomotion', {
+        gradeLevelId: 'lvl_p4',
+        finalCompetencyId: 'fc_lvl_p4_locomotion',
+      })
+    ).toEqual([]);
   });
 });

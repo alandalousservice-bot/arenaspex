@@ -213,6 +213,54 @@ describeRuntime('Teacher G2.3-B1 authenticated Integrative evidence runtime', ()
     expect((rows[0].integrativeEvidenceSnapshot as any).coveredReferences).not.toEqual(['fake']);
   }, 30_000);
 
+  it('serves owned standalone options and accepts the selected point without side effects', async () => {
+    const before = await prisma.assessmentSession.count({ where: { teacherId: teacherA } });
+    const query = new URLSearchParams({
+      classId: classA,
+      academicYearId,
+      gradeLevelId: levelId,
+      domainId,
+      finalCompetencyId: competencyId,
+    });
+    const response = await request(cookieA, `/api/teacher/integrative-assessment-options?${query}`);
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.options.map((item: any) => item.integrationPointId)).toEqual([point1, point2]);
+    expect(json.options.map((item: any) => item.slot)).toEqual([1, 2]);
+    expect(json.options.map((item: any) => item.displayLabel)).toEqual(['إدماجية 1', 'إدماجية 2']);
+    expect(json.options[0].coveredLearningScope.map((item: any) => item.orderIndex)).toEqual([
+      1, 2, 3,
+    ]);
+    expect(JSON.stringify(json)).not.toContain('integrationPoints');
+    expect(JSON.stringify(json)).not.toContain('integrativeEvidenceSnapshot');
+    expect(await prisma.assessmentSession.count({ where: { teacherId: teacherA } })).toBe(before);
+
+    const wrongGrade = await request(
+      cookieA,
+      `/api/teacher/integrative-assessment-options?${new URLSearchParams({ ...Object.fromEntries(query), gradeLevelId: 'lvl_p3' })}`
+    );
+    expect(wrongGrade.status).toBe(400);
+    const wrongDomain = await request(
+      cookieA,
+      `/api/teacher/integrative-assessment-options?${new URLSearchParams({ ...Object.fromEntries(query), domainId: 'f_locomotion' })}`
+    );
+    expect(wrongDomain.status).toBe(400);
+    const foreign = await request(cookieB, `/api/teacher/integrative-assessment-options?${query}`);
+    expect(foreign.status).toBe(404);
+
+    const standalone = await create(cookieA, {
+      classId: classA,
+      academicYearId,
+      assessmentType: 'INTEGRATIVE',
+      gradeLevelId: levelId,
+      domainId,
+      finalCompetencyId: competencyId,
+      integrationPointId: json.options[0].integrationPointId,
+      assessedAt: new Date().toISOString(),
+    });
+    expect(standalone.status).toBe(201);
+  }, 30_000);
+
   it('rejects ambiguity, diagnostic/summative CPS, wrong competency, cross-context, and Teacher B IDOR', async () => {
     const body = {
       classId: classA,
