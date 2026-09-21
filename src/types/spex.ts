@@ -918,10 +918,27 @@ export interface AssessmentSessionDto {
   gradeLevelId: string;
   domainId: string;
   finalCompetencyId?: string | null;
+  integrationPointId?: string | null;
+  integration?: IntegrativeEvidenceReadModel | null;
   title?: string | null;
   assessedAt: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface IntegrativeEvidenceReference {
+  referenceId: string;
+  objectiveId: string;
+  teacherObjectiveId?: string | null;
+  objectiveText: string;
+  orderIndex: number;
+}
+
+export interface IntegrativeEvidenceReadModel {
+  pointId: string;
+  number: 1 | 2;
+  label: string;
+  coveredReferences: IntegrativeEvidenceReference[];
 }
 
 export interface StudentAssessmentDto {

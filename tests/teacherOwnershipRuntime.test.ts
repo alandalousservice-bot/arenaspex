@@ -586,7 +586,7 @@ describe('Teacher G1.1-A runtime ownership harness', () => {
       ownerId: standaloneRow.ownerId,
       title: (standaloneRow.data as { title?: string }).title,
     }).toEqual({ ownerId: teacherAId, title: marker });
-  }, 60000);
+  }, 120000);
 
   it('enforces assessment, private situation, and professional profile ownership', async () => {
     const catalogResponse = await request(

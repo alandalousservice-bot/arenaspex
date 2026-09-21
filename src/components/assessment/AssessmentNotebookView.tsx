@@ -286,6 +286,10 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                 gradeLevelId: activeClass?.levelId || '',
                 domainId: reference.domainId,
                 finalCompetencyId: `fc_${activeClass?.levelId}_${reference.domainId}`,
+                integrationPointId:
+                  reference.sessionType === 'INTEGRATIVE'
+                    ? scheduled.referenceSessionId.replace(/^integration:/, '')
+                    : null,
                 title: reference.objective,
                 assessedAt: `${scheduled.plannedDate.slice(0, 10)}T00:00:00.000Z`,
               });
@@ -526,6 +530,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
         gradeLevelId: activeClass.levelId,
         domainId: manualDomainId,
         finalCompetencyId: `fc_${activeClass.levelId}_${manualDomainId}`,
+        integrationPointId: manualType === 'INTEGRATIVE' ? undefined : null,
         title: 'تقويم يدوي',
         assessedAt: new Date().toISOString(),
       });

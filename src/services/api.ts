@@ -1097,6 +1097,7 @@ export interface CreateAssessmentSessionInput {
   gradeLevelId: string;
   domainId: string;
   finalCompetencyId?: string | null;
+  integrationPointId?: string | null;
   title?: string | null;
   assessedAt: string;
 }

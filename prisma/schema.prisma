@@ -437,6 +437,8 @@ model AssessmentSession {
   gradeLevelId          String
   domainId              String
   finalCompetencyId     String?
+  integrationPointId    String?
+  integrativeEvidenceSnapshot Json?
   title                 String?
   assessedAt            DateTime
   createdAt             DateTime @default(now())

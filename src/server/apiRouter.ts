@@ -125,6 +125,7 @@ import {
   TEACHER_LEARNING_PLAN_KIND,
 } from '../services/teacherLearningPlan.service.js';
 import type { TeacherLearningPlan } from '../services/teacherLearningPlan.service.js';
+import { deriveIntegrativeEvidence } from '../services/integrativeEvidence.service.js';
 import {
   deleteOwnedStudentClass,
   StudentClassDeletionError,
@@ -2064,6 +2065,7 @@ const assessmentSessionCreateSchema = z.object({
   gradeLevelId: z.string().regex(/^lvl_p[1-5]$/),
   domainId: z.string().trim().min(1).max(160),
   finalCompetencyId: z.string().trim().max(200).nullable().optional(),
+  integrationPointId: z.string().trim().max(160).nullable().optional(),
   title: z.string().trim().max(200).nullable().optional(),
   assessedAt: z.coerce.date(),
 });
@@ -2092,6 +2094,8 @@ type AssessmentSessionRow = {
   gradeLevelId: string;
   domainId: string;
   finalCompetencyId: string | null;
+  integrationPointId: string | null;
+  integrativeEvidenceSnapshot: unknown;
   title: string | null;
   assessedAt: Date;
   createdAt: Date;
@@ -2129,6 +2133,11 @@ function assessmentSessionView(row: AssessmentSessionRow) {
     gradeLevelId: row.gradeLevelId,
     domainId: row.domainId,
     finalCompetencyId: row.finalCompetencyId,
+    integrationPointId: row.integrationPointId,
+    integration:
+      row.assessmentType === 'INTEGRATIVE' && row.integrativeEvidenceSnapshot
+        ? { ...(row.integrativeEvidenceSnapshot as object), pointId: row.integrationPointId }
+        : null,
     title: row.title,
     assessedAt: row.assessedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
@@ -2263,6 +2272,46 @@ apiRouter.post('/teacher/assessment-sessions', requireRole('teacher'), async (re
     if (!planned)
       return res.status(403).json({ error: 'الحصة التشغيلية غير موجودة ضمن قسمك وسنتك الدراسية.' });
   }
+  let integrationPointId: string | null = null;
+  let integrativeEvidenceSnapshot: ReturnType<typeof deriveIntegrativeEvidence> | null = null;
+  if (input.assessmentType === 'INTEGRATIVE') {
+    integrationPointId = input.integrationPointId || null;
+    if (planned) {
+      const reference = planned.referenceSessionId || '';
+      if (!reference.startsWith('integration:'))
+        return res.status(400).json({ error: 'الحصة التشغيلية ليست إدماجية معتمدة.' });
+      const scheduledPointId = reference.slice('integration:'.length);
+      if (integrationPointId && integrationPointId !== scheduledPointId)
+        return res.status(400).json({ error: 'نقطة الإدماجية لا تطابق الحصة التشغيلية.' });
+      integrationPointId = scheduledPointId;
+    }
+    if (!integrationPointId)
+      return res.status(400).json({ error: 'نقطة الإدماجية مطلوبة لهذا التقويم.' });
+    const planRow = await prisma.annualPlan.findFirst({
+      where: {
+        teacherId: req.user!.id,
+        academicYearId: input.academicYearId,
+        levelId: input.gradeLevelId,
+        kind: TEACHER_LEARNING_PLAN_KIND,
+      },
+      select: { data: true },
+    });
+    if (!planRow) return res.status(400).json({ error: 'لا يوجد مخطط تعلمي صالح للإدماجية.' });
+    try {
+      integrativeEvidenceSnapshot = deriveIntegrativeEvidence(
+        parseTeacherLearningPlan(planRow.data),
+        input.domainId,
+        integrationPointId,
+        { gradeLevelId: input.gradeLevelId, finalCompetencyId: input.finalCompetencyId || null }
+      );
+    } catch (error) {
+      return res
+        .status(400)
+        .json({ error: error instanceof Error ? error.message : 'نقطة الإدماجية غير صالحة.' });
+    }
+  } else if (input.integrationPointId) {
+    return res.status(400).json({ error: 'لا يمكن ربط نقطة إدماجية بهذا النوع من التقويم.' });
+  }
   const existing = input.id
     ? await prisma.assessmentSession.findFirst({ where: { id: input.id, teacherId: req.user!.id } })
     : input.classPlannedSessionId
@@ -2292,6 +2341,8 @@ apiRouter.post('/teacher/assessment-sessions', requireRole('teacher'), async (re
       gradeLevelId: input.gradeLevelId,
       domainId: input.domainId,
       finalCompetencyId: input.finalCompetencyId || null,
+      integrationPointId,
+      integrativeEvidenceSnapshot: integrativeEvidenceSnapshot as unknown as Prisma.InputJsonValue,
       title: input.title || null,
       assessedAt: input.assessedAt,
     },
