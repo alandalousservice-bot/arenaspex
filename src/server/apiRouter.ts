@@ -2335,6 +2335,13 @@ apiRouter.post('/teacher/assessment-sessions', requireRole('teacher'), async (re
     });
     if (!planned)
       return res.status(403).json({ error: 'الحصة التشغيلية غير موجودة ضمن قسمك وسنتك الدراسية.' });
+    if (
+      input.assessmentType === 'SUMMATIVE' &&
+      planned.referenceSessionId !== 'summative' &&
+      !planned.referenceSessionId.startsWith('summative:')
+    ) {
+      return res.status(400).json({ error: 'الحصة التشغيلية ليست تقويماً تحصيلياً معتمداً.' });
+    }
   }
   let integrationPointId: string | null = null;
   let integrativeEvidenceSnapshot: ReturnType<typeof deriveIntegrativeEvidence> | null = null;
