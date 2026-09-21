@@ -20,6 +20,7 @@ describeRuntime('Teacher G2.4-B1 Summative runtime closure', () => {
     classB: `${marker}-class-b`,
     student: `${marker}-student`,
     cps: `${marker}-cps`,
+    cpsB: `${marker}-cps-b`,
     learningCps: `${marker}-learning-cps`,
     scheduled: `${marker}-scheduled`,
     standalone: `${marker}-standalone`,
@@ -132,6 +133,15 @@ describeRuntime('Teacher G2.4-B1 Summative runtime closure', () => {
           plannedDate: new Date(),
           durationMinutes: 45,
         },
+        {
+          id: ids.cpsB,
+          teacherId: ids.teacherB,
+          classId: ids.classB,
+          academicYearId: year,
+          referenceSessionId: 'summative:f_fundamentals',
+          plannedDate: new Date(),
+          durationMinutes: 45,
+        },
       ],
     });
     const login = await request('', '/api/auth/login', {
@@ -190,6 +200,22 @@ describeRuntime('Teacher G2.4-B1 Summative runtime closure', () => {
       [
         'non-summative-cps',
         summativeBody({ id: `${marker}-foreign-cps`, classPlannedSessionId: ids.learningCps }),
+      ],
+      [
+        'cross-year-cps',
+        summativeBody({
+          id: `${marker}-cross-year`,
+          academicYearId: '2025-2026',
+          classPlannedSessionId: ids.cps,
+        }),
+      ],
+      [
+        'teacher-b-cps',
+        summativeBody({
+          id: `${marker}-teacher-b-cps`,
+          classId: ids.classB,
+          classPlannedSessionId: ids.cpsB,
+        }),
       ],
     ] as const;
     for (const [label, body] of attacks)
@@ -292,7 +318,7 @@ describeRuntime('Teacher G2.4-B1 Summative runtime closure', () => {
       where: { id: { in: [ids.scheduled, ids.standalone] } },
     });
     await prisma.classPlannedSession.deleteMany({
-      where: { id: { in: [ids.cps, ids.learningCps] } },
+      where: { id: { in: [ids.cps, ids.cpsB, ids.learningCps] } },
     });
     await prisma.student.deleteMany({ where: { id: ids.student } });
     await prisma.studentClass.deleteMany({ where: { id: { in: [ids.class, ids.classB] } } });
