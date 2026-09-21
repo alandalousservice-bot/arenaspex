@@ -23,6 +23,7 @@ import { InspectorFeedPanel } from './teacher/InspectorFeedPanel';
 import { QuickAccessPanel } from './teacher/QuickAccessPanel';
 import { fetchTeacherPlanningSessions, TeacherPlanningSession } from '../../services/api';
 import { getCurrentAcademicYear, isOperationalAcademicYear } from '../../services/academicYear';
+import { formatLocalDate } from '../../services/localDate';
 
 interface TeacherDashboardProps {
   user: User;
@@ -53,9 +54,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   onUpdateNotebookStatus,
 }) => {
   const [todaySessions, setTodaySessions] = useState<TeacherPlanningSession[]>([]);
+  const [todayLoadState, setTodayLoadState] = useState<'loading' | 'success' | 'error'>('loading');
+  const [todayLoadError, setTodayLoadError] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [academicYearId, setAcademicYearId] = useState(getCurrentAcademicYear);
   const notebookStats = useTeacherDashboardStats(user, dailyNotebook);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = formatLocalDate();
 
   useEffect(() => {
     const storedYear = window.localStorage.getItem('arenaspex:selectedAcademicYear');
@@ -67,26 +71,35 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   useEffect(() => {
     let active = true;
+    setTodayLoadState('loading');
+    setTodayLoadError(false);
+    setTodaySessions([]);
     Promise.all(
       teacherClasses.map((teacherClass) =>
         fetchTeacherPlanningSessions(teacherClass.id, academicYearId)
       )
     )
       .then((responses) => {
-        if (active)
+        if (active) {
           setTodaySessions(
             responses
               .flatMap((response) => response.sessions)
               .filter((session) => session.plannedDate.slice(0, 10) === today)
           );
+          setTodayLoadState('success');
+        }
       })
       .catch(() => {
-        if (active) setTodaySessions([]);
+        if (active) {
+          setTodaySessions([]);
+          setTodayLoadError(true);
+          setTodayLoadState('error');
+        }
       });
     return () => {
       active = false;
     };
-  }, [academicYearId, teacherClasses, today]);
+  }, [academicYearId, teacherClasses, today, retryNonce]);
 
   const completedCount = todaySessions.filter((session) => session.status === 'منجزة').length;
   const delayedCount = todaySessions.filter((session) => session.status === 'مؤجلة').length;
@@ -109,6 +122,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
       <TeacherKpiGrid
         executionPercentage={executionPercentage}
+        executionLoading={todayLoadState === 'loading'}
         completedCount={completedCount}
         delayedCount={delayedCount}
         totalSessions={totalSessions}
@@ -118,11 +132,27 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
       {/* Main Grid: Today's Schedule + Inspector Note Preview */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {todayLoadError && (
+          <div className="lg:col-span-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span>تعذر تحميل حصص اليوم. حاول مرة أخرى.</span>
+              <button
+                type="button"
+                onClick={() => setRetryNonce((value) => value + 1)}
+                className="rounded-xl bg-rose-700 px-3 py-2 text-xs font-bold text-white"
+              >
+                إعادة المحاولة
+              </button>
+            </div>
+          </div>
+        )}
         <DailyScheduleList
           dailyNotebook={dailyNotebook}
           plannedSessions={todaySessions}
           onNavigateTab={onNavigateTab}
           onUpdateNotebookStatus={onUpdateNotebookStatus}
+          loading={todayLoadState === 'loading'}
+          hasPlanningError={todayLoadError}
         />
 
         <div className="space-y-6">

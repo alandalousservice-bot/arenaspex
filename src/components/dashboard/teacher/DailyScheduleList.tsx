@@ -13,6 +13,8 @@ interface DailyScheduleListProps {
     entryId: string,
     status: 'منجزة' | 'مؤجلة' | 'غير منجزة'
   ) => Promise<void> | void;
+  loading?: boolean;
+  hasPlanningError?: boolean;
 }
 
 const STATUS_TOGGLES: Array<{
@@ -50,6 +52,8 @@ export const DailyScheduleList: React.FC<DailyScheduleListProps> = ({
   plannedSessions = [],
   onNavigateTab,
   onUpdateNotebookStatus,
+  loading = false,
+  hasPlanningError = false,
 }) => {
   return (
     <div className="workspace-card workspace-schedule lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4">
@@ -71,7 +75,18 @@ export const DailyScheduleList: React.FC<DailyScheduleListProps> = ({
       </div>
 
       <div className="divide-y divide-slate-100">
-        {plannedSessions.length > 0 &&
+        {loading && (
+          <p className="py-8 text-center text-sm text-slate-500">جارٍ تحميل حصص اليوم...</p>
+        )}
+        {!loading &&
+          !hasPlanningError &&
+          plannedSessions.length === 0 &&
+          dailyNotebook.length === 0 && (
+            <p className="py-8 text-center text-sm text-slate-500">لا توجد حصص مبرمجة اليوم.</p>
+          )}
+        {!loading &&
+          !hasPlanningError &&
+          plannedSessions.length > 0 &&
           plannedSessions.map((session) => (
             <div
               key={session.id}
@@ -105,7 +120,9 @@ export const DailyScheduleList: React.FC<DailyScheduleListProps> = ({
               </div>
             </div>
           ))}
-        {plannedSessions.length === 0 &&
+        {!loading &&
+          !hasPlanningError &&
+          plannedSessions.length === 0 &&
           dailyNotebook.map((entry) => (
             <div
               key={entry.id}
