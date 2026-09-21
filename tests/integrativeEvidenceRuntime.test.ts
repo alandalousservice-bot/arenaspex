@@ -261,6 +261,63 @@ describeRuntime('Teacher G2.3-B1 authenticated Integrative evidence runtime', ()
     expect(standalone.status).toBe(201);
   }, 30_000);
 
+  it('closes scheduled/standalone semantic consistency for both Integrative points', async () => {
+    const optionsQuery = new URLSearchParams({
+      classId: classA,
+      academicYearId,
+      gradeLevelId: levelId,
+      domainId,
+      finalCompetencyId: competencyId,
+    });
+    const optionsResponse = await request(
+      cookieA,
+      `/api/teacher/integrative-assessment-options?${optionsQuery}`
+    );
+    expect(optionsResponse.status).toBe(200);
+    const options = (await optionsResponse.json()).options;
+    expect(options).toHaveLength(2);
+    const standaloneSessions = [] as Array<{ id: string; integration: any }>;
+    for (const option of options) {
+      const response = await create(cookieA, {
+        classId: classA,
+        academicYearId,
+        assessmentType: 'INTEGRATIVE',
+        gradeLevelId: levelId,
+        domainId,
+        finalCompetencyId: competencyId,
+        integrationPointId: option.integrationPointId,
+        assessedAt: new Date().toISOString(),
+      });
+      expect(response.status).toBe(201);
+      const session = (await response.json()).session;
+      expect(session.integration.number).toBe(option.slot);
+      expect(session.integration.coveredReferences).toEqual(option.coveredLearningScope);
+      standaloneSessions.push({ id: session.id, integration: session.integration });
+    }
+    const scheduled = await Promise.all(
+      [cps1, cps2].map(async (id) => {
+        const response = await request(
+          cookieA,
+          `/api/teacher/assessment-sessions?classId=${classA}&academicYearId=${academicYearId}`
+        );
+        expect(response.status).toBe(200);
+        const rows = (await response.json()).sessions;
+        return rows.find((row: any) => row.classPlannedSessionId === id);
+      })
+    );
+    expect(scheduled.map((item) => item.integration.number)).toEqual(
+      standaloneSessions.map((item) => item.integration.number)
+    );
+    expect(scheduled.map((item) => item.integration.coveredReferences)).toEqual(
+      standaloneSessions.map((item) => item.integration.coveredReferences)
+    );
+    for (const session of standaloneSessions) {
+      const reread = await request(cookieA, `/api/teacher/assessment-sessions/${session.id}`);
+      expect(reread.status).toBe(200);
+      expect((await reread.json()).session.integration).toEqual(session.integration);
+    }
+  }, 30_000);
+
   it('rejects ambiguity, diagnostic/summative CPS, wrong competency, cross-context, and Teacher B IDOR', async () => {
     const body = {
       classId: classA,
