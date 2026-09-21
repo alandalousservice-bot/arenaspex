@@ -18,6 +18,7 @@ import {
   fetchTeacherAttendance,
   fetchTeacherMedicalExemptions,
   fetchTeacherPlanningSessions,
+  fetchTeacherIntegrativeAssessmentOptions,
   fetchTeacherStudentAssessmentHistory,
   saveTeacherAttendance,
   createTeacherMedicalExemption,
@@ -34,6 +35,7 @@ import {
   type TeacherPlanningSession,
 } from '../../services/api';
 import { TEACHER_ASSESSMENT_TYPE_LABELS } from '../../types/spex';
+import { SITUATION_DOMAIN_LABELS } from '../../services/pedagogicalSituationReadModel.service';
 import type {
   CriterionDefinition,
   IndicatorDefinition,
@@ -52,6 +54,7 @@ import type {
   StudentAssessmentDto,
   StudentAssessmentHistoryDto,
   TeacherAssessmentType,
+  TeacherIntegrativeAssessmentOption,
   AttendanceStatus,
   MedicalExemptionDto,
   TeacherAttendanceDto,
@@ -93,6 +96,23 @@ function isAssessmentReference(type?: string): boolean {
 }
 function emptyDraft(): Draft {
   return { criteria: {}, numericMark: '', note: '' };
+}
+
+function domainLabel(gradeLevelId: string, domainId: string): string {
+  void gradeLevelId;
+  return SITUATION_DOMAIN_LABELS[domainId] || 'الميدان التربوي';
+}
+
+function assessmentLabel(session: AssessmentSessionDto): string {
+  if (session.assessmentType === 'INTEGRATIVE') {
+    return session.integration?.number ? `إدماجية ${session.integration.number}` : 'إدماجية';
+  }
+  return TEACHER_ASSESSMENT_TYPE_LABELS[session.assessmentType];
+}
+
+function scopeSummary(option: { coveredLearningScope?: Array<{ objectiveText: string }> }): string {
+  const items = option.coveredLearningScope || [];
+  return items.length ? `${items.length} تعلمات مستهدفة` : 'لا تتوفر تفاصيل نطاق الإدماج.';
 }
 
 export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
@@ -152,6 +172,12 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
   const [manualOpen, setManualOpen] = useState(false);
   const [manualType, setManualType] = useState<TeacherAssessmentType>('DIAGNOSTIC');
   const [manualDomainId, setManualDomainId] = useState('f_locomotion');
+  const [integrativeOptions, setIntegrativeOptions] = useState<
+    TeacherIntegrativeAssessmentOption[]
+  >([]);
+  const [selectedIntegrationPointId, setSelectedIntegrationPointId] = useState('');
+  const [integrativeOptionsLoading, setIntegrativeOptionsLoading] = useState(false);
+  const [integrativeOptionsError, setIntegrativeOptionsError] = useState('');
   const [savingStudentId, setSavingStudentId] = useState<string | null>(null);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [reloadNonce, setReloadNonce] = useState(0);
@@ -199,6 +225,37 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
   );
   const selectedStudent = classStudents.find((student) => student.id === selectedStudentId) || null;
   const canonicalCriteria = assessmentCatalog?.criteria || [];
+
+  useEffect(() => {
+    setSelectedIntegrationPointId('');
+    setIntegrativeOptions([]);
+    setIntegrativeOptionsError('');
+    if (!manualOpen || manualType !== 'INTEGRATIVE' || !activeClass) return;
+    let active = true;
+    setIntegrativeOptionsLoading(true);
+    fetchTeacherIntegrativeAssessmentOptions({
+      classId: activeClass.id,
+      academicYearId,
+      gradeLevelId: activeClass.levelId,
+      domainId: manualDomainId,
+      finalCompetencyId: `fc_${activeClass.levelId}_${manualDomainId}`,
+    })
+      .then((response) => {
+        if (active) setIntegrativeOptions(response.options);
+      })
+      .catch((caught) => {
+        if (active)
+          setIntegrativeOptionsError(
+            caught instanceof Error ? caught.message : 'تعذر تحميل خيارات الإدماجية.'
+          );
+      })
+      .finally(() => {
+        if (active) setIntegrativeOptionsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [academicYearId, activeClass, manualDomainId, manualOpen, manualType]);
 
   useEffect(() => {
     if (controlledClassId !== undefined && controlledClassId !== selectedClassId) {
@@ -530,7 +587,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
         gradeLevelId: activeClass.levelId,
         domainId: manualDomainId,
         finalCompetencyId: `fc_${activeClass.levelId}_${manualDomainId}`,
-        integrationPointId: manualType === 'INTEGRATIVE' ? undefined : null,
+        integrationPointId: manualType === 'INTEGRATIVE' ? selectedIntegrationPointId : null,
         title: 'تقويم يدوي',
         assessedAt: new Date().toISOString(),
       });
@@ -866,7 +923,8 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
               {activeSession.classPlannedSessionId ? 'مرتبطة بالتوزيع' : 'تقويم يدوي'}
             </span>
             <span className="mr-2 text-slate-500">
-              {activeSession.assessmentType} · {activeSession.domainId}
+              {assessmentLabel(activeSession)} ·{' '}
+              {domainLabel(activeSession.gradeLevelId, activeSession.domainId)}
             </span>
           </div>
           <button
@@ -944,8 +1002,48 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                   <option value="f_structuring">الميدان الثالث</option>
                 </select>
               </label>
+              {manualType === 'INTEGRATIVE' && (
+                <div className="sm:col-span-3 rounded-xl border border-purple-100 bg-purple-50 p-3">
+                  <p className="text-xs font-extrabold text-purple-950">نطاق الإدماج</p>
+                  {integrativeOptionsLoading && (
+                    <p className="mt-2 text-xs text-slate-600">جارٍ تحميل خيارات الإدماجية...</p>
+                  )}
+                  {integrativeOptionsError && (
+                    <p role="alert" className="mt-2 text-xs font-bold text-red-700">
+                      {integrativeOptionsError}
+                    </p>
+                  )}
+                  {!integrativeOptionsLoading &&
+                    !integrativeOptionsError &&
+                    !integrativeOptions.length && (
+                      <p className="mt-2 text-xs text-slate-600">
+                        لا تتوفر نقطة إدماجية صالحة لهذا السياق.
+                      </p>
+                    )}
+                  <div className="mt-2 grid gap-2 md:grid-cols-2">
+                    {integrativeOptions.map((option) => (
+                      <button
+                        key={option.integrationPointId}
+                        type="button"
+                        aria-pressed={selectedIntegrationPointId === option.integrationPointId}
+                        onClick={() => setSelectedIntegrationPointId(option.integrationPointId)}
+                        className={`rounded-xl border p-3 text-right text-xs ${selectedIntegrationPointId === option.integrationPointId ? 'border-purple-600 bg-white ring-2 ring-purple-200' : 'border-purple-200 bg-white'}`}
+                      >
+                        <strong>{option.displayLabel}</strong>
+                        <span className="mt-1 block text-slate-600">{scopeSummary(option)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <button
                 type="submit"
+                disabled={
+                  manualType === 'INTEGRATIVE' &&
+                  (integrativeOptionsLoading ||
+                    Boolean(integrativeOptionsError) ||
+                    !selectedIntegrationPointId)
+                }
                 className="self-end rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white"
               >
                 إنشاء وفتح
@@ -967,7 +1065,10 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                   <strong>{session.title || 'جلسة تقويم'}</strong>
                   <span className="text-xs text-slate-500">
                     {session.classPlannedSessionId ? 'حصة تقويم مرتبطة بالتوزيع' : 'تقويم يدوي'} ·{' '}
-                    {session.assessmentType} · {session.assessedAt.slice(0, 10)}
+                    {assessmentLabel(session)} · {session.assessedAt.slice(0, 10)} ·{' '}
+                    {domainLabel(session.gradeLevelId, session.domainId)}
+                    {session.integration &&
+                      ` · نطاق: ${session.integration.coveredReferences.length} تعلمات`}
                   </span>
                 </button>
               ))}
@@ -978,6 +1079,35 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
 
       {activeSession && section === 'competency' && (
         <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-5">
+          {activeSession.assessmentType === 'INTEGRATIVE' && (
+            <div className="rounded-2xl border border-purple-200 bg-purple-50 p-4 text-sm">
+              <h3 className="font-extrabold text-purple-950">سياق الإدماج</h3>
+              <div className="mt-2 grid gap-2 text-xs text-purple-950 sm:grid-cols-2">
+                <p>
+                  <strong>نوع الحصة:</strong> {assessmentLabel(activeSession)}
+                </p>
+                <p>
+                  <strong>الميدان:</strong>{' '}
+                  {domainLabel(activeSession.gradeLevelId, activeSession.domainId)}
+                </p>
+                <p className="sm:col-span-2">
+                  <strong>الكفاءة الختامية:</strong>{' '}
+                  {assessmentCatalog?.finalCompetency.label || 'جارٍ تحميل الكفاءة الختامية...'}
+                </p>
+              </div>
+              {activeSession.integration?.coveredReferences.length ? (
+                <ol className="mt-3 list-decimal space-y-1 pr-5 text-xs text-slate-700">
+                  {activeSession.integration.coveredReferences.map((reference) => (
+                    <li key={reference.referenceId}>{reference.objectiveText}</li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="mt-3 text-xs text-slate-600">
+                  لا تتوفر تفاصيل نطاق الإدماج لهذه الحصة القديمة.
+                </p>
+              )}
+            </div>
+          )}
           <div>
             <h2 className="flex items-center gap-2 font-extrabold">
               <Target className="h-5 w-5 text-purple-600" />
@@ -1305,7 +1435,9 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                       <span>
                         التلميذ: {selectedStudent.firstName} {selectedStudent.lastName}
                       </span>
-                      <span>الميدان: {activeSession.domainId}</span>
+                      <span>
+                        الميدان: {domainLabel(activeSession.gradeLevelId, activeSession.domainId)}
+                      </span>
                     </div>
                     <p className="individual-student-print-competency">
                       <strong>الكفاءة الختامية:</strong>{' '}
@@ -1384,7 +1516,9 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                         <span>
                           التلميذ: {student.firstName} {student.lastName}
                         </span>
-                        <span>الميدان: {activeSession.domainId}</span>
+                        <span>
+                          الميدان: {domainLabel(activeSession.gradeLevelId, activeSession.domainId)}
+                        </span>
                       </div>
                       <p className="individual-student-print-competency">
                         <strong>الكفاءة الختامية:</strong>{' '}
@@ -1989,7 +2123,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                 <div className="flex flex-wrap justify-between gap-2 text-xs">
                   <strong>{item.session.title || 'جلسة تقويم'}</strong>
                   <span>
-                    {item.session.assessedAt.slice(0, 10)} · {item.session.assessmentType} ·{' '}
+                    {item.session.assessedAt.slice(0, 10)} · {assessmentLabel(item.session)} ·{' '}
                     {item.session.classPlannedSessionId ? 'مرتبطة بالتوزيع' : 'يدوية'}
                   </span>
                 </div>
