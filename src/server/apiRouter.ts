@@ -73,7 +73,10 @@ import {
 import { COMPLETE_ANNUAL_CURRICULUM } from '../data/algerianCurriculum.js';
 import { getObjectiveBank } from '../data/objectiveBankRegistry.js';
 import { getAcademicCalendar, isValidAcademicSchoolDate } from '../data/academicCalendars.js';
-import { generateLessonMemoDraft } from '../services/lessonMemoGeneration.service.js';
+import {
+  generateLessonMemoDraft,
+  resolveLessonMemoTeacherIdentity,
+} from '../services/lessonMemoGeneration.service.js';
 import {
   isCanonicalAcademicYearId,
   isPreLaunchAcademicYear,
@@ -1241,6 +1244,21 @@ apiRouter.post('/teacher/lesson-memos/generate', requireRole('teacher'), async (
     select: { id: true, name: true, levelId: true },
   });
   if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
+  const teacherProfile = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      schoolName: true,
+      eduSchool: { select: { name: true } },
+    },
+  });
+  if (!teacherProfile) return res.status(404).json({ error: 'حساب الأستاذ غير موجود.' });
+  const teacherIdentity = resolveLessonMemoTeacherIdentity(req.user!.id, {
+    ...teacherProfile,
+    eduSchoolName: teacherProfile.eduSchool?.name,
+  });
   const mode = await grade4WeeklyScheduleModeForClass(classRecord.id, session.academicYearId);
   const references = await resolvePlanningReferences(
     classRecord.levelId,
@@ -1295,7 +1313,7 @@ apiRouter.post('/teacher/lesson-memos/generate', requireRole('teacher'), async (
   };
   try {
     const draft = generateLessonMemoDraft({
-      teacher: req.user as any,
+      teacher: teacherIdentity,
       classId: classRecord.id,
       academicYearId: session.academicYearId,
       classPlannedSessionId: session.id,

@@ -1,15 +1,16 @@
-import { Grade4WeeklyScheduleMode, LessonPlan, User } from '../types/spex';
+import { Grade4WeeklyScheduleMode, LessonPlan } from '../types/spex';
 import {
   autoGenerateLessonPlan,
   AutoGenerateContext,
   AutoGenerateSessionSource,
+  LessonMemoTeacherIdentity,
 } from './lessonPlan.generator.service';
 import { EducationalSituation } from '../types/spex';
 import type { CanonicalAssessmentScope } from '../domain/pedagogicalKnowledge/assessmentScopeAdapter';
 import { resolveObjective, type TeacherObjectiveRecord } from './objectiveResolver.service';
 
 export interface LessonMemoGenerationContext {
-  teacher: User;
+  teacher: LessonMemoTeacherIdentity;
   classId?: string;
   academicYearId?: string;
   classPlannedSessionId?: string;
@@ -27,6 +28,28 @@ export interface LessonMemoGenerationContext {
   assessmentScope?: CanonicalAssessmentScope;
   previousSituationIds?: string[];
   teacherObjective?: TeacherObjectiveRecord;
+}
+
+export interface LessonMemoTeacherProfileRecord extends LessonMemoTeacherIdentity {
+  eduSchoolName?: string | null;
+}
+
+/** Maps only the DB profile belonging to the already-authenticated identity. */
+export function resolveLessonMemoTeacherIdentity(
+  authenticatedUserId: string,
+  profile: LessonMemoTeacherProfileRecord | null | undefined
+): LessonMemoTeacherIdentity {
+  if (!profile || profile.id !== authenticatedUserId) {
+    throw new Error('MEMO_TEACHER_PROFILE_IDENTITY_MISMATCH');
+  }
+  const clean = (value?: string | null) =>
+    typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  return {
+    id: authenticatedUserId,
+    firstName: clean(profile.firstName),
+    lastName: clean(profile.lastName),
+    schoolName: clean(profile.eduSchoolName) || clean(profile.schoolName),
+  };
 }
 
 export function resolveMemoGenerationContext(

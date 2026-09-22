@@ -62,16 +62,9 @@ describe('مولد مذكرة الحصة الموحد', () => {
       levelName: 'السنة الأولى ابتدائي',
       teacher: {
         id: 'teacher-1',
-        username: 'teacher',
-        spexId: 'SPX-1',
         firstName: 'أحمد',
         lastName: 'بن علي',
-        email: 'teacher@example.com',
-        role: 'teacher',
-        directorateId: 'd',
-        districtId: 'x',
         schoolName: 'مدرسة الأمل',
-        status: 'active',
       },
     });
     expect(plan.teacherName).toBe('أحمد بن علي');

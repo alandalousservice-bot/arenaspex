@@ -3,7 +3,6 @@ import {
   LessonPhaseName,
   LessonPlan,
   LessonPlanRow,
-  User,
 } from '../types/spex';
 import { EducationalSituation } from '../types/spex';
 import {
@@ -49,7 +48,7 @@ export interface AutoGenerateSessionSource {
 export interface AutoGenerateContext {
   levelName: string;
   className?: string;
-  teacher?: User;
+  teacher?: LessonMemoTeacherIdentity;
   dailyNotebookEntryId?: string;
   classPlannedSessionId?: string;
   referenceSessionId?: string;
@@ -68,7 +67,7 @@ export interface AutoGenerateContext {
 }
 
 export interface IndependentLessonMemoInput {
-  teacher?: User;
+  teacher?: LessonMemoTeacherIdentity;
   inspectorName?: string;
   levelName: string;
   fieldId: string;
@@ -82,6 +81,26 @@ export interface IndependentLessonMemoInput {
   equipment: string[];
   durationMinutes: number;
   teacherNotes: string;
+}
+
+/** Minimal trusted profile required to render a memo; auth/session claims are not profile data. */
+export interface LessonMemoTeacherIdentity {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  schoolName?: string | null;
+}
+
+function teacherDisplayName(teacher?: LessonMemoTeacherIdentity): string {
+  return [teacher?.firstName, teacher?.lastName]
+    .filter((part): part is string => typeof part === 'string')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
+function optionalDisplayValue(value?: string | null): string {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 export const lessonDurationForLevel = (
@@ -452,8 +471,8 @@ export function autoGenerateLessonPlan(
     venue: ctx.venue,
     inspectorName: ctx.inspectorName || '',
     teacherId: teacher?.id || '',
-    institutionName: teacher?.schoolName || '',
-    teacherName: teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : '',
+    institutionName: optionalDisplayValue(teacher?.schoolName),
+    teacherName: teacherDisplayName(teacher),
     levelName: ctx.levelName,
     className: ctx.className || '',
     fieldName: session.fieldName,
@@ -550,8 +569,8 @@ export function createIndependentLessonPlan(input: IndependentLessonMemoInput): 
     memoSource: 'standalone',
     inspectorName: input.inspectorName || '',
     teacherId: teacher?.id || '',
-    institutionName: teacher?.schoolName || '',
-    teacherName: teacher ? `${teacher.firstName} ${teacher.lastName}`.trim() : '',
+    institutionName: optionalDisplayValue(teacher?.schoolName),
+    teacherName: teacherDisplayName(teacher),
     levelId: levelNumber ? `lvl_p${levelNumber}` : undefined,
     levelName: input.levelName,
     className: '',

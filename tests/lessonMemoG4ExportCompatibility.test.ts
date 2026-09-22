@@ -64,15 +64,8 @@ function generatedPlan(durationMinutes: number, levelName: string, mode?: 'TWO_4
       situations: situations.map((situation) => ({ ...situation, grade })),
       teacher: {
         id: 'g4-export-teacher',
-        username: 'g4-export-teacher',
-        spexId: 'SPX-G4-EXPORT',
         firstName: 'أستاذ',
         lastName: 'اختبار',
-        email: 'g4-export@example.test',
-        role: 'teacher',
-        directorateId: '',
-        districtId: '',
-        status: 'active',
       },
     }
   );
