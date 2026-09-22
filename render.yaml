@@ -76,8 +76,10 @@ services:
 
       - key: GEMINI_API_KEY
         sync: false
-      - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+      - key: PEDAGOGICAL_GENERATION_PROVIDER
+        value: gemini
+      - key: GEMINI_PEDAGOGICAL_MODEL
+        value: gemini-3.6-flash
 
       # Optional OpenAI-compatible provider (OpenRouter, Groq, self-hosted, etc.)
       - key: AI_COMPATIBLE_API_KEY

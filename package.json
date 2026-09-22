@@ -28,7 +28,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:geo": "tsx prisma/seed-geo.ts",
     "db:seed-from-json": "tsx scripts/migrate-json-to-db.ts",
-    "render:build": "npm ci && npx prisma generate && npx prisma migrate deploy && npm run db:seed && npm run db:seed:geo && npm run build",
+    "render:build": "npm ci && npx prisma generate && npx prisma migrate deploy && npm run build",
     "render:start": "npm start"
   },
   "lint-staged": {
