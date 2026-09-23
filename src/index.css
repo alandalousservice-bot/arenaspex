@@ -1265,16 +1265,15 @@
     page: annual-plan;
   }
 
-  body:has(.annual-plan-print-root) * {
-    visibility: hidden !important;
-  }
-
-  body:has(.annual-plan-print-root) .annual-plan-print-root,
-  body:has(.annual-plan-print-root) .annual-plan-print-root * {
-    visibility: visible !important;
+  body:has(.annual-plan-print-root) .app-shell-header,
+  body:has(.annual-plan-print-root) .app-shell-sidebar,
+  body:has(.annual-plan-print-root) .workspace-header,
+  body:has(.annual-plan-print-root) .annual-plan-screen {
+    display: none !important;
   }
 
   body:has(.annual-plan-print-root) .annual-plan-print-root {
+    visibility: visible !important;
     position: absolute;
     inset: 0;
     width: 100%;
@@ -1390,6 +1389,7 @@
   }
 
   body:has(.annual-plan-print-root) .annual-plan-print-page {
+    visibility: visible !important;
     display: grid;
     grid-template-rows: auto auto minmax(0, 1fr) auto;
     width: 289mm;

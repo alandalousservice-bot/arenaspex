@@ -71,8 +71,25 @@ describe('official annual plan presentation model', () => {
     const css = readFileSync('src/index.css', 'utf8');
     expect(view).toContain('<AnnualPlanPrintDocument');
     expect(document).toContain('annual-plan-print-root');
-    expect(css).toContain('body:has(.annual-plan-print-root) *');
-    expect(css).toContain('.annual-plan-print-root *');
+    const isolationRule = css.match(
+      /body:has\(\.annual-plan-print-root\)\s+\.app-shell-header,[\s\S]*?\.annual-plan-screen\s*\{([^}]*)\}/
+    );
+    expect(isolationRule).toBeTruthy();
+    for (const screenOnlySelector of [
+      '.app-shell-header',
+      '.app-shell-sidebar',
+      '.workspace-header',
+      '.annual-plan-screen',
+    ]) {
+      expect(isolationRule?.[0]).toContain(screenOnlySelector);
+    }
+    expect(isolationRule?.[1]).toMatch(/display\s*:\s*none\s*!important\s*;/);
+
+    const printRootRule = css.match(
+      /body:has\(\.annual-plan-print-root\)\s+\.annual-plan-print-root\s*\{([^}]*)\}/
+    );
+    expect(printRootRule?.[1]).toMatch(/position\s*:\s*absolute/);
+    expect(printRootRule?.[1]).toMatch(/inset\s*:\s*0/);
     expect(view).toContain('AnnualPlanOfficialTable');
   });
 
