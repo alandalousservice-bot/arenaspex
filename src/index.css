@@ -2220,6 +2220,7 @@
   body:has(.learning-section-print-root) .app-shell-header,
   body:has(.learning-section-print-root) .app-shell-sidebar,
   body:has(.learning-section-print-root) .learning-section-print-preview-actions,
+  body:has(.learning-section-print-root) .workspace-page--planning > .workspace-header,
   body:has(.learning-section-print-root)
     .workspace-page--learning-segments
     > :not(.learning-section-print-preview-shell) {

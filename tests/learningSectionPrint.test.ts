@@ -178,6 +178,9 @@ describe('official Learning Section print mapper', () => {
     expect(css).toContain('transform: none');
     expect(css).toContain('table-header-group');
     expect(css).toContain('print-color-adjust: exact');
+    expect(learningPrintCss).toMatch(
+      /body:has\(\.learning-section-print-root\) \.workspace-page--planning\s*>\s*\.workspace-header[\s\S]*?display: none !important;/
+    );
     expect(markup).toContain('learning-section-print-root');
     expect(markup).toContain('المؤسسة');
     expect(markup).toContain('الكفاءة الختامية');
