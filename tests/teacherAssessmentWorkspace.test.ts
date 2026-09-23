@@ -106,10 +106,25 @@ describe('unified Teacher assessment notebook', () => {
     expect(view).toContain('classStudents.map');
     expect(view).toContain('individual-student-print-root');
     expect(view).toContain('individual-student-print-table');
+    expect(view).toContain('className="assessment-notebook-root space-y-5"');
+    expect(view).toContain("import { PE_LEVELS } from '../../data/algerianCurriculum'");
+    expect(view).toContain('const activeLevelName');
+    expect(view).toContain("{activeClass?.name || 'القسم'} · {activeLevelName || 'المستوى'}");
+    expect(view.match(/المستوى: \{activeLevelName\}/g)).toHaveLength(2);
+    expect(view).not.toContain('المستوى: {activeClass?.levelId');
     const styles = read('src/index.css');
     expect(styles).toContain('@page individual-student-grid');
     expect(styles).toContain('size: A4 portrait');
     expect(styles).toContain('individual-student-print-root');
+    expect(styles).not.toContain('body:has(.individual-student-print-root) #root > *');
+    expect(styles).toContain('body:has(.individual-student-print-root) .app-shell-header');
+    expect(styles).toContain('body:has(.individual-student-print-root) .app-shell-sidebar');
+    expect(styles).toContain(
+      '.assessment-notebook-root > *:not(:has(.individual-student-print-root))'
+    );
+    expect(styles).toContain('.assessment-notebook-root > *:has(.individual-student-print-root)');
+    expect(styles).toContain('display: block;');
+    expect(styles).toContain("[role='dialog'] {\n    display: contents !important;");
     expect(styles).toContain('page-break-inside: avoid');
     expect(styles).toContain('page-break-before: always');
   });

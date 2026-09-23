@@ -36,6 +36,7 @@ import {
 } from '../../services/api';
 import { TEACHER_ASSESSMENT_TYPE_LABELS } from '../../types/spex';
 import { SITUATION_DOMAIN_LABELS } from '../../services/pedagogicalSituationReadModel.service';
+import { PE_LEVELS } from '../../data/algerianCurriculum';
 import type {
   CriterionDefinition,
   IndicatorDefinition,
@@ -215,6 +216,10 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
   const [selectedResource, setSelectedResource] = useState<Record<string, string>>({});
 
   const activeClass = ownedClasses.find((item) => item.id === selectedClassId) || null;
+  const activeLevelName =
+    PE_LEVELS.find((level) => level.id === activeClass?.levelId)?.name ||
+    activeClass?.levelId ||
+    '';
   const classStudents = useMemo(
     () => students.filter((student) => student.classId === selectedClassId),
     [students, selectedClassId]
@@ -838,7 +843,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
   };
 
   return (
-    <div className="space-y-5" dir="rtl">
+    <div className="assessment-notebook-root space-y-5" dir="rtl">
       <header className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -1294,7 +1299,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                     </h3>
                     <p className="mt-1 text-sm text-slate-500">
                       {selectedStudent.firstName} {selectedStudent.lastName} ·{' '}
-                      {activeClass?.name || 'القسم'} · {activeClass?.levelId || 'المستوى'}
+                      {activeClass?.name || 'القسم'} · {activeLevelName || 'المستوى'}
                     </p>
                   </div>
                   <button
@@ -1430,7 +1435,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                         الأستاذ: {currentUser.firstName} {currentUser.lastName}
                       </span>
                       <span>السنة الدراسية: {formatAcademicYearLabel(academicYearId)}</span>
-                      <span>المستوى: {activeClass?.levelId || ''}</span>
+                      <span>المستوى: {activeLevelName}</span>
                       <span>القسم: {activeClass?.name || ''}</span>
                       <span>
                         التلميذ: {selectedStudent.firstName} {selectedStudent.lastName}
@@ -1511,7 +1516,7 @@ export const AssessmentNotebookView: React.FC<AssessmentNotebookViewProps> = ({
                           الأستاذ: {currentUser.firstName} {currentUser.lastName}
                         </span>
                         <span>السنة الدراسية: {formatAcademicYearLabel(academicYearId)}</span>
-                        <span>المستوى: {activeClass?.levelId || ''}</span>
+                        <span>المستوى: {activeLevelName}</span>
                         <span>القسم: {activeClass?.name || ''}</span>
                         <span>
                           التلميذ: {student.firstName} {student.lastName}

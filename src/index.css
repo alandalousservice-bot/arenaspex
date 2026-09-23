@@ -1135,8 +1135,68 @@
     background: #fff;
   }
 
-  body:has(.individual-student-print-root) #root > * {
+  body:has(.individual-student-print-root) .app-shell-header,
+  body:has(.individual-student-print-root) .app-shell-sidebar {
     display: none !important;
+  }
+
+  body:has(.individual-student-print-root) #root,
+  body:has(.individual-student-print-root) .app-shell,
+  body:has(.individual-student-print-root) .app-shell > .flex-1,
+  body:has(.individual-student-print-root) .app-shell main,
+  body:has(.individual-student-print-root) .assessment-notebook-root {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  body:has(.individual-student-print-root)
+    .assessment-notebook-root
+    > *:not(:has(.individual-student-print-root)) {
+    display: none !important;
+  }
+
+  body:has(.individual-student-print-root)
+    .assessment-notebook-root
+    > *:has(.individual-student-print-root) {
+    display: block !important;
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  body:has(.individual-student-print-root)
+    .assessment-notebook-root
+    > *:has(.individual-student-print-root)
+    > *:not(:has(.individual-student-print-root)) {
+    display: none !important;
+  }
+
+  body:has(.individual-student-print-root)
+    .assessment-notebook-root
+    > *:has(.individual-student-print-root)
+    > *:has(.individual-student-print-root) {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
   }
 
   body:has(.individual-student-print-root) .individual-student-print-root {
