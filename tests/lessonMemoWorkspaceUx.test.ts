@@ -49,8 +49,8 @@ describe('Lesson Memo session-first workspace presentation', () => {
     expect(view).toContain("const nextId = resolvedRequested?.id || nextSessions[0]?.id || ''");
     expect(view).toContain('const operationalGenerationContext');
     expect(view).toContain('classPlannedSessionId: scheduledContext.session.id');
-    expect(view).toContain(
-      'generateScheduledLessonMemo(operationalContextForGeneration.classPlannedSessionId!)'
+    expect(view).toMatch(
+      /generateScheduledLessonMemo\(\s*operationalContextForGeneration\.classPlannedSessionId!\s*\)/
     );
     expect(view).toContain('createOperationalMemo(session.id)');
     expect(view).toContain('openOperationalMemo(session, memo)');

@@ -18,6 +18,7 @@ export interface LessonMemoGenerationContext {
   pedagogicalParts?: AutoGenerateSessionSource[];
   grade4WeeklyScheduleMode?: Grade4WeeklyScheduleMode | null;
   className?: string;
+  levelId?: string;
   levelName: string;
   plannedDate: string;
   durationMinutes: number;
@@ -80,8 +81,8 @@ export function generateLessonMemoDraft(context: LessonMemoGenerationContext): L
         resolved.source.fieldId === 'f_locomotion' ||
           resolved.source.fieldId === 'f_fundamentals' ||
           resolved.source.fieldId === 'f_structuring'
-          ? `lvl_p${String(resolved.levelName).match(/[1-5]/)?.[0] || '1'}`
-          : `lvl_p${String(resolved.levelName).match(/[1-5]/)?.[0] || '1'}`,
+          ? resolved.levelId || `lvl_p${String(resolved.levelName).match(/[1-5]/)?.[0] || '1'}`
+          : resolved.levelId || `lvl_p${String(resolved.levelName).match(/[1-5]/)?.[0] || '1'}`,
         resolved.source.fieldId,
         {
           id: resolved.source.teacherObjectiveId,
@@ -96,6 +97,7 @@ export function generateLessonMemoDraft(context: LessonMemoGenerationContext): L
   const generationContext: AutoGenerateContext = {
     teacher: resolved.teacher,
     className: resolved.className,
+    levelId: resolved.levelId,
     levelName: resolved.levelName,
     classId: resolved.classId,
     academicYearId: resolved.academicYearId,

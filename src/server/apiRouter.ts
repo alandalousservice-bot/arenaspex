@@ -73,6 +73,7 @@ import {
 import { COMPLETE_ANNUAL_CURRICULUM } from '../data/algerianCurriculum.js';
 import { getObjectiveBank } from '../data/objectiveBankRegistry.js';
 import { getAcademicCalendar, isValidAcademicSchoolDate } from '../data/academicCalendars.js';
+import { lessonMemoLevelName } from '../services/lessonPlan.generator.service.js';
 import {
   generateLessonMemoDraft,
   resolveLessonMemoTeacherIdentity,
@@ -1317,7 +1318,8 @@ apiRouter.post('/teacher/lesson-memos/generate', requireRole('teacher'), async (
       classId: classRecord.id,
       academicYearId: session.academicYearId,
       classPlannedSessionId: session.id,
-      levelName: classRecord.levelId,
+      levelId: classRecord.levelId,
+      levelName: lessonMemoLevelName(classRecord.levelId),
       className: classRecord.name,
       plannedDate: session.plannedDate.toISOString().slice(0, 10),
       durationMinutes: session.durationMinutes,

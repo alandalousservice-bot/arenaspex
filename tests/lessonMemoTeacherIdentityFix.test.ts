@@ -3,10 +3,12 @@ import JSZip from 'jszip';
 import {
   autoGenerateLessonPlan,
   generateLessonMemoDocument,
+  lessonMemoLevelName,
 } from '../src/services/lessonPlan.generator.service';
 import { renderLessonMemoHtml } from '../src/services/lessonPlanExport.service';
 import { buildLessonPlanDocx } from '../src/services/lessonPlanWordExport.service';
 import { resolveLessonMemoTeacherIdentity } from '../src/services/lessonMemoGeneration.service';
+import { generateLessonMemoDraft } from '../src/services/lessonMemoGeneration.service';
 
 const source = {
   referenceSessionId: 'identity-fix-reference',
@@ -24,6 +26,53 @@ const source = {
 };
 
 describe('scheduled Lesson Memo teacher identity', () => {
+  it('preserves scheduled structural level identity while rendering canonical context', () => {
+    const levelId = 'lvl_p4';
+    const levelName = lessonMemoLevelName(levelId);
+    const plan = generateLessonMemoDraft({
+      teacher: {
+        id: 'teacher-a',
+        firstName: 'أحمد',
+        lastName: 'اختبار',
+        schoolName: 'مؤسسة اختبار معزولة',
+      },
+      classId: 'class-a',
+      academicYearId: '2026-2027',
+      classPlannedSessionId: 'session-a',
+      source: { ...source, referenceSessionId: 'reference-a' },
+      levelId,
+      levelName,
+      className: 'القسم الرابع - QA R2E8B',
+      plannedDate: '2026-10-04',
+      durationMinutes: 90,
+    });
+    const model = generateLessonMemoDocument(plan);
+    const html = renderLessonMemoHtml(model);
+
+    expect(plan.levelId).toBe('lvl_p4');
+    expect(plan.levelName).toBe('السنة الرابعة ابتدائي');
+    expect(model.header.className).toBe('القسم الرابع - QA R2E8B');
+    expect(model.header.date).toBe('2026-10-04');
+    expect(html).toContain('<strong>المستوى</strong><span>السنة الرابعة ابتدائي</span>');
+    expect(html).toContain('<strong>القسم</strong><span>القسم الرابع - QA R2E8B</span>');
+    expect(html).toContain('<strong>التاريخ</strong><span>04 / 10 / 2026</span>');
+    expect(html).not.toContain('lvl_p4');
+  });
+
+  it('renders a legacy scheduled memo level ID with its canonical label without mutating identity', () => {
+    const plan = autoGenerateLessonPlan(source, {
+      levelName: 'lvl_p4',
+      durationMinutes: 90,
+    });
+    const model = generateLessonMemoDocument(plan);
+    const html = renderLessonMemoHtml(model);
+
+    expect(model.header.grade).toBe('السنة الرابعة ابتدائي');
+    expect(plan.levelName).toBe('lvl_p4');
+    expect(html).toContain('السنة الرابعة ابتدائي');
+    expect(html).not.toContain('lvl_p4');
+  });
+
   it('uses only the authenticated teacher profile and authoritative school relation', () => {
     const identity = resolveLessonMemoTeacherIdentity('teacher-a', {
       id: 'teacher-a',

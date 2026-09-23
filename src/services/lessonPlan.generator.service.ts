@@ -5,6 +5,7 @@ import {
   LessonPlanRow,
 } from '../types/spex';
 import { EducationalSituation } from '../types/spex';
+import { PE_LEVELS } from '../data/algerianCurriculum';
 import {
   referenceSituations,
   selectEducationalSituations,
@@ -47,6 +48,7 @@ export interface AutoGenerateSessionSource {
 
 export interface AutoGenerateContext {
   levelName: string;
+  levelId?: string;
   className?: string;
   teacher?: LessonMemoTeacherIdentity;
   dailyNotebookEntryId?: string;
@@ -473,6 +475,7 @@ export function autoGenerateLessonPlan(
     teacherId: teacher?.id || '',
     institutionName: optionalDisplayValue(teacher?.schoolName),
     teacherName: teacherDisplayName(teacher),
+    levelId: ctx.levelId,
     levelName: ctx.levelName,
     className: ctx.className || '',
     fieldName: session.fieldName,
@@ -735,6 +738,7 @@ export interface LessonMemoDocument {
   header: {
     institution: string;
     grade: string;
+    className: string;
     sessionNumber: string;
     date: string;
     field: string;
@@ -779,7 +783,8 @@ export function generateLessonMemoDocument(
   return {
     header: {
       institution: plan.institutionName,
-      grade: plan.levelName,
+      grade: lessonMemoLevelName(plan.levelName || plan.levelId || ''),
+      className: plan.className || '',
       sessionNumber: plan.sessionGlobalNumber ? String(plan.sessionGlobalNumber) : '',
       date: plan.date,
       field: plan.fieldName,
@@ -818,3 +823,7 @@ export function generateLessonMemoDocument(
 
 /** Compatibility name retained for older callers; new code uses generateLessonMemoDocument. */
 export const getLessonMemoPresentation = generateLessonMemoDocument;
+
+export function lessonMemoLevelName(levelId: string): string {
+  return PE_LEVELS.find((level) => level.id === levelId)?.name || levelId;
+}
