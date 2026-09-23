@@ -119,10 +119,12 @@ describe('unified Teacher assessment notebook', () => {
     expect(styles).not.toContain('body:has(.individual-student-print-root) #root > *');
     expect(styles).toContain('body:has(.individual-student-print-root) .app-shell-header');
     expect(styles).toContain('body:has(.individual-student-print-root) .app-shell-sidebar');
-    expect(styles).toContain(
+    expect(styles.replace(/\s+/g, ' ')).toContain(
       '.assessment-notebook-root > *:not(:has(.individual-student-print-root))'
     );
-    expect(styles).toContain('.assessment-notebook-root > *:has(.individual-student-print-root)');
+    expect(styles.replace(/\s+/g, ' ')).toContain(
+      '.assessment-notebook-root > *:has(.individual-student-print-root)'
+    );
     expect(styles).toContain('display: block;');
     expect(styles).toContain("[role='dialog'] {\n    display: contents !important;");
     expect(styles).toContain('page-break-inside: avoid');
