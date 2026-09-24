@@ -31,7 +31,7 @@ describe('canonical Teacher Students Book', () => {
     const book = read('src/components/students/StudentsBookView.tsx');
     const importer = read('src/services/studentRosterImport.service.ts');
     const router = read('src/server/apiRouter.ts');
-    expect(book).toContain('canonicalClassIdentityKey');
+    expect(read('src/services/studentRosterDocumentConfirm.service.ts')).toContain('canonicalClassIdentityKey');
     expect(book).not.toContain('item.name.includes(preview.groupName)');
     expect(importer).toContain('extractClassSection');
     expect(router).toContain('candidateClasses = await tx.studentClass.findMany');
@@ -41,7 +41,7 @@ describe('canonical Teacher Students Book', () => {
   it('keeps import, preview, refresh, and authoritative exemptions in Students Book', () => {
     const book = read('src/components/students/StudentsBookView.tsx');
     expect(book).toContain('previewStudentRoster');
-    expect(book).toContain('confirmStudentRosterImport');
+    expect(book).toContain('confirmStudentRosterGroups');
     expect(book).toContain('onRefreshRoster');
     expect(book).toContain('fetchTeacherMedicalExemptions');
     expect(book).toContain('createTeacherMedicalExemption');

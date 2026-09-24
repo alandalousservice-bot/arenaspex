@@ -57,6 +57,12 @@ async function startServer() {
     })
   );
   app.use(cookieParser());
+  // PDF roster previews are accepted as bounded raw bytes; other JSON routes
+  // retain the existing 2 MB parser limit.
+  app.use(
+    '/api/students/import/preview',
+    express.raw({ type: 'application/pdf', limit: '12mb' })
+  );
   app.use(express.json({ limit: '2mb' }));
 
   // Render health check: lightweight and does not require authentication or a DB round-trip.
@@ -145,6 +151,8 @@ async function startServer() {
 
   // Error Handler — مع معالجة خاصة لأخطاء Neon E57P01 (terminating connection due to administrator command)
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (err?.type === 'entity.too.large')
+      return res.status(413).json({ error: 'الملف أكبر من الحجم المسموح.' });
     const msg: string = (err?.message || '').toString();
     const isNeonTerminating =
       msg.includes('terminating connection due to administrator command') ||

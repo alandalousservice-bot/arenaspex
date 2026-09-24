@@ -565,6 +565,21 @@ export async function requestAILessonPlan(payload: LessonGeneratorPayload) {
 }
 
 export async function previewStudentRoster(file: File) {
+  if (file.size === 0) throw new Error('الملف فارغ.');
+  if (file.size > 12 * 1024 * 1024) throw new Error('الملف أكبر من الحجم المسموح.');
+  if (/\.pdf$/i.test(file.name)) {
+    const response = await fetch(
+      `/api/students/import/preview?filename=${encodeURIComponent(file.name)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/pdf' },
+        body: file,
+      }
+    );
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'تعذر التعرف على بنية ملف PDF.');
+    return data;
+  }
   const contentBase64 = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
@@ -578,14 +593,44 @@ export async function previewStudentRoster(file: File) {
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'تعذر التعرف على بنية الملف.');
+  return data;
+}
+
+export interface StudentRosterImportGroup {
+  groupName: string;
+  grade: number;
+  section?: string;
+  schoolYear?: string;
+  source?: 'pdf' | 'xlsx' | 'xls';
+  rows: Array<{
+    matricule: string;
+    firstName: string;
+    lastName: string;
+    birthDate?: string;
+    rowNumber: number;
+  }>;
+}
+
+export async function confirmStudentRosterGroups(groups: StudentRosterImportGroup[]) {
+  const response = await fetch('/api/students/import/confirm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ groups }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'تعذر تأكيد الاستيراد.');
   return data as {
-    previews: unknown[];
+    success: boolean;
     summary: {
-      worksheets: number;
-      students: number;
-      invalidRows: number;
-      needsGradeSelection: number;
+      classesCreated: number;
+      classesReused: number;
+      created: number;
+      existing: number;
+      reassociated: number;
+      conflicts: number;
+      review: number;
     };
+    classes: Array<{ id: string; groupName: string; summary: unknown }>;
   };
 }
 

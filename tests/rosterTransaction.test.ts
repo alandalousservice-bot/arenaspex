@@ -81,7 +81,7 @@ describe('student roster persistence transaction', () => {
     expect(persistence).toContain('reviewReasonCounts');
     expect(persistence).toContain('foreignOwner');
     expect(persistence).toContain('institutionMismatch');
-    expect(client).toContain('تعارض ملكية سجل موجود');
+    expect(client).toContain('بحاجة إلى مراجعة');
     expect(persistence).not.toContain('console.log');
   });
 
@@ -89,6 +89,10 @@ describe('student roster persistence transaction', () => {
     const parser = readFileSync('src/services/studentRosterImport.service.ts', 'utf8');
     expect(parser).toContain('raw: false');
     expect(parser).not.toContain('raw: true');
-    expect(parser).not.toContain('Number(value)');
+    const identityNormalizer = parser.match(
+      /export function normalizeExcelMatricule[\s\S]*?(?=\nexport function |\nfunction )/
+    )?.[0];
+    expect(identityNormalizer).toBeDefined();
+    expect(identityNormalizer).not.toContain('Number(');
   });
 });

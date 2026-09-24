@@ -20,13 +20,33 @@ export interface ExcelMatriculeCell {
 }
 
 export interface RosterWorksheetPreview {
+  id?: string;
   worksheet: string;
+  source?: 'pdf' | 'xlsx' | 'xls';
+  pageStart?: number;
+  pageEnd?: number;
   grade?: number;
   section?: string;
   groupName?: string;
+  schoolYear?: string;
+  metadataStatus?: 'DETECTED' | 'NEEDS_REVIEW' | 'CONFIRMED';
   needsGradeSelection: boolean;
   students: ParsedRosterStudent[];
   invalidRows: ParsedRosterStudent[];
+}
+
+export interface RosterDocumentPreview {
+  source: 'pdf' | 'xlsx' | 'xls';
+  sourceName: string;
+  pageCount?: number;
+  schoolYear?: string;
+  previews: RosterWorksheetPreview[];
+  summary: {
+    worksheets: number;
+    students: number;
+    invalidRows: number;
+    needsGradeSelection: number;
+  };
 }
 
 const normalize = (value: unknown) =>
@@ -128,6 +148,13 @@ function normalizeDigits(value: string): string {
     .join('');
 }
 
+export function normalizeRosterSchoolYear(value: unknown): string | undefined {
+  const text = normalizeDigits(compact(value));
+  const match = text.match(/(20\d{2})\s*[-/–]\s*(20\d{2})/);
+  if (!match || Number(match[2]) !== Number(match[1]) + 1) return undefined;
+  return `${match[1]}-${match[2]}`;
+}
+
 export function normalizeImportedClassName(value: unknown): string {
   return normalizeDigits(compact(value));
 }
@@ -138,10 +165,11 @@ export function extractClassSection(value: unknown): string | undefined {
 }
 
 export function canonicalClassIdentityKey(levelId: string, className: unknown): string {
-  const normalizedName = normalizeImportedClassName(className).replace(
-    /\s+(\d{1,2})\s*$/,
-    (_, section: string) => ` ${section.replace(/^0+(?=\d)/, '')}`
-  );
+  const source = normalizeImportedClassName(className);
+  const section = extractClassSection(source);
+  const grade = gradePatterns.find(([, pattern]) => pattern.test(source))?.[0];
+  if (section && grade) return `${normalize(levelId)}|grade:${grade}|section:${section}`;
+  const normalizedName = source.replace(/\s+(\d{1,2})\s*$/, (_, value: string) => ` ${Number(value)}`);
   return `${normalize(levelId)}|${normalize(normalizedName)}`;
 }
 
@@ -255,6 +283,9 @@ export function parseStudentRosterWorkbook(input: Buffer | Uint8Array): RosterWo
     ]);
     const metadata = rows.slice(0, headerIndex).flat();
     const grade = detectGrade(metadata) || detectGrade([worksheet]);
+    const schoolYear = metadata
+      .map((value) => normalizeRosterSchoolYear(value))
+      .find((value): value is string => Boolean(value));
     const groupName =
       detectGroup(metadata) ||
       detectGroup([worksheet]) ||
@@ -306,6 +337,7 @@ export function parseStudentRosterWorkbook(input: Buffer | Uint8Array): RosterWo
         birthDate,
         grade,
         groupName,
+        schoolYear,
         rowNumber: index + 1,
         needsReview: needsReview.length ? needsReview : undefined,
       };
@@ -316,6 +348,7 @@ export function parseStudentRosterWorkbook(input: Buffer | Uint8Array): RosterWo
       grade,
       section,
       groupName,
+      schoolYear,
       needsGradeSelection: !grade,
       students,
       invalidRows,

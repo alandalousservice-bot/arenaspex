@@ -41,6 +41,7 @@
     ]
   },
   "dependencies": {
+    "@embedpdf/pdfium": "^2.15.1",
     "@geoalgeria/ecoles": "^2.1.0",
     "@google/genai": "^2.4.0",
     "@prisma/client": "^6.3.1",

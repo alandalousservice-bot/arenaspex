@@ -4,6 +4,7 @@
  */
 
 import { Router } from 'express';
+import path from 'node:path';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import {
@@ -102,6 +103,15 @@ import {
   rosterPreviewSummary,
   type ParsedRosterStudent,
 } from '../services/studentRosterImport.service.js';
+import {
+  parseStudentRosterPdf,
+  StudentRosterPdfImportError,
+} from '../services/studentRosterPdfImport.service.js';
+import {
+  persistStudentRosterDocumentGroups,
+  prepareStudentRosterDocumentGroups,
+  StudentRosterDocumentConfirmError,
+} from '../services/studentRosterDocumentConfirm.service.js';
 import { deleteOwnedStudent, StudentDeletionError } from '../services/studentDeletion.service.js';
 import { buildStudentRosterReadModel } from '../services/studentRosterReadModel.service.js';
 import { persistStudentRosterRows } from '../services/studentRosterPersistence.service.js';
@@ -2850,20 +2860,74 @@ apiRouter.put(
     res.json({ success: true, created: !existing, result: criterionResultView(saved) });
   }
 );
-apiRouter.post('/students/import/preview', async (req, res) => {
+apiRouter.post('/students/import/preview', requireRole('teacher'), async (req, res) => {
+  const startedAt = Date.now();
   try {
-    const filename = String(req.body?.filename || '').toLowerCase();
-    const content = String(req.body?.contentBase64 || '');
-    if (!/\.(xlsx|xls)$/.test(filename) || !content || content.length > 2_000_000)
+    const rawFile = Buffer.isBuffer(req.body) ? req.body : null;
+    const filename = String(rawFile ? req.query.filename || '' : req.body?.filename || '');
+    const extension = path.extname(path.basename(filename)).toLowerCase();
+    const sourceName = path.basename(filename).slice(0, 180);
+    if (extension === '.pdf') {
+      if (!rawFile || req.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/pdf')
+        return res.status(400).json({ error: 'تعذر التعرف على بنية ملف PDF.' });
+      const parsed = await parseStudentRosterPdf(rawFile);
+      const previews = parsed.previews.map((preview) => ({
+        ...preview,
+        id: preview.id || preview.worksheet,
+        schoolYear: parsed.schoolYear,
+      }));
+      const summary = rosterPreviewSummary(previews);
+      res.json({
+        success: true,
+        source: 'pdf',
+        sourceName,
+        pageCount: parsed.pageCount,
+        schoolYear: parsed.schoolYear,
+        previews,
+        summary,
+        processingMs: Date.now() - startedAt,
+      });
+      return;
+    }
+    if (!['.xlsx', '.xls'].includes(extension) || rawFile)
       return res.status(400).json({ error: 'تعذر التعرف على بنية الملف.' });
-    const previews = parseStudentRosterWorkbook(Buffer.from(content, 'base64'));
+    const content = String(req.body?.contentBase64 || '');
+    if (!content || content.length > 2_000_000 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(content))
+      return res.status(400).json({ error: 'تعذر التعرف على بنية الملف.' });
+    const bytes = Buffer.from(content, 'base64');
+    if (extension === '.xlsx' && !(bytes[0] === 0x50 && bytes[1] === 0x4b))
+      return res.status(400).json({ error: 'تعذر التعرف على بنية ملف Excel.' });
     if (
-      !previews.length ||
-      previews.every((preview) => !preview.students.length && !preview.invalidRows.length)
+      extension === '.xls' &&
+      !Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]).equals(bytes.subarray(0, 8))
+    )
+      return res.status(400).json({ error: 'تعذر التعرف على بنية ملف Excel.' });
+    const parsedPreviews = parseStudentRosterWorkbook(bytes);
+    if (
+      !parsedPreviews.length ||
+      parsedPreviews.every((preview) => !preview.students.length && !preview.invalidRows.length)
     )
       return res.status(400).json({ error: 'لم يتم العثور على أعمدة قائمة التلاميذ.' });
-    res.json({ success: true, previews, summary: rosterPreviewSummary(previews) });
-  } catch {
+    const previews = parsedPreviews.map((preview) => ({
+      ...preview,
+      id: preview.worksheet,
+      schoolYear: preview.schoolYear,
+    }));
+    const schoolYear = previews.map((preview) => preview.schoolYear).find(Boolean);
+    res.json({
+      success: true,
+      source: extension.slice(1),
+      sourceName,
+      schoolYear,
+      previews,
+      summary: rosterPreviewSummary(previews),
+      processingMs: Date.now() - startedAt,
+    });
+  } catch (error) {
+    if (error instanceof StudentRosterPdfImportError) {
+      const status = error.code === 'FILE_TOO_LARGE' ? 413 : 400;
+      return res.status(status).json({ error: error.message, code: error.code });
+    }
     res.status(400).json({ error: 'تعذر التعرف على بنية الملف.' });
   }
 });
@@ -2935,7 +2999,39 @@ apiRouter.delete('/students/:studentId', requireRole('teacher'), async (req, res
   }
 });
 
-apiRouter.post('/students/import/confirm', async (req, res) => {
+apiRouter.post('/students/import/confirm', requireRole('teacher'), async (req, res) => {
+  if (Array.isArray(req.body?.groups)) {
+    try {
+      const groups = prepareStudentRosterDocumentGroups(req.body.groups);
+      const result = await prisma.$transaction(
+        (tx) =>
+          persistStudentRosterDocumentGroups(tx, {
+            groups,
+            teacherId: req.user!.id,
+            institutionId: req.user!.institutionId || null,
+          }),
+        { maxWait: 10000, timeout: 45000 }
+      );
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      if (error instanceof StudentRosterDocumentConfirmError) {
+        const status = error.code === 'AMBIGUOUS_CLASS' ? 409 : 400;
+        const messages: Record<StudentRosterDocumentConfirmError['code'], string> = {
+          INVALID_GROUPS: 'بيانات الأقسام المحددة غير مكتملة أو غير صالحة.',
+          INVALID_ROW: 'توجد سجلات غير مكتملة. راجع رقم التعريف والاسم وتاريخ الميلاد.',
+          DUPLICATE_IN_FILE: 'رقم التعريف موجود في أكثر من قسم داخل الملف أو مكرر ببيانات متعارضة.',
+          AMBIGUOUS_CLASS: 'تعذر تحديد قسم مطابق بشكل قاطع. راجع الأقسام المتشابهة قبل الاستيراد.',
+        };
+        return res.status(status).json({ error: messages[error.code], code: error.code });
+      }
+      if ((error as { code?: string })?.code === 'P2028')
+        return res.status(504).json({ error: 'استغرقت عملية حفظ القوائم وقتاً أطول من المتوقع. لم تُعتمد العملية.' });
+      console.error('Student roster document import failed:', {
+        code: (error as { code?: string })?.code || 'UNEXPECTED_ERROR',
+      });
+      return res.status(500).json({ error: 'تعذر حفظ قائمة التلاميذ. لم تُعتمد العملية.' });
+    }
+  }
   if (req.user!.role !== 'teacher')
     return res.status(403).json({ error: 'استيراد القوائم متاح للأستاذ فقط.' });
   const rows = Array.isArray(req.body?.rows) ? (req.body.rows as ParsedRosterStudent[]) : [];

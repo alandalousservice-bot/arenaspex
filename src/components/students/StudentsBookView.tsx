@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import {
   previewStudentRoster,
-  confirmStudentRosterImport,
+  confirmStudentRosterGroups,
   StudentClassDeleteApiError,
   type StudentClassDeleteBlockers,
   fetchTeacherMedicalExemptions,
@@ -26,12 +26,14 @@ import {
 } from '../../services/api';
 import { Student, ClassRoom, User, MedicalExemptionDto } from '../../types/spex';
 import { StudentFollowUpCard } from './StudentFollowUpCard';
-import {
-  canonicalClassIdentityKey,
-  findCrossClassMatriculeConflicts,
-} from '../../services/studentRosterImport.service';
+import { findCrossClassMatriculeConflicts } from '../../services/studentRosterImport.service';
 
 type RegisterTab = 'roster' | 'exempted' | 'clubs';
+
+function maskRosterIdentity(value: string): string {
+  if (value.length <= 8) return `${'•'.repeat(Math.max(0, value.length - 2))}${value.slice(-2)}`;
+  return `${value.slice(0, 4)}••••••${value.slice(-4)}`;
+}
 
 export interface StudentsBookViewProps {
   classes?: ClassRoom[];
@@ -91,6 +93,12 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
   const [newStudentRegNo, setNewStudentRegNo] = useState<string>('');
   const [rosterPreview, setRosterPreview] = useState<any | null>(null);
   const [rosterFileName, setRosterFileName] = useState('');
+  const [selectedRosterGroups, setSelectedRosterGroups] = useState<string[]>([]);
+  const [rosterSchoolYear, setRosterSchoolYear] = useState('');
+  const [rosterGradeOverrides, setRosterGradeOverrides] = useState<Record<string, number>>({});
+  const [rosterClassNameOverrides, setRosterClassNameOverrides] = useState<Record<string, string>>({});
+  const [rosterSectionOverrides, setRosterSectionOverrides] = useState<Record<string, string>>({});
+  const [rosterYearOverrides, setRosterYearOverrides] = useState<Record<string, string>>({});
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterError, setRosterError] = useState('');
   const [blockedClassDelete, setBlockedClassDelete] = useState<{
@@ -305,7 +313,14 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
     setBlockedClassDelete(null);
     setRosterFileName(file.name);
     try {
-      setRosterPreview(await previewStudentRoster(file));
+      const preview = await previewStudentRoster(file);
+      setRosterPreview(preview);
+      setSelectedRosterGroups((preview.previews || []).map((item: any) => item.id || item.worksheet));
+      setRosterSchoolYear(preview.schoolYear || '');
+      setRosterGradeOverrides({});
+      setRosterClassNameOverrides({});
+      setRosterSectionOverrides({});
+      setRosterYearOverrides({});
     } catch (error) {
       setRosterError(error instanceof Error ? error.message : 'تعذر التعرف على بنية الملف.');
     } finally {
@@ -314,95 +329,79 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
   };
 
   const confirmRoster = async () => {
-    if (!rosterPreview || !activeClass) return;
-    const previews = rosterPreview.previews.filter(
-      (preview: any) => (preview.students || []).length
+    if (!rosterPreview) return;
+    const previews = (rosterPreview.previews || []).filter(
+      (preview: any) => selectedRosterGroups.includes(preview.id || preview.worksheet)
     );
     if (!previews.length) {
-      setRosterError('تم التعرف على القسم، لكن لم يتم العثور على أسماء تلاميذ صالحة للاستيراد.');
+      setRosterError('حدد قسماً واحداً على الأقل يحتوي سجلات صالحة.');
       return;
     }
     const crossClassConflicts = findCrossClassMatriculeConflicts(previews);
     if (crossClassConflicts.length) {
-      setRosterError(
-        `تعذر الاستيراد: رقم التسجيل ${crossClassConflicts.join('، ')} مرتبط بأكثر من قسم في الملف.`
-      );
+      setRosterError('رقم التعريف موجود في أكثر من قسم داخل الملف. راجع القائمة قبل التأكيد.');
+      return;
+    }
+    const groups = previews.map((preview: any) => {
+      const key = preview.id || preview.worksheet;
+      const isPdf = rosterPreview.source === 'pdf';
+      const grade = Number(rosterGradeOverrides[key] ?? preview.grade) || undefined;
+      const section = String(rosterSectionOverrides[key] ?? preview.section ?? '').trim();
+      const schoolYear = String(rosterYearOverrides[key] ?? preview.schoolYear ?? rosterSchoolYear).trim().replace(/[/.]/g, '-').replace(/\s+/g, '');
+      const gradeNames = ['', 'الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة'];
+      const groupName = isPdf
+        ? grade && section ? `السنة ${gradeNames[grade]} ابتدائي ${section}` : ''
+        : String(rosterClassNameOverrides[key] ?? preview.groupName ?? '').trim();
+      return {
+        groupName,
+        grade,
+        section: isPdf ? section : preview.section,
+        schoolYear,
+        source: rosterPreview.source,
+        rows: (preview.students || []).map((row: any) => ({
+          matricule: row.matricule,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          birthDate: row.birthDate,
+          rowNumber: row.rowNumber,
+        })),
+      };
+    });
+    const invalidMetadata = groups.some((group) => {
+      const year = group.schoolYear || '';
+      const validYear = /^20\d{2}-20\d{2}$/.test(year) && Number(year.slice(5)) === Number(year.slice(0, 4)) + 1;
+      const section = String(group.section || '').normalize('NFKC').replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+      return !group.groupName || !Number.isInteger(group.grade) || group.grade! < 1 || group.grade! > 5 ||
+        group.rows.length === 0 || !validYear || (rosterPreview.source === 'pdf' && (!/^\d{1,4}$/.test(section) || Number(section) < 1));
+    });
+    if (invalidMetadata) {
+      setRosterError(rosterPreview.source === 'pdf'
+        ? 'يرجى تحديد المستوى والقسم والسنة الدراسية للقوائم التي تحتاج إلى مراجعة.'
+        : 'أكمل المستوى واسم القسم والسنة الدراسية وتأكد من وجود تلاميذ صالحين لكل قسم محدد.');
+      return;
+    }
+    const pdfIdentities = groups.filter((group) => group.source === 'pdf').map((group) => `${group.grade}|${Number(group.section)}|${group.schoolYear}`);
+    if (new Set(pdfIdentities).size !== pdfIdentities.length) {
+      setRosterError('تم تحديد نفس المستوى والقسم لأكثر من قائمة. يرجى مراجعة الاختيارات.');
       return;
     }
     setRosterLoading(true);
     setRosterError('');
     setBlockedClassDelete(null);
     try {
-      let created = 0;
-      let existing = 0;
-      let reassociated = 0;
-      let conflicts = 0;
-      let review = 0;
-      let classesImported = 0;
-      const reviewReasonCounts = {
-        foreignOwner: 0,
-        ambiguousMatch: 0,
-        duplicateWorkbookMembership: 0,
-        invalidIdentity: 0,
-        institutionMismatch: 0,
-        other: 0,
-      };
-      for (const preview of previews) {
-        const grade =
-          Number(preview.grade) ||
-          Number(('levelId' in activeClass ? activeClass.levelId : '').replace('lvl_p', '')) ||
-          1;
-        const levelId = `lvl_p${grade}`;
-        const targetClassName = preview.groupName || `السنة ${grade} ابتدائي`;
-        const targetClassIdentity = canonicalClassIdentityKey(levelId, targetClassName);
-        const matched =
-          classes.find(
-            (item) =>
-              item.levelId === levelId &&
-              canonicalClassIdentityKey(item.levelId, item.name) === targetClassIdentity
-          ) ||
-          (!preview.groupName &&
-          grade ===
-            Number(('levelId' in activeClass ? activeClass.levelId : '').replace('lvl_p', ''))
-            ? activeClass
-            : undefined);
-        const effectiveClassName = preview.groupName || matched?.name || targetClassName;
-        const destinationId =
-          matched?.id ||
-          (() => {
-            const id = onAddClass?.({
-              name: effectiveClassName,
-              levelId,
-              studentCount: preview.students.length,
-            });
-            return id;
-          })() ||
-          activeClass.id;
-        const result = await confirmStudentRosterImport(
-          preview.students,
-          destinationId,
-          grade,
-          effectiveClassName,
-          levelId
-        );
-        created += result.summary.created;
-        existing += result.summary.existing;
-        reassociated += result.summary.reassociated;
-        conflicts += result.summary.conflicts;
-        review += result.summary.review;
-        Object.entries(result.summary.reviewReasonCounts).forEach(([reason, count]) => {
-          if (reason in reviewReasonCounts)
-            reviewReasonCounts[reason as keyof typeof reviewReasonCounts] += count;
-        });
-        setSelectedClassId(result.classId);
-        classesImported += 1;
-      }
+      const result = await confirmStudentRosterGroups(groups);
       await onRefreshRoster?.();
+      if (result.classes[0]?.id) setSelectedClassId(result.classes[0].id);
+      const invalidRows = previews.reduce(
+        (total: number, preview: any) => total + (preview.invalidRows?.length || 0),
+        0
+      );
       window.alert(
-        `تم استيراد ${classesImported} قسم بنجاح\nالجدد: ${created}\nالموجودون مسبقاً: ${existing}\nالمعاد ربطهم بالأقسام: ${reassociated}\nبحاجة إلى مراجعة: ${conflicts + review}\n- تعارض ملكية سجل موجود: ${reviewReasonCounts.foreignOwner}\n- تطابق غامض: ${reviewReasonCounts.ambiguousMatch}\n- بيانات تعريف غير كافية: ${reviewReasonCounts.invalidIdentity}\n- اختلاف المؤسسة: ${reviewReasonCounts.institutionMismatch}`
+        `تم استيراد ${result.classes.length} أقسام\nالأقسام الجديدة: ${result.summary.classesCreated}\nالأقسام الموجودة: ${result.summary.classesReused}\nالتلاميذ الجدد: ${result.summary.created}\nالموجودون مسبقاً: ${result.summary.existing}\nالمعاد ربطهم: ${result.summary.reassociated}\nبحاجة إلى مراجعة: ${result.summary.review + invalidRows}`
       );
       setRosterPreview(null);
       setRosterFileName('');
+      setSelectedRosterGroups([]);
     } catch (error) {
       await onRefreshRoster?.().catch(() => undefined);
       setRosterError(error instanceof Error ? error.message : 'تعذر تأكيد الاستيراد.');
@@ -495,6 +494,28 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
     }
   };
 
+  const selectedRosterPreviews = (rosterPreview?.previews || []).filter((preview: any) =>
+    selectedRosterGroups.includes(preview.id || preview.worksheet)
+  );
+  const selectedPdfIdentityKeys = selectedRosterPreviews.map((preview: any) => {
+    const key = preview.id || preview.worksheet;
+    const grade = Number(rosterGradeOverrides[key] ?? preview.grade);
+    const section = String(rosterSectionOverrides[key] ?? preview.section ?? '').normalize('NFKC')
+      .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+    const year = String(rosterYearOverrides[key] ?? preview.schoolYear ?? rosterSchoolYear).trim()
+      .replace(/[/.]/g, '-').replace(/\s+/g, '');
+    return { identity: `${grade}|${Number(section)}|${year}`, grade, section, year };
+  });
+  const selectedPdfMetadataReady = rosterPreview?.source !== 'pdf' || (
+    selectedPdfIdentityKeys.length > 0 &&
+    selectedPdfIdentityKeys.every(({ grade, section, year }) =>
+      Number.isInteger(grade) && grade >= 1 && grade <= 5 && /^\d{1,4}$/.test(section) && Number(section) > 0 &&
+      /^20\d{2}-20\d{2}$/.test(year) && Number(year.slice(5)) === Number(year.slice(0, 4)) + 1
+    ) && new Set(selectedPdfIdentityKeys.map(({ identity }) => identity)).size === selectedPdfIdentityKeys.length
+  );
+  const selectedPdfHasDuplicateIdentity = rosterPreview?.source === 'pdf' &&
+    new Set(selectedPdfIdentityKeys.map(({ identity }) => identity)).size !== selectedPdfIdentityKeys.length;
+
   return (
     <div
       className="workspace-page workspace-page--students space-y-6 animate-in fade-in duration-200"
@@ -547,9 +568,14 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
             data-students-action="import-roster"
             className="workspace-button-outline flex items-center gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-2xl border shadow-md cursor-pointer"
           >
-            <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleRosterFile} />
+            <input type="file" accept=".pdf,.xlsx,.xls" className="hidden" onChange={handleRosterFile} />
             <Users className="w-4 h-4" />
-            <span>استيراد قائمة التلاميذ</span>
+            <span className="flex flex-col items-start">
+              <span>استيراد قائمة التلاميذ</span>
+              <span className="text-xs font-medium text-indigo-100">
+                يمكنك رفع القائمة المسلمة من إدارة المؤسسة بصيغة PDF أو Excel.
+              </span>
+            </span>
           </label>
 
           <button
@@ -1247,7 +1273,7 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
                   معاينة استيراد قائمة التلاميذ
                 </h3>
                 <p className="text-xs text-slate-500">
-                  {rosterFileName} — القسم المختار: {activeClass.name}
+                  {rosterPreview.sourceName || rosterFileName} — ستتم معاينة الملف قبل الحفظ
                 </p>
               </div>
               <button
@@ -1257,35 +1283,132 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-bold">
-              <div className="rounded-xl bg-blue-50 p-3">
-                الأوراق: {rosterPreview.summary.worksheets}
-              </div>
-              <div className="rounded-xl bg-emerald-50 p-3">
-                الصفوف الصالحة: {rosterPreview.summary.students}
-              </div>
-              <div className="rounded-xl bg-amber-50 p-3">
-                بحاجة لمراجعة: {rosterPreview.summary.invalidRows}
-              </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                مستوى يدوي: {rosterPreview.summary.needsGradeSelection}
-              </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-xs font-bold">
+              <div className="rounded-xl bg-blue-50 p-3">نوع الملف: {String(rosterPreview.source || '').toUpperCase()}</div>
+              {rosterPreview.pageCount ? <div className="rounded-xl bg-slate-50 p-3">صفحات PDF: {rosterPreview.pageCount}</div> : null}
+              <div className="rounded-xl bg-emerald-50 p-3">الأقسام المكتشفة: {rosterPreview.previews.length}</div>
+              <div className="rounded-xl bg-emerald-50 p-3">التلاميذ: {rosterPreview.summary.students}</div>
+              <div className="rounded-xl bg-amber-50 p-3">بحاجة لمراجعة: {rosterPreview.summary.invalidRows}</div>
             </div>
+            <label className="block rounded-xl border border-slate-200 p-3 text-xs font-bold">
+              السنة الدراسية
+              <input
+                type="text"
+                inputMode="numeric"
+                dir="ltr"
+                value={rosterSchoolYear}
+                onChange={(event) => setRosterSchoolYear(event.target.value)}
+                placeholder="2026-2027"
+                className="mt-2 w-full rounded-lg border border-slate-200 p-2 text-right"
+              />
+              {!rosterPreview.schoolYear ? (
+                <span className="mt-1 block font-medium text-amber-700">
+                  لم يتم اكتشاف السنة من الملف؛ أدخلها يدويًا قبل التأكيد.
+                </span>
+              ) : null}
+            </label>
+            {classes.length === 0 ? (
+              <p className="rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-800">
+                لا توجد أقسام مسجلة بعد. ستُنشأ الأقسام المحددة تلقائيًا عند التأكيد.
+              </p>
+            ) : null}
             {rosterError && (
               <p role="alert" className="rounded-xl bg-rose-50 p-3 text-xs font-bold text-rose-700">
                 {rosterError}
               </p>
             )}
-            {rosterPreview.previews.map((preview: any) => (
-              <div
-                key={preview.worksheet}
-                className="rounded-2xl border border-slate-200 overflow-hidden"
-              >
-                <div className="bg-slate-50 p-3 text-xs font-bold">
-                  {preview.worksheet} —{' '}
-                  {preview.grade ? `السنة ${preview.grade}` : 'المستوى غير محدد'}{' '}
-                  {preview.groupName ? `— ${preview.groupName}` : ''}
+            {rosterPreview.source === 'pdf' && selectedRosterGroups.length > 0 && !selectedPdfMetadataReady ? (
+              <p role="status" className="rounded-xl bg-amber-50 p-3 text-xs font-bold text-amber-800">
+                {selectedPdfHasDuplicateIdentity
+                  ? 'تم تحديد نفس المستوى والقسم لأكثر من قائمة. يرجى مراجعة الاختيارات.'
+                  : 'يرجى تحديد المستوى والقسم والسنة الدراسية للقوائم التي تحتاج إلى مراجعة.'}
+              </p>
+            ) : null}
+            {rosterPreview.previews.map((preview: any, previewIndex: number) => {
+              const key = preview.id || preview.worksheet;
+              const selected = selectedRosterGroups.includes(key);
+              const isPdf = rosterPreview.source === 'pdf';
+              const grade = rosterGradeOverrides[key] ?? preview.grade ?? '';
+              const section = rosterSectionOverrides[key] ?? preview.section ?? '';
+              const year = rosterYearOverrides[key] ?? preview.schoolYear ?? rosterSchoolYear;
+              const gradeNames = ['', 'الأولى', 'الثانية', 'الثالثة', 'الرابعة', 'الخامسة'];
+              const className = isPdf
+                ? grade && section ? `السنة ${gradeNames[Number(grade)]} ابتدائي ${section}` : `القائمة ${previewIndex + 1}`
+                : rosterClassNameOverrides[key] ?? preview.groupName ?? preview.worksheet;
+              const pageRange = preview.pageStart
+                ? preview.pageEnd && preview.pageEnd !== preview.pageStart
+                  ? `الصفحات ${preview.pageStart}–${preview.pageEnd}`
+                  : `الصفحة ${preview.pageStart}`
+                : '';
+              return (
+              <div key={key} className="rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-3 text-xs font-bold">
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    onChange={(event) => setSelectedRosterGroups((current) => event.target.checked ? [...current, key] : current.filter((id) => id !== key))}
+                    aria-label={`استيراد القائمة ${previewIndex + 1}`}
+                    className="h-4 w-4 accent-emerald-700"
+                  />
+                  <span className="min-w-36 flex-1">
+                    {isPdf ? `قائمة ${previewIndex + 1} — ${pageRange} • ${preview.students.length} تلميذًا` : `${className} — ${preview.students.length} تلميذًا`}
+                  </span>
+                  {isPdf || !preview.grade ? (
+                    <label className="flex items-center gap-2">
+                      المستوى
+                      <select
+                        value={grade}
+                        onChange={(event) => setRosterGradeOverrides((current) => ({ ...current, [key]: event.target.value ? Number(event.target.value) : 0 }))}
+                        className="rounded-lg border border-slate-200 bg-white p-2"
+                      >
+                        <option value="">اختر المستوى</option>
+                        {[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>السنة {gradeNames[value]} ابتدائي</option>)}
+                      </select>
+                    </label>
+                  ) : <span className="rounded-full bg-white px-2 py-1">السنة {preview.grade}</span>}
                 </div>
+                {isPdf ? (
+                  <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <label className="text-xs font-bold">
+                      القسم
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        dir="ltr"
+                        maxLength={4}
+                        value={section}
+                        onChange={(event) => setRosterSectionOverrides((current) => ({ ...current, [key]: event.target.value }))}
+                        placeholder="01"
+                        className="mt-2 w-full rounded-lg border border-slate-200 p-2 text-right"
+                      />
+                    </label>
+                    <label className="text-xs font-bold">
+                      السنة الدراسية
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        dir="ltr"
+                        value={year}
+                        onChange={(event) => setRosterYearOverrides((current) => ({ ...current, [key]: event.target.value }))}
+                        placeholder="2026-2027"
+                        className="mt-2 w-full rounded-lg border border-slate-200 p-2 text-right"
+                      />
+                    </label>
+                    <p className={`self-end rounded-lg p-2 text-xs font-bold ${grade && section && year ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+                      {grade && section && year ? '✓ جاهزة للاستيراد بعد المراجعة' : 'قائمة تحتاج إلى تحديد المستوى والقسم والسنة'}
+                    </p>
+                  </div>
+                ) : !preview.groupName || preview.needsGradeSelection ? (
+                  <label className="block p-3 text-xs font-bold">
+                    اسم القسم
+                    <input
+                      value={className}
+                      onChange={(event) => setRosterClassNameOverrides((current) => ({ ...current, [key]: event.target.value }))}
+                      placeholder="مثال: السنة الرابعة ابتدائي 01"
+                      className="mt-2 w-full rounded-lg border border-slate-200 p-2"
+                    />
+                  </label>
+                ) : null}
                 <div className="overflow-x-auto">
                   <table className="w-full text-right text-xs">
                     <thead>
@@ -1297,9 +1420,9 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {preview.students.slice(0, 8).map((row: any) => (
-                        <tr key={`${preview.worksheet}-${row.rowNumber}`} className="border-b">
-                          <td className="p-2 font-mono">{row.matricule}</td>
+                      {preview.students.slice(0, 5).map((row: any) => (
+                        <tr key={`${key}-${row.rowNumber}`} className="border-b">
+                          <td className="p-2 font-mono" dir="ltr">{maskRosterIdentity(String(row.matricule || ''))}</td>
                           <td className="p-2">{row.lastName}</td>
                           <td className="p-2">{row.firstName}</td>
                           <td className="p-2">{row.birthDate || '—'}</td>
@@ -1308,21 +1431,26 @@ export const StudentsBookView: React.FC<StudentsBookViewProps> = ({
                     </tbody>
                   </table>
                 </div>
+                {preview.invalidRows?.length ? (
+                  <p className="border-t border-amber-100 bg-amber-50 p-2 text-xs font-bold text-amber-800">
+                    سجلات تحتاج مراجعة: {preview.invalidRows.length}
+                  </p>
+                ) : null}
               </div>
-            ))}
+            );})}
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setRosterPreview(null)}
+                onClick={() => { setRosterPreview(null); setSelectedRosterGroups([]); }}
                 className="px-4 py-2 rounded-xl bg-slate-100 text-xs font-bold"
               >
                 إلغاء
               </button>
-              <button
-                disabled={rosterLoading}
+                  <button
+                disabled={rosterLoading || !selectedRosterGroups.length || !selectedPdfMetadataReady}
                 onClick={() => void confirmRoster()}
                 className="px-5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold disabled:opacity-50"
               >
-                {rosterLoading ? 'جارٍ الاستيراد...' : 'تأكيد الاستيراد'}
+                {rosterLoading ? 'جارٍ الاستيراد...' : 'تأكيد استيراد الأقسام المحددة'}
               </button>
             </div>
           </div>
