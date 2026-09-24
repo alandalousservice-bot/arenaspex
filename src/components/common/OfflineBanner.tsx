@@ -42,7 +42,7 @@ export const OfflineBanner: React.FC<{ isOfflineSession?: boolean }> = ({ isOffl
   if (isOnline && !isOfflineSession && outboxCount === 0) return null;
 
   return (
-    <div className="sticky top-0 z-[60] w-full bg-amber-500 text-amber-950 text-xs font-bold px-4 py-2 flex items-center justify-center gap-2 shadow-sm">
+    <div className="app-offline-banner sticky top-0 z-[60] w-full bg-amber-500 text-amber-950 text-xs font-bold px-4 py-2 flex items-center justify-center gap-2 shadow-sm">
       {!isOnline || isOfflineSession ? (
         <>
           <WifiOff className="w-4 h-4" />

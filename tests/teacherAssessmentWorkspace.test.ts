@@ -3,6 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { pathToTab, ROLE_TABS } from '../src/lib/routes';
 
 const read = (path: string) => readFileSync(path, 'utf8');
+const cssRules = (styles: string) =>
+  [...styles.replace(/\s+/g, ' ').matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => ({
+    selectors: match[1].split(',').map((selector) => selector.trim()),
+    declarations: match[2].trim(),
+  }));
+const cssRule = (styles: string, selector: string) =>
+  cssRules(styles).find((rule) => rule.selectors.includes(selector))?.declarations || '';
 
 describe('unified Teacher assessment notebook', () => {
   it('routes the unified notebook and preserves legacy assessment links', () => {
@@ -126,8 +133,98 @@ describe('unified Teacher assessment notebook', () => {
       '.assessment-notebook-root > *:has(.individual-student-print-root)'
     );
     expect(styles).toContain('display: block;');
-    expect(styles).toContain("[role='dialog'] {\n    display: contents !important;");
+    expect(cssRule(styles, "body:has(.individual-student-print-root) [role='dialog']")).toContain(
+      'display: contents !important'
+    );
     expect(styles).toContain('page-break-inside: avoid');
     expect(styles).toContain('page-break-before: always');
+  });
+
+  it('isolates batch print without hiding its ancestors and shares the canonical student sheet', () => {
+    const styles = read('src/index.css');
+    const compact = styles.replace(/\s+/g, ' ');
+    const rules = cssRules(styles);
+    const batch = (selector: string) => `body:has(.individual-batch-print-root) ${selector}`;
+
+    expect(compact).not.toMatch(
+      /body:has\(\.individual-batch-print-root\) #root\s*>\s*\*\s*\{\s*display:\s*none\s*!important/
+    );
+    for (const selector of ['#root', '.app-shell', '.app-shell main', '.assessment-notebook-root']) {
+      const rule = rules.find((item) => item.selectors.includes(batch(selector)));
+      expect(rule, `missing batch ancestor-preserving selector for ${selector}`).toBeDefined();
+      expect(rule?.declarations).toContain('display: block !important');
+      expect(rule?.declarations).toContain('overflow: visible !important');
+      expect(rule?.declarations).toContain('height: auto !important');
+    }
+
+    for (const selector of ['.app-shell-header', '.app-shell-sidebar']) {
+      expect(cssRule(styles, batch(selector))).toContain('display: none !important');
+    }
+    expect(
+      rules.some((rule) =>
+        rule.selectors.includes(
+          batch('.assessment-notebook-root > *:not(:has(.individual-batch-print-root))')
+        ) && rule.declarations.includes('display: none !important')
+      )
+    ).toBe(true);
+    expect(
+      rules.some((rule) =>
+        rule.selectors.includes(
+          batch(
+            '.assessment-notebook-root > *:has(.individual-batch-print-root) > *:not(.individual-batch-print-root):not(:has(.individual-batch-print-root))'
+          )
+        ) && rule.declarations.includes('display: none !important')
+      )
+    ).toBe(true);
+    expect(cssRule(styles, batch('.individual-batch-print-root'))).toContain('display: block');
+
+    for (const shared of [
+      '.individual-student-print-header',
+      '.individual-student-print-header h1',
+      '.individual-student-print-meta',
+      '.individual-student-print-competency',
+      '.individual-student-print-table',
+      '.individual-student-print-table th',
+      '.individual-student-print-table tr',
+      '.individual-student-print-footer',
+    ]) {
+      expect(cssRule(styles, batch(shared)), `batch print missing shared style ${shared}`).not.toBe('');
+      expect(cssRule(styles, `body:has(.individual-student-print-root) ${shared}`)).not.toBe('');
+    }
+
+    expect(compact).toContain('@page individual-student-grid { size: A4 portrait; margin: 12mm;');
+    expect(cssRule(styles, batch('.individual-student-print-page:first-child'))).toContain(
+      'break-before: auto'
+    );
+    expect(cssRule(styles, batch('.individual-student-print-page:first-child')).replace(/\s+/g, ' ')).toContain(
+      'page-break-before: auto'
+    );
+    expect(cssRule(styles, '.individual-batch-print-root')).toContain('display: none');
+  });
+
+  it('hides the offline sync banner only in individual and batch assessment print', () => {
+    const styles = read('src/index.css');
+    const offlineBanner = read('src/components/common/OfflineBanner.tsx');
+    const rules = cssRules(styles);
+    const screenStyles = styles.slice(0, styles.indexOf('@media print'));
+
+    expect(offlineBanner).toContain('className="app-offline-banner sticky');
+    for (const selector of [
+      'body:has(.individual-student-print-root) .app-offline-banner',
+      'body:has(.individual-batch-print-root) .app-offline-banner',
+    ]) {
+      const rule = rules.find((item) => item.selectors.includes(selector));
+      expect(rule, `missing print-only banner rule for ${selector}`).toBeDefined();
+      expect(rule?.declarations).toContain('display: none !important');
+    }
+
+    expect(screenStyles).not.toContain('.app-offline-banner');
+    expect(
+      rules.some(
+        (rule) =>
+          rule.selectors.includes('body:has(.individual-batch-print-root) #root > *') &&
+          rule.declarations.includes('display: none')
+      )
+    ).toBe(false);
   });
 });

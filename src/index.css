@@ -1136,7 +1136,8 @@
   }
 
   body:has(.individual-student-print-root) .app-shell-header,
-  body:has(.individual-student-print-root) .app-shell-sidebar {
+  body:has(.individual-student-print-root) .app-shell-sidebar,
+  body:has(.individual-student-print-root) .app-offline-banner {
     display: none !important;
   }
 
@@ -1222,8 +1223,75 @@
     background: #fff;
   }
 
-  body:has(.individual-batch-print-root) #root > * {
+  body:has(.individual-batch-print-root) .app-shell-header,
+  body:has(.individual-batch-print-root) .app-shell-sidebar,
+  body:has(.individual-batch-print-root) .app-offline-banner {
     display: none !important;
+  }
+
+  body:has(.individual-batch-print-root) #root,
+  body:has(.individual-batch-print-root) .app-shell,
+  body:has(.individual-batch-print-root) .app-shell > .flex-1,
+  body:has(.individual-batch-print-root) .app-shell main,
+  body:has(.individual-batch-print-root) .assessment-notebook-root {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  body:has(.individual-batch-print-root)
+    .assessment-notebook-root
+    > *:not(:has(.individual-batch-print-root)) {
+    display: none !important;
+  }
+
+  body:has(.individual-batch-print-root)
+    .assessment-notebook-root
+    > *:has(.individual-batch-print-root) {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  body:has(.individual-batch-print-root)
+    .assessment-notebook-root
+    > *:has(.individual-batch-print-root)
+    > *:not(.individual-batch-print-root):not(:has(.individual-batch-print-root)) {
+    display: none !important;
+  }
+
+  body:has(.individual-batch-print-root)
+    .assessment-notebook-root
+    > *:has(.individual-batch-print-root)
+    > *:has(.individual-batch-print-root) {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
   }
 
   body:has(.individual-batch-print-root) .individual-batch-print-root {
@@ -1248,26 +1316,30 @@
     page-break-before: auto;
   }
 
-  body:has(.individual-student-print-root) .individual-student-print-header {
+  body:has(.individual-student-print-root) .individual-student-print-header,
+  body:has(.individual-batch-print-root) .individual-student-print-header {
     border-bottom: 2px solid #047857;
     padding-bottom: 6mm;
   }
 
-  body:has(.individual-student-print-root) .individual-student-print-header h1 {
+  body:has(.individual-student-print-root) .individual-student-print-header h1,
+  body:has(.individual-batch-print-root) .individual-student-print-header h1 {
     margin: 3mm 0;
     color: #064e3b;
     font-size: 20pt;
     text-align: center;
   }
 
-  body:has(.individual-student-print-root) .individual-student-print-meta {
+  body:has(.individual-student-print-root) .individual-student-print-meta,
+  body:has(.individual-batch-print-root) .individual-student-print-meta {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 2mm 5mm;
     font-size: 10pt;
   }
 
-  body:has(.individual-student-print-root) .individual-student-print-competency {
+  body:has(.individual-student-print-root) .individual-student-print-competency,
+  body:has(.individual-batch-print-root) .individual-student-print-competency {
     margin-top: 4mm;
     border: 1px solid #a7f3d0;
     background: #ecfdf5;
@@ -1275,7 +1347,8 @@
     font-size: 10.5pt;
   }
 
-  body:has(.individual-student-print-root) .individual-student-print-table {
+  body:has(.individual-student-print-root) .individual-student-print-table,
+  body:has(.individual-batch-print-root) .individual-student-print-table {
     width: 100%;
     margin-top: 6mm;
     border-collapse: collapse;
@@ -1283,24 +1356,29 @@
   }
 
   body:has(.individual-student-print-root) .individual-student-print-table th,
-  body:has(.individual-student-print-root) .individual-student-print-table td {
+  body:has(.individual-student-print-root) .individual-student-print-table td,
+  body:has(.individual-batch-print-root) .individual-student-print-table th,
+  body:has(.individual-batch-print-root) .individual-student-print-table td {
     border: 1px solid #64748b;
     padding: 3mm;
     vertical-align: top;
   }
 
-  body:has(.individual-student-print-root) .individual-student-print-table th {
+  body:has(.individual-student-print-root) .individual-student-print-table th,
+  body:has(.individual-batch-print-root) .individual-student-print-table th {
     background: #065f46;
     color: #fff;
     font-weight: 700;
   }
 
-  body:has(.individual-student-print-root) .individual-student-print-table tr {
+  body:has(.individual-student-print-root) .individual-student-print-table tr,
+  body:has(.individual-batch-print-root) .individual-student-print-table tr {
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
-  body:has(.individual-student-print-root) .individual-student-print-footer {
+  body:has(.individual-student-print-root) .individual-student-print-footer,
+  body:has(.individual-batch-print-root) .individual-student-print-footer {
     display: flex;
     justify-content: space-between;
     gap: 8mm;
