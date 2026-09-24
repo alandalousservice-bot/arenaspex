@@ -6,6 +6,7 @@ import {
 import {
   MAX_STUDENT_ROSTER_PDF_BYTES,
   parseStudentRosterPdf,
+  reservePdfiumJob,
   StudentRosterPdfImportError,
 } from '../src/services/studentRosterPdfImport.service';
 
@@ -134,6 +135,24 @@ describe('position-aware text PDF roster parser', () => {
     expect(result.previews.map((item) => item.students.length)).toEqual([2, 2]);
   });
 
+  it('prefills confidently detected metadata and marks unidentified metadata for review', async () => {
+    const detected = await parseStudentRosterPdf(makePdf([makeRosterPage([1], { grade: 3, section: '04' })]));
+    expect(detected.previews[0]).toMatchObject({
+      grade: 3,
+      section: '04',
+      schoolYear: '2026-2027',
+      metadataStatus: 'DETECTED',
+    });
+
+    const unidentified = await parseStudentRosterPdf(makePdf([makeRosterPage([1]) ]));
+    expect(unidentified.previews[0]).toMatchObject({
+      metadataStatus: 'NEEDS_REVIEW',
+    });
+    expect(unidentified.previews[0].grade).toBeUndefined();
+    expect(unidentified.previews[0].section).toBeUndefined();
+    expect(unidentified.previews[0].schoolYear).toBeUndefined();
+  });
+
   it('normalizes year separators and considers section 01 and 1 identical', () => {
     expect(normalizeRosterSchoolYear('2026 / 2027')).toBe('2026-2027');
     expect(normalizeRosterSchoolYear('2026-2028')).toBeUndefined();
@@ -161,5 +180,16 @@ describe('position-aware text PDF roster parser', () => {
     await expect(parseStudentRosterPdf(oversized)).rejects.toMatchObject({
       code: 'FILE_TOO_LARGE',
     });
+  });
+
+  it('releases a pre-body queue reservation when PDF validation fails', async () => {
+    const permit = reservePdfiumJob();
+    expect(permit).toBeDefined();
+    await expect(parseStudentRosterPdf(Buffer.from('not a pdf'), permit)).rejects.toMatchObject({
+      code: 'INVALID_PDF',
+    });
+    const available = [reservePdfiumJob(), reservePdfiumJob(), reservePdfiumJob()];
+    expect(available.every(Boolean)).toBe(true);
+    available.forEach((entry) => entry?.release());
   });
 });

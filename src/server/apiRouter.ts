@@ -107,6 +107,7 @@ import {
   parseStudentRosterPdf,
   StudentRosterPdfImportError,
 } from '../services/studentRosterPdfImport.service.js';
+import { takeStudentRosterPdfPermit } from './studentRosterPreviewIngress.js';
 import {
   persistStudentRosterDocumentGroups,
   prepareStudentRosterDocumentGroups,
@@ -2870,7 +2871,7 @@ apiRouter.post('/students/import/preview', requireRole('teacher'), async (req, r
     if (extension === '.pdf') {
       if (!rawFile || req.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/pdf')
         return res.status(400).json({ error: 'تعذر التعرف على بنية ملف PDF.' });
-      const parsed = await parseStudentRosterPdf(rawFile);
+      const parsed = await parseStudentRosterPdf(rawFile, takeStudentRosterPdfPermit(req));
       const previews = parsed.previews.map((preview) => ({
         ...preview,
         id: preview.id || preview.worksheet,
@@ -2925,7 +2926,7 @@ apiRouter.post('/students/import/preview', requireRole('teacher'), async (req, r
     });
   } catch (error) {
     if (error instanceof StudentRosterPdfImportError) {
-      const status = error.code === 'FILE_TOO_LARGE' ? 413 : 400;
+      const status = error.code === 'FILE_TOO_LARGE' ? 413 : error.code === 'PARSER_BUSY' ? 503 : 400;
       return res.status(status).json({ error: error.message, code: error.code });
     }
     res.status(400).json({ error: 'تعذر التعرف على بنية الملف.' });

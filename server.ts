@@ -18,7 +18,11 @@ import { mountApiRoutes } from './src/server/apiAssembly.js';
 import { authRouter } from './src/server/authRouter.js';
 import { assignmentRouter } from './src/server/assignmentRouter.js';
 import { geoRouter } from './src/server/geoRouter.js';
-import { requireAuth, requireOperationalAccount } from './src/server/middleware/requireAuth.js';
+import { requireAuth, requireOperationalAccount, requireRole } from './src/server/middleware/requireAuth.js';
+import {
+  createStudentRosterPreviewIngress,
+  releaseUnconsumedStudentRosterPdfPermit,
+} from './src/server/studentRosterPreviewIngress.js';
 import { knowledgeCoreRuntime } from './src/domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntime.js';
 import { emitKnowledgeCoreRuntimeDiagnosticOnce } from './src/domain/pedagogicalKnowledge/runtime/knowledgeCoreRuntimeDiagnostic.js';
 import {
@@ -57,11 +61,15 @@ async function startServer() {
     })
   );
   app.use(cookieParser());
-  // PDF roster previews are accepted as bounded raw bytes; other JSON routes
-  // retain the existing 2 MB parser limit.
+  // Protect roster uploads before receiving large PDF bodies. Excel preview
+  // remains JSON-parsed below after the same teacher/account/rate gates.
   app.use(
     '/api/students/import/preview',
-    express.raw({ type: 'application/pdf', limit: '12mb' })
+    ...createStudentRosterPreviewIngress({
+      requireAuth,
+      requireOperationalAccount,
+      requireTeacher: requireRole('teacher'),
+    })
   );
   app.use(express.json({ limit: '2mb' }));
 
@@ -151,6 +159,7 @@ async function startServer() {
 
   // Error Handler — مع معالجة خاصة لأخطاء Neon E57P01 (terminating connection due to administrator command)
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    releaseUnconsumedStudentRosterPdfPermit(req);
     if (err?.type === 'entity.too.large')
       return res.status(413).json({ error: 'الملف أكبر من الحجم المسموح.' });
     const msg: string = (err?.message || '').toString();

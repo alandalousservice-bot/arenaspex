@@ -202,4 +202,40 @@ describe('teacher roster document confirm contract', () => {
       expect.objectContaining({ code: 'INVALID_GROUPS' })
     );
   });
+
+  it('accepts only the selected subset of reviewed PDF groups for confirmation', () => {
+    const sixGroups = [5, 4, 3, 2, 1, 1].map((grade, index) => ({
+      ...group(1),
+      source: 'pdf' as const,
+      grade,
+      section: index === 5 ? '02' : '01',
+      groupName: 'untrusted preview label',
+      rows: [{ ...group(1).rows[0], matricule: `110172000000${String(index + 1).padStart(4, '0')}` }],
+    }));
+    const selected = prepareStudentRosterDocumentGroups([sixGroups[1], sixGroups[4]]);
+    expect(selected.map((item) => `${item.grade}/${item.section}`)).toEqual(['4/01', '1/01']);
+    expect(selected).toHaveLength(2);
+  });
+
+  it('allows the teacher to override confidently detected PDF metadata before confirmation', () => {
+    const autoDetected = {
+      ...group(1),
+      source: 'pdf' as const,
+      groupName: 'السنة الثالثة ابتدائي 02',
+      grade: 3,
+      section: '02',
+    };
+    const reviewed = prepareStudentRosterDocumentGroups([{
+      ...autoDetected,
+      grade: 4,
+      section: '1',
+      groupName: 'teacher-entered label is not authoritative',
+    }]);
+    expect(reviewed[0]).toMatchObject({
+      grade: 4,
+      levelId: 'lvl_p4',
+      section: '01',
+      groupName: 'السنة الرابعة ابتدائي 01',
+    });
+  });
 });

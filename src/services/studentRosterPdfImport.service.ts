@@ -19,7 +19,8 @@ export class StudentRosterPdfImportError extends Error {
       | 'FILE_TOO_LARGE'
       | 'INVALID_PDF'
       | 'SCANNED_PDF'
-      | 'INVALID_STRUCTURE',
+      | 'INVALID_STRUCTURE'
+      | 'PARSER_BUSY',
     message: string
   ) {
     super(message);
@@ -61,6 +62,32 @@ type PdfiumRuntime = WrappedPdfiumModule['pdfium'] & {
 const require = createRequire(path.join(process.cwd(), 'package.json'));
 let pdfiumPromise: Promise<WrappedPdfiumModule> | undefined;
 let pdfiumQueue: Promise<void> = Promise.resolve();
+const MAX_ADMITTED_PDFIUM_JOBS = 3;
+let admittedPdfiumJobs = 0;
+
+export interface PdfiumJobPermit {
+  release(): void;
+  consume(): boolean;
+}
+
+export function reservePdfiumJob(): PdfiumJobPermit | undefined {
+  if (admittedPdfiumJobs >= MAX_ADMITTED_PDFIUM_JOBS) return undefined;
+  admittedPdfiumJobs += 1;
+  let released = false;
+  let consumed = false;
+  return {
+    consume() {
+      if (released || consumed) return false;
+      consumed = true;
+      return true;
+    },
+    release() {
+      if (released) return;
+      released = true;
+      admittedPdfiumJobs -= 1;
+    },
+  };
+}
 
 function getPdfium(): Promise<WrappedPdfiumModule> {
   pdfiumPromise ??= init({
@@ -73,9 +100,18 @@ function getPdfium(): Promise<WrappedPdfiumModule> {
   return pdfiumPromise;
 }
 
-function withPdfium<T>(operation: () => Promise<T>): Promise<T> {
+export function runPdfiumJob<T>(operation: () => Promise<T>, permit?: PdfiumJobPermit): Promise<T> {
+  const reservation = permit || reservePdfiumJob();
+  if (!reservation || !reservation.consume())
+    return Promise.reject(new StudentRosterPdfImportError(
+      'PARSER_BUSY',
+      'يتم تحليل قوائم أخرى حالياً. يرجى إعادة المحاولة بعد لحظات.'
+    ));
   const result = pdfiumQueue.then(operation, operation);
-  pdfiumQueue = result.then(() => undefined, () => undefined);
+  pdfiumQueue = result.then(
+    () => { reservation.release(); },
+    () => { reservation.release(); }
+  );
   return result;
 }
 
@@ -783,16 +819,23 @@ function parseStudentRows(
 }
 
 export async function parseStudentRosterPdf(
-  input: Buffer | Uint8Array
+  input: Buffer | Uint8Array,
+  permit?: PdfiumJobPermit
 ): Promise<StudentRosterPdfPreview> {
-  if (!input.byteLength)
+  if (!input.byteLength) {
+    permit?.release();
     throw new StudentRosterPdfImportError('EMPTY_FILE', 'الملف فارغ.');
-  if (input.byteLength > MAX_STUDENT_ROSTER_PDF_BYTES)
+  }
+  if (input.byteLength > MAX_STUDENT_ROSTER_PDF_BYTES) {
+    permit?.release();
     throw new StudentRosterPdfImportError('FILE_TOO_LARGE', 'الملف أكبر من الحجم المسموح.');
-  if (input.byteLength < 5 || Buffer.from(input).subarray(0, 5).toString('ascii') !== '%PDF-')
+  }
+  if (input.byteLength < 5 || Buffer.from(input).subarray(0, 5).toString('ascii') !== '%PDF-') {
+    permit?.release();
     throw new StudentRosterPdfImportError('INVALID_PDF', 'تعذر التعرف على بنية ملف PDF.');
+  }
 
-  return withPdfium(async () => {
+  return runPdfiumJob(async () => {
     const pdfium = await getPdfium();
     const runtime = pdfium.pdfium as PdfiumRuntime;
     const bytes = new Uint8Array(input);
@@ -1023,7 +1066,7 @@ export async function parseStudentRosterPdf(
       runtime._free(boundsPointer);
       runtime._free(dataPointer);
     }
-  });
+  }, permit);
 }
 
 export function canonicalPdfGroupIdentity(levelId: string, groupName: string) {
