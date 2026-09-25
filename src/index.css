@@ -2336,7 +2336,164 @@
   text-align: center;
 }
 
+.gradebook-print-root {
+  display: none;
+}
+
 @media print {
+  @page gradebook {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  body:has(.gradebook-print-root) {
+    page: gradebook;
+    background: #fff !important;
+  }
+
+  body:has(.gradebook-print-root) .app-shell-header,
+  body:has(.gradebook-print-root) .app-shell-sidebar,
+  body:has(.gradebook-print-root) .app-offline-banner,
+  body:has(.gradebook-print-root) .app-mobile-drawer,
+  body:has(.gradebook-print-root) .app-mobile-bottom-nav {
+    display: none !important;
+  }
+
+  body:has(.gradebook-print-root) #root,
+  body:has(.gradebook-print-root) .app-shell,
+  body:has(.gradebook-print-root) .app-shell > .flex-1,
+  body:has(.gradebook-print-root) .app-shell main,
+  body:has(.gradebook-print-root) .workspace-page--gradebook {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    position: static !important;
+    transform: none !important;
+    contain: none !important;
+  }
+
+  body:has(.gradebook-print-root) .workspace-page--gradebook > :not(.gradebook-print-root) {
+    display: none !important;
+  }
+
+  body:has(.gradebook-print-root) .gradebook-print-root {
+    display: block !important;
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    position: static;
+    transform: none;
+    direction: rtl;
+    color: #0f172a;
+    font-family: Cairo, Tahoma, Arial, sans-serif;
+    font-size: 7pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .gradebook-print-header {
+    margin-bottom: 4mm;
+    text-align: center;
+    font-size: 9pt;
+  }
+
+  .gradebook-print-header h1 {
+    margin: 0 0 2mm;
+    font-size: 13pt;
+    font-weight: 700;
+  }
+
+  .gradebook-print-context {
+    display: flex;
+    justify-content: center;
+    gap: 10mm;
+  }
+
+  .gradebook-print-page {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    break-inside: avoid-page !important;
+    page-break-inside: avoid !important;
+    overflow: visible !important;
+    position: static !important;
+    transform: none !important;
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+
+  .gradebook-print-page + .gradebook-print-page {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+
+  .gradebook-print-table {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    overflow: visible;
+    break-inside: auto;
+    page-break-inside: auto;
+    direction: rtl;
+    font-size: 7pt;
+  }
+
+  .gradebook-print-table .gradebook-print-col-index { width: 4%; }
+  .gradebook-print-table .gradebook-print-col-registration { width: 8%; }
+  .gradebook-print-table .gradebook-print-col-name { width: 14%; }
+  .gradebook-print-table col:nth-child(4) { width: 8%; }
+  .gradebook-print-table col:nth-child(5) { width: 7%; }
+  .gradebook-print-table col:nth-child(6) { width: 8%; }
+  .gradebook-print-table col:nth-child(7) { width: 10%; }
+  .gradebook-print-table col:nth-child(8) { width: 8%; }
+  .gradebook-print-table col:nth-child(9) { width: 8%; }
+  .gradebook-print-table col:nth-child(10) { width: 14%; }
+  .gradebook-print-table col:nth-child(11) { width: 7%; }
+
+  .gradebook-print-table th,
+  .gradebook-print-table td {
+    border: 0.25mm solid #64748b;
+    padding: 1.2mm 0.8mm;
+    text-align: center;
+    vertical-align: middle;
+    overflow-wrap: anywhere;
+  }
+
+  .gradebook-print-table th {
+    background: #e2e8f0 !important;
+    font-weight: 700;
+  }
+
+  .gradebook-print-table thead {
+    display: table-header-group;
+  }
+
+  .gradebook-print-table tbody {
+    display: table-row-group;
+  }
+
+  .gradebook-print-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .gradebook-print-exemption {
+    display: block;
+    font-weight: 700;
+  }
+
   @page learning-section {
     size: A4 landscape;
     margin: 0;

@@ -48,6 +48,19 @@ export interface GradebookViewProps {
 }
 
 const DEFAULT_TERM: SmartGradebookTerm = 'الفصل الأول';
+export const GRADEBOOK_PRINT_ROWS_PER_PAGE = 14;
+
+export function chunkGradebookPrintRows<T>(rows: readonly T[]): T[][] {
+  const pages: T[][] = [];
+  for (let start = 0; start < rows.length; start += GRADEBOOK_PRINT_ROWS_PER_PAGE) {
+    pages.push(rows.slice(start, start + GRADEBOOK_PRINT_ROWS_PER_PAGE));
+  }
+  return pages;
+}
+
+export function getGradebookPrintOrdinal(pageIndex: number, rowIndex: number): number {
+  return pageIndex * GRADEBOOK_PRINT_ROWS_PER_PAGE + rowIndex + 1;
+}
 
 export const SmartGradebookView: React.FC<GradebookViewProps> = ({
   classes = [],
@@ -106,6 +119,16 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
   // Keeps the empty-roster fallback explicit for static account-cleanliness checks:
   // const activeClass = classes.find((c) => c.id === selectedClassId) || classes[0] || { id: '', name: '', studentCount: 0 }
   const classStudents = students.filter((s) => s.classId === activeClass.id);
+  const filteredClassStudents = classStudents.filter(
+    (student) =>
+      student.firstName.includes(debouncedSearchVal) ||
+      student.lastName.includes(debouncedSearchVal) ||
+      student.registrationNumber?.includes(debouncedSearchVal)
+  );
+  const gradebookPrintPages = useMemo(() => {
+    const pages = chunkGradebookPrintRows(filteredClassStudents);
+    return pages.length > 0 ? pages : [[]];
+  }, [filteredClassStudents]);
 
   const persistRecord = (record: GradeRecord, logs: GradeAuditLog[]) => {
     if (!currentUser || !activeClass.id) return;
@@ -733,13 +756,7 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
                       </td>
                     </tr>
                   ) : (
-                    classStudents
-                      .filter(
-                        (s) =>
-                          s.firstName.includes(debouncedSearchVal) ||
-                          s.lastName.includes(debouncedSearchVal) ||
-                          s.registrationNumber?.includes(debouncedSearchVal)
-                      )
+                    filteredClassStudents
                       .map((std, idx) => {
                         const rec = getStudentGrade(std.id);
                         const isExempt = medicalExemptionStudentIds.has(std.id);
@@ -957,6 +974,103 @@ export const SmartGradebookView: React.FC<GradebookViewProps> = ({
 
         {/* ========================================================================= */}
       </div>
+      <section className="gradebook-print-root" dir="rtl" aria-label="دفتر التنقيط للطباعة">
+        {gradebookPrintPages.map((pageStudents, pageIndex) => (
+          <div className="gradebook-print-page" key={`gradebook-print-page-${pageIndex}`}>
+            {pageIndex === 0 && (
+              <header className="gradebook-print-header">
+                <h1>دفتر التنقيط</h1>
+                <div className="gradebook-print-context">
+                  <span>القسم: {activeClass.name || '—'}</span>
+                  <span>الفصل: {selectedTerm}</span>
+                  {currentUser && (
+                    <span>الأستاذ: {currentUser.firstName} {currentUser.lastName}</span>
+                  )}
+                </div>
+              </header>
+            )}
+            <table className="gradebook-print-table">
+              <colgroup>
+                <col className="gradebook-print-col-index" />
+                <col className="gradebook-print-col-registration" />
+                <col className="gradebook-print-col-name" />
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+                <col />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>رقم التسجيل</th>
+                  <th>اسم ولقب التلميذ</th>
+                  <th>السلوك والانضباط ({weights.behaviorWeight}ن)</th>
+                  <th>المواظبة ({weights.attendanceWeight}ن)</th>
+                  <th>المشاركة الفعالة ({weights.participationWeight}ن)</th>
+                  <th>الكفاءة الختامية ({weights.competencyWeight}ن)</th>
+                  <th>العلامة المقترحة / 10</th>
+                  <th>العلامة النهائية / 10</th>
+                  <th>سبب التعديل</th>
+                  <th>الاعتماد</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageStudents.map((student, rowIndex) => {
+                  const record = getStudentGrade(student.id);
+                  const isExempt = medicalExemptionStudentIds.has(student.id);
+                  return (
+                    <tr key={student.id}>
+                      <td>{getGradebookPrintOrdinal(pageIndex, rowIndex)}</td>
+                      <td>{student.registrationNumber || '—'}</td>
+                      <td>
+                        {student.firstName} {student.lastName}
+                        {isExempt && <span className="gradebook-print-exemption">معفى</span>}
+                      </td>
+                      <td>
+                        {record.behaviorRating || 'غير مقوّم'}
+                        <br />
+                        {record.behaviorScore ?? '—'} / {weights.behaviorWeight}
+                      </td>
+                      <td>
+                        {record.attendanceScore ?? '—'} / {weights.attendanceWeight}
+                        <br />
+                        {record.attendanceScore === null
+                          ? 'غير مقوّم'
+                          : record.unexcusedAbsencesCount
+                            ? `خصم ${record.unexcusedAbsencesCount} غياب`
+                            : 'حضور كامل'}
+                      </td>
+                      <td>
+                        {record.participationRating || 'غير مقوّم'}
+                        <br />
+                        {record.participationScore ?? '—'} / {weights.participationWeight}
+                      </td>
+                      <td>
+                        {record.competencyRating || 'غير مقوّم'}
+                        <br />
+                        {record.competencyScore ?? '—'} / {weights.competencyWeight}
+                      </td>
+                      <td>{record.suggestedMark ?? 'غير مقوّم'}</td>
+                      <td>{record.finalMark ?? '—'}</td>
+                      <td>{record.adjustmentReason || '—'}</td>
+                      <td>{record.isApprovedByTeacher ? 'معتمدة' : 'غير معتمدة'}</td>
+                    </tr>
+                  );
+                })}
+                {pageStudents.length === 0 && (
+                  <tr>
+                    <td colSpan={11}>لا توجد سجلات مطابقة.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </section>
       {/* ========================================================================= */}
       {/* MODAL: CONFIG EVALUATION WEIGHTS (إعدادات أوزان التقييم) */}
       {/* ========================================================================= */}

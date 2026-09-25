@@ -377,7 +377,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
 
         {/* Mobile Drawer Slide-over Backdrop (For Smartphones) */}
         {isMobileOpen && (
-          <div className="md:hidden fixed inset-0 z-50 flex">
+          <div className="app-mobile-drawer md:hidden fixed inset-0 z-50 flex">
             <div
               className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
               onClick={onCloseMobile}
@@ -469,7 +469,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
         )}
 
         {/* Mobile Bottom Fixed Quick Navigation Bar (For Smartphones) */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 flex items-center justify-around shadow-lg">
+        <div className="app-mobile-bottom-nav md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 flex items-center justify-around shadow-lg">
           {userRole === 'teacher' ? (
             <>
               <button
