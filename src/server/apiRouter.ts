@@ -160,7 +160,15 @@ import {
 async function triggerAutoAssignment(savedUser: { id: string; role: string }) {
   try {
     if (savedUser.role === 'teacher') {
-      await reassignTeacher(savedUser.id);
+      const teacher = await prisma.user.findUnique({
+        where: { id: savedUser.id },
+        select: { districtId: true, eduDistrictId: true },
+      });
+      if (!(teacher?.districtId || teacher?.eduDistrictId)) {
+        await prisma.inspectorAssignment.deleteMany({ where: { teacherId: savedUser.id } });
+      } else {
+        await reassignTeacher(savedUser.id);
+      }
     } else if (savedUser.role === 'inspector') {
       await reassignAllForInspector(savedUser.id);
     }
@@ -2869,7 +2877,10 @@ apiRouter.post('/students/import/preview', requireRole('teacher'), async (req, r
     const extension = path.extname(path.basename(filename)).toLowerCase();
     const sourceName = path.basename(filename).slice(0, 180);
     if (extension === '.pdf') {
-      if (!rawFile || req.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/pdf')
+      if (
+        !rawFile ||
+        req.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/pdf'
+      )
         return res.status(400).json({ error: 'تعذر التعرف على بنية ملف PDF.' });
       const parsed = await parseStudentRosterPdf(rawFile, takeStudentRosterPdfPermit(req));
       const previews = parsed.previews.map((preview) => ({
@@ -2893,7 +2904,11 @@ apiRouter.post('/students/import/preview', requireRole('teacher'), async (req, r
     if (!['.xlsx', '.xls'].includes(extension) || rawFile)
       return res.status(400).json({ error: 'تعذر التعرف على بنية الملف.' });
     const content = String(req.body?.contentBase64 || '');
-    if (!content || content.length > 2_000_000 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(content))
+    if (
+      !content ||
+      content.length > 2_000_000 ||
+      !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(content)
+    )
       return res.status(400).json({ error: 'تعذر التعرف على بنية الملف.' });
     const bytes = Buffer.from(content, 'base64');
     if (extension === '.xlsx' && !(bytes[0] === 0x50 && bytes[1] === 0x4b))
@@ -2926,7 +2941,8 @@ apiRouter.post('/students/import/preview', requireRole('teacher'), async (req, r
     });
   } catch (error) {
     if (error instanceof StudentRosterPdfImportError) {
-      const status = error.code === 'FILE_TOO_LARGE' ? 413 : error.code === 'PARSER_BUSY' ? 503 : 400;
+      const status =
+        error.code === 'FILE_TOO_LARGE' ? 413 : error.code === 'PARSER_BUSY' ? 503 : 400;
       return res.status(status).json({ error: error.message, code: error.code });
     }
     res.status(400).json({ error: 'تعذر التعرف على بنية الملف.' });
@@ -3026,7 +3042,9 @@ apiRouter.post('/students/import/confirm', requireRole('teacher'), async (req, r
         return res.status(status).json({ error: messages[error.code], code: error.code });
       }
       if ((error as { code?: string })?.code === 'P2028')
-        return res.status(504).json({ error: 'استغرقت عملية حفظ القوائم وقتاً أطول من المتوقع. لم تُعتمد العملية.' });
+        return res
+          .status(504)
+          .json({ error: 'استغرقت عملية حفظ القوائم وقتاً أطول من المتوقع. لم تُعتمد العملية.' });
       console.error('Student roster document import failed:', {
         code: (error as { code?: string })?.code || 'UNEXPECTED_ERROR',
       });
@@ -4925,6 +4943,19 @@ async function enforceRoleAssignment(
   } else if (role === 'teacher') {
     // Teacher payloads cannot smuggle inspector-only geographic fields.
     data.eduDistrictId = undefined;
+    if (districtId) {
+      const [directorate, district] = await Promise.all([
+        prisma.directorate.findUnique({ where: { id: directorateId }, select: { id: true } }),
+        prisma.inspectionDistrict.findUnique({
+          where: { id: districtId },
+          select: { directorateId: true },
+        }),
+      ]);
+      if (!directorate) throw new Error('مديرية التربية المحددة غير موجودة.');
+      if (!district || district.directorateId !== directorateId) {
+        throw new Error('المقاطعة التفتيشية لا تنتمي إلى المديرية المختارة.');
+      }
+    }
   }
   return data;
 }
@@ -5042,6 +5073,7 @@ apiRouter.post('/db/users', async (req, res) => {
     if (
       err instanceof Error &&
       (err.message.startsWith('يرجى') ||
+        err.message.includes('مديرية التربية') ||
         err.message.includes('المقاطعة التفتيشية') ||
         err.message.includes('مرتبطة بالفعل'))
     ) {

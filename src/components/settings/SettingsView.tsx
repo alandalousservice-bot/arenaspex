@@ -28,6 +28,7 @@ import {
   googleUnlinkRequest,
   fetchGeoDistricts,
   createInspectorDistrict,
+  updateInspectorDistrict,
 } from '../../services/api';
 import { GoogleSignInButton } from '../auth/GoogleSignInButton';
 
@@ -88,9 +89,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
   // Administrative / School details
   const [schoolName, setSchoolName] = useState(currentUser.schoolName || '');
   const [municipality, setMunicipality] = useState(currentUser.municipality || '');
-  const [directorateId, setDirectorateId] = useState(currentUser.directorateId || '');
+  const [directorateId, setDirectorateId] = useState(
+    currentUser.role === 'inspector'
+      ? currentUser.eduDirectorateId || currentUser.directorateId || ''
+      : currentUser.directorateId || currentUser.eduDirectorateId || ''
+  );
   const [customDirectorateName, setCustomDirectorateName] = useState('');
-  const [districtId, setDistrictId] = useState(currentUser.districtId || '');
+  const [districtId, setDistrictId] = useState(
+    currentUser.role === 'inspector'
+      ? currentUser.eduDistrictId || currentUser.districtId || ''
+      : currentUser.districtId || currentUser.eduDistrictId || ''
+  );
+  const [districtOptions, setDistrictOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [districtName, setDistrictName] = useState('');
   const [customDistrictName, setCustomDistrictName] = useState('');
   const [newDistrictNumber, setNewDistrictNumber] = useState('');
@@ -103,21 +113,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
   const showProfessionalFields = !isInspector && !isAdmin;
 
   useEffect(() => {
-    if (!isInspector || !directorateId || !districtId) {
+    if (!directorateId) {
+      setDistrictOptions([]);
       setDistrictName('');
       return;
     }
     let active = true;
     void fetchGeoDistricts(directorateId)
-      .then((result: any) => {
-        if (!active) return;
-        const district = (result?.districts || result || []).find(
-          (item: any) => item.id === districtId
-        );
-        setDistrictName(district?.name || '');
-      })
+      .then(
+        (
+          result:
+            | { districts?: Array<{ id: string; name: string }> }
+            | Array<{ id: string; name: string }>
+        ) => {
+          if (!active) return;
+          const options = Array.isArray(result) ? result : result.districts || [];
+          setDistrictOptions(options);
+          const selectedDistrict = options.find((item) => item.id === districtId);
+          if (isInspector) setDistrictName(selectedDistrict?.name || '');
+          else if (districtId && !selectedDistrict) setDistrictId('');
+        }
+      )
       .catch(() => {
-        if (active) setDistrictName('');
+        if (active) {
+          setDistrictOptions([]);
+          if (isInspector) setDistrictName('');
+        }
       });
     return () => {
       active = false;
@@ -290,7 +311,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
     setDistrictName(result.district.name);
     setCustomDistrictName('');
     setNewDistrictNumber('');
+    onUpdateUser({
+      ...currentUser,
+      directorateId,
+      districtId: result.district.id,
+      eduDirectorateId: directorateId,
+      eduDistrictId: result.district.id,
+    });
     setDistrictCreateSuccess('تم إنشاء المقاطعة التفتيشية وربط حسابك بها.');
+  };
+
+  const handleUpdateInspectorDistrict = async () => {
+    setDistrictCreateError('');
+    setDistrictCreateSuccess('');
+    if (!districtId || !customDistrictName.trim()) {
+      setDistrictCreateError('أدخل اسم المقاطعة التفتيشية.');
+      return;
+    }
+    const result = await updateInspectorDistrict(districtId, { name: customDistrictName.trim() });
+    if (!result.success || !result.district) {
+      setDistrictCreateError(result.error || 'تعذر تعديل تسمية المقاطعة.');
+      return;
+    }
+    setDistrictName(result.district.name);
+    setCustomDistrictName('');
+    setDistrictCreateSuccess('تم تحديث تسمية مقاطعتك، وظهرت التسمية الجديدة للأساتذة.');
   };
 
   // Find current directorate display name
@@ -606,6 +651,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                   يرجى التواصل مع مشرف المنظومة لاستكمال الانتساب الإداري.
                 </p>
               )}
+              {districtId && districtName && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+                  <p className="text-xs font-bold text-emerald-800">تعديل تسمية مقاطعتك</p>
+                  <input
+                    value={customDistrictName}
+                    onChange={(e) => setCustomDistrictName(e.target.value)}
+                    placeholder={districtName}
+                    className="w-full p-2 rounded-lg border border-emerald-200 bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleUpdateInspectorDistrict()}
+                    className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white"
+                  >
+                    حفظ التسمية
+                  </button>
+                  {districtCreateError && (
+                    <p className="text-xs font-semibold text-rose-700">{districtCreateError}</p>
+                  )}
+                  {districtCreateSuccess && (
+                    <p className="text-xs font-semibold text-emerald-700">
+                      {districtCreateSuccess}
+                    </p>
+                  )}
+                </div>
+              )}
               {!districtId && directorateId && (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2">
                   <p className="text-xs font-bold text-emerald-800">
@@ -695,7 +766,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                   </label>
                   <select
                     value={directorateId}
-                    onChange={(e) => setDirectorateId(e.target.value)}
+                    disabled={isInspector}
+                    onChange={(e) => {
+                      setDirectorateId(e.target.value);
+                      setDistrictId('');
+                    }}
                     className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-bold bg-white"
                   >
                     {ALL_ALGERIAN_DIRECTORATES.map((dir) => (
@@ -725,28 +800,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                     onChange={(e) => setDistrictId(e.target.value)}
                     className="w-full p-2.5 rounded-xl border border-slate-200 outline-none focus:border-blue-500 font-bold bg-white"
                   >
-                    <option value="dist_setif_7">المقاطعة 07 - عين أزال (سطيف)</option>
-                    <option value="dist_setif_1">المقاطعة 01 - سطيف </option>
-                    <option value="dist_setif_2">المقاطعة 02 - سطيف </option>
-                    <option value="dist_setif_5">المقاطعة 03 - سطيف </option>
-                    <option value="dist_setif_2">المقاطعة 04 - سطيف </option>
-                    <option value="dist_setif_2">المقاطعة 05 - سطيف </option>
-                    <option value="dist_setif_2">المقاطعة 06 - سطيف </option>
-                    <option value="dist_setif_2">المقاطعة 08 - سطيف </option>
-                    <option value="dist_setif_2">المقاطعة 09 - سطيف </option>
-                    <option value="dist_setif_2">المقاطعة 10 - سطيف </option>
-                    <option value="custom">مقاطعة أخرى (كتابة يدوية)...</option>
+                    <option value="">
+                      {districtOptions.length
+                        ? 'اختر مقاطعتك التفتيشية...'
+                        : 'لا توجد مقاطعات مسجلة لهذه المديرية بعد'}
+                    </option>
+                    {districtOptions.map((district) => (
+                      <option key={district.id} value={district.id}>
+                        {district.name}
+                      </option>
+                    ))}
                   </select>
-                  {districtId === 'custom' && (
-                    <input
-                      type="text"
-                      required
-                      value={customDistrictName}
-                      onChange={(e) => setCustomDistrictName(e.target.value)}
-                      placeholder="اكتب اسم المقاطعة التفتيشية..."
-                      className="w-full mt-2 p-2.5 rounded-xl border border-amber-300 outline-none focus:border-blue-500 font-medium"
-                    />
-                  )}
                 </div>
               </div>
 
@@ -768,7 +832,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
                   </div>
                   <div>
                     🛡️ <strong>المقاطعة:</strong>{' '}
-                    {districtId === 'custom' ? customDistrictName : districtId}
+                    {districtOptions.find((district) => district.id === districtId)?.name ||
+                      'لم تُحدد'}
                   </div>
                 </div>
               </div>

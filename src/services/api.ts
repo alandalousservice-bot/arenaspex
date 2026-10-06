@@ -2277,6 +2277,8 @@ export const createInspectorDistrict = (payload: {
   name: string;
   districtNumber?: number;
 }) => postJSON('/api/inspector/districts', payload);
+export const updateInspectorDistrict = (districtId: string, payload: { name: string }) =>
+  postJSON(`/api/inspector/districts/${encodeURIComponent(districtId)}`, payload, 'PUT');
 export const fetchSchools = (municipalityId: string) =>
   getJSON(`/api/locations/municipalities/${municipalityId}/schools`);
 

@@ -78,11 +78,21 @@ assignmentRouter.post(
     if (req.user!.role === 'inspector') {
       const inspector = await prisma.user.findUnique({
         where: { id: req.user!.id },
-        select: { eduDirectorateId: true, directorateId: true },
+        select: {
+          eduDirectorateId: true,
+          directorateId: true,
+          eduDistrictId: true,
+          districtId: true,
+        },
       });
       const inspectorDirectorate = inspector?.eduDirectorateId || inspector?.directorateId;
       if (!inspectorDirectorate || inspectorDirectorate !== directorateId) {
         return res.status(403).json({ error: 'لا يمكنك إنشاء مقاطعة خارج مديريتك.' });
+      }
+      if (inspector?.eduDistrictId || inspector?.districtId) {
+        return res
+          .status(409)
+          .json({ error: 'لديك مقاطعة مسجلة بالفعل. يمكنك تعديل تسميتها فقط.' });
       }
     }
 
@@ -107,25 +117,54 @@ assignmentRouter.post(
     }
 
     try {
-      const district = await prisma.$transaction(async (tx) => {
-        const created = await tx.inspectionDistrict.create({
-          data: { name, directorateId, districtNumber },
-        });
-        if (req.user!.role === 'inspector') {
-          await tx.user.update({
-            where: { id: req.user!.id },
-            data: {
-              eduDirectorateId: directorateId,
-              eduDistrictId: created.id,
-              districtId: created.id,
-            },
+      const district = await prisma.$transaction(
+        async (tx) => {
+          if (req.user!.role === 'inspector') {
+            const inspector = await tx.user.findUnique({
+              where: { id: req.user!.id },
+              select: {
+                eduDirectorateId: true,
+                directorateId: true,
+                eduDistrictId: true,
+                districtId: true,
+              },
+            });
+            if (
+              !inspector ||
+              (inspector.eduDirectorateId || inspector.directorateId) !== directorateId
+            ) {
+              throw new Error('لا يمكنك إنشاء مقاطعة خارج مديريتك.');
+            }
+            if (inspector.eduDistrictId || inspector.districtId) {
+              throw new Error('لديك مقاطعة مسجلة بالفعل. يمكنك تعديل تسميتها فقط.');
+            }
+          }
+          const created = await tx.inspectionDistrict.create({
+            data: { name, directorateId, districtNumber },
           });
-        }
-        return created;
-      });
+          if (req.user!.role === 'inspector') {
+            await tx.user.update({
+              where: { id: req.user!.id },
+              data: {
+                eduDirectorateId: directorateId,
+                eduDistrictId: created.id,
+                districtId: created.id,
+              },
+            });
+          }
+          return created;
+        },
+        { isolationLevel: 'Serializable' }
+      );
       await bulkReassignAll();
       return res.status(201).json({ success: true, district });
     } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes('لديك مقاطعة مسجلة')) {
+        return res.status(409).json({ error: err.message });
+      }
+      if (err instanceof Error && err.message.includes('خارج مديريتك')) {
+        return res.status(403).json({ error: err.message });
+      }
       if (
         typeof err === 'object' &&
         err !== null &&
@@ -134,10 +173,56 @@ assignmentRouter.post(
       ) {
         return res.status(409).json({ error: 'هذه المقاطعة موجودة بالفعل ضمن هذه المديرية.' });
       }
+      if (
+        typeof err === 'object' &&
+        err !== null &&
+        'code' in err &&
+        (err as { code: string }).code === 'P2034'
+      ) {
+        return res.status(409).json({ error: 'تم تسجيل مقاطعتك في طلب آخر. حدّث الصفحة لتظهر.' });
+      }
       return res.status(500).json({ error: 'تعذر إنشاء المقاطعة.' });
     }
   }
 );
+
+const updateInspectorDistrictSchema = z.object({
+  name: z.string().trim().min(2, 'اسم المقاطعة التفتيشية مطلوب.').max(160),
+});
+
+assignmentRouter.put('/inspector/districts/:id', requireRole('inspector'), async (req, res) => {
+  const parsed = updateInspectorDistrictSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message });
+
+  const inspector = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: { eduDirectorateId: true, directorateId: true, eduDistrictId: true, districtId: true },
+  });
+  const ownedDistrictId = inspector?.eduDistrictId || inspector?.districtId;
+  if (ownedDistrictId !== req.params.id) {
+    return res.status(403).json({ error: 'يمكنك تعديل تسمية مقاطعتك المسجلة فقط.' });
+  }
+
+  try {
+    const district = await prisma.inspectionDistrict.update({
+      where: {
+        id: req.params.id,
+        directorateId: inspector?.eduDirectorateId || inspector?.directorateId || undefined,
+      },
+      data: { name: parsed.data.name.replace(/\s+/g, ' ').trim() },
+    });
+    return res.json({ success: true, district });
+  } catch (err: unknown) {
+    if (typeof err === 'object' && err !== null && 'code' in err) {
+      const code = (err as { code: string }).code;
+      if (code === 'P2002') {
+        return res.status(409).json({ error: 'اسم المقاطعة مستخدم بالفعل في هذه المديرية.' });
+      }
+      if (code === 'P2025') return res.status(404).json({ error: 'المقاطعة غير موجودة.' });
+    }
+    return res.status(500).json({ error: 'تعذر تعديل تسمية المقاطعة.' });
+  }
+});
 
 // -----------------------------------------------------------------------
 // 2. اقتراحات إضافة بلدية/مؤسسة غير موجودة — أي مستخدم يمكنه الاقتراح، ولا تظهر

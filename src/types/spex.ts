@@ -156,6 +156,8 @@ export interface User {
   phone?: string;
   directorateId: string; // مديرية التربية
   districtId: string; // المقاطعة التفتيشية
+  eduDirectorateId?: string | null;
+  eduDistrictId?: string | null;
   institutionId?: string; // المؤسسة التعليمية
   schoolName?: string; // اسم المدرسة الابتدائية
   municipality?: string; // بلدية العمل
