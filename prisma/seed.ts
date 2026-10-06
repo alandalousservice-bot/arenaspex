@@ -66,9 +66,16 @@ async function seedSuperAdmin() {
   });
 
   if (existing) {
-    if (!existing.isPlatformOwner) {
-      await prisma.user.update({ where: { id: existing.id }, data: { isPlatformOwner: true } });
-    }
+    const existingPasswordHash = await hashPassword(effectivePassword);
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        passwordHash: existingPasswordHash,
+        isPlatformOwner: true,
+        status: 'active',
+        isApprovedByAdmin: true,
+      },
+    });
     console.log(`✅ حساب المشرف موجود بالفعل (${existing.email}) — جاهز للاستخدام.`);
     return;
   }
