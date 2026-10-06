@@ -38,7 +38,7 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ users = [] }) => {
       fetchManagedUsersFromDB(),
       fetchPendingUsersFromDB(),
       fetchGenerationAccess(),
-      fetchGeoDistricts(''),
+      Promise.resolve({ districts: [] }),
       fetchAllAssignments(),
       fetchAdminModerationOverview(),
     ]).then(([managed, pending, access, districts, assignments, moderation]) => {
@@ -51,7 +51,9 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ users = [] }) => {
           .map((item: { inspector?: User | null }) => item.inspector?.districtId)
           .filter(Boolean)
       );
-      setUnassignedDistricts(Math.max(0, districts.length - assignedDistricts.size));
+      setUnassignedDistricts(
+        Math.max(0, (districts.districts || []).length - assignedDistricts.size)
+      );
       setModerationPendingCount(moderation.counts.pending);
     });
     return () => {
