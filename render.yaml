@@ -3,7 +3,7 @@ services:
     name: spex-platform
     runtime: node
     plan: free
-    buildCommand: npm run render:build
+    buildCommand: npm run render:build && npm run db:seed
     startCommand: npm run render:start
     healthCheckPath: /health
     autoDeployTrigger: commit
