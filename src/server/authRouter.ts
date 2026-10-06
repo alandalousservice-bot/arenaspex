@@ -21,6 +21,7 @@ import {
 import { sendPasswordResetEmail } from './emailService.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { verifyGoogleIdToken, isGoogleSignInConfigured } from './googleAuth.js';
+import { createPlatformEmail } from './platformEmail.js';
 
 export const authRouter = Router();
 
@@ -88,6 +89,7 @@ authRouter.post('/register', async (req, res) => {
   const passwordHash = await hashPassword(password);
   const spexId = `SPX-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
   const userId = `usr_${crypto.randomUUID()}`;
+  const platformEmail = await createPlatformEmail(firstName, lastName);
 
   // ترمية الأكواد التاريخية de_19→setif_de
   const normalizedEduDir = remapHistoricDirectorateId(eduDirectorateId || null);
@@ -141,6 +143,7 @@ authRouter.post('/register', async (req, res) => {
         firstName,
         lastName,
         email: lowerEmail,
+        platformEmail,
         passwordHash,
         role,
         phone: phone || null,
@@ -179,12 +182,22 @@ authRouter.post('/login', async (req, res) => {
   }
   const { email, password, portal } = parsed.data;
 
-  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  const normalizedEmail = email.toLowerCase();
+  const user = await prisma.user.findFirst({
+    where: { OR: [{ email: normalizedEmail }, { platformEmail: normalizedEmail }] },
+  });
 
   const genericError = 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
 
   if (!user) {
     return res.status(401).json({ error: genericError });
+  }
+  if (!user.platformEmail) {
+    user.platformEmail = await createPlatformEmail(user.firstName, user.lastName);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { platformEmail: user.platformEmail },
+    });
   }
 
   const validPassword = await verifyPassword(password, user.passwordHash);
@@ -235,7 +248,7 @@ const googleAuthSchema = z.object({
   role: z.enum(['teacher', 'inspector', 'director', 'admin']).optional(),
 });
 
-const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher']);
+const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher', 'inspector']);
 
 /**
  * منطق Google الموحّد (يخدم مسارَي /google و /google/gsi-callback):
@@ -294,6 +307,7 @@ async function findOrCreateGoogleUser(
     requestedRole && GOOGLE_SELF_REGISTER_ROLES.has(requestedRole) ? requestedRole : 'teacher';
   const passwordHash = await hashPassword(crypto.randomBytes(24).toString('hex')); // غير قابلة للاستعمال إطلاقاً
   const spexId = `SPX-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+  const platformEmail = await createPlatformEmail(profile.firstName, profile.lastName);
 
   const created = await prisma.user.create({
     data: {
@@ -303,6 +317,7 @@ async function findOrCreateGoogleUser(
       firstName: profile.firstName || 'مستخدم',
       lastName: profile.lastName || 'جديد',
       email: profile.email,
+      platformEmail,
       passwordHash,
       role,
       avatar: profile.avatar || null,
@@ -646,7 +661,10 @@ authRouter.post('/forgot-password', async (req, res) => {
       'إن كان هذا البريد الإلكتروني مسجلاً لدينا، فسيصلك رابط إعادة تعيين كلمة المرور خلال دقائق.',
   };
 
-  const user = await prisma.user.findUnique({ where: { email: parsed.data.email.toLowerCase() } });
+  const normalizedEmail = parsed.data.email.toLowerCase();
+  const user = await prisma.user.findFirst({
+    where: { OR: [{ email: normalizedEmail }, { platformEmail: normalizedEmail }] },
+  });
   if (!user || user.status === 'inactive') {
     return res.json(genericResponse);
   }

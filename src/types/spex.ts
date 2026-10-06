@@ -150,6 +150,7 @@ export interface User {
   firstName: string;
   lastName: string;
   email: string;
+  platformEmail?: string | null;
   role: UserRole;
   isPlatformOwner?: boolean;
   avatar?: string;

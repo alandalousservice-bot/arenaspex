@@ -229,7 +229,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
     setIsSubmitting(true);
     const requestedRole =
       activeForm === 'register'
-        ? 'teacher'
+        ? selectedRole
         : selectedRole === 'inspector'
           ? 'inspector'
           : 'teacher';

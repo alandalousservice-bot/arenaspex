@@ -61,6 +61,7 @@ model User {
   firstName               String
   lastName                String
   email                   String    @unique
+  platformEmail           String?   @unique
   // كلمة المرور لا تُخزَّن أبداً كنص عادي — فقط الهاش (bcrypt)
   passwordHash            String
   // معرّف حساب Google المرتبط (Google "sub") — اختياري، يُستخدم لتسجيل الدخول عبر Google
