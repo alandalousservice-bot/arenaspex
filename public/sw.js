@@ -58,6 +58,15 @@ self.addEventListener('fetch', (event) => {
 
   // Navigation requests: network-first, fallback to cached shell/offline page
   if (request.mode === 'navigate') {
+    // Protected admin routes must always be handled by the browser/server.
+    // Never replace an auth response with a cached shell or an undefined value.
+    if (url.pathname.startsWith('/admin')) {
+      event.respondWith(fetch(request).catch(() => new Response('تعذر الاتصال بالخادم.', {
+        status: 503,
+        headers: { 'content-type': 'text/plain; charset=utf-8' },
+      })));
+      return;
+    }
     event.respondWith(
       fetch(request)
         .then((response) => {
@@ -68,9 +77,13 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() =>
-          caches.match('/').then((cached) => cached || caches.match('/offline.html'))
-        )
+        .catch(async () => {
+          const cached = await caches.match('/');
+          return cached || (await caches.match('/offline.html')) || new Response('التطبيق غير متاح دون اتصال.', {
+            status: 503,
+            headers: { 'content-type': 'text/plain; charset=utf-8' },
+          });
+        })
     );
     return;
   }
@@ -86,7 +99,7 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => caches.match(request))
+        .catch(async () => (await caches.match(request)) || new Response('', { status: 504 }))
     );
   }
 });
