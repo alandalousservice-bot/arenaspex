@@ -36,6 +36,7 @@ import {
 } from './collectionAuth.js';
 import { canReadDistrictMessage, normalizeMessageText } from '../services/communicationRules.js';
 import { providerIsUsable } from './generationAccess.policy.js';
+import { academicYearAccessExpiry, currentAcademicYearId } from './accountAccess.js';
 import { teacherAttendanceRouter } from './attendanceRouter.js';
 import { findActiveMedicalExemption } from './medicalExemption.service.js';
 import { calculateAssessmentMastery, isAssessmentComplete } from '../services/assessmentMastery.js';
@@ -4638,7 +4639,12 @@ apiRouter.post('/admin/users/:id/activate', requireRole('admin'), async (req, re
   }
   const user = await prisma.user.update({
     where: { id: existing.id },
-    data: { status: 'active', isApprovedByAdmin: true },
+    data: {
+      status: 'active',
+      isApprovedByAdmin: true,
+      accessExpiresAt: academicYearAccessExpiry(),
+      accessAcademicYearId: currentAcademicYearId(),
+    },
   });
   res.json({ success: true, user: sanitizeUser(user) });
 });
@@ -4686,7 +4692,12 @@ apiRouter.post('/admin/users/:id/lifecycle', requireRole('admin'), async (req, r
   }
   const data =
     action === 'activate' || action === 'reactivate'
-      ? { status: 'active', isApprovedByAdmin: true }
+      ? {
+          status: 'active',
+          isApprovedByAdmin: true,
+          accessExpiresAt: academicYearAccessExpiry(),
+          accessAcademicYearId: currentAcademicYearId(),
+        }
       : action === 'reject'
         ? { status: 'inactive', isApprovedByAdmin: false }
         : { status: 'inactive', isApprovedByAdmin: false };

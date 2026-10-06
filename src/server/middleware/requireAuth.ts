@@ -6,6 +6,11 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getSessionTokenFromRequest, verifySession } from '../auth.js';
 import { prisma } from '../prismaClient.js';
+import {
+  academicYearAccessExpiry,
+  currentAcademicYearId,
+  isAccountAccessExpired,
+} from '../accountAccess.js';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -49,6 +54,27 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       code: 'ACCOUNT_DISABLED',
       disabled: true,
       user: { id: user.id, status: user.status },
+    });
+  }
+  if (isAccountAccessExpired(user.accessExpiresAt)) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { status: 'inactive', isApprovedByAdmin: false },
+    });
+    return res.status(401).json({
+      error: 'انتهى تفعيل الحساب بانتهاء الموسم الدراسي. اطلب إعادة التفعيل للموسم الجديد.',
+      code: 'ACCOUNT_SEASON_EXPIRED',
+      expired: true,
+      user: { id: user.id, status: 'inactive' },
+    });
+  }
+  if (!user.accessExpiresAt) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        accessExpiresAt: academicYearAccessExpiry(),
+        accessAcademicYearId: currentAcademicYearId(),
+      },
     });
   }
 

@@ -55,19 +55,19 @@ enum Grade4WeeklyScheduleMode {
 // المستخدمون — النموذج الوحيد الذي يحتاج أعمدة صارمة لأنه يحمل بيانات المصادقة
 // -----------------------------------------------------------------------
 model User {
-  id                      String   @id
-  username                String   @unique
-  spexId                  String   @unique
+  id                      String    @id
+  username                String    @unique
+  spexId                  String    @unique
   firstName               String
   lastName                String
-  email                   String   @unique
+  email                   String    @unique
   // كلمة المرور لا تُخزَّن أبداً كنص عادي — فقط الهاش (bcrypt)
   passwordHash            String
   // معرّف حساب Google المرتبط (Google "sub") — اختياري، يُستخدم لتسجيل الدخول عبر Google
   // بدل/بالإضافة إلى كلمة المرور. لا يزال الحساب نفسه يُنشأ حصرياً من طرف المشرف أو المفتش.
-  googleId                String?  @unique
+  googleId                String?   @unique
   role                    String // teacher | inspector | director | admin
-  isPlatformOwner         Boolean  @default(false)
+  isPlatformOwner         Boolean   @default(false)
   avatar                  String?
   phone                   String?
   directorateId           String
@@ -79,19 +79,21 @@ model User {
   cycle                   String?
   yearsExperience         Int?
   bio                     String?
-  status                  String   @default("active") // active | inactive
-  isApprovedByAdmin       Boolean  @default(false)
-  followingIds            String[] @default([])
-  followersIds            String[] @default([])
-  publishedResourcesCount Int      @default(0)
-  approvedResourcesCount  Int      @default(0)
+  status                  String    @default("active") // active | inactive
+  isApprovedByAdmin       Boolean   @default(false)
+  accessExpiresAt         DateTime?
+  accessAcademicYearId    String?
+  followingIds            String[]  @default([])
+  followersIds            String[]  @default([])
+  publishedResourcesCount Int       @default(0)
+  approvedResourcesCount  Int       @default(0)
   privacySettings         Json?
   // مفتاح Gemini الخاص بالمستخدم (اختياري) — يُستخدم فقط من الخادم، لا يُعرض للعميل بعد الحفظ
   customApiKey            String? // legacy only; no longer returned or used for AI calls
   encryptedApiKey         String?
   apiKeyStatus            String?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   // بلدية العمل كسجل مرتبط فعلياً بجدول Municipalities (municipality أعلاه يبقى كاسم نصي مخزَّن للعرض السريع فقط)
   municipalityId String?
@@ -428,21 +430,21 @@ model PasswordResetToken {
 // -----------------------------------------------------------------------
 
 model AssessmentSession {
-  id                    String   @id
-  teacherId             String
-  classId               String
-  academicYearId        String
-  classPlannedSessionId String?  @unique
-  assessmentType        String
-  gradeLevelId          String
-  domainId              String
-  finalCompetencyId     String?
-  integrationPointId    String?
+  id                          String   @id
+  teacherId                   String
+  classId                     String
+  academicYearId              String
+  classPlannedSessionId       String?  @unique
+  assessmentType              String
+  gradeLevelId                String
+  domainId                    String
+  finalCompetencyId           String?
+  integrationPointId          String?
   integrativeEvidenceSnapshot Json?
-  title                 String?
-  assessedAt            DateTime
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  title                       String?
+  assessedAt                  DateTime
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
 
   teacher             User                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   class               StudentClass         @relation(fields: [classId], references: [id], onDelete: Cascade)
