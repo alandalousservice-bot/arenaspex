@@ -2,7 +2,46 @@ import crypto from 'crypto';
 import { prisma } from './prismaClient.js';
 
 function slugPart(value: string) {
-  return value
+  const arabicMap: Record<string, string> = {
+    ا: 'a',
+    ب: 'b',
+    ت: 't',
+    ث: 'th',
+    ج: 'j',
+    ح: 'h',
+    خ: 'kh',
+    د: 'd',
+    ذ: 'dh',
+    ر: 'r',
+    ز: 'z',
+    س: 's',
+    ش: 'ch',
+    ص: 's',
+    ض: 'd',
+    ط: 't',
+    ظ: 'z',
+    ع: 'a',
+    غ: 'gh',
+    ف: 'f',
+    ق: 'q',
+    ك: 'k',
+    ل: 'l',
+    م: 'm',
+    ن: 'n',
+    ه: 'h',
+    و: 'w',
+    ي: 'y',
+    ة: 'a',
+    أ: 'a',
+    إ: 'i',
+    آ: 'a',
+    ء: '',
+    ئ: 'y',
+    ؤ: 'w',
+    ى: 'a',
+  };
+  const transliterated = [...value].map((char) => arabicMap[char] ?? char).join('');
+  return transliterated
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
