@@ -2351,6 +2351,7 @@ export async function fetchInspectorVisits(): Promise<unknown[]> {
 
 // PART A: Geo hierarchy public endpoints
 export const fetchGeoDirectorates = () => getJSON('/api/geo/directorates');
+export const fetchGeoDistrictSummary = () => getJSON('/api/geo/districts/summary');
 export const fetchGeoDistricts = (directorateId: string) =>
   directorateId
     ? getJSON(`/api/geo/directorates/${encodeURIComponent(directorateId)}/districts`)

@@ -8,11 +8,34 @@ import { prisma } from './prismaClient.js';
 
 export const geoRouter = Router();
 
+geoRouter.get('/districts/summary', async (_req, res) => {
+  try {
+    const [districts, inspectors] = await Promise.all([
+      prisma.inspectionDistrict.findMany({ select: { id: true } }),
+      prisma.user.findMany({
+        where: { role: 'inspector', status: 'active', isApprovedByAdmin: true },
+        select: { districtId: true, eduDistrictId: true },
+      }),
+    ]);
+    const coveredDistricts = new Set(
+      inspectors.map((inspector) => inspector.eduDistrictId || inspector.districtId).filter(Boolean)
+    );
+    res.json({
+      success: true,
+      total: districts.length,
+      covered: coveredDistricts.size,
+      unassigned: Math.max(0, districts.length - coveredDistricts.size),
+    });
+  } catch {
+    res.status(500).json({ success: false, error: 'تعذر جلب ملخص المقاطعات.' });
+  }
+});
+
 // GET /api/geo/directorates ← orderBy wilayaCode+name
 geoRouter.get('/directorates', async (_req, res) => {
   try {
     const directorates = await prisma.directorate.findMany({
-      orderBy: [{ wilayaCode: 'asc' }, { name: 'asc' }]
+      orderBy: [{ wilayaCode: 'asc' }, { name: 'asc' }],
     });
     res.json({ success: true, directorates });
   } catch (err) {
@@ -31,7 +54,7 @@ geoRouter.get('/directorates/:id/districts', async (req, res) => {
     }
     const districts = await prisma.inspectionDistrict.findMany({
       where: { directorateId: id },
-      orderBy: [{ districtNumber: 'asc' }, { name: 'asc' }]
+      orderBy: [{ districtNumber: 'asc' }, { name: 'asc' }],
     });
     res.json({ success: true, districts });
   } catch (err) {
@@ -50,7 +73,7 @@ geoRouter.get('/directorates/:id/municipalities', async (req, res) => {
     }
     const municipalities = await prisma.municipality.findMany({
       where: { directorateId: id },
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
     });
     res.json({ success: true, municipalities });
   } catch (err) {
@@ -83,7 +106,7 @@ geoRouter.get('/schools', async (req, res) => {
       if (search) {
         const matchingMunicipalities = await prisma.municipality.findMany({
           where: { name: { contains: search, mode: 'insensitive' } },
-          select: { id: true }
+          select: { id: true },
         });
         const ids = matchingMunicipalities.map((m) => m.id);
         if (ids.length === 0) {
@@ -98,7 +121,7 @@ geoRouter.get('/schools', async (req, res) => {
     const schools = await prisma.school.findMany({
       where: Object.keys(where).length > 0 ? where : undefined,
       take: 500,
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
     });
 
     res.json({ success: true, schools });
@@ -124,17 +147,19 @@ geoRouter.get('/districts/:id/communes', async (req, res) => {
     // مدارس مرتبطة مباشرة بالمقاطعة (إن وُجد توزيع مستقبلي)
     const schoolsInDistrict = await prisma.school.findMany({
       where: { inspectionDistrictId: id },
-      select: { municipalityId: true }
+      select: { municipalityId: true },
     });
-    const municipalityIdsFromSchools = Array.from(new Set(schoolsInDistrict.map((s) => s.municipalityId)));
+    const municipalityIdsFromSchools = Array.from(
+      new Set(schoolsInDistrict.map((s) => s.municipalityId))
+    );
 
     let municipalities;
     if (municipalityIdsFromSchools.length > 0) {
       municipalities = await prisma.municipality.findMany({
         where: {
-          OR: [{ directorateId }, { id: { in: municipalityIdsFromSchools } }]
+          OR: [{ directorateId }, { id: { in: municipalityIdsFromSchools } }],
         },
-        orderBy: { name: 'asc' }
+        orderBy: { name: 'asc' },
       });
       // deduplicate by id
       const seen = new Set<string>();
@@ -146,7 +171,7 @@ geoRouter.get('/districts/:id/communes', async (req, res) => {
     } else {
       municipalities = await prisma.municipality.findMany({
         where: { directorateId },
-        orderBy: { name: 'asc' }
+        orderBy: { name: 'asc' },
       });
     }
 

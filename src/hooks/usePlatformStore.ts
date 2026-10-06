@@ -322,7 +322,11 @@ export function usePlatformStore({
   useEffect(() => {
     const feedToken = hydrationGuard.begin('inspectionFeed');
     let active = true;
-    if (currentUser.role === 'teacher') {
+    if (
+      currentUser.role === 'teacher' &&
+      currentUser.status === 'active' &&
+      currentUser.isApprovedByAdmin
+    ) {
       void fetchTeacherInspectionFeed()
         .then((feed) => {
           if (active && hydrationGuard.canCommit(feedToken))
@@ -358,7 +362,14 @@ export function usePlatformStore({
     return () => {
       active = false;
     };
-  }, [currentUser.id, currentUser.role, hydrationGuard, refreshInspectionVisits]);
+  }, [
+    currentUser.id,
+    currentUser.role,
+    currentUser.status,
+    currentUser.isApprovedByAdmin,
+    hydrationGuard,
+    refreshInspectionVisits,
+  ]);
 
   const [broadcasts, setBroadcasts] = useState<DistrictBroadcast[]>(INITIAL_BROADCASTS);
   const [directMessages, setDirectMessages] = useState<DirectChatMessage[]>(() => {

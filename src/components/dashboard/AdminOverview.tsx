@@ -11,9 +11,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { KnowledgeItem, User } from '../../types/spex';
 import {
-  fetchAllAssignments,
+  fetchGeoDistrictSummary,
   fetchGenerationAccess,
-  fetchGeoDistricts,
   fetchManagedUsersFromDB,
   fetchPendingUsersFromDB,
   fetchAdminModerationOverview,
@@ -38,22 +37,14 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ users = [] }) => {
       fetchManagedUsersFromDB(),
       fetchPendingUsersFromDB(),
       fetchGenerationAccess(),
-      Promise.resolve({ districts: [] }),
-      fetchAllAssignments(),
+      fetchGeoDistrictSummary(),
       fetchAdminModerationOverview(),
-    ]).then(([managed, pending, access, districts, assignments, moderation]) => {
+    ]).then(([managed, pending, access, districtSummary, moderation]) => {
       if (!active) return;
       setManagedUsers(managed);
       setPendingUsers(pending);
       setServiceCount(access.filter((item: { enabled?: boolean }) => item.enabled).length);
-      const assignedDistricts = new Set(
-        (assignments.assignments || [])
-          .map((item: { inspector?: User | null }) => item.inspector?.districtId)
-          .filter(Boolean)
-      );
-      setUnassignedDistricts(
-        Math.max(0, (districts.districts || []).length - assignedDistricts.size)
-      );
+      setUnassignedDistricts(districtSummary?.unassigned || 0);
       setModerationPendingCount(moderation.counts.pending);
     });
     return () => {
