@@ -567,7 +567,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                 <label className="text-[11px] font-bold text-slate-300">مديرية التربية *</label>
                 <select
                   value={eduDirectorateId}
-                  onChange={(e) => setEduDirectorateId(e.target.value)}
+                  onChange={(e) => {
+                    setEduDirectorateId(e.target.value);
+                    setEduDistrictId('');
+                    setSelectedMunicipalityId('');
+                    setEduSchoolId('');
+                    setMunicipality('');
+                    setSchoolName('');
+                    setGeoDistricts([]);
+                    setGeoMunicipalities([]);
+                    setGeoSchools([]);
+                  }}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                 >
                   <option value="">اختر مديرية التربية...</option>

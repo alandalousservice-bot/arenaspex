@@ -5,9 +5,9 @@
 
 export const CURRENT_SCHOOL_YEAR_LABEL = 'السنة الدراسية 2026/2027';
 
-export const DEFAULT_SCHOOL_NAME = 'المدرسة الابتدائية';
-export const DEFAULT_MUNICIPALITY = 'عين أزال';
-export const DEFAULT_DISTRICT_LABEL = 'المقاطعة التفتيشية';
+export const DEFAULT_SCHOOL_NAME = 'لم تُحدد المؤسسة بعد';
+export const DEFAULT_MUNICIPALITY = 'لم تُحدد البلدية بعد';
+export const DEFAULT_DISTRICT_LABEL = 'لم تُحدد المقاطعة بعد';
 
 /** تعيين معرّف المقاطعة إلى تسميتها المعروضة */
 export const DISTRICT_LABELS: Record<string, string> = {

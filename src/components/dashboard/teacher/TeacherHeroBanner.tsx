@@ -34,12 +34,12 @@ export const TeacherHeroBanner: React.FC<TeacherHeroBannerProps> = ({
             أهلاً بك، أستاذ {user.firstName} {user.lastName} 👋
           </h2>
           <p className="workspace-hero-secondary text-xs sm:text-sm text-blue-100 max-w-2xl leading-relaxed">
-            مرحباً بك في بيئة عمل SPEX الذكية للتربية البدنية والرياضية. تم ربط حسابك بـ{' '}
+            مرحباً بك في بيئة عمل SPEX الذكية للتربية البدنية والرياضية. المؤسسة:{' '}
             <span className="workspace-hero-link font-bold underline decoration-blue-300">
               {schoolName}
             </span>{' '}
             <span className="workspace-hero-metadata">
-              ({municipality}) • وتحت إشراف {districtLabel}.
+              ({municipality}) • {districtLabel}.
             </span>
           </p>
         </div>
