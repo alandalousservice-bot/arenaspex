@@ -67,10 +67,14 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
   const load = async () => {
     if (!userId) return;
     setLoading(true);
+    setError('');
     const result = await fetchAdminAccount(userId);
-    setLoading(false);
-    if (!result.success || !result.user) setError(result.error || 'الحساب غير موجود.');
-    else {
+    if (!result.success || !result.user) {
+      setError(result.error || 'الحساب غير موجود.');
+      setLoading(false);
+      return;
+    }
+    try {
       setUser(result.user);
       setForm({
         firstName: result.user.firstName,
@@ -89,8 +93,13 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
         specialization: result.user.specialization || '',
         bio: result.user.bio || '',
       });
-      const geo = await fetchGeoDirectorates();
-      setDirectorates(Array.isArray(geo?.directorates) ? geo.directorates : []);
+      setLoading(false);
+      void fetchGeoDirectorates()
+        .then((geo) => setDirectorates(Array.isArray(geo?.directorates) ? geo.directorates : []))
+        .catch(() => setDirectorates([]));
+    } catch {
+      setError('تعذر تجهيز بيانات الحساب. أعد المحاولة.');
+      setLoading(false);
     }
   };
   useEffect(() => {
@@ -200,6 +209,12 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
       >
         <h1 className="text-xl font-black">الحساب غير متاح</h1>
         <p>{error || 'لم يتم العثور على هذا الحساب.'}</p>
+        <button
+          onClick={() => void load()}
+          className="rounded-xl bg-purple-700 px-4 py-2 font-bold text-white"
+        >
+          إعادة المحاولة
+        </button>
         <button
           onClick={() => navigate('/admin/accounts')}
           className="rounded-xl bg-white px-4 py-2 font-bold"

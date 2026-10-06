@@ -2026,12 +2026,23 @@ export interface AdminAccountDetail extends User {
 export async function fetchAdminAccount(
   userId: string
 ): Promise<{ success: boolean; user?: AdminAccountDetail; error?: string }> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
   try {
-    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`);
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+      signal: controller.signal,
+    });
     const data = await res.json();
     return res.ok ? { success: true, user: data.user } : { success: false, error: data.error };
   } catch {
-    return { success: false, error: 'تعذر تحميل بيانات الحساب.' };
+    return {
+      success: false,
+      error: controller.signal.aborted
+        ? 'استغرق تحميل الحساب وقتاً طويلاً. تحقق من الاتصال ثم أعد المحاولة.'
+        : 'تعذر تحميل بيانات الحساب.',
+    };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 export async function activateUserAccount(

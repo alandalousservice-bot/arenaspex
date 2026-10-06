@@ -4551,66 +4551,71 @@ apiRouter.get('/admin/users', requireRole('admin'), async (_req, res) => {
 });
 
 apiRouter.get('/admin/users/:id', requireRole('admin'), async (req, res) => {
-  const user = await prisma.user.findUnique({
-    where: { id: req.params.id },
-    include: {
-      eduDirectorate: { select: { id: true, name: true } },
-      eduDistrict: { select: { id: true, name: true, directorateId: true } },
-      eduSchool: {
-        select: { id: true, name: true, municipality: { select: { id: true, name: true } } },
-      },
-      teacherAssignment: {
-        select: {
-          status: true,
-          inspector: { select: { id: true, firstName: true, lastName: true, email: true } },
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      include: {
+        eduDirectorate: { select: { id: true, name: true } },
+        eduDistrict: { select: { id: true, name: true, directorateId: true } },
+        eduSchool: {
+          select: { id: true, name: true, municipality: { select: { id: true, name: true } } },
         },
-      },
-      inspectorAssignments: {
-        where: { status: { in: ['Active', 'Changed'] } },
-        select: {
-          status: true,
-          teacher: {
-            select: { id: true, firstName: true, lastName: true, email: true, status: true },
+        teacherAssignment: {
+          select: {
+            status: true,
+            inspector: { select: { id: true, firstName: true, lastName: true, email: true } },
           },
         },
+        inspectorAssignments: {
+          where: { status: { in: ['Active', 'Changed'] } },
+          select: {
+            status: true,
+            teacher: {
+              select: { id: true, firstName: true, lastName: true, email: true, status: true },
+            },
+          },
+        },
+        generationAccess: { select: { enabled: true, credentialEnabled: true } },
+        _count: { select: { students: true, studentClasses: true, inspectorAssignments: true } },
       },
-      generationAccess: { select: { enabled: true, credentialEnabled: true } },
-      _count: { select: { students: true, studentClasses: true, inspectorAssignments: true } },
-    },
-  });
-  if (!user) return res.status(404).json({ error: 'الحساب غير موجود.' });
-  const safe = sanitizeUser(user as any) as any;
-  const {
-    eduDirectorate,
-    eduDistrict,
-    eduSchool,
-    teacherAssignment,
-    inspectorAssignments,
-    generationAccess,
-    _count,
-    ...base
-  } = safe;
-  res.json({
-    success: true,
-    user: {
-      ...base,
-      createdAt: user.createdAt,
-      adminAffiliation: {
-        directorateName: eduDirectorate?.name || undefined,
-        districtName: eduDistrict?.name || undefined,
-        institutionName: eduSchool?.name || user.schoolName || undefined,
-        municipalityName: eduSchool?.municipality?.name || user.municipality || undefined,
+    });
+    if (!user) return res.status(404).json({ error: 'الحساب غير موجود.' });
+    const safe = sanitizeUser(user as any) as any;
+    const {
+      eduDirectorate,
+      eduDistrict,
+      eduSchool,
+      teacherAssignment,
+      inspectorAssignments,
+      generationAccess,
+      _count,
+      ...base
+    } = safe;
+    res.json({
+      success: true,
+      user: {
+        ...base,
+        createdAt: user.createdAt,
+        adminAffiliation: {
+          directorateName: eduDirectorate?.name || undefined,
+          districtName: eduDistrict?.name || undefined,
+          institutionName: eduSchool?.name || user.schoolName || undefined,
+          municipalityName: eduSchool?.municipality?.name || user.municipality || undefined,
+        },
+        assignment: teacherAssignment,
+        assignedTeachers: (inspectorAssignments || []).map((item: any) => item.teacher),
+        counts: {
+          students: _count.students,
+          classes: _count.studentClasses,
+          assignedTeachers: inspectorAssignments?.length || 0,
+        },
+        serviceAccess: generationAccess,
       },
-      assignment: teacherAssignment,
-      assignedTeachers: (inspectorAssignments || []).map((item: any) => item.teacher),
-      counts: {
-        students: _count.students,
-        classes: _count.studentClasses,
-        assignedTeachers: inspectorAssignments?.length || 0,
-      },
-      serviceAccess: generationAccess,
-    },
-  });
+    });
+  } catch (error) {
+    console.error('admin account detail error:', error);
+    res.status(500).json({ error: 'تعذر تحميل تفاصيل الحساب.' });
+  }
 });
 apiRouter.post('/admin/users/:id/activate', requireRole('admin'), async (req, res) => {
   const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
