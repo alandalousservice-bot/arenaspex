@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
@@ -11,7 +11,7 @@ import {
   Users,
   XCircle,
 } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useMatch } from 'react-router-dom';
 import {
   applyAdminAccountLifecycle,
   AdminAccountDetail,
@@ -29,16 +29,21 @@ const roleLabels: Record<string, string> = {
   admin: 'مشرف',
 };
 const statusLabel = (u: AdminAccountDetail) =>
-  u.status === 'pending_approval' || u.isApprovedByAdmin === false
-    ? 'بانتظار التفعيل'
-    : u.status === 'active'
-      ? 'نشط'
-      : 'معطل';
+  u.status === 'archived'
+    ? 'مؤرشف'
+    : u.status === 'inactive'
+      ? 'معطل'
+      : u.status === 'pending_approval' || u.isApprovedByAdmin === false
+        ? 'بانتظار التفعيل'
+        : u.status === 'active'
+          ? 'نشط'
+          : 'معطل';
 const fallback = (value?: string | number | null, text = 'غير مضاف') =>
   value === undefined || value === null || value === '' ? text : String(value);
 
 export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ currentUser }) => {
-  const { userId } = useParams<{ userId: string }>();
+  const userId = useMatch('/admin/accounts/:userId')?.params.userId;
+  const requestGeneration = useRef(0);
   const navigate = useNavigate();
   const [user, setUser] = useState<AdminAccountDetail | null>(null),
     [loading, setLoading] = useState(true),
@@ -64,11 +69,22 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
   });
   const [directorates, setDirectorates] = useState<Array<{ id: string; name: string }>>([]);
   const [districts, setDistricts] = useState<Array<{ id: string; name: string }>>([]);
+  const [confirmation, setConfirmation] = useState<{
+    message: string;
+    action: 'activate' | 'deactivate' | 'reactivate' | 'reject' | 'archive';
+  } | null>(null);
   const load = async () => {
-    if (!userId) return;
+    const generation = ++requestGeneration.current;
+    if (!userId) {
+      setError('معرّف الحساب غير موجود في الرابط.');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError('');
+    setUser(null);
     const result = await fetchAdminAccount(userId);
+    if (generation !== requestGeneration.current) return;
     if (!result.success || !result.user) {
       setError(result.error || 'الحساب غير موجود.');
       setLoading(false);
@@ -104,15 +120,20 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
   };
   useEffect(() => {
     void load();
+    return () => {
+      requestGeneration.current += 1;
+    };
   }, [userId]);
   useEffect(() => {
     if (!form.directorateId) {
       setDistricts([]);
       return;
     }
-    void fetchGeoDistricts(form.directorateId).then((data: any) => {
-      setDistricts(Array.isArray(data?.districts) ? data.districts : []);
-    });
+    void fetchGeoDistricts(form.directorateId)
+      .then((data: any) => {
+        setDistricts(Array.isArray(data?.districts) ? data.districts : []);
+      })
+      .catch(() => setDistricts([]));
   }, [form.directorateId]);
   const save = async () => {
     if (!user) return;
@@ -173,26 +194,41 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
   };
   const activate = async () => {
     if (!user) return;
-    if (!window.confirm(`تأكيد تفعيل حساب ${user.firstName} ${user.lastName}؟`)) return;
-    const result = await applyAdminAccountLifecycle(user.id, 'activate');
-    if (!result.success || !result.user) {
-      setNotice(result.error || 'تعذر تفعيل الحساب.');
-      return;
-    }
-    setUser({ ...user, ...result.user, status: 'active', isApprovedByAdmin: true });
-    setNotice('تم تفعيل الحساب، وبقي في الدليل.');
+    setConfirmation({
+      message: `تأكيد تفعيل حساب ${user.firstName} ${user.lastName}؟`,
+      action: 'activate',
+    });
   };
-  const applyLifecycle = async (action: 'deactivate' | 'reactivate' | 'reject') => {
-    if (!user || user.isPlatformOwner) return;
-    const labels = { deactivate: 'تعطيل', reactivate: 'إعادة تفعيل', reject: 'رفض' };
-    if (!window.confirm(`تأكيد ${labels[action]} حساب ${user.firstName} ${user.lastName}؟`)) return;
+  const confirmLifecycle = async () => {
+    if (!user || !confirmation || saving) return;
+    const { action } = confirmation;
+    setConfirmation(null);
+    setSaving(true);
     const result = await applyAdminAccountLifecycle(user.id, action);
+    setSaving(false);
     if (!result.success || !result.user) {
       setNotice(result.error || 'تعذر تغيير حالة الحساب.');
       return;
     }
     setUser({ ...user, ...result.user });
-    setNotice(`تم ${labels[action]} الحساب.`);
+    setNotice('تم تحديث حالة الحساب.');
+  };
+  const applyLifecycle = async (action: 'deactivate' | 'reactivate' | 'reject' | 'archive') => {
+    if (!user || user.isPlatformOwner || user.id === currentUser.id || user.status === 'archived')
+      return;
+    const labels = {
+      deactivate: 'تعطيل',
+      reactivate: 'إعادة تفعيل',
+      reject: 'رفض',
+      archive: 'حذف وأرشفة',
+    };
+    setConfirmation({
+      action,
+      message:
+        action === 'archive'
+          ? 'هل تؤكد حذف الحساب وأرشفته؟ سيُمنع الدخول مع الاحتفاظ بالزيارات والتقارير والبطاقة وسجل التدقيق.'
+          : `تأكيد ${labels[action]} حساب ${user.firstName} ${user.lastName}؟`,
+    });
   };
   if (loading)
     return (
@@ -228,6 +264,36 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
     isTeacher = user.role === 'teacher';
   return (
     <div className="workspace-page workspace-page--admin space-y-6" dir="rtl">
+      {confirmation && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="account-confirm-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 text-slate-900 shadow-xl">
+            <h2 id="account-confirm-title" className="text-xl font-bold">
+              تأكيد تغيير حالة الحساب
+            </h2>
+            <p className="my-4">{confirmation.message}</p>
+            <div className="flex gap-3">
+              <button
+                autoFocus
+                onClick={() => setConfirmation(null)}
+                className="rounded-xl border border-slate-300 px-4 py-2 font-bold"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={() => void confirmLifecycle()}
+                className="rounded-xl bg-emerald-800 px-4 py-2 font-bold text-white"
+              >
+                تأكيد
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <button
         onClick={() => navigate('/admin/accounts')}
         className="inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-purple-700"
@@ -262,7 +328,9 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
               {statusLabel(user)}
             </span>
             {!user.isPlatformOwner &&
-              (user.status === 'pending_approval' || user.isApprovedByAdmin === false) && (
+              user.id !== currentUser.id &&
+              user.status !== 'archived' &&
+              user.status === 'pending_approval' && (
                 <button
                   onClick={activate}
                   className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white"
@@ -270,17 +338,33 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
                   تفعيل الحساب
                 </button>
               )}
-            {!user.isPlatformOwner && user.status !== 'pending_approval' && (
-              <button
-                onClick={() =>
-                  applyLifecycle(user.status === 'inactive' ? 'reactivate' : 'deactivate')
-                }
-                className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white"
-              >
-                {user.status === 'inactive' ? 'إعادة التفعيل' : 'تعطيل الحساب'}
-              </button>
-            )}
             {!user.isPlatformOwner &&
+              user.id !== currentUser.id &&
+              user.status !== 'archived' &&
+              user.status !== 'pending_approval' && (
+                <button
+                  onClick={() =>
+                    applyLifecycle(user.status === 'inactive' ? 'reactivate' : 'deactivate')
+                  }
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white"
+                >
+                  {user.status === 'inactive' ? 'إعادة التفعيل' : 'تعطيل الحساب'}
+                </button>
+              )}
+            {!user.isPlatformOwner &&
+              user.role !== 'admin' &&
+              user.id !== currentUser.id &&
+              user.status !== 'archived' && (
+                <button
+                  onClick={() => void applyLifecycle('archive')}
+                  className="rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white"
+                >
+                  حذف الحساب وأرشفته
+                </button>
+              )}
+            {!user.isPlatformOwner &&
+              user.status !== 'archived' &&
+              user.id !== currentUser.id &&
               (user.status === 'pending_approval' || user.isApprovedByAdmin === false) && (
                 <button
                   onClick={() => applyLifecycle('reject')}
@@ -461,6 +545,7 @@ export const AdminAccountDetailPage: React.FC<{ currentUser: User }> = ({ curren
             ) : (
               <button
                 onClick={() => setEditing(true)}
+                disabled={user.status === 'archived' || user.isPlatformOwner}
                 className="inline-flex items-center gap-2 rounded-xl bg-purple-50 px-4 py-2 text-xs font-bold text-purple-700"
               >
                 <Edit3 className="h-4 w-4" />

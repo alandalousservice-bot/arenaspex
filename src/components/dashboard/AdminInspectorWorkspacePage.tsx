@@ -130,7 +130,7 @@ export const AdminInspectorWorkspacePage: React.FC<WorkspaceProps> = ({
     const r: any = await createAdminAssignment(teacherId, inspectorId);
     setSaving(false);
     setNotice(
-      r.success ? 'تم إنشاء الإسناد بانتظار قبول المفتش.' : r.error || 'تعذر إنشاء الإسناد.'
+      r.success ? r.transfer ? 'تم إرسال طلب النقل؛ يبقى الإسناد الحالي حتى قبول المفتش الوجهة.' : 'تم إنشاء الإسناد بانتظار قبول المفتش.' : r.error || 'تعذر إنشاء الإسناد.'
     );
     if (r.success) {
       setTeacherId('');
@@ -397,7 +397,7 @@ export const AdminInspectorWorkspacePage: React.FC<WorkspaceProps> = ({
                   {data.teachers.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.firstName} {t.lastName} — {t.email} — {t.schoolName || 'لا توجد مؤسسة'}
-                      {t.teacherAssignment?.status === 'Active' ? ' — مسند حالياً' : ''}
+                      {['Active', 'Changed'].includes(t.teacherAssignment?.status) ? ' — مسند حالياً (طلب نقل عند اختيار مفتش آخر)' : ''}
                     </option>
                   ))}
                 </select>

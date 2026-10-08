@@ -5,6 +5,7 @@ import { AdminAccountDetailPage } from './AdminAccountDetailPage';
 import { AdminOverview } from './AdminOverview';
 import { AdminPendingUsersPage } from './AdminPendingUsersPage';
 import { AdminReportsPage } from './AdminReportsPage';
+import { AdminAuditPage } from './AdminAuditPage';
 import { AdminInspectorWorkspacePage } from './AdminInspectorWorkspacePage';
 import { AdminServicesPage } from './AdminServicesPage';
 import { AdminApprovalsPage } from './AdminApprovalsPage';
@@ -47,6 +48,7 @@ export const AdminWorkspacePage: React.FC<AdminWorkspacePageProps> = (props) => 
       />
     );
   if (pathname === '/admin/reports') return <AdminReportsPage />;
+  if (pathname === '/admin/audit') return <AdminAuditPage />;
   if (pathname === '/admin/curriculum')
     return <AdminCurriculumPage knowledgeItems={props.knowledgeItems} />;
   return <AdminOverview users={props.users} knowledgeItems={props.knowledgeItems} />;

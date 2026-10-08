@@ -156,7 +156,10 @@ authRouter.post('/register', async (req, res) => {
         eduDirectorateId: normalizedEduDir,
         eduDistrictId: eduDistrictId || null,
         eduSchoolId: eduSchoolId || null,
-        specialization: 'أستاذ التربية البدنية والرياضية - الطور الابتدائي',
+        specialization:
+          role === 'inspector'
+            ? 'مفتش التربية البدنية والرياضية'
+            : 'أستاذ التربية البدنية والرياضية - الطور الابتدائي',
         yearsExperience: null,
         status: 'pending_approval',
         isApprovedByAdmin: false,
@@ -192,18 +195,12 @@ authRouter.post('/login', async (req, res) => {
   if (!user) {
     return res.status(401).json({ error: genericError });
   }
-  if (!user.platformEmail) {
-    user.platformEmail = await createPlatformEmail(user.firstName, user.lastName);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { platformEmail: user.platformEmail },
-    });
-  }
-
   const validPassword = await verifyPassword(password, user.passwordHash);
   if (!validPassword) {
     return res.status(401).json({ error: genericError });
   }
+
+  if (user.status === 'archived') return res.status(403).json({error:'الحساب مؤرشف ولا يمكن تسجيل الدخول إليه.',code:'ACCOUNT_ARCHIVED',disabled:true});
 
   if (portal === 'admin' && user.role !== 'admin') {
     return res.status(403).json({
@@ -218,13 +215,12 @@ authRouter.post('/login', async (req, res) => {
   }
 
   if (user.status !== 'active' || !user.isApprovedByAdmin) {
-    return res.status(403).json({
-      error: 'حسابك قيد انتظار موافقة الإدارة أو غير مفعّل حالياً.',
-      code: 'ACCOUNT_PENDING_APPROVAL',
-      user: sanitizeOwnUser(user),
-    });
+    return res.status(403).json({error:'حسابك قيد انتظار موافقة الإدارة أو غير مفعّل حالياً.',code:'ACCOUNT_PENDING_APPROVAL',user:sanitizeOwnUser(user)});
   }
-
+  if (!user.platformEmail) {
+    user.platformEmail = await createPlatformEmail(user.firstName, user.lastName);
+    await prisma.user.update({where:{id:user.id},data:{platformEmail:user.platformEmail}});
+  }
   const token = signSession({ userId: user.id, role: user.role });
   setSessionCookie(res, token);
 
@@ -276,6 +272,7 @@ async function findOrCreateGoogleUser(
   }
 
   if (user) {
+    if (user.status === 'archived' || user.status === 'inactive') return { kind: 'disabled' as const };
     if (user.role === 'admin' && requestedRole !== 'admin') {
       return { kind: 'forbidden' as const };
     }
@@ -303,8 +300,10 @@ async function findOrCreateGoogleUser(
   }
 
   // إنشاء أول للحساب عبر Google — معتمد للأدوار البيداغوجية فقط وبانتظار تفعيل المشرف
-  const role =
-    requestedRole && GOOGLE_SELF_REGISTER_ROLES.has(requestedRole) ? requestedRole : 'teacher';
+  if (!requestedRole || !GOOGLE_SELF_REGISTER_ROLES.has(requestedRole)) {
+    return { kind: 'registration_role_required' as const };
+  }
+  const role = requestedRole;
   const passwordHash = await hashPassword(crypto.randomBytes(24).toString('hex')); // غير قابلة للاستعمال إطلاقاً
   const spexId = `SPX-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
   const platformEmail = await createPlatformEmail(profile.firstName, profile.lastName);
@@ -317,6 +316,7 @@ async function findOrCreateGoogleUser(
       firstName: profile.firstName || 'مستخدم',
       lastName: profile.lastName || 'جديد',
       email: profile.email,
+      googleId: profile.googleId,
       platformEmail,
       passwordHash,
       role,
@@ -368,6 +368,10 @@ authRouter.post('/google', async (req, res) => {
 
   const outcome = await findOrCreateGoogleUser(profile, parsed.data.role);
 
+  if (outcome.kind === 'registration_role_required') {
+    return res.status(400).json({ error: 'اختر نوع الحساب: أستاذ أو مفتش قبل التسجيل عبر Google.' });
+  }
+
   if (outcome.kind === 'forbidden') {
     return res
       .status(403)
@@ -376,6 +380,7 @@ authRouter.post('/google', async (req, res) => {
 
   // السماح لأي مستخدم بالتسجيل مباشرة عبر Google — حتى الحساب المعلق يدخل لوضع المشاهدة بدل 403
   // (فرق واضح بين تسجيل الدخول العادي الذي يرفض المعلق، وبين Google الذي يُعتبر تسجيلاً مباشراً)
+  if (outcome.kind === 'disabled') return res.status(403).json({error:'الحساب معطل أو مؤرشف ولا يمكن تسجيل الدخول إليه.',code:'ACCOUNT_DISABLED',disabled:true});
   if (outcome.kind === 'pending') {
     const user = outcome.user;
     const token = signSession({ userId: user.id, role: user.role });
@@ -491,14 +496,23 @@ authRouter.post('/google/gsi-callback', urlencoded({ extended: false }), async (
 
     let outcome;
     try {
-      outcome = await findOrCreateGoogleUser(profile);
+      const requestedRole = googleAuthSchema.shape.role.safeParse(req.body.role ?? req.query.role);
+      if (!requestedRole.success) return fail('نوع الحساب المطلوب غير صالح.');
+      outcome = await findOrCreateGoogleUser(profile, requestedRole.data);
     } catch (err) {
       console.error('خطأ أثناء البحث/الإنشاء (gsi-callback):', err);
       return fail('تعذر إتمام الدخول الآن. أعد المحاولة بعد قليل.');
     }
 
+    if (outcome.kind === 'registration_role_required') {
+      return fail('اختر نوع الحساب: أستاذ أو مفتش من صفحة التسجيل عبر Google.');
+    }
+    if (outcome.kind === 'forbidden') return fail('الدخول إلى حساب المشرف متاح من بوابة الإدارة.');
+    if (outcome.kind === 'disabled') return fail('الحساب معطل أو مؤرشف ولا يمكن تسجيل الدخول إليه.');
+
     // أي مستخدم (حتى المعلق) يستطيع الدخول عبر Google مباشرة إلى وضع المشاهدة
     const user = outcome.user;
+    const target = user.role === 'inspector' ? '/inspector' : user.role === 'admin' ? '/admin' : '/dashboard';
     const token = signSession({ userId: user.id, role: user.role });
     // للمسار القادم من accounts.google.com (cross-site)، نحتاج SameSite=None لضمان حفظ الكوكي
     // نضبط الكوكي يدوياً هنا بـ SameSite=None; Secure ليتجاوز حجب الطرف الثالث
@@ -515,10 +529,10 @@ authRouter.post('/google/gsi-callback', urlencoded({ extended: false }), async (
     return res.status(200).send(`
       <!doctype html>
       <html><head><meta charset="utf-8"><title>جارٍ التوجيه...</title>
-      <meta http-equiv="refresh" content="0;url=/dashboard">
+      <meta http-equiv="refresh" content="0;url=${target}">
       </head><body>
-      <script>try{window.top.location.href="/dashboard";}catch(e){window.location.href="/dashboard";}</script>
-      <p>جارٍ التوجيه إلى لوحة التحكم... <a href="/dashboard">اضغط هنا إن لم يتم التوجيه تلقائياً</a></p>
+      <script>try{window.top.location.href="${target}";}catch(e){window.location.href="${target}";}</script>
+      <p>جارٍ التوجيه إلى لوحة التحكم... <a href="${target}">اضغط هنا إن لم يتم التوجيه تلقائياً</a></p>
       </body></html>
     `);
   } catch (err) {
@@ -627,6 +641,8 @@ authRouter.get('/me', async (req, res) => {
     clearSessionCookie(res);
     return res.status(401).json({ error: 'الحساب غير موجود.', code: 'ACCOUNT_GONE' });
   }
+
+  if(user.status==='archived') { clearSessionCookie(res);return res.status(401).json({error:'الحساب مؤرشف.',code:'ACCOUNT_ARCHIVED',disabled:true}); }
 
   // PART C/C3: إذا كان الحساب معطلاً ⇒ كيان الخادم (inactive) ⇒ يقفل إلى وضع المشاهدة
   // نعيد {disabled:true, user} مع كود ACCOUNT_DISABLED

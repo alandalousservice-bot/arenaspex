@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Award, Send, Megaphone } from 'lucide-react';
 import { User, LessonPlan, InspectionVisit, InspectorNote } from '../../../types/spex';
+import { isExplicitInspectionMark } from '../../../services/inspectionVisitIntegrity';
 
 interface InspectorModalsProps {
   selectedLessonPlanModal: LessonPlan | null;
@@ -29,7 +30,6 @@ export const InspectorModals: React.FC<InspectorModalsProps> = ({
   onAddVisit,
   showBroadcastModal,
   onCloseBroadcastModal,
-  onSendBroadcast,
 }) => {
   // New Note State
   const [noteTitle, setNoteTitle] = useState('');
@@ -40,12 +40,13 @@ export const InspectorModals: React.FC<InspectorModalsProps> = ({
   const [visitType, setVisitType] = useState<'تفتيش تثبيت' | 'توجيهية' | 'متابعة دورية' | 'تقييمية'>('توجيهية');
   const [visitDate, setVisitDate] = useState(new Date().toISOString().split('T')[0]);
   const [lessonTitle, setLessonTitle] = useState('');
-  const [pedagogicalGrade, setPedagogicalGrade] = useState('16.5');
-  const [positivesStr, setPositivesStr] = useState('التزام بدفتر اليوميات والتنظيم، التحكم الجيد في الفضاء والوقت.');
-  const [improvementsStr, setImprovementsStr] = useState('تنويع وضعيات التقييم الذاتي، تعزيز مبادئ الروح الرياضية.');
+  const [pedagogicalGrade, setPedagogicalGrade] = useState('');
+  const [positivesStr, setPositivesStr] = useState('');
+  const [improvementsStr, setImprovementsStr] = useState('');
+  useEffect(() => { if (showVisitModal) setPedagogicalGrade(''); }, [showVisitModal]);
 
   // Broadcast State
-  const [broadcastTitle, setBroadcastTitle] = useState('توجيه بيداغوجي عام للمقاطعة 07');
+  const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastContent, setBroadcastContent] = useState('');
 
   const handleNoteSubmit = (e: React.FormEvent) => {
@@ -81,22 +82,19 @@ export const InspectorModals: React.FC<InspectorModalsProps> = ({
       visitDate,
       visitType,
       lessonObservedTitle: lessonTitle.trim(),
-      pedagogicalGrade: parseFloat(pedagogicalGrade) || 16,
+      pedagogicalGrade: pedagogicalGrade.trim() && isExplicitInspectionMark(Number(pedagogicalGrade)) ? Number(pedagogicalGrade) : null,
       positivePoints: positivesStr.split('،').map((s) => s.trim()).filter(Boolean),
       areasForImprovement: improvementsStr.split('،').map((s) => s.trim()).filter(Boolean),
-      recommendations: ['مواصلة الاجتهاد والتطبيق الدقيق للتدرج الوزاري المعتمد.'],
-      officialReportGenerated: true,
+      recommendations: [],
+      officialReportGenerated: false,
     });
     setLessonTitle('');
+    setPedagogicalGrade(''); setPositivesStr(''); setImprovementsStr('');
     onCloseVisitModal();
   };
 
   const handleBroadcastSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!broadcastContent.trim()) return;
-    onSendBroadcast(broadcastTitle, broadcastContent.trim());
-    setBroadcastContent('');
-    onCloseBroadcastModal();
   };
 
   return (
@@ -308,7 +306,6 @@ export const InspectorModals: React.FC<InspectorModalsProps> = ({
                   step="0.5"
                   min="0"
                   max="20"
-                  required
                   value={pedagogicalGrade}
                   onChange={(e) => setPedagogicalGrade(e.target.value)}
                   className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:border-emerald-500 font-bold text-emerald-800"
@@ -387,7 +384,7 @@ export const InspectorModals: React.FC<InspectorModalsProps> = ({
                 <textarea
                   rows={4}
                   required
-                  placeholder="اكتب التوجيه الرسمي العام الذي سيصل لجميع أساتذة المقاطعة..."
+                  placeholder="البث من الواجهة القديمة معطّل."
                   value={broadcastContent}
                   onChange={(e) => setBroadcastContent(e.target.value)}
                   className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-medium"
@@ -397,10 +394,11 @@ export const InspectorModals: React.FC<InspectorModalsProps> = ({
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="submit"
+                  disabled
                   className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs cursor-pointer flex items-center gap-1.5"
                 >
                   <Megaphone className="w-4 h-4" />
-                  <span>إرسال للجميع الآن</span>
+                  <span>البث الجماعي غير متاح حاليًا</span>
                 </button>
                 <button
                   type="button"

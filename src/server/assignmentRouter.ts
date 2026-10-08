@@ -10,8 +10,14 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from './prismaClient.js';
+import { appendAudit } from './auditService.js';
+import { inspectorVisitView, legacyVisitVisibleToTeacher } from './pedagogicalVisitService.js';
+import { VISIT_TYPE_LABELS } from '../types/pedagogicalVisit.js';
 import { sanitizeUser } from './auth.js';
 import { requireRole } from './middleware/requireAuth.js';
+import {
+  requestTeacherTransfer, decideTeacherTransfer, updateTeacherProfile, createInitialAssignmentRequest, TransferError,
+} from './assignmentTransferService.js';
 import {
   reassignTeacher,
   bulkReassignAll,
@@ -151,6 +157,7 @@ assignmentRouter.post(
                 districtId: created.id,
               },
             });
+            await appendAudit(tx, { eventType: 'INSPECTOR_DISTRICT_ASSIGNED', actorUserId: req.user!.id, entityType: 'INSPECTOR_DISTRICT', entityId: created.id, affectedUserId: req.user!.id, after: { districtId: created.id, directorateId }, key: `DISTRICT_ASSIGN:${created.id}:${req.user!.id}` });
           }
           return created;
         },
@@ -358,6 +365,24 @@ assignmentRouter.put('/teacher/professional-data', requireRole('teacher'), async
     return res.status(404).json({ error: 'المقاطعة التفتيشية غير موجودة.' });
   }
 
+  const current = await prisma.inspectorAssignment.findUnique({ where: { teacherId: req.user!.id } });
+  const owner = await prisma.user.findUnique({ where: { id: req.user!.id } });
+  if (current && ['Active', 'Changed'].includes(current.status) && owner &&
+      (directorateId !== (owner.directorateId || owner.eduDirectorateId) || (districtId || '') !== (owner.districtId || owner.eduDistrictId || ''))) {
+    if (!districtId) return res.status(409).json({ error: 'لا يمكن إزالة المقاطعة الحالية أثناء الإشراف. استخدم طلب النقل.' });
+    const destinationInspector = await prisma.user.findFirst({ where: {
+      role: 'inspector', status: 'active', isApprovedByAdmin: true,
+      OR: [{ directorateId, districtId }, { eduDirectorateId: directorateId, eduDistrictId: districtId }],
+    } });
+    if (!destinationInspector) return res.status(400).json({ error: 'لا يوجد مفتش معتمد للمقاطعة الوجهة.' });
+    try {
+      const transfer = await requestTeacherTransfer({ teacherId: owner.id, requestedById: req.user!.id,
+        destinationInspectorId: destinationInspector.id, destinationDistrictId: districtId, destinationInstitutionId: institutionId });
+      return res.json({ success: true, user: sanitizeUser(owner), assignment: current, transfer,
+        message: 'تم إرسال طلب النقل. يبقى انتسابك وإشراف المفتش الحالي قائمين حتى قبول المفتش الوجهة.' });
+    } catch (error) { return transferFailure(res, error); }
+  }
+
   // بناء بيانات التحديث: الحقول الأساسية + الحقول الجغرافية الجديدة + البطاقة الشخصية
   const updateData: any = {
     directorateId,
@@ -390,10 +415,9 @@ assignmentRouter.put('/teacher/professional-data', requireRole('teacher'), async
     }
   }
 
-  const updated = await prisma.user.update({
-    where: { id: req.user!.id },
-    data: updateData,
-  });
+  let updated;
+  try { updated = await updateTeacherProfile(req.user!.id, updateData); }
+  catch (error) { return transferFailure(res, error); }
 
   // إذا لم يطلب المقاطعة ⇒ لا سجل إسناد إطلاقاً
   if (!districtId) {
@@ -451,7 +475,51 @@ assignmentRouter.get('/teacher/assignment', requireRole('teacher'), async (req, 
     const insp = await prisma.user.findUnique({ where: { id: assignment.inspectorId } });
     if (insp) inspector = sanitizeUser(insp);
   }
-  res.json({ success: true, assignment, inspector });
+  const transfer = await prisma.inspectorAssignmentTransfer.findUnique({ where: { pendingTeacherId: req.user!.id } });
+  res.json({ success: true, assignment, inspector, transfer });
+});
+
+function transferFailure(res: import('express').Response, error: unknown) {
+  if (!(error instanceof TransferError)) throw error;
+  const status = error.code === 'FORBIDDEN' ? 403 : error.code === 'NOT_FOUND' ? 404 : error.code === 'INVALID' ? 400 : 409;
+  return res.status(status).json({ success: false, error: error.message, code: error.code });
+}
+
+assignmentRouter.get('/inspector/transfers', requireRole('inspector'), async (req, res) => {
+  const transfers = await prisma.inspectorAssignmentTransfer.findMany({
+    where: { destinationInspectorId: req.user!.id, status: 'Pending' }, orderBy: { requestedAt: 'asc' },
+  });
+  res.json({ success: true, transfers });
+});
+assignmentRouter.post('/inspector/transfers/:id/:decision', requireRole('inspector'), async (req, res) => {
+  if (!['accept', 'reject'].includes(req.params.decision)) return res.status(400).json({ error: 'قرار غير صالح.' });
+  if (req.body?.reason !== undefined && (typeof req.body.reason !== 'string' || req.body.reason.length > 1000)) return res.status(400).json({ error: 'سبب الرفض غير صالح.' });
+  try {
+    const transfer = await decideTeacherTransfer(req.params.id, req.user!.id,
+      req.params.decision === 'accept' ? 'Accepted' : 'Rejected', req.body?.reason);
+    res.json({ success: true, transfer });
+  } catch (error) { return transferFailure(res, error); }
+});
+
+// Archive authorization is by persisted actor ownership and transfer cutoff.
+// No current Teacher profile, schedule, memo or dossier is loaded by this route.
+assignmentRouter.get('/inspector/archive', requireRole('inspector'), async (req, res) => {
+  const transfers = await prisma.inspectorAssignmentTransfer.findMany({ where: { sourceInspectorId: req.user!.id, status: 'Accepted' }, orderBy: { effectiveAt: 'desc' } });
+  const cutoff = new Map<string, number>();
+  for (const t of transfers) if (t.effectiveAt) cutoff.set(t.teacherId, Math.max(cutoff.get(t.teacherId) || 0, t.effectiveAt.getTime()));
+  const [visits, notes] = await Promise.all([
+    prisma.inspectionVisitRecord.findMany({ where: { inspectorId: req.user!.id, teacherId: { in: [...cutoff.keys()] } }, orderBy: { createdAt: 'desc' } }),
+    prisma.inspectorNote.findMany({ where: { authorId: req.user!.id }, orderBy: { createdAt: 'desc' } }),
+  ]);
+  res.json({ success: true, transfers,
+    visits: visits.filter(v => {
+      const at = cutoff.get(v.teacherId) || 0;
+      if (v.createdAt.getTime() > at) return false;
+      if (!v.status) return true; // Legacy meaning remains unchanged.
+      return (v.status === 'COMPLETED' && !!v.completedAt && v.completedAt.getTime() <= at) || (v.status === 'CANCELLED' && !!v.cancelledAt && v.cancelledAt.getTime() <= at);
+    }).map(v => ({ id: v.id, teacherId: v.teacherId, inspectorId: v.inspectorId, createdAt: v.createdAt, data: v.status ? { ...inspectorVisitView(v), visitType: VISIT_TYPE_LABELS[v.visitType!], visitDate: new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Algiers', year: 'numeric', month: '2-digit', day: '2-digit' }).format(v.scheduledAt!), pedagogicalGrade: null, officialReportGenerated: false } : v.data })),
+    notes: notes.filter(n => { const teacherId = (n.data as Record<string, unknown>)?.teacherId; return typeof teacherId === 'string' && n.createdAt.getTime() <= (cutoff.get(teacherId) || 0); }).map(n => ({ id: n.id, authorId: n.authorId, createdAt: n.createdAt, data: n.data })),
+  });
 });
 
 // Read model for the teacher's inspection relationship. The assignment row is
@@ -487,7 +555,7 @@ assignmentRouter.get('/teacher/inspection-feed', requireRole('teacher'), async (
       orderBy: { createdAt: 'desc' },
     }),
     prisma.inspectionVisitRecord.findMany({
-      where: { teacherId: req.user!.id, inspectorId: inspector.id },
+      where: { teacherId: req.user!.id, inspectorId: inspector.id, status: null },
       orderBy: { createdAt: 'desc' },
     }),
   ]);
@@ -504,15 +572,16 @@ assignmentRouter.get('/teacher/inspection-feed', requireRole('teacher'), async (
     `${inspector.firstName || ''} ${inspector.lastName || ''}`.trim() ||
     inspector.username ||
     'المفتش';
+  const visibleVisits = visits.filter((row) => legacyVisitVisibleToTeacher(row.data));
   return res.json({
     success: true,
     inspector: { id: inspector.id, displayName },
     guidance,
-    visits: visits.map((row) => row.data),
+    visits: visibleVisits.map((row) => row.data),
     counts: {
       guidance: guidance.length,
-      visits: visits.length,
-      interactions: guidance.length + visits.length,
+      visits: visibleVisits.length,
+      interactions: guidance.length + visibleVisits.length,
     },
   });
 });
@@ -540,7 +609,7 @@ assignmentRouter.get('/inspector/teachers', requireRole('inspector'), async (req
   const acceptedIds = teachers.map((teacher) => teacher.id);
   const [visits, notes, classes, students] = await Promise.all([
     prisma.inspectionVisitRecord.findMany({
-      where: { inspectorId: req.user!.id, teacherId: { in: acceptedIds } },
+      where: { inspectorId: req.user!.id, teacherId: { in: acceptedIds }, OR: [{ status: null }, { status: 'COMPLETED' }] },
       orderBy: { createdAt: 'desc' },
     }),
     prisma.inspectorNote.findMany({ where: { authorId: req.user!.id } }),
@@ -587,7 +656,7 @@ assignmentRouter.get('/inspector/teachers', requireRole('inspector'), async (req
       studentCount: studentCounts.get(teacher.id) || 0,
       visitCount: visitsByTeacher.get(teacher.id)?.length || 0,
       noteCount: noteCounts.get(teacher.id) || 0,
-      lastVisitAt: visitsByTeacher.get(teacher.id)?.[0]?.createdAt || null,
+      lastVisitAt: visitsByTeacher.get(teacher.id)?.[0]?.completedAt || visitsByTeacher.get(teacher.id)?.[0]?.createdAt || null,
       followUpStatus: visitsByTeacher.get(teacher.id)?.length
         ? 'متابعة مستمرة'
         : 'لم تتم الزيارة بعد',
@@ -636,7 +705,7 @@ assignmentRouter.get(
           select: { id: true, classId: true },
         }),
         prisma.inspectionVisitRecord.findMany({
-          where: { teacherId, inspectorId: req.user!.id },
+          where: { teacherId, inspectorId: req.user!.id, status: null },
           orderBy: { createdAt: 'desc' },
         }),
         prisma.inspectorNote.findMany({
@@ -692,7 +761,7 @@ assignmentRouter.get(
       students,
       visits: visits.map((row) => row.data),
       guidance,
-      reports: visits.map((row) => row.data),
+      reports: visits.filter((row) => (row.data as Record<string, unknown>)?.officialReportGenerated === true).map((row) => row.data),
       lessonPlans: plans.map((row) => ({ id: row.id, data: row.data, updatedAt: row.updatedAt })),
       academicYearId,
       annualPlans,
@@ -708,7 +777,7 @@ assignmentRouter.get('/inspector/visits', requireRole('inspector'), async (req, 
   });
   const teacherIds = assignments.map((assignment) => assignment.teacherId);
   const visits = await prisma.inspectionVisitRecord.findMany({
-    where: { inspectorId: req.user!.id, teacherId: { in: teacherIds } },
+    where: { inspectorId: req.user!.id, teacherId: { in: teacherIds }, status: null },
     orderBy: { createdAt: 'desc' },
   });
   res.json({ success: true, visits: visits.map((row) => row.data) });
@@ -716,7 +785,7 @@ assignmentRouter.get('/inspector/visits', requireRole('inspector'), async (req, 
 
 assignmentRouter.get('/inspector/summary', requireRole('inspector'), async (req, res) => {
   const inspectorId = req.user!.id;
-  const [accepted, pending, visits, notes, messages, broadcasts] = await Promise.all([
+  const [accepted, pending, visits, notes, messages, broadcasts, pendingTransfers] = await Promise.all([
     prisma.inspectorAssignment.count({
       where: { inspectorId, status: { in: ['Active', 'Changed'] } },
     }),
@@ -725,16 +794,17 @@ assignmentRouter.get('/inspector/summary', requireRole('inspector'), async (req,
     prisma.inspectorNote.count({ where: { authorId: inspectorId } }),
     prisma.directMessage.count({ where: { recipientId: inspectorId, readAt: null } }),
     prisma.districtMessage.count({ where: { authorId: inspectorId } }),
+    prisma.inspectorAssignmentTransfer.count({ where: { destinationInspectorId: inspectorId, status: 'Pending' } }),
   ]);
   res.json({
     success: true,
     summary: {
       teachersCount: accepted,
-      pendingAssignmentsCount: pending,
+      pendingAssignmentsCount: pending + pendingTransfers,
       visitsCount: visits,
       guidanceCount: notes + broadcasts,
       unreadMessagesCount: messages,
-      pendingApprovalsCount: 0,
+      pendingApprovalsCount: null,
     },
   });
 });
@@ -1236,6 +1306,14 @@ assignmentRouter.post('/admin/assignments', requireRole('admin'), async (req, re
     return res.status(404).json({ success: false, error: 'الأستاذ غير موجود.' });
   if (!inspector || inspector.role !== 'inspector' || inspector.status !== 'active')
     return res.status(400).json({ success: false, error: 'يجب اختيار مفتش نشط.' });
+  const currentAssignment = await prisma.inspectorAssignment.findUnique({ where: { teacherId } });
+  if (currentAssignment && ['Active', 'Changed'].includes(currentAssignment.status)) {
+    if (currentAssignment.inspectorId === inspectorId) return res.json({ success: true, assignment: currentAssignment });
+    try {
+      const transfer = await requestTeacherTransfer({ teacherId, destinationInspectorId: inspectorId, requestedById: req.user!.id });
+      return res.json({ success: true, assignment: currentAssignment, transfer });
+    } catch (error) { return transferFailure(res, error); }
+  }
   const teacherDirectorate = teacher.directorateId || teacher.eduDirectorateId || '';
   const teacherDistrict = teacher.districtId || teacher.eduDistrictId || '';
   const inspectorDirectorate = inspector.directorateId || inspector.eduDirectorateId || '';
@@ -1273,12 +1351,10 @@ assignmentRouter.post('/admin/assignments', requireRole('admin'), async (req, re
   });
   if (occupied)
     return res.status(409).json({ success: false, error: 'المقاطعة مرتبطة بمفتش نشط آخر.' });
-  const assignment = await prisma.inspectorAssignment.upsert({
-    where: { teacherId },
-    create: { teacherId, inspectorId, status: 'Pending', assignedAt: null },
-    update: { inspectorId, status: 'Pending', assignedAt: null },
-  });
-  res.json({ success: true, assignment });
+  try {
+    const assignment = await createInitialAssignmentRequest(teacherId, inspectorId, req.user!.id);
+    res.json({ success: true, assignment });
+  } catch (error) { return transferFailure(res, error); }
 });
 // عرض جميع سجلات الإسناد (لوحة تحكم الإدارة)
 assignmentRouter.get('/admin/assignments', async (req, res) => {
@@ -1307,20 +1383,22 @@ assignmentRouter.get('/admin/assignments', async (req, res) => {
 assignmentRouter.post('/admin/assignments/reassign-all', async (req, res) => {
   if (req.body?.confirm !== true)
     return res.status(400).json({ error: 'يجب تأكيد إعادة إسناد جميع الأساتذة قبل التنفيذ.' });
-  const result = await bulkReassignAll();
+  const result = await bulkReassignAll(req.user!.id);
   res.json({ success: true, ...result });
 });
 
 // إلغاء إسناد أستاذ يدوياً (أداة إدارية استثنائية فقط)
 assignmentRouter.post('/admin/assignments/:teacherId/remove', async (req, res) => {
-  const assignment = await removeAssignment(req.params.teacherId);
-  if (!assignment) return res.status(404).json({ error: 'لا يوجد سجل إسناد لهذا الأستاذ.' });
-  res.json({ success: true, assignment });
+  try {
+    const assignment = await removeAssignment(req.params.teacherId, req.user!.id);
+    if (!assignment) return res.status(404).json({ error: 'لا يوجد سجل إسناد لهذا الأستاذ.' });
+    res.json({ success: true, assignment });
+  } catch (error) { return transferFailure(res, error); }
 });
 
 // إعادة إسناد يدوية استثنائية لأستاذ واحد (بدل الانتظار للاحتساب التلقائي)
 assignmentRouter.post('/admin/assignments/:teacherId/reassign', async (req, res) => {
-  const assignment = await reassignTeacher(req.params.teacherId);
+  const assignment = await reassignTeacher(req.params.teacherId, prisma, req.user!.id);
   if (!assignment)
     return res
       .status(404)

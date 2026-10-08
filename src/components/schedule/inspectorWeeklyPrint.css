@@ -1,0 +1,23 @@
+.inspector-weekly-print-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  overflow: auto;
+  background: #f1f5f9;
+  padding: 1rem;
+}
+.inspector-weekly-print-root .weekly-timetable-workspace {
+  max-width: 1100px;
+  margin: auto;
+}
+@media print {
+  body:has(.inspector-weekly-print-root) > :not(.inspector-weekly-print-root) {
+    display: none !important;
+  }
+  .inspector-weekly-print-root {
+    position: static;
+    padding: 0;
+    overflow: visible;
+    background: white;
+  }
+}

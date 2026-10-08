@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // نموذج مبسّط لعميل Prisma يحاكي الاستدعاءات التي يستخدمها assignmentService فقط،
 const mockPrisma = {
   $transaction: vi.fn(),
+  auditEvent: { create: vi.fn(async ({ data }) => ({ id: 'synthetic-audit', ...data })) },
   user: {
     findUnique: vi.fn(),
     findMany: vi.fn(),
@@ -13,8 +14,11 @@ const mockPrisma = {
     findMany: vi.fn(),
     upsert: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     delete: vi.fn(),
   },
+  inspectorAssignmentTransfer: { findUnique: vi.fn().mockResolvedValue(null) },
+  inspectionDistrict: { findUnique: vi.fn().mockResolvedValue({ directorateId: 'dir_setif' }) },
 };
 
 vi.mock('../src/server/prismaClient.js', () => ({ prisma: mockPrisma }));
@@ -50,6 +54,7 @@ function makeInspector(overrides: Partial<Record<string, unknown>> = {}) {
     eduDirectorateId: null,
     eduDistrictId: null,
     status: 'active',
+    isApprovedByAdmin: true,
     ...overrides,
   };
 }
@@ -128,7 +133,7 @@ describe('reassignTeacher - PART B new policy (Pending, no auto Active)', () => 
     expect(result).toMatchObject({ inspectorId: null, status: 'Pending', assignedAt: null });
   });
 
-  it('عند تغيّر المفتش المطابق عن الإسناد السابق، يُعاد إلى Pending بالمفتش الجديد (لا Changed تلقائياً)', async () => {
+  it('يحافظ على المفتش الحالي عند تغير المطابقة حتى قبول نقل صريح', async () => {
     mockPrisma.user.findUnique.mockResolvedValue(makeTeacher());
     mockPrisma.user.findFirst.mockResolvedValue(makeInspector({ id: 'i2' }));
     mockPrisma.inspectorAssignment.findUnique.mockResolvedValue({
@@ -140,17 +145,21 @@ describe('reassignTeacher - PART B new policy (Pending, no auto Active)', () => 
 
     const result = await reassignTeacher('t1');
 
-    expect(result).toMatchObject({ inspectorId: 'i2', status: 'Pending', assignedAt: null });
+    expect(result).toMatchObject({ inspectorId: 'i1', status: 'Active' });
+    expect(mockPrisma.inspectorAssignment.upsert).not.toHaveBeenCalled();
   });
 });
 
 describe('acceptAssignment / rejectAssignment - PART B', () => {
   it('acceptAssignment يقبل فقط سجلاً Pending بنفس المفتش ويحوله لـ Active', async () => {
-    mockPrisma.inspectorAssignment.findUnique.mockResolvedValue({
+    mockPrisma.user.findUnique.mockImplementation(async ({ where: { id } }: any) => id === 't1' ? makeTeacher() : makeInspector());
+    mockPrisma.inspectorAssignment.findUnique.mockResolvedValueOnce({
+      id: 'assignment-1', updatedAt: new Date('2026-10-08T00:00:00Z'),
       teacherId: 't1',
       inspectorId: 'i1',
       status: 'Pending',
     });
+    mockPrisma.inspectorAssignment.findUnique.mockResolvedValueOnce({ teacherId: 't1', inspectorId: 'i1', status: 'Active', assignedAt: new Date() });
     mockPrisma.inspectorAssignment.update.mockImplementation(async ({ data }: any) => ({
       teacherId: 't1',
       inspectorId: 'i1',
@@ -186,11 +195,14 @@ describe('acceptAssignment / rejectAssignment - PART B', () => {
   });
 
   it('rejectAssignment يرفض فقط Pending بنفس المفتش ويحوله لـ Removed', async () => {
-    mockPrisma.inspectorAssignment.findUnique.mockResolvedValue({
+    mockPrisma.user.findUnique.mockImplementation(async ({ where: { id } }: any) => id === 't1' ? makeTeacher() : makeInspector());
+    mockPrisma.inspectorAssignment.findUnique.mockResolvedValueOnce({
+      id: 'assignment-1', updatedAt: new Date('2026-10-08T00:00:00Z'),
       teacherId: 't1',
       inspectorId: 'i1',
       status: 'Pending',
     });
+    mockPrisma.inspectorAssignment.findUnique.mockResolvedValueOnce({ teacherId: 't1', inspectorId: null, status: 'Removed', assignedAt: null });
     mockPrisma.inspectorAssignment.update.mockImplementation(async ({ data }: any) => ({
       teacherId: 't1',
       ...data,

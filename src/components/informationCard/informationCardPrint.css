@@ -1,0 +1,46 @@
+.ic-print-root { position: fixed; inset: 0; z-index: 10000; background: #e5e7eb; overflow: auto; color: #000; }
+.ic-print-actions { display: flex; justify-content: center; gap: 16px; padding: 12px; font: 14px sans-serif; }
+.ic-print-actions button { background: white; border: 1px solid #bbb; border-radius: 8px; padding: 10px 20px; }
+.ic-official-page { position: relative; box-sizing: border-box; width: 210mm; height: 297mm; margin: 0 auto 20px; background: white; color: black; font: bold 12pt 'Times New Roman', serif; direction: rtl; overflow: hidden; }
+.ic-official-page * { box-sizing: border-box; color: black !important; background-color: transparent; }
+.ic-government { position: absolute; top: 5mm; left: 26mm; width: 133mm; text-align: center; font-size: 15pt; line-height: 1.3; }
+.ic-directorate { position: absolute; top: 17mm; right: 7mm; width: 83mm; text-align: right; font-size: 13pt; line-height: 1.35; }
+.ic-year { position: absolute; top: 18mm; left: 8mm; display: flex; gap: 4mm; font-size: 11pt; }
+.ic-year span { direction: ltr; }
+.ic-title { position: absolute; top: 38mm; left: 57mm; width: 78mm; margin: 0; text-align: center; font-size: 23pt; font-weight: bold; }
+.ic-photo { position: absolute; right: 15.5mm; top: 34mm; width: 35mm; height: 40mm; border: 1px solid black; border-radius: 6mm; overflow: hidden; }
+.ic-photo img { width: 100%; height: 100%; object-fit: cover; }
+.ic-personal { position: absolute; top: 53mm; left: 9mm; width: 139mm; }
+.ic-line { display: flex; align-items: baseline; gap: 1.5mm; min-height: 5.5mm; line-height: 1.15; }
+.ic-line b { white-space: nowrap; flex-shrink: 0; }
+.ic-fill { display: inline-block; flex: 1; min-width: 0; height: 4.5mm; border-bottom: 1px dotted #000; font-weight: normal; font-size: 10pt; text-align: center; overflow-wrap: anywhere; line-height: 1; }
+.ic-status { display: flex; justify-content: space-between; gap: 2mm; font-size: 12pt; }
+.ic-selected { outline: 1px solid black; border-radius: 50%; padding: 0 1mm; }
+.ic-address { margin-top: 4mm; }
+.ic-box { position: absolute; right: 7mm; width: 55mm; min-height: 11.5mm; padding: .6mm; border: 1.5px solid black; text-align: right; font-size: 12pt; }
+.ic-box > .ic-fill { display: block; width: 100%; margin-top: 1mm; }
+.ic-classification { top: 168.7mm; height: 17mm; }
+.ic-inspection { top: 191mm; height: 17mm; }
+.ic-box .ic-line { min-height: 4.5mm; gap: .8mm; }
+.ic-box .ic-fill { min-height: 3.8mm; }
+.ic-qualification-title { position: absolute; top: 140.7mm; left: 7mm; width: 117mm; text-align: center; margin: 0; font-size: 13pt; }
+.ic-qualifications { position: absolute; left: 7mm; top: 151.6mm; width: 117mm; height: 33.2mm; border-collapse: collapse; table-layout: fixed; font-size: 11pt; }
+.ic-qualifications th, .ic-qualifications td { border: 1px solid black; text-align: center; height: 5.5mm; padding: .2mm; }
+.ic-qualifications th:nth-child(1) { width: 40%; } .ic-qualifications th:nth-child(2) { width: 40%; } .ic-qualifications th:nth-child(3) { width: 20%; }
+.ic-qualifications td { font-size: 9pt; font-weight: normal; overflow-wrap: anywhere; }
+.ic-cell-value { display: block; height: 5mm; line-height: 1; }
+.ic-emails { position: absolute; left: 7mm; top: 197mm; width: 117mm; }
+.ic-emails .ic-fill { direction: ltr; }
+.ic-other-title { position: absolute; top: 222.7mm; left: 7mm; width: 173.5mm; text-align: center; margin: 0; font-size: 13pt; }
+.ic-other { position: absolute; left: 7mm; top: 228.3mm; width: 173.5mm; height: 21.5mm; border: 1px solid black; padding: 2mm; font-size: 11pt; line-height: 1.35; font-weight: normal; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ic-signature-date { position: absolute; top: 251mm; left: 26mm; width: 75mm; display: flex; align-items: baseline; gap: 2mm; }
+.ic-note { position: absolute; right: 8mm; top: 250mm; width: 60mm; font-size: 12pt; line-height: 1.4; }
+.ic-signature { position: absolute; left: 43mm; top: 262mm; }
+@media print {
+  @page information-card { size: A4 portrait; margin: 0; }
+  html:has(.ic-print-root), body:has(.ic-print-root) { margin: 0 !important; padding: 0 !important; width: 210mm !important; height: auto !important; background: white !important; }
+  body:has(.ic-print-root) > :not(.ic-print-root) { display: none !important; }
+  .ic-print-root { display: block !important; position: static !important; inset: auto; overflow: visible !important; width: 210mm; background: white; }
+  .ic-print-actions { display: none !important; }
+  .ic-official-page { page: information-card; margin: 0 !important; width: 210mm; height: 297mm; break-inside: avoid; print-color-adjust: exact; }
+}

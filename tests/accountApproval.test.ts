@@ -50,6 +50,7 @@ const activeTeacher = {
   isPlatformOwner: false,
   status: 'active',
   isApprovedByAdmin: true,
+  accessExpiresAt: new Date('2099-07-31T23:59:59Z'),
 };
 
 describe('P0-2 account approval enforcement', () => {

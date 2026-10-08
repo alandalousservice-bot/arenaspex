@@ -244,6 +244,8 @@ async function seedEducationalSituations() {
 }
 
 async function main() {
+  if (process.env.NODE_ENV === 'production')
+    throw new Error('GENERAL_SEED_DISABLED_IN_PRODUCTION: use npm run db:bootstrap-admin.');
   await seedSuperAdmin();
   await seedReferenceData();
   await seedEducationalSituations();

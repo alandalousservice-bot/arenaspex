@@ -1,0 +1,34 @@
+.vr-print-root { position: fixed; inset: 0; z-index: 9999; overflow: auto; background: #e2e8f0; color: #000; }
+.vr-print-actions { display: flex; flex-wrap: wrap; gap: 12px; padding: 16px; position: sticky; top: 0; background: white; z-index: 1; }
+.vr-print-actions button { border: 1px solid #444; padding: 8px 20px; border-radius: 8px; }
+.vr-page { box-sizing: border-box; width: 190mm; min-height: 275mm; margin: 20px auto; padding: 6mm; border: 1px solid black; background: white; font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.45; overflow-wrap: anywhere; }
+.vr-government { text-align: center; margin-bottom: 5mm; }
+.vr-page h1 { font-size: 19pt; text-align: center; border: 2px solid black; width: fit-content; max-width: 100%; padding: 2mm 6mm; margin: 4mm auto; }
+.vr-page h1 small { font-size: 14pt; }
+.vr-page h3 { font-size: 12pt; font-weight: bold; text-decoration: underline; margin: 3mm 0 1mm; break-after: avoid; }
+.vr-columns { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1mm 5mm; }
+.vr-page p { margin: 0 0 1mm; }
+.vr-line { display: flex; flex-wrap: wrap; gap: 2mm; min-height: 5.5mm; break-inside: avoid; }
+.vr-line span { white-space: pre-wrap; }
+.vr-narrative { white-space: pre-wrap; min-height: 10mm; }
+.vr-observations { border-top: 1px solid #333; margin-top: 3mm; padding-top: 2mm; }
+.vr-observations > div + div { border-right: 1px solid #333; padding-right: 3mm; }
+.vr-tenure-observations .vr-narrative { min-height: 62mm; background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 7mm, #999 7.1mm, #999 7.2mm); }
+.vr-block { margin-bottom: 5mm; }
+.vr-signature { margin-top: 6mm; }
+.vr-signature-space { min-height: 20mm; }
+.vr-legal { font-size: 9pt; margin: 3mm 0; }
+.vr-lesson { margin: 2mm 0; border: 1px solid #666; padding: 2mm; break-inside: avoid; }
+.vr-committee-signatures { grid-template-columns: repeat(3,minmax(0,1fr)); min-height: 25mm; }
+.vr-decisions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 3mm; margin: 5mm 0; }
+.vr-deliberation { margin-top: 15mm; }
+.vr-document-state { text-align: center; font-size: 9pt; margin-top: 5mm; }
+@media print {
+  @page visitreport { size: A4; margin: 10mm; }
+  body:has(.vr-print-root) { margin: 0 !important; height: auto; overflow: visible; }
+  body:has(.vr-print-root) > :not(.vr-print-root) { display: none !important; }
+  .vr-print-root { position: static; overflow: visible; background: white; }
+  .vr-print-actions { display: none; }
+  .vr-page { page: visitreport; width: 190mm; min-height: 275mm; margin: 0; break-after: page; }
+  .vr-page:last-child { break-after: auto; }
+}

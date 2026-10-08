@@ -2059,7 +2059,7 @@ export async function activateUserAccount(
   }
 }
 
-export type AdminLifecycleAction = 'activate' | 'deactivate' | 'reject' | 'reactivate';
+export type AdminLifecycleAction = 'activate' | 'deactivate' | 'reject' | 'reactivate' | 'archive';
 
 export async function applyAdminAccountLifecycle(
   userId: string,
@@ -2153,7 +2153,8 @@ export async function fetchInspectorWeeklyTimetable(teacherId: string, academicY
   );
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'تعذر تحميل التوقيت الأسبوعي للأستاذ.');
-  return { teacher: data.teacher, slots: Array.isArray(data.slots) ? data.slots : [] };
+  return { teacher: data.teacher, slots: Array.isArray(data.slots) ? data.slots : [],
+    academicYears: Array.isArray(data.academicYears) ? data.academicYears as string[] : [] };
 }
 
 export async function saveTeacherWeeklySlot(slot: unknown) {
@@ -2175,7 +2176,7 @@ export async function updateTeacherWeeklySlot(slotId: string, slot: unknown) {
 }
 
 export async function deleteTeacherWeeklySlot(slotId: string) {
-  await offlineDelete(`/api/teacher/weekly-timetable/${encodeURIComponent(slotId)}`);
+  return offlineDelete(`/api/teacher/weekly-timetable/${encodeURIComponent(slotId)}`);
 }
 
 export async function syncInspectorNoteToDB(
@@ -2335,7 +2336,8 @@ export async function fetchInspectorSummary() {
 export async function fetchInspectorTeacherFollowUp(teacherId: string, academicYearId?: string) {
   const query = academicYearId ? `?academicYearId=${encodeURIComponent(academicYearId)}` : '';
   const res = await fetch(
-    `/api/inspector/teachers/${encodeURIComponent(teacherId)}/follow-up${query}`
+    `/api/inspector/teachers/${encodeURIComponent(teacherId)}/follow-up${query}`,
+    { signal: AbortSignal.timeout(20000) }
   );
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'تعذر تحميل ملف متابعة الأستاذ.');

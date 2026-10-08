@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: spex-platform
+    name: spexeps19
     runtime: node
     plan: free
-    buildCommand: npm run render:build && npm run db:seed
+    buildCommand: npm run render:build
     startCommand: npm run render:start
     healthCheckPath: /health
     autoDeployTrigger: commit
@@ -26,7 +26,7 @@ services:
         generateValue: true
       - key: SETUP_SECRET
         generateValue: true
-      # First admin account (created via `npm run db:seed` from Render Shell)
+      # Idempotent production Admin bootstrap; never runs development/domain seeds.
       - key: SUPER_ADMIN_EMAIL
         sync: false
       - key: SUPER_ADMIN_PASSWORD

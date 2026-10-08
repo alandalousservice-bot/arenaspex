@@ -84,8 +84,11 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   text = 'continue_with',
   disabled = false,
 }) => {
-  const clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID as string | undefined;
+  const clientId = import.meta.env?.VITE_GOOGLE_CLIENT_ID as string | undefined;
   const containerRef = useRef<HTMLDivElement>(null);
+  // GIS retains its initialized callback while the parent changes the selected role.
+  const onCredentialRef = useRef(onCredential);
+  onCredentialRef.current = onCredential;
   const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
@@ -103,7 +106,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: (response: { credential: string }) => {
-            if (response?.credential) onCredential(response.credential);
+            if (response?.credential) onCredentialRef.current(response.credential);
           },
           ux_mode: 'popup',
           auto_select: false,
@@ -141,7 +144,6 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
         // Google prompt cleanup is best-effort during component unmount.
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, disabled, text]);
 
   if (!clientId) {

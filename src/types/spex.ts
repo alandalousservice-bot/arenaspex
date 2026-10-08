@@ -168,7 +168,7 @@ export interface User {
   teachingExperienceYears?: number;
   wilaya?: string;
   bio?: string; // النبذة الشخصية
-  status: 'active' | 'inactive' | 'pending_approval';
+  status: 'active' | 'inactive' | 'pending_approval' | 'archived';
   isApprovedByAdmin?: boolean; // تفعيل الحساب من طرف المشرف
   password?: string;
   followingIds?: string[]; // معرّفات المستخدمين المتابَعين
@@ -1053,7 +1053,7 @@ export interface InspectionVisit {
   visitDate: string;
   visitType: 'تفتيش تثبيت' | 'توجيهية' | 'متابعة دورية' | 'تقييمية';
   lessonObservedTitle: string;
-  pedagogicalGrade?: number; // /20
+  pedagogicalGrade?: number | null; // /20; absent until explicitly entered
   positivePoints: string[];
   areasForImprovement: string[];
   recommendations: string[];

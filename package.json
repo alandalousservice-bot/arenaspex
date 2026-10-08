@@ -28,8 +28,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:geo": "tsx prisma/seed-geo.ts",
     "db:seed-from-json": "tsx scripts/migrate-json-to-db.ts",
-    "render:build": "npm ci && npx prisma generate && npx prisma migrate deploy && npm run build",
-    "render:start": "npm start"
+    "render:build": "npm ci && npx prisma generate && npm run build",
+    "render:start": "npm run db:migrate:deploy && npm run db:bootstrap-admin && npm start",
+    "db:bootstrap-admin": "tsx scripts/bootstrap-admin.ts"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

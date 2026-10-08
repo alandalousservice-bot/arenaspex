@@ -11,8 +11,11 @@ describe('ADMIN-ACCOUNT-G3 lifecycle boundary', () => {
     expect(router).toContain("action === 'deactivate'");
     expect(router).toContain('existing.isPlatformOwner');
     expect(router).toContain('existing.id === req.user!.id');
-    expect(router).toContain("{ status: 'inactive', isApprovedByAdmin: false }");
-    expect(router).toContain("{ status: 'active', isApprovedByAdmin: true }");
+    const lifecycle = read('src/server/accountLifecycle.ts');
+    expect(lifecycle).toContain('isApprovedByAdmin: false');
+    expect(lifecycle).toMatch(
+      /status: 'active',\s+isApprovedByAdmin: true,\s+accessExpiresAt: academicYearAccessExpiry\(\)/
+    );
   });
 
   it('keeps lifecycle fields out of the ordinary G2 profile form', () => {
@@ -28,7 +31,9 @@ describe('ADMIN-ACCOUNT-G3 lifecycle boundary', () => {
   it('requires explicit confirmation in the account detail lifecycle actions', () => {
     const detail = read('src/components/dashboard/AdminAccountDetailPage.tsx');
     expect(detail).toContain('applyAdminAccountLifecycle');
-    expect(detail).toContain('window.confirm');
+    expect(detail).toContain('role="dialog"');
+    expect(detail).toContain('aria-modal="true"');
+    expect(detail).toContain('if (!user || !confirmation || saving) return;');
     expect(detail).toContain("applyLifecycle('reject')");
     expect(detail).toContain("'reactivate'");
   });

@@ -493,7 +493,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
             <GoogleSignInButton onCredential={handleGoogleCredential} disabled={isSubmitting} />
             <p className="text-[10px] text-slate-500 text-center leading-relaxed">
               يمكنك الدخول بحساب Google إذا كان البريد مرتبطاً بحساب موجود، أو متابعة إنشاء حساب
-              أستاذ معلّق بانتظار تفعيل مشرف المنظومة.
+              {selectedRole === 'inspector' ? 'مفتش' : 'أستاذ'} معلّق بانتظار تفعيل مشرف المنظومة.
             </p>
           </div>
         )}
@@ -721,7 +721,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                   text="signup_with"
                 />
                 <p className="text-[10px] text-slate-500 text-center leading-relaxed">
-                  الحسابات العامة الجديدة تُنشأ كحساب أستاذ معلّق بانتظار تفعيل مشرف المنظومة قبل
+                  الحسابات العامة الجديدة تُنشأ كحساب {selectedRole === 'inspector' ? 'مفتش' : 'أستاذ'} معلّق بانتظار تفعيل مشرف المنظومة قبل
                   الاستفادة من الخدمات.
                 </p>
               </div>

@@ -83,8 +83,18 @@ const AttendanceBookView = lazy(() =>
 const ReportsView = lazy(() =>
   import('./components/reports/ReportsView').then((m) => ({ default: m.ReportsView }))
 );
+const TeacherVisitReportsPage = lazy(() =>
+  import('./components/reports/TeacherVisitReportsPage').then((m) => ({
+    default: m.TeacherVisitReportsPage,
+  }))
+);
 const SettingsView = lazy(() =>
   import('./components/settings/SettingsView').then((m) => ({ default: m.SettingsView }))
+);
+const TeacherInformationCardPage = lazy(() =>
+  import('./components/informationCard/TeacherInformationCardPage').then((m) => ({
+    default: m.TeacherInformationCardPage,
+  }))
 );
 const ProfessionalHub = lazy(() =>
   import('./components/community/ProfessionalHub').then((m) => ({ default: m.ProfessionalHub }))
@@ -682,7 +692,8 @@ export default function App() {
               activeTab === 'admin_services' ||
               activeTab === 'admin_approvals' ||
               activeTab === 'admin_curriculum' ||
-              activeTab === 'admin_reports') && (
+              activeTab === 'admin_reports' ||
+              activeTab === 'admin_audit') && (
               <AdminWorkspacePage
                 currentUser={currentUser}
                 aiSettings={aiSettings}
@@ -703,16 +714,22 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'reports' && (
-              <ReportsView
-                user={currentUser}
-                lessonPlans={lessonPlans}
-                inspectorNotes={inspectorNotes}
-              />
-            )}
+            {activeTab === 'reports' &&
+              (currentUser.role === 'teacher' ? (
+                <TeacherVisitReportsPage />
+              ) : (
+                <ReportsView
+                  user={currentUser}
+                  lessonPlans={lessonPlans}
+                  inspectorNotes={inspectorNotes}
+                />
+              ))}
 
             {activeTab === 'settings' && (
               <SettingsView currentUser={currentUser} onUpdateUser={handleUpdateUser} />
+            )}
+            {activeTab === 'information_card' && currentUser.role === 'teacher' && (
+              <TeacherInformationCardPage />
             )}
           </Suspense>
         </main>

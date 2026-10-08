@@ -138,7 +138,7 @@ export const PendingApprovalViewerScreen: React.FC<PendingApprovalViewerScreenPr
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight">
-              أهلاً بك أستاذ{' '}
+              أهلاً بك {user.role === 'inspector' ? 'مفتش' : 'أستاذ'}{' '}
               <span className="text-purple-400">
                 {user.firstName} {user.lastName}
               </span>{' '}

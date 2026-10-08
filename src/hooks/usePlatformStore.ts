@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { LAUNCH_ACADEMIC_YEAR_ID } from '../services/academicYear';
+import { buildRecordedInspectionVisit } from '../services/inspectionVisitIntegrity';
 import { NavTab } from '../components/layout/Sidebar';
 import {
   syncUserToDB,
@@ -101,6 +102,8 @@ export function usePlatformStore({
   setCurrentTab,
 }: PlatformStoreParams) {
   const hydrationIdentity = isAuthenticated && currentUser?.id ? currentUser.id : null;
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
   const hydrationGuardRef = useRef<PlatformStoreHydrationGuard | null>(null);
   if (!hydrationGuardRef.current) {
     hydrationGuardRef.current = new PlatformStoreHydrationGuard();
@@ -371,7 +374,7 @@ export function usePlatformStore({
     refreshInspectionVisits,
   ]);
 
-  const [broadcasts, setBroadcasts] = useState<DistrictBroadcast[]>(INITIAL_BROADCASTS);
+  const [broadcasts] = useState<DistrictBroadcast[]>(INITIAL_BROADCASTS);
   const [directMessages, setDirectMessages] = useState<DirectChatMessage[]>(() => {
     if (currentUser?.id) {
       const savedUser = localStorage.getItem(`spex_direct_messages_${currentUser.id}`);
@@ -1113,23 +1116,43 @@ export function usePlatformStore({
   };
 
   // Weekly schedule handlers
-  const handleAddWeeklySlot = (slotData: Omit<WeeklyScheduleSlot, 'id'>) => {
+  const reloadWeeklyYear = async (year: string, teacherId: string) => {
+    const slots = await fetchTeacherWeeklyTimetable(year);
+    if (!slots) throw new Error('تعذر تحميل التوقيت المحفوظ.');
+    if (currentUserRef.current?.id !== teacherId) return;
+    setWeeklySchedule((previous) => [
+      ...previous.filter((slot) => slot.academicYearId !== year),
+      ...(slots as WeeklyScheduleSlot[]),
+    ]);
+  };
+  const handleAddWeeklySlot = async (slotData: Omit<WeeklyScheduleSlot, 'id'>) => {
     const newSlot: WeeklyScheduleSlot = {
       ...slotData,
       id: `ws_${Date.now()}`,
     };
-    setWeeklySchedule((prev) => [...prev, newSlot]);
-    void saveTeacherWeeklySlot(newSlot);
+    try {
+      const result = await saveTeacherWeeklySlot(newSlot);
+      if (!result.success) throw new Error(result.error || 'تعذر حفظ التوقيت.');
+      await reloadWeeklyYear(slotData.academicYearId || LAUNCH_ACADEMIC_YEAR_ID, slotData.teacherId);
+    } catch (error) { window.alert((error as Error).message); }
   };
 
-  const handleDeleteWeeklySlot = (slotId: string) => {
-    setWeeklySchedule((prev) => prev.filter((s) => s.id !== slotId));
-    void deleteTeacherWeeklySlot(slotId);
+  const handleDeleteWeeklySlot = async (slotId: string) => {
+    const slot = weeklySchedule.find((item) => item.id === slotId);
+    if (!slot) return;
+    try {
+      const result = await deleteTeacherWeeklySlot(slotId);
+      if (!result.success) throw new Error(result.error || 'تعذر حذف الحصة.');
+      await reloadWeeklyYear(slot.academicYearId || LAUNCH_ACADEMIC_YEAR_ID, slot.teacherId);
+    } catch (error) { window.alert((error as Error).message); }
   };
 
-  const handleUpdateWeeklySlot = (slot: WeeklyScheduleSlot) => {
-    setWeeklySchedule((prev) => prev.map((current) => (current.id === slot.id ? slot : current)));
-    void updateTeacherWeeklySlot(slot.id, slot);
+  const handleUpdateWeeklySlot = async (slot: WeeklyScheduleSlot) => {
+    try {
+      const result = await updateTeacherWeeklySlot(slot.id, slot);
+      if (!result.success) throw new Error(result.error || 'تعذر تعديل الحصة.');
+      await reloadWeeklyYear(slot.academicYearId || LAUNCH_ACADEMIC_YEAR_ID, slot.teacherId);
+    } catch (error) { window.alert((error as Error).message); }
   };
 
   const handleUpdateNotebookStatus = (
@@ -1408,20 +1431,7 @@ export function usePlatformStore({
   const handleAddInspectionVisit = async (
     visitPartial: Partial<InspectionVisit>
   ): Promise<boolean> => {
-    const visit: InspectionVisit = {
-      id: `visit_${Date.now()}`,
-      inspectorId: currentUser.id,
-      teacherId: visitPartial.teacherId || '',
-      institutionId: visitPartial.institutionId || '',
-      visitDate: visitPartial.visitDate || new Date().toISOString().split('T')[0],
-      visitType: visitPartial.visitType || 'متابعة دورية',
-      lessonObservedTitle: visitPartial.lessonObservedTitle || 'حصة بدنية',
-      pedagogicalGrade: visitPartial.pedagogicalGrade || 16.0,
-      positivePoints: visitPartial.positivePoints || [],
-      areasForImprovement: visitPartial.areasForImprovement || [],
-      recommendations: visitPartial.recommendations || [],
-      officialReportGenerated: true,
-    };
+    const visit = buildRecordedInspectionVisit(currentUser.id, visitPartial);
     const result = await syncInspectionVisitToDB(visit);
     if (!result.success) return false;
     setInspectionVisits((prev) => [visit, ...prev.filter((item) => item.id !== visit.id)]);
@@ -1649,29 +1659,13 @@ export function usePlatformStore({
   };
 
   // Inspector orchestration handlers (moved from App.tsx JSX inline handlers)
-  const handleAddBroadcast = (bc: Partial<DistrictBroadcast>) => {
-    setBroadcasts((prev) => [bc as DistrictBroadcast, ...prev]);
-  };
+  const handleAddBroadcast = (_bc: Partial<DistrictBroadcast>) => false;
 
-  const handleAddDirectMessageFromInspector = (msg: {
+  const handleAddDirectMessageFromInspector = (_msg: {
     receiverId: string;
     receiverName: string;
     message: string;
-  }) => {
-    const newMsg = {
-      id: `msg_${Date.now()}`,
-      senderId: currentUser.id,
-      senderName: `${currentUser.firstName} ${currentUser.lastName}`,
-      senderRole: currentUser.role,
-      receiverId: msg.receiverId,
-      receiverName: msg.receiverName,
-      districtId: currentUser.districtId || '',
-      message: msg.message,
-      createdAt: new Date().toISOString(),
-      read: true,
-    };
-    setDirectMessages((prev) => [...prev, newMsg]);
-  };
+  }) => false;
 
   // Command center / timing handlers
   const handleUpdateTimingSettings = (st: LessonSessionTiming) => {

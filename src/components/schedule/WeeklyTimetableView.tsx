@@ -32,6 +32,7 @@ interface WeeklyTimetableViewProps {
   teacherName?: string;
   schoolName?: string;
   readOnly?: boolean;
+  onPrint?: () => void;
   onAddSlot?: (slot: Omit<WeeklyScheduleSlot, 'id'>) => void;
   onUpdateSlot?: (slot: WeeklyScheduleSlot) => void;
   onDeleteSlot?: (slotId: string) => void;
@@ -66,6 +67,7 @@ export const WeeklyTimetableView: React.FC<WeeklyTimetableViewProps> = ({
   teacherName = 'أستاذ المادة',
   schoolName = 'المؤسسة التعليمية',
   readOnly = false,
+  onPrint,
   onAddSlot,
   onUpdateSlot,
   onDeleteSlot,
@@ -180,7 +182,7 @@ export const WeeklyTimetableView: React.FC<WeeklyTimetableViewProps> = ({
               <CalendarDays className="h-6 w-6" /> التوزيع الأسبوعي
             </h2>
             <p className="weekly-timetable-hero-copy mt-2 text-sm">
-              نظّم حصصك من الأحد إلى الخميس، ثم عدّلها مباشرة من بطاقة اليوم.
+              {readOnly ? 'عرض توقيت الأستاذ المسجل من الأحد إلى الخميس للقراءة فقط.' : 'نظّم حصصك من الأحد إلى الخميس، ثم عدّلها مباشرة من بطاقة اليوم.'}
             </p>
             <div className="weekly-timetable-identity mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs">
               <span className="flex items-center gap-1.5">
@@ -206,7 +208,7 @@ export const WeeklyTimetableView: React.FC<WeeklyTimetableViewProps> = ({
             )}
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={onPrint || (() => window.print())}
               className="weekly-timetable-secondary-action flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
             >
               <Printer className="h-4 w-4" /> طباعة التوقيت
@@ -229,12 +231,17 @@ export const WeeklyTimetableView: React.FC<WeeklyTimetableViewProps> = ({
         </div>
       </header>
 
+      {readOnly && teacherSlots.length === 0 && (
+        <p className="rounded-2xl border border-slate-200 bg-white p-4 text-sm" role="status">
+          لم يسجل الأستاذ توزيعه الأسبوعي لهذه السنة الدراسية بعد.
+        </p>
+      )}
       <section className="weekly-timetable-board rounded-3xl border border-slate-200 bg-white p-3 shadow-sm print:shadow-none sm:p-4">
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between print:hidden">
           <div>
             <h3 className="text-base font-bold text-slate-900">لوحة أيام الأسبوع</h3>
             <p className="mt-0.5 text-xs text-slate-500">
-              اضغط «إضافة» داخل اليوم المطلوب لتعبئة التوقيت بسرعة.
+              {readOnly ? 'الحصص والنصاب من توقيت الأستاذ المحفوظ للسنة المختارة.' : 'اضغط «إضافة» داخل اليوم المطلوب لتعبئة التوقيت بسرعة.'}
             </p>
           </div>
           <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-800">

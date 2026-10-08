@@ -6,6 +6,7 @@
  * والمنطق الحسابي منقول إلى services/hooks. لا تغيير في السلوك أو المخرجات.
  */
 import React, { useEffect, useState } from 'react';
+import { TeacherVisitAppointments } from './teacher/TeacherVisitAppointments';
 import {
   User,
   DailyNotebookEntry,
@@ -156,6 +157,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         />
 
         <div className="space-y-6">
+          <TeacherVisitAppointments />
           <InspectorFeedPanel
             inspectorNotes={inspectorNotes}
             inspectionVisits={inspectionVisits}

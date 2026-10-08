@@ -713,7 +713,7 @@ export const InspectorPedagogicalProfile: React.FC<InspectorPedagogicalProfilePr
                 <span>أرشيف الزيارات والتقييمات البيداغوجية للأستاذ:</span>
               </h4>
               <span className="text-[11px] font-bold text-slate-500">
-                {visits.filter((v) => v.teacherId === selectedTeacher.id).length} زيارات معتمدة
+                {visits.filter((v) => v.teacherId === selectedTeacher.id).length} زيارات مسجلة
               </span>
             </div>
 
@@ -737,9 +737,9 @@ export const InspectorPedagogicalProfile: React.FC<InspectorPedagogicalProfilePr
                         </span>
                         <span className="text-xs text-slate-500">{v.visitDate}</span>
                       </div>
-                      {v.pedagogicalGrade && (
+                      {v.pedagogicalGrade != null && (
                         <div className="text-xs font-extrabold text-slate-900 bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1 rounded-xl">
-                          النقطة التربوية: {v.pedagogicalGrade} / 20
+                          النقطة التربوية: <bdi dir="ltr">{v.pedagogicalGrade} / 20</bdi>
                         </div>
                       )}
                     </div>

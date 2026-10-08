@@ -31,12 +31,13 @@ describe('authoritative Admin pending accounts', () => {
     expect(api).toContain("fetch('/api/admin/users/pending')");
     expect(legacy).not.toContain('حسابات بانتظار التفعيل');
     expect(auth).toContain("const role = requestedRole === 'inspector' ? 'inspector' : 'teacher';");
-    expect(auth).toContain("const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher'])");
+    expect(auth).toContain("const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher', 'inspector'])");
   });
 
-  it('allows an Inspector without a district to activate and complete affiliation later', () => {
-    expect(router).toContain('allowUnassignedInspector: true');
-    expect(router).toContain('if (!districtId && options.allowUnassignedInspector)');
-    expect(router).toContain('مديرية التربية المحددة غير موجودة.');
+  it('requires a district before Inspector activation and links the existing review workspace', () => {
+    expect(router).not.toContain('allowUnassignedInspector');
+    expect(router).toContain("if (!districtId) throw new Error('يرجى اختيار المقاطعة التفتيشية.');");
+    expect(page).toContain('الدور: {roleLabel[user.role] || user.role}');
+    expect(page).toContain("navigate('/admin/inspectors')");
   });
 });

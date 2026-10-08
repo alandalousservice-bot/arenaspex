@@ -83,12 +83,12 @@ export const InspectorTeacherList: React.FC<InspectorTeacherListProps> = ({
                   className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
                     isSelected
                       ? 'bg-emerald-800 text-emerald-100'
-                      : t.status === 'inactive'
+                      : t.status === 'inactive' || t.status === 'archived'
                       ? 'bg-rose-100 text-rose-800'
                       : 'bg-emerald-100 text-emerald-800'
                   }`}
                 >
-                    {t.status === 'inactive' ? 'غير نشط' : 'نشط'}
+                    {t.status === 'archived' ? 'مؤرشف' : t.status === 'inactive' ? 'غير نشط' : t.status === 'pending_approval' ? 'بانتظار التفعيل' : 'نشط'}
                 </span>
               </div>
 

@@ -14,14 +14,16 @@ import {
   CommunityResource,
 } from '../../types/spex';
 import { InspectorPendingAssignments } from './inspector/InspectorPendingAssignments';
+import { InspectorTransferPanel } from './inspector/InspectorTransferPanel';
+import { InspectorSupervisionDossier } from '../informationCard/InspectorSupervisionDossier';
 import { InspectorTeacherList } from './inspector/InspectorTeacherList';
 import { InspectorResourceValidationView } from './inspector/InspectorResourceValidationView';
 import { InspectorReportsView } from './inspector/InspectorReportsView';
+import { PedagogicalVisitPlanner } from './inspector/PedagogicalVisitPlanner';
 import { InspectorCurriculumAuditView } from './inspector/InspectorCurriculumAuditView';
 import { InspectorBroadcastsView } from './inspector/InspectorBroadcastsView';
 import { InspectorDirectChat } from './inspector/InspectorDirectChat';
-import { WeeklyTimetableView } from '../schedule/WeeklyTimetableView';
-import { fetchInspectorTeacherFollowUp, fetchInspectorWeeklyTimetable } from '../../services/api';
+import { fetchInspectorTeacherFollowUp } from '../../services/api';
 import {
   formatAcademicYearLabel,
   getAcademicYearOptions,
@@ -66,20 +68,19 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
     visits,
     broadcasts,
     directMessages,
-    weeklySchedule,
     lessonPlans,
   } = props;
   const [selectedTeacherId, setSelectedTeacherId] = useState(
     props.teacherId || teachers[0]?.id || ''
   );
   const [detail, setDetail] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(true);
+  const [detailError, setDetailError] = useState('');
+  const detailRequest = React.useRef(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [institutionFilter, setInstitutionFilter] = useState('all');
   const [visitFilter, setVisitFilter] = useState('all');
   const [academicYearId, setAcademicYearId] = useState(getCurrentAcademicYear());
-  const [inspectorWeeklySchedule, setInspectorWeeklySchedule] = useState<
-    WeeklyScheduleSlot[] | null
-  >(null);
   const selectedTeacher = teachers.find((teacher) => teacher.id === selectedTeacherId);
   const rosterTeachers = teachers
     .filter(
@@ -97,18 +98,26 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
 
   const refreshTeacherDetail = React.useCallback(async () => {
     if (!props.teacherId) return;
-    const data = await fetchInspectorTeacherFollowUp(props.teacherId, academicYearId);
-    setDetail(data);
+    const generation = ++detailRequest.current;
+    setDetailLoading(true);
+    setDetailError('');
+    setDetail(null);
+    try {
+      const data = await fetchInspectorTeacherFollowUp(props.teacherId, academicYearId);
+      if (generation === detailRequest.current) setDetail(data);
+    } catch (error) {
+      if (generation === detailRequest.current)
+        setDetailError(error instanceof Error ? error.message : 'تعذر تحميل ملف المتابعة.');
+    } finally {
+      if (generation === detailRequest.current) setDetailLoading(false);
+    }
   }, [academicYearId, props.teacherId]);
 
   React.useEffect(() => {
     if (module !== 'inspector_teachers' || !props.teacherId) return;
-    let active = true;
-    void refreshTeacherDetail().catch(() => {
-      if (active) setDetail(null);
-    });
+    void refreshTeacherDetail();
     return () => {
-      active = false;
+      detailRequest.current += 1;
     };
   }, [module, props.teacherId, refreshTeacherDetail]);
 
@@ -132,21 +141,6 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
     return () => window.removeEventListener('inspector-visit-saved', handler);
   }, [props.teacherId, refreshTeacherDetail]);
 
-  React.useEffect(() => {
-    if (module !== 'inspector_teachers' || !props.teacherId) return;
-    let active = true;
-    setInspectorWeeklySchedule(null);
-    void fetchInspectorWeeklyTimetable(props.teacherId, academicYearId)
-      .then((result) => {
-        if (active) setInspectorWeeklySchedule(result.slots as WeeklyScheduleSlot[]);
-      })
-      .catch(() => {
-        if (active) setInspectorWeeklySchedule([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [academicYearId, module, props.teacherId]);
 
   if (!inspector)
     return (
@@ -156,6 +150,15 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
     );
 
   if (module === 'inspector_teachers' && props.teacherId) {
+    if (!detailLoading && !detail)
+      return (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900" dir="rtl" role="alert">
+          <h1 className="text-xl font-bold">ملف المتابعة غير متاح</h1>
+          <p className="my-3">{detailError || 'لم يتم العثور على ملف متابعة متاح لهذا الحساب.'}</p>
+          <button onClick={() => props.onNavigate('inspector_teachers')} className="action-primary rounded-xl px-4 py-2">العودة إلى أساتذة المقاطعة</button>
+          <button onClick={() => void refreshTeacherDetail()} className="mr-3 rounded-xl border border-amber-700 px-4 py-2">إعادة المحاولة</button>
+        </div>
+      );
     if (!detail)
       return (
         <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">
@@ -184,6 +187,7 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
           </p>
         </section>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="col-span-2 sm:col-span-4"><InspectorSupervisionDossier teacherId={props.teacherId} academicYearId={academicYearId} /></div>
           <div className="rounded-2xl bg-white p-4 text-center border border-slate-200">
             <b className="block text-2xl">{detail.classes?.length || 0}</b>
             <span className="text-xs text-slate-500">الأقسام</span>
@@ -224,7 +228,7 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
           </button>
         </div>
         <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3">
-          <h2 className="text-sm font-extrabold text-slate-900">التوزيع الأسبوعي والنصاب</h2>
+          <h2 className="text-sm font-extrabold text-slate-900">السنة الدراسية لملف المتابعة</h2>
           <label className="text-xs font-bold text-slate-600">
             السنة الدراسية
             <select
@@ -240,17 +244,6 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
             </select>
           </label>
         </div>
-        <WeeklyTimetableView
-          scheduleSlots={(inspectorWeeklySchedule || weeklySchedule).filter(
-            (slot) => slot.teacherId === teacher?.id
-          )}
-          teacherClasses={(detail.classes || []) as ClassRoom[]}
-          academicYearId={academicYearId}
-          currentUser={teacher as User}
-          teacherName={`${teacher?.firstName || ''} ${teacher?.lastName || ''}`.trim()}
-          schoolName={teacher?.schoolName || 'المؤسسة غير محددة'}
-          readOnly
-        />
         <section className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
           <h2 className="font-black">المتابعة البيداغوجية المحفوظة</h2>
           <p className="text-xs text-slate-500">
@@ -372,6 +365,7 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
           </p>
         </section>
         <InspectorPendingAssignments onAccepted={props.onRefreshTeachers} />
+        <InspectorTransferPanel onAccepted={props.onRefreshTeachers} />
         <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-3">
           <select
             value={institutionFilter}
@@ -444,9 +438,11 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
       <section className="space-y-5">
         <h1 className="text-lg font-black flex items-center gap-2">
           <FileSpreadsheet className="text-emerald-600" />
-          تقارير وتوجيهات المعاينات
+          الزيارات البيداغوجية وسجل المعاينات
         </h1>
+        <PedagogicalVisitPlanner teacherId={props.teacherId} academicYearId={academicYearId} teacherNames={Object.fromEntries(teachers.map((t) => [t.id, `${t.firstName} ${t.lastName}`]))} />
         <InspectorReportsView
+          readOnly
           visits={visits}
           teachers={teachers}
           inspector={inspector}

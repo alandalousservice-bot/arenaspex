@@ -12,7 +12,11 @@ describe('production deployment contract', () => {
   it('migrates and builds without automatically running application or geo seeds', () => {
     const build = packageJson.scripts['render:build'];
 
-    expect(build).toContain('prisma migrate deploy');
+    const start = packageJson.scripts['render:start'];
+    expect(start).toContain('db:migrate:deploy');
+    expect(start).toContain('db:bootstrap-admin');
+    expect(start.indexOf('db:migrate:deploy')).toBeLessThan(start.indexOf('db:bootstrap-admin'));
+    expect(start.indexOf('db:bootstrap-admin')).toBeLessThan(start.indexOf('npm start'));
     expect(build).toContain('npm run build');
     expect(build).not.toContain('db:seed');
     expect(build).not.toContain('db:seed:geo');

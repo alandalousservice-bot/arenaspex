@@ -5,6 +5,30 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Permanent event-time identifiers intentionally have no cascading domain FK.
+model AuditEvent {
+  id             String   @id @default(uuid())
+  eventType      String   @db.VarChar(64)
+  actorUserId    String
+  actorRole      String   @db.VarChar(32)
+  actorName      String   @db.VarChar(250)
+  entityType     String   @db.VarChar(64)
+  entityId       String
+  affectedUserId String?
+  affectedName   String?  @db.VarChar(250)
+  before         Json?
+  after          Json?
+  reason         String?  @db.VarChar(1000)
+  deduplicationKey String @unique
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
+  @@index([eventType, createdAt(sort: Desc)])
+  @@index([entityType, entityId, createdAt(sort: Desc)])
+  @@index([affectedUserId, createdAt(sort: Desc)])
+}
+
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
@@ -121,8 +145,15 @@ model User {
   weeklySlots             TeacherWeeklySlot[]
 
   // نظام الإسناد التلقائي للأساتذة إلى المفتشين
-  teacherAssignment    InspectorAssignment?  @relation("TeacherAssignment")
-  inspectorAssignments InspectorAssignment[] @relation("InspectorAssignments")
+  teacherAssignment          InspectorAssignment?               @relation("TeacherAssignment")
+  inspectorAssignments       InspectorAssignment[]              @relation("InspectorAssignments")
+  assignmentTransfers        InspectorAssignmentTransfer[]      @relation("TransferTeacher")
+  outgoingTransfers          InspectorAssignmentTransfer[]      @relation("TransferSourceInspector")
+  incomingTransfers          InspectorAssignmentTransfer[]      @relation("TransferDestinationInspector")
+  informationCard            TeacherInformationCard?
+  informationCardSubmissions TeacherInformationCardSubmission[]
+  reportsShared              VisitReport[]                      @relation("VisitReportSharedBy")
+  reportsAcknowledged        VisitReport[]                      @relation("VisitReportAcknowledgedBy")
 
   @@index([role])
   @@index([directorateId])
@@ -410,8 +441,69 @@ model InspectorAssignment {
   @@index([status])
 }
 
+// An immutable source-assignment snapshot and decision log; never an additional
+// current assignment. pendingTeacherId enforces one incoming request per Teacher.
+model InspectorAssignmentTransfer {
+  id                        String    @id @default(cuid())
+  teacherId                 String
+  teacher                   User      @relation("TransferTeacher", fields: [teacherId], references: [id], onDelete: Restrict)
+  pendingTeacherId          String?   @unique
+  sourceAssignmentId        String
+  sourceAssignmentUpdatedAt DateTime
+  sourceAssignedAt          DateTime?
+  sourceInspectorId         String
+  sourceInspector           User      @relation("TransferSourceInspector", fields: [sourceInspectorId], references: [id], onDelete: Restrict)
+  sourceDirectorateId       String
+  sourceDistrictId          String
+  destinationInspectorId    String
+  destinationInspector      User      @relation("TransferDestinationInspector", fields: [destinationInspectorId], references: [id], onDelete: Restrict)
+  destinationDirectorateId  String
+  destinationDistrictId     String
+  destinationInstitutionId  String?
+  snapshot                  Json
+  requestedById             String
+  status                    String    @default("Pending") // Pending | Accepted | Rejected
+  requestedAt               DateTime  @default(now())
+  decidedAt                 DateTime?
+  decidedById               String?
+  rejectionReason           String?
+  effectiveAt               DateTime?
+
+  @@index([sourceInspectorId, status])
+  @@index([destinationInspectorId, status])
+  @@index([teacherId, requestedAt])
+}
+
 // رموز استرجاع كلمة المرور عبر البريد الإلكتروني — رمز واحد صالح لمرة واحدة فقط
 // نخزّن هاش الرمز فقط (وليس الرمز نفسه)، تماماً كما لا نخزّن كلمات المرور نص عادي
+model TeacherInformationCard {
+  teacherId          String   @id
+  teacher            User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  extra              Json
+  revision           Int      @default(0)
+  status             String   @default("DRAFT")
+  latestSubmissionId String?
+  updatedAt          DateTime @updatedAt
+}
+
+// Teacher-specific immutable submitted content. Only review metadata can change.
+model TeacherInformationCardSubmission {
+  id                   String    @id @default(cuid())
+  teacherId            String
+  teacher              User      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  revision             Int
+  snapshot             Json
+  status               String    @default("SUBMITTED")
+  submittedAt          DateTime  @default(now())
+  submittedInspectorId String
+  reviewedAt           DateTime?
+  reviewedById         String?
+  correctionReason     String?
+
+  @@unique([teacherId, revision])
+  @@index([teacherId, submittedAt])
+}
+
 model PasswordResetToken {
   id        String    @id @default(cuid())
   userId    String
@@ -435,7 +527,7 @@ model AssessmentSession {
   teacherId                   String
   classId                     String
   academicYearId              String
-  classPlannedSessionId       String?  @unique
+  classPlannedSessionId String?  @unique
   assessmentType              String
   gradeLevelId                String
   domainId                    String
@@ -720,15 +812,84 @@ model InspectorNote {
 }
 
 model InspectionVisitRecord {
-  id            String   @id
-  inspectorId   String
-  teacherId     String
-  institutionId String?
-  data          Json
-  createdAt     DateTime @default(now())
+  id                  String                  @id
+  inspectorId         String
+  teacherId           String
+  institutionId       String?
+  data                Json
+  createdAt           DateTime                @default(now())
+  visitType           PedagogicalVisitType?
+  status              PedagogicalVisitStatus?
+  scheduledAt         DateTime?
+  completedAt         DateTime?
+  academicYearId      String?
+  classId             String?
+  weeklySlotId        String?
+  postponedAt         DateTime?
+  postponedById       String?
+  postponementReason  String?
+  cancelledAt         DateTime?
+  cancelledById       String?
+  cancellationReason  String?
+  teacherNotifiedAt   DateTime?
+  teacherNotifiedById String?
+  revision            Int                     @default(0)
+  history             Json                    @default("[]")
+  updatedAt           DateTime?
+  report              VisitReport?
 
   @@index([teacherId, createdAt])
   @@index([inspectorId, createdAt])
+  @@index([teacherId, status, scheduledAt])
+}
+
+enum VisitReportType {
+  GUIDANCE
+  TENURE
+}
+
+enum VisitReportStatus {
+  DRAFT
+  FINAL
+}
+
+model VisitReport {
+  id                      String                @id @default(cuid())
+  visitId                 String                @unique
+  visit                   InspectionVisitRecord @relation(fields: [visitId], references: [id], onDelete: Restrict)
+  reportType              VisitReportType
+  status                  VisitReportStatus     @default(DRAFT)
+  authorId                String
+  content                 Json                  @default("{}")
+  mark                    Float?
+  finalSnapshot           Json?
+  revision                Int                   @default(0)
+  finalizedAt             DateTime?
+  finalizedById           String?
+  sharedWithTeacherAt     DateTime?
+  sharedWithTeacherById   String?
+  sharedWithTeacherBy     User?                 @relation("VisitReportSharedBy", fields: [sharedWithTeacherById], references: [id], onDelete: Restrict)
+  teacherAcknowledgedAt   DateTime?
+  teacherAcknowledgedById String?
+  teacherAcknowledgedBy   User?                 @relation("VisitReportAcknowledgedBy", fields: [teacherAcknowledgedById], references: [id], onDelete: Restrict)
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+
+  @@index([authorId, status])
+  @@index([sharedWithTeacherAt])
+}
+
+enum PedagogicalVisitType {
+  GUIDANCE
+  TENURE
+  MONITORING
+}
+
+enum PedagogicalVisitStatus {
+  SCHEDULED
+  COMPLETED
+  POSTPONED
+  CANCELLED
 }
 
 model DistrictMessage {

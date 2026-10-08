@@ -104,12 +104,12 @@ export const AdminPendingUsersPage: React.FC = () => {
       <header className="rounded-3xl bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 p-6 text-white shadow-lg">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-purple-200">
+            <div className="flex items-center gap-2 workspace-brand-subtitle">
               <Users className="h-5 w-5" />
               <span className="text-xs font-bold">مساحة الموافقة المركزية</span>
             </div>
             <h1 className="mt-1 text-2xl font-black">طلبات تفعيل الحسابات</h1>
-            <p className="mt-2 text-sm text-purple-100/80">
+            <p className="mt-2 text-sm workspace-brand-subtitle">
               مراجعة بيانات التسجيل الحقيقية قبل تفعيل الحساب؛ لا يتم إنشاء أو إعادة إنشاء User
               جديد.
             </p>
@@ -202,7 +202,7 @@ export const AdminPendingUsersPage: React.FC = () => {
                   </h2>
                   <p className="mt-1 text-xs text-slate-600 dir-ltr text-right">{user.email}</p>
                   <p className="mt-2 text-[11px] font-bold text-amber-800">
-                    الدور الحالي: {roleLabel[user.role] || user.role}
+                    الدور: {roleLabel[user.role] || user.role}
                   </p>
                 </div>
                 <CheckCircle2 className="h-5 w-5 text-amber-600" />
@@ -230,6 +230,14 @@ export const AdminPendingUsersPage: React.FC = () => {
                 />
               </dl>
               <div className="mt-5 flex flex-wrap gap-2">
+                {user.role === 'inspector' && (
+                  <button
+                    onClick={() => navigate('/admin/inspectors')}
+                    className="rounded-xl bg-white px-3 py-2 text-xs font-bold text-purple-700"
+                  >
+                    مراجعة مديرية ومقاطعة المفتش
+                  </button>
+                )}
                 <button
                   onClick={() => navigate(`/admin/accounts/${encodeURIComponent(user.id)}`)}
                   className="inline-flex items-center gap-1 rounded-xl bg-white px-3 py-2 text-xs font-bold text-purple-700"

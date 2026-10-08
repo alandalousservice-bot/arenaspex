@@ -1,4 +1,5 @@
 {
+  "exclude": ["node_modules", "dist", "tmp"],
   "compilerOptions": {
     "target": "ES2022",
     "experimentalDecorators": true,

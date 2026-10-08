@@ -11,18 +11,9 @@ interface InspectorDashboardProps {
 type Summary = {
   teachersCount: number;
   pendingAssignmentsCount: number;
-  pendingApprovalsCount: number;
   visitsCount: number;
   guidanceCount: number;
   unreadMessagesCount: number;
-};
-const EMPTY: Summary = {
-  teachersCount: 0,
-  pendingAssignmentsCount: 0,
-  pendingApprovalsCount: 0,
-  visitsCount: 0,
-  guidanceCount: 0,
-  unreadMessagesCount: 0,
 };
 
 export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
@@ -34,17 +25,18 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
   // لا يوجد أساتذة مرتبطون بهذه المقاطعة حالياً.
   // لا يوجد أساتذة مسندون إليك حالياً.
   // selectedTeacher && <InspectorPedagogicalProfile />
-  const [summary, setSummary] = useState<Summary>(EMPTY);
+  const [summary, setSummary] = useState<Partial<Summary> | null>(null);
   const inspectorId = inspector?.id;
   useEffect(() => {
     if (!inspectorId) return;
     let active = true;
+    setSummary(null);
     void fetchInspectorSummary()
       .then((data) => {
-        if (active) setSummary({ ...EMPTY, ...data });
+        if (active) setSummary(data);
       })
       .catch(() => {
-        if (active) setSummary(EMPTY);
+        if (active) setSummary(null);
       });
     return () => {
       active = false;
@@ -59,42 +51,42 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
   const cards: Array<{
     tab: NavTab;
     label: string;
-    value: number;
+    value: number | undefined;
     icon: React.ElementType;
     color: string;
   }> = [
     {
       tab: 'inspector_teachers',
       label: 'أساتذة المقاطعة',
-      value: summary.teachersCount,
+      value: summary?.teachersCount,
       icon: Users,
       color: 'emerald',
     },
     {
       tab: 'inspector_teachers',
       label: 'إسنادات بانتظار القبول',
-      value: summary.pendingAssignmentsCount,
+      value: summary?.pendingAssignmentsCount,
       icon: ClipboardList,
       color: 'amber',
     },
     {
       tab: 'inspector_visits',
       label: 'الزيارات',
-      value: summary.visitsCount,
+      value: summary?.visitsCount,
       icon: Award,
       color: 'violet',
     },
     {
       tab: 'inspector_guidance',
       label: 'التوجيهات والندوات',
-      value: summary.guidanceCount,
+      value: summary?.guidanceCount,
       icon: Bell,
       color: 'rose',
     },
     {
       tab: 'inspector_communication',
       label: 'الرسائل غير المقروءة',
-      value: summary.unreadMessagesCount,
+      value: summary?.unreadMessagesCount,
       icon: MessageSquare,
       color: 'cyan',
     },
@@ -123,7 +115,7 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
               <span className={`rounded-xl bg-${color}-50 p-2 text-${color}-600`}>
                 <Icon className="h-5 w-5" />
               </span>
-              <span className="text-3xl font-black text-slate-900">{value}</span>
+              <span className="text-3xl font-black text-slate-900">{typeof value === 'number' && Number.isFinite(value) ? value : 'غير متوفر'}</span>
             </div>
             <p className="mt-4 text-sm font-extrabold text-slate-700">{label}</p>
           </button>

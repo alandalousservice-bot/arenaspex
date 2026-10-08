@@ -10,6 +10,7 @@ import {
   CornerDownLeft,
 } from 'lucide-react';
 import { InspectorNote, InspectionVisit } from '../../../types/spex';
+import { inspectionMarkLabel } from '../../../services/inspectionVisitIntegrity';
 import { INSPECTOR_NOTE_MODULE_REF } from '../../../constants/teacherDashboard.constants';
 
 interface InspectorFeedPanelProps {
@@ -80,8 +81,8 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
       </div>
 
       {/* Sub-tabs: Notes vs Visits */}
-      <div className="flex items-center justify-between text-xs font-bold border-b border-white/10 pb-2">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap gap-3 items-center justify-between text-xs font-bold border-b border-white/10 pb-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setActiveTab('notes')}
             className={`px-3 py-1 rounded-xl transition-colors cursor-pointer ${
@@ -108,7 +109,7 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
         {onOpenChatWithInspector && inspectorDisplayName && (
           <button
             onClick={onOpenChatWithInspector}
-            className="flex items-center gap-1 text-[10px] text-emerald-300 hover:text-white font-bold bg-emerald-500/20 hover:bg-emerald-500/30 px-2.5 py-1 rounded-xl border border-emerald-500/30 transition-colors cursor-pointer"
+            className="workspace-feed-chat flex items-center gap-1 text-[10px] text-emerald-300 hover:text-white font-bold bg-emerald-500/20 hover:bg-emerald-500/30 px-2.5 py-1 rounded-xl border border-emerald-500/30 transition-colors cursor-pointer"
           >
             <MessageSquare className="w-3 h-3" />
             <span>مراسلة المفتش</span>
@@ -196,7 +197,7 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-extrabold text-amber-300 bg-amber-500/20 px-2.5 py-1 rounded-lg border border-amber-500/30">
-                          علامة التفتيش: {visit.pedagogicalGrade}/20
+                          علامة التفتيش: <bdi dir="ltr">{inspectionMarkLabel(visit.pedagogicalGrade)}</bdi>
                         </span>
                         <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-md font-bold">
                           {visit.visitType}
@@ -231,7 +232,7 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
                         className="flex items-center gap-1 text-emerald-300 hover:text-white font-bold bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>عرض تقرير الزراءة التفصيلي</span>
+                        <span>{visit.officialReportGenerated ? 'عرض التقرير المحفوظ' : 'عرض سجل الزيارة'}</span>
                       </button>
 
                       <button
@@ -253,7 +254,7 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
           ) : (
             <div className="py-6 text-center space-y-1">
               <p className="text-xs text-emerald-200/80 italic">
-                لا توجد تقارير زيارات تفقدية مرسلة من المفتش حالياً.
+                لا توجد زيارات تفقدية مسجلة حالياً.
               </p>
             </div>
           )}
@@ -271,7 +272,7 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-slate-900">
-                    تقرير الزيارة التفتيشية البيداغوجية
+                    {selectedVisitModal.officialReportGenerated ? 'تقرير الزيارة التفتيشية المحفوظ' : 'سجل الزيارة التفتيشية'}
                   </h3>
                   <p className="text-xs text-slate-500">
                     تاريخ الزيارة: {selectedVisitModal.visitDate}
@@ -298,8 +299,8 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
               </div>
               <div className="text-center bg-emerald-600 text-white p-2.5 rounded-2xl shadow-sm">
                 <span className="text-[10px] block font-bold">التقدير البيداغوجي</span>
-                <span className="text-lg font-black">
-                  {selectedVisitModal.pedagogicalGrade} / 20
+                <span dir="ltr" className="text-lg font-black">
+                  {inspectionMarkLabel(selectedVisitModal.pedagogicalGrade)}
                 </span>
               </div>
             </div>
@@ -356,7 +357,7 @@ export const InspectorFeedPanel: React.FC<InspectorFeedPanelProps> = ({
                 onClick={() => setSelectedVisitModal(null)}
                 className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
               >
-                إغلاق التقارير
+                إغلاق العرض
               </button>
             </div>
           </div>

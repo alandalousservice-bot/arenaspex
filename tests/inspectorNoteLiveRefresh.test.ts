@@ -16,7 +16,7 @@ describe('inspector teacher guidance live refresh', () => {
   it('refreshes teacher detail from PostgreSQL-backed follow-up data after a save event', () => {
     const source = read('components/dashboard/InspectorWorkspacePage.tsx');
     expect(source).toContain("window.addEventListener('inspector-note-saved'");
-    expect(source).toContain('fetchInspectorTeacherFollowUp(props.teacherId)');
+    expect(source).toContain('fetchInspectorTeacherFollowUp(props.teacherId, academicYearId)');
     expect(source).toContain('detail.guidance?.length || 0');
   });
 

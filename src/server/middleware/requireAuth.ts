@@ -48,6 +48,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   if (!user) {
     return res.status(401).json({ error: 'الحساب غير موجود.', code: 'ACCOUNT_GONE' });
   }
+  if (user.status === 'archived') {
+    return res.status(401).json({error:'الحساب مؤرشف ولا يمكن استخدامه.',code:'ACCOUNT_ARCHIVED',disabled:true,user:{id:user.id,status:user.status}});
+  }
   if (user.status === 'inactive') {
     return res.status(401).json({
       error: 'الحساب معطّل من طرف الإدارة.',
@@ -56,7 +59,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       user: { id: user.id, status: user.status },
     });
   }
-  if (isAccountAccessExpired(user.accessExpiresAt)) {
+  if (user.role !== 'admin' && isAccountAccessExpired(user.accessExpiresAt)) {
     await prisma.user.update({
       where: { id: user.id },
       data: { status: 'inactive', isApprovedByAdmin: false },
@@ -68,7 +71,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       user: { id: user.id, status: 'inactive' },
     });
   }
-  if (!user.accessExpiresAt) {
+  if (user.role !== 'admin' && !user.accessExpiresAt) {
     await prisma.user.update({
       where: { id: user.id },
       data: {

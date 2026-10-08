@@ -124,18 +124,6 @@ export const InspectorHeroHeader: React.FC<InspectorHeroHeaderProps> = ({
         </button>
 
         <button
-          onClick={() => onSelectTab('curriculum_audit')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
-            activeTab === 'curriculum_audit'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <BarChart3 className="w-4 h-4 text-blue-400" />
-          <span>📈 التدقيق البيداغوجي للمنهاج</span>
-        </button>
-
-        <button
           onClick={() => onSelectTab('district_broadcasts')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'district_broadcasts'

@@ -33,6 +33,7 @@
   --text-default: var(--color-text);
   --text-muted: var(--color-text-muted);
   --text-on-brand: #ffffff;
+  --text-on-brand-muted: #dcfce7;
   --border-default: var(--color-border);
   --action-primary: var(--color-primary);
   --action-primary-hover: var(--color-primary-hover);
@@ -480,8 +481,8 @@
   }
 
   .action-primary:disabled {
-    background-color: #a7bdb5;
-    color: #f0fdf4;
+    background-color: #dce8e3;
+    color: #334155;
   }
 
   .workspace-page .workspace-tab-active {
@@ -563,6 +564,34 @@
 
   .workspace-page [class*='bg-gradient-to-'] {
     background-image: none !important;
+  }
+
+  /* A suppressed legacy gradient still needs its intended dark surface.
+     Keep this shared contract screen-only; official document print is unchanged. */
+  .workspace-page [class*='bg-gradient-to-'][class*='text-white'] {
+    background-color: var(--color-primary) !important;
+    color: var(--text-on-brand) !important;
+  }
+  .workspace-page .workspace-brand-subtitle {
+    color: var(--text-on-brand-muted) !important;
+    opacity: 1;
+  }
+  .app-shell main :is([class*='bg-slate-900'], [class*='bg-emerald-800'], [class*='bg-emerald-900']) > :is(.text-slate-400, .text-slate-500) {
+    color: var(--text-on-brand-muted) !important;
+  }
+
+  /* The Inspector feed owns a dark surface; light badge colors must not be
+     remapped by the generic light-surface utility normalization above. */
+  .app-shell main .workspace-inspector-feed.workspace-card {
+    background-color: #064e3b !important;
+    color: var(--text-on-brand) !important;
+  }
+  .app-shell main .workspace-inspector-feed :is(.text-emerald-300, .text-emerald-400) {
+    color: var(--text-on-brand-muted) !important;
+  }
+  .app-shell main .workspace-inspector-feed .workspace-feed-chat {
+    background-color: #ecfdf5 !important;
+    color: #065f46 !important;
   }
 
   /* Semantic dark-surface contract for the Smart Gradebook philosophy panel.

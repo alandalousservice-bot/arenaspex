@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Award, Plus, FileText, Printer, Search, ShieldCheck } from 'lucide-react';
 import { InspectionVisit, User as UserType } from '../../../types/spex';
+import { inspectionMarkLabel, sumExplicitVisitParts } from '../../../services/inspectionVisitIntegrity';
 
 interface InspectorReportsViewProps {
+  readOnly?: boolean;
   visits: InspectionVisit[];
   teachers: UserType[];
   inspector: UserType;
@@ -13,6 +15,7 @@ interface InspectorReportsViewProps {
 }
 
 export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
+  readOnly = false,
   visits,
   teachers,
   inspector,
@@ -40,20 +43,10 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
   const [adminGrade, setAdminGrade] = useState(''); // /5, optional persisted observation
   const [pedagogicalGrade, setPedagogicalGrade] = useState(''); // /10, optional persisted observation
   const [safetyGrade, setSafetyGrade] = useState(''); // /5, optional persisted observation
-  const [positivesText, setPositivesText] = useState(
-    'التزام بدفتر اليوميات والتوزيع السنوي، تحكم بيداغوجي وتوزيع محكم للمجموعات.'
-  );
-  const [improvementsText, setImprovementsText] = useState(
-    'تنويع أساليب التقييم التكويني الذاتي، وتدعيم الجانب التحفيزي.'
-  );
-  const [recommendationsText, setRecommendationsText] = useState(
-    'مواصلة التطبيق الدقيق للتدرج السنوي المعتمد من المفتشية.'
-  );
-
-  const totalScore =
-    (parseFloat(adminGrade) || 0) +
-    (parseFloat(pedagogicalGrade) || 0) +
-    (parseFloat(safetyGrade) || 0);
+  const [positivesText, setPositivesText] = useState('');
+  const [improvementsText, setImprovementsText] = useState('');
+  const [recommendationsText, setRecommendationsText] = useState('');
+  const totalScore = sumExplicitVisitParts([adminGrade, pedagogicalGrade, safetyGrade]);
 
   const selectedContextTeacher = teachers.find((teacher) => teacher.id === teacherId);
 
@@ -80,7 +73,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
       visitDate,
       visitType,
       lessonObservedTitle: lessonTitle.trim() || 'حصة التربية البدنية والرياضية',
-      ...(adminGrade || pedagogicalGrade || safetyGrade ? { pedagogicalGrade: totalScore } : {}),
+      pedagogicalGrade: totalScore,
       positivePoints: positivesText
         .split('،')
         .map((s) => s.trim())
@@ -93,7 +86,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
         .split('،')
         .map((s) => s.trim())
         .filter(Boolean),
-      officialReportGenerated: true,
+      officialReportGenerated: false,
     };
 
     setIsSaving(true);
@@ -109,6 +102,8 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
         setSaveState('success');
         setShowAddVisitModal(false);
         setLessonTitle('');
+        setAdminGrade(''); setPedagogicalGrade(''); setSafetyGrade('');
+        setPositivesText(''); setImprovementsText(''); setRecommendationsText('');
       } catch {
         setSaveState('refresh-error');
       }
@@ -162,27 +157,27 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-emerald-100 text-xs font-bold border border-white/20">
               <Award className="w-4 h-4 text-amber-300" />
-              <span>تقارير وسجلات المعاينات التفتيشية الرسمية</span>
+              <span>سجلات الزيارات والمعاينات التفتيشية</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white">
-              سجل التقييم والزيارات التفتيشية المعتمدة
+              سجل الزيارات التفتيشية
             </h2>
             <p className="text-xs text-emerald-100/90 max-w-2xl leading-relaxed">
-              توثيق وطباعة تقارير الزيارات التفتيشية البيداغوجية الرسمية لأساتذة التربية البدنية
-              والرياضية ضمن نطاق الإسنادات المقبولة للمفتش.
+              تسجيل الزيارة يحفظ المعاينة ولا ينشئ تقريرًا رسميًا نهائيًا. تبقى التقارير التاريخية المحفوظة قابلة للقراءة.
             </p>
           </div>
 
-          <button
+          {!readOnly && <button
             onClick={() => {
               setSaveState('idle');
+              setAdminGrade(''); setPedagogicalGrade(''); setSafetyGrade('');
               setShowAddVisitModal(true);
             }}
             className="px-5 py-3 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-2xl shadow-lg transition-all flex items-center gap-2 cursor-pointer shrink-0"
           >
             <Plus className="w-4 h-4" />
-            <span>تسجيل تقرير زيارة تفتيشية رسمية</span>
-          </button>
+            <span>تسجيل زيارة تفتيشية</span>
+          </button>}
         </div>
       </div>
 
@@ -253,10 +248,8 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                       <span className="text-[9px] text-amber-700 font-bold block">
                         الملاحظة المحفوظة
                       </span>
-                      <span className="text-base font-black text-amber-900">
-                        {typeof visit.pedagogicalGrade === 'number'
-                          ? `${visit.pedagogicalGrade} / 20`
-                          : 'غير مسجلة'}
+                      <span dir="ltr" className="text-base font-black text-amber-900">
+                        {inspectionMarkLabel(visit.pedagogicalGrade)}
                       </span>
                     </div>
                   </div>
@@ -269,7 +262,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                       </span>
                       <p className="text-slate-600 text-[11px] leading-relaxed">
                         {visit.positivePoints?.join(' • ') ||
-                          'انضباط ممتاز بدفتر التحضير والتوجيهات.'}
+                          'لم تُسجل نقاط إيجابية.'}
                       </p>
                     </div>
 
@@ -278,7 +271,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                         📌 التوصيات البيداغوجية:
                       </span>
                       <p className="text-slate-600 text-[11px] leading-relaxed">
-                        {visit.recommendations?.join(' • ') || 'تطبيق توصيات المفتشية بانتظام.'}
+                        {visit.recommendations?.join(' • ') || 'لم تُسجل توصيات.'}
                       </p>
                     </div>
                   </div>
@@ -292,7 +285,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                       className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer text-xs"
                     >
                       <Printer className="w-3.5 h-3.5 text-amber-400" />
-                      <span>استخراج البطاقة الرسمية</span>
+                      <span>{visit.officialReportGenerated ? 'طباعة التقرير المحفوظ' : 'طباعة سجل الزيارة'}</span>
                     </button>
                   </div>
                 </div>
@@ -313,10 +306,10 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-slate-900">
-                    تسجيل تقرير زيارة تفتيشية جديدة
+                    تسجيل زيارة تفتيشية جديدة
                   </h3>
                   <p className="text-[10px] text-slate-500 font-bold">
-                    إدخال تقييم الأستاذ واستخراج بطاقة المعاينة الرسمية
+                    حفظ المعاينة؛ العلامة اختيارية ولا يتم اعتماد تقرير رسمي تلقائيًا.
                   </p>
                 </div>
               </div>
@@ -389,11 +382,12 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
               {/* Breakdown Grades */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
                 <h4 className="font-black text-slate-800 text-xs flex items-center justify-between">
-                  <span>📊 سلم التقييم البيداغوجي المعتمد:</span>
+                  <span>تفصيل العلامة (اختياري):</span>
                   <span className="text-emerald-700 font-extrabold">
-                    العلامة الإجمالية: {totalScore.toFixed(1)} / 20
+                    العلامة الإجمالية: <bdi dir="ltr">{inspectionMarkLabel(totalScore)}</bdi>
                   </span>
                 </h4>
+                <p className="text-xs text-slate-500">تُحسب العلامة فقط عند إدخال الخانات الثلاث؛ تبقى غير مدخلة عند تركها فارغة أو غير مكتملة.</p>
 
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div>
@@ -495,7 +489,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                   disabled={isSaving}
                   className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-xl font-black shadow-md cursor-pointer"
                 >
-                  {isSaving ? 'جارٍ حفظ الزيارة...' : 'حفظ تقرير الزيارة الرسمية'}
+                  {isSaving ? 'جارٍ حفظ الزيارة...' : 'حفظ الزيارة'}
                 </button>
               </div>
             </form>
@@ -513,7 +507,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
               <h2 className="text-xs font-bold">وزارة التربية الوطنية</h2>
               <h3 className="text-xs font-bold">مديرية التربية — مفتشية التعليم الابتدائي</h3>
               <p className="text-base font-black text-emerald-950 mt-2">
-                بطاقة معاينة وتقييم بيداغوجي لمادة التربية البدنية والرياضية
+                {printableVisit.officialReportGenerated ? 'بطاقة معاينة وتقييم بيداغوجي لمادة التربية البدنية والرياضية' : 'سجل زيارة تفتيشية — لا يمثل تقريرًا رسميًا نهائيًا'}
               </p>
             </div>
 
@@ -536,7 +530,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                 <p>تاريخ الزيارة: {printableVisit.visitDate}</p>
                 <p>عنوان الحصة المعاينة: {printableVisit.lessonObservedTitle}</p>
                 <p className="text-emerald-900 font-extrabold text-sm mt-1">
-                  العلامة النهائية: {printableVisit.pedagogicalGrade} / 20
+                  العلامة المدخلة: <bdi dir="ltr">{inspectionMarkLabel(printableVisit.pedagogicalGrade)}</bdi>
                 </p>
               </div>
             </div>
@@ -561,7 +555,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
 
               <div>
                 <h4 className="font-bold underline text-slate-900">
-                  3. التوصيات البيداغوجية الملزمة:
+                  3. التوصيات البيداغوجية المحفوظة:
                 </h4>
                 <p className="mt-1 leading-relaxed">
                   {printableVisit.recommendations?.join(' • ')}
@@ -570,7 +564,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
             </div>
 
             {/* Signatures & Seal */}
-            <div className="flex justify-between items-end pt-12 border-t border-slate-300 text-xs font-bold">
+            {printableVisit.officialReportGenerated && <div className="flex justify-between items-end pt-12 border-t border-slate-300 text-xs font-bold">
               <div className="text-center">
                 <p>توقيع الأستاذ المعني</p>
                 <p className="text-[10px] text-slate-400 mt-8">(اطلعتُ على التوجيهات)</p>
@@ -585,7 +579,7 @@ export const InspectorReportsView: React.FC<InspectorReportsViewProps> = ({
                   ختم المفتشية الرسمية
                 </div>
               </div>
-            </div>
+            </div>}
           </div>
         </div>
       )}

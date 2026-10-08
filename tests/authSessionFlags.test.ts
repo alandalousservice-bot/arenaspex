@@ -98,7 +98,8 @@ describe('authSessionFlags - ACCOUNT_DISABLED / ACCOUNT_GONE / normal (PART C/D)
       id: 'u1',
       role: 'teacher',
       districtId: 'd1',
-      status: 'active'
+      status: 'active',
+      accessExpiresAt: new Date('2099-07-31T23:59:59Z')
     });
     const req = mockReq(true);
     const res = mockRes();

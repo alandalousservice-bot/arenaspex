@@ -21,6 +21,9 @@ import {
   type AIProviderType,
 } from './aiGateway.js';
 import { prisma } from './prismaClient.js';
+import { auditRouter } from './auditRouter.js';
+import { changeAccountAccess, AccountLifecycleError, type AccountAction } from './accountLifecycle.js';
+import { appendAudit, auditAccountChange } from './auditService.js';
 import { hashPassword, sanitizeUser, sanitizeOwnUser, encryptApiKey } from './auth.js';
 import { requireAuth, requireOperationalAccount, requireRole } from './middleware/requireAuth.js';
 import {
@@ -37,7 +40,17 @@ import {
 import { canReadDistrictMessage, normalizeMessageText } from '../services/communicationRules.js';
 import { providerIsUsable } from './generationAccess.policy.js';
 import { academicYearAccessExpiry, currentAcademicYearId } from './accountAccess.js';
+import {
+  updateTeacherProfile,
+  TransferError,
+  assignmentTransaction,
+} from './assignmentTransferService.js';
 import { teacherAttendanceRouter } from './attendanceRouter.js';
+import { informationCardRouter } from './informationCardRouter.js';
+import { pedagogicalVisitRouter } from './pedagogicalVisitRouter.js';
+import { visitReportRouter } from './visitReportRouter.js';
+import { lockVisitAssignmentHead } from './pedagogicalVisitService.js';
+import { isExplicitInspectionMark } from '../services/inspectionVisitIntegrity.js';
 import { findActiveMedicalExemption } from './medicalExemption.service.js';
 import { calculateAssessmentMastery, isAssessmentComplete } from '../services/assessmentMastery.js';
 import {
@@ -200,7 +213,11 @@ apiRouter.use(requireAuth);
 // Every operational API is also approval-gated. Auth/status endpoints live in
 // authRouter and intentionally remain available to pending accounts.
 apiRouter.use(requireOperationalAccount);
+apiRouter.use(auditRouter);
 apiRouter.use(teacherAttendanceRouter);
+apiRouter.use(informationCardRouter);
+apiRouter.use(pedagogicalVisitRouter);
+apiRouter.use(visitReportRouter);
 
 const academicYearIdSchema = z
   .string()
@@ -348,7 +365,8 @@ apiRouter.get(
   async (req, res) => {
     const academicYearId = academicYearIdSchema.safeParse(req.query.academicYearId);
     if (!academicYearId.success) return res.status(400).json({ error: 'السنة الدراسية مطلوبة.' });
-    const assignment = await prisma.inspectorAssignment.findUnique({
+    const result = await assignmentTransaction(async (db) => {
+    const assignment = await db.inspectorAssignment.findUnique({
       where: { teacherId: req.params.teacherId },
     });
     if (
@@ -356,17 +374,32 @@ apiRouter.get(
       assignment.inspectorId !== req.user!.id ||
       !['Active', 'Changed'].includes(assignment.status)
     ) {
-      return res
-        .status(403)
-        .json({ error: 'لا تملك صلاحية الاطلاع على التوقيت الأسبوعي لهذا الأستاذ.' });
+      throw new TransferError('FORBIDDEN', 'لا تملك صلاحية الاطلاع على التوقيت الأسبوعي لهذا الأستاذ.');
     }
-    const teacher = await prisma.user.findUnique({
+    const teacher = await db.user.findUnique({
       where: { id: req.params.teacherId },
       select: { id: true, firstName: true, lastName: true, schoolName: true },
     });
-    if (!teacher) return res.status(404).json({ error: 'الأستاذ غير موجود.' });
-    const slots = await weeklySlotsForTeacher(teacher.id, academicYearId.data);
-    res.json({ success: true, teacher, slots: slots.map(weeklySlotView) });
+    if (!teacher) throw new TransferError('NOT_FOUND', 'الأستاذ غير موجود.');
+    const slots = await db.teacherWeeklySlot.findMany({
+      where: { teacherId: teacher.id, academicYearId: academicYearId.data },
+      include: { class: { select: { name: true, levelId: true } } },
+      orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
+    });
+    const years = await db.teacherWeeklySlot.findMany({
+      where: { teacherId: teacher.id }, select: { academicYearId: true },
+      distinct: ['academicYearId'], orderBy: { academicYearId: 'desc' },
+    });
+    return { success: true, teacher, academicYearId: academicYearId.data,
+      academicYears: years.map((year) => year.academicYearId), slots: slots.map(weeklySlotView) };
+    }).catch((error: unknown) => {
+      if (error instanceof TransferError) {
+        res.status(error.code === 'NOT_FOUND' ? 404 : error.code === 'FORBIDDEN' ? 403 : 409).json({ error: error.message });
+        return null;
+      }
+      throw error;
+    });
+    if (result) res.json(result);
   }
 );
 
@@ -417,6 +450,8 @@ apiRouter.patch('/teacher/weekly-timetable/:slotId', requireRole('teacher'), asy
   });
   if (!existing || !classRecord)
     return res.status(404).json({ error: 'الحصة الأسبوعية غير موجودة ضمن أقسامك.' });
+  if (existing.academicYearId !== academicYearId)
+    return res.status(409).json({ error: 'لا يمكن نقل حصة محفوظة إلى سنة دراسية أخرى. أضف حصة في السنة المطلوبة.' });
   const others = await prisma.teacherWeeklySlot.findMany({
     where: { teacherId: req.user!.id, academicYearId, weekday, id: { not: existing.id } },
   });
@@ -3604,7 +3639,6 @@ apiRouter.get('/communication/district-messages', async (req, res) => {
       districtId: row.districtId || String((row.data as any)?.districtId || ''),
       text: row.content || String((row.data as any)?.message || (row.data as any)?.text || ''),
       createdAt: row.createdAt.toISOString(),
-      data: row.data,
     })),
   });
 });
@@ -3654,6 +3688,7 @@ apiRouter.get('/communication/notifications', async (req, res) => {
       message: row.message || String((row.data as any)?.message || ''),
       read: row.read,
       createdAt: row.createdAt.toISOString(),
+      data: row.data,
     })),
   });
 });
@@ -4283,7 +4318,14 @@ apiRouter.post(
 //    الإنشاء/التعديل مقتصر على admin و inspector، الحذف على admin فقط
 // -----------------------------------------------------------------------
 apiRouter.get('/db/users', async (req, res) => {
-  const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
+  const teacherIds =
+    req.user!.role === 'inspector'
+      ? [...(await acceptedTeacherIdsForInspector(req.user!.id))]
+      : null;
+  const users = await prisma.user.findMany({
+    ...(teacherIds ? { where: { id: { in: [req.user!.id, ...teacherIds] } } } : {}),
+    orderBy: { createdAt: 'desc' },
+  });
   res.json({
     success: true,
     users: users.map((u) => (u.id === req.user!.id ? sanitizeOwnUser(u) : sanitizeUser(u))),
@@ -4370,6 +4412,7 @@ apiRouter.get('/admin/reports/overview', requireRole('admin'), async (req, res) 
     ]);
     const pendingAccount = (u: any) =>
       ['teacher', 'inspector'].includes(u.role) &&
+      !['inactive', 'archived'].includes(u.status) &&
       (u.status === 'pending_approval' || !u.isApprovedByAdmin);
     const activeTeacher = (u: any) =>
       u.role === 'teacher' && u.status === 'active' && u.isApprovedByAdmin;
@@ -4497,6 +4540,7 @@ apiRouter.get('/admin/users/pending', requireRole('admin'), async (_req, res) =>
   const users = await prisma.user.findMany({
     where: {
       role: { in: ['teacher', 'inspector'] },
+      status: { notIn: ['inactive', 'archived'] },
       OR: [{ status: 'pending_approval' }, { isApprovedByAdmin: false }],
     },
     orderBy: { createdAt: 'asc' },
@@ -4509,7 +4553,7 @@ apiRouter.get('/admin/users/pending', requireRole('admin'), async (_req, res) =>
   res.json({
     success: true,
     users: users.map((user) => {
-      const safe = sanitizeUser(user as any) as any;
+      const safe = sanitizeUser(user as any) as any; delete safe.googleId;
       const { eduDirectorate, eduDistrict, eduSchool, ...base } = safe;
       return {
         ...base,
@@ -4536,7 +4580,7 @@ apiRouter.get('/admin/users', requireRole('admin'), async (_req, res) => {
   res.json({
     success: true,
     users: users.map((user) => {
-      const safe = sanitizeUser(user as any) as any;
+      const safe = sanitizeUser(user as any) as any; delete safe.googleId;
       const { eduDirectorate, eduDistrict, eduSchool, ...base } = safe;
       return {
         ...base,
@@ -4581,7 +4625,7 @@ apiRouter.get('/admin/users/:id', requireRole('admin'), async (req, res) => {
       },
     });
     if (!user) return res.status(404).json({ error: 'الحساب غير موجود.' });
-    const safe = sanitizeUser(user as any) as any;
+    const safe = sanitizeUser(user as any) as any; delete safe.googleId;
     const {
       eduDirectorate,
       eduDistrict,
@@ -4630,22 +4674,15 @@ apiRouter.post('/admin/users/:id/activate', requireRole('admin'), async (req, re
       districtId: existing.districtId,
     };
     try {
-      await enforceRoleAssignment(assignment, existing, { allowUnassignedInspector: true });
+      await enforceRoleAssignment(assignment, existing);
     } catch (error) {
       return res.status(400).json({
         error: error instanceof Error ? error.message : 'يرجى استكمال مديرية ومقاطعة المفتش.',
       });
     }
   }
-  const user = await prisma.user.update({
-    where: { id: existing.id },
-    data: {
-      status: 'active',
-      isApprovedByAdmin: true,
-      accessExpiresAt: academicYearAccessExpiry(),
-      accessAcademicYearId: currentAcademicYearId(),
-    },
-  });
+  const user = await changeAccountAccess(req.user!.id, existing.id, 'activate').catch((error:unknown)=>{if(error instanceof AccountLifecycleError){res.status(error.status).json({error:error.message});return null;}throw error;});
+  if (!user) return;
   res.json({ success: true, user: sanitizeUser(user) });
 });
 
@@ -4653,7 +4690,7 @@ apiRouter.post('/admin/users/:id/activate', requireRole('admin'), async (req, re
 // تركيبات role/status اعتباطية من العميل؛ الخادم يقرر الحالة النهائية.
 apiRouter.post('/admin/users/:id/lifecycle', requireRole('admin'), async (req, res) => {
   const action = req.body?.action;
-  const allowed = ['activate', 'deactivate', 'reject', 'reactivate'];
+  const allowed = ['activate', 'deactivate', 'reject', 'reactivate', 'archive'];
   if (!allowed.includes(action)) {
     return res.status(400).json({ error: 'إجراء دورة الحساب غير صالح.' });
   }
@@ -4680,8 +4717,7 @@ apiRouter.post('/admin/users/:id/lifecycle', requireRole('admin'), async (req, r
             directorateId: existing.directorateId,
             districtId: existing.districtId,
           },
-          existing,
-          { allowUnassignedInspector: true }
+          existing
         );
       } catch (error) {
         return res.status(400).json({
@@ -4690,18 +4726,8 @@ apiRouter.post('/admin/users/:id/lifecycle', requireRole('admin'), async (req, r
       }
     }
   }
-  const data =
-    action === 'activate' || action === 'reactivate'
-      ? {
-          status: 'active',
-          isApprovedByAdmin: true,
-          accessExpiresAt: academicYearAccessExpiry(),
-          accessAcademicYearId: currentAcademicYearId(),
-        }
-      : action === 'reject'
-        ? { status: 'inactive', isApprovedByAdmin: false }
-        : { status: 'inactive', isApprovedByAdmin: false };
-  const user = await prisma.user.update({ where: { id: existing.id }, data });
+  const user = await changeAccountAccess(req.user!.id, existing.id, action as AccountAction).catch((error:unknown)=>{if(error instanceof AccountLifecycleError){res.status(error.status).json({error:error.message});return null;}throw error;});
+  if (!user) return;
   return res.json({ success: true, user: sanitizeUser(user) });
 });
 
@@ -4732,6 +4758,7 @@ apiRouter.put('/admin/users/:id/profile', requireRole('admin'), async (req, res)
   if (!parsed.success) return res.status(400).json({ error: 'بيانات الحساب غير صالحة.' });
   const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
   if (!existing) return res.status(404).json({ error: 'الحساب غير موجود.' });
+  if (existing.status === 'archived') return res.status(409).json({error:'الحساب مؤرشف وللقراءة فقط.'});
   if (existing.isPlatformOwner) return res.status(403).json({ error: 'حساب مالك المنصة محمي.' });
 
   const input = parsed.data;
@@ -4778,7 +4805,14 @@ apiRouter.put('/admin/users/:id/profile', requireRole('admin'), async (req, res)
     }
   }
   try {
-    const user = await prisma.user.update({
+    const inspectorAffiliation =
+      existing.role === 'inspector'
+        ? await enforceRoleAssignment(
+            { directorateId: input.directorateId, districtId: input.districtId },
+            existing
+          )
+        : {};
+    const profileWrite = {
       where: { id: existing.id },
       data: {
         firstName: input.firstName,
@@ -4803,14 +4837,26 @@ apiRouter.put('/admin/users/:id/profile', requireRole('admin'), async (req, res)
         cycle: input.cycle || null,
         specialization: input.specialization || null,
         bio: input.bio || null,
+        ...inspectorAffiliation,
       },
       include: {
         eduDirectorate: { select: { name: true } },
         eduDistrict: { select: { name: true } },
         eduSchool: { select: { name: true, municipality: { select: { name: true } } } },
       },
-    });
-    const safe = sanitizeUser(user as any) as any;
+    };
+    const user =
+      existing.role === 'teacher'
+        ? await updateTeacherProfile(existing.id, profileWrite.data, profileWrite.include)
+        : await assignmentTransaction(async (db) => {
+            const before = await db.user.findUniqueOrThrow({ where: { id: existing.id } });
+            if (before.status === 'archived') throw new TransferError('FORBIDDEN', 'الحساب مؤرشف وللقراءة فقط.');
+            const saved = await db.user.update(profileWrite);
+            if (saved.role === 'inspector' && (before.districtId !== saved.districtId || before.directorateId !== saved.directorateId))
+              await appendAudit(db, { eventType: 'INSPECTOR_DISTRICT_ASSIGNED', actorUserId: req.user!.id, entityType: 'USER', entityId: saved.id, affectedUserId: saved.id, before, after: saved, key: `DISTRICT_ADMIN:${saved.id}:${saved.updatedAt.toISOString()}` });
+            return saved;
+          });
+    const safe = sanitizeUser(user as any) as any; delete safe.googleId;
     const { eduDirectorate, eduDistrict, eduSchool, ...base } = safe;
     return res.json({
       success: true,
@@ -4825,6 +4871,10 @@ apiRouter.put('/admin/users/:id/profile', requireRole('admin'), async (req, res)
       },
     });
   } catch (error: any) {
+    if (error instanceof TransferError) return res.status(409).json({ error: error.message });
+    if (error instanceof Error && error.message.includes('المقاطعة التفتيشية')) {
+      return res.status(400).json({ error: error.message });
+    }
     if (error?.code === 'P2002')
       return res
         .status(409)
@@ -4911,8 +4961,7 @@ async function enforceRoleAssignment(
     status: string;
     directorateId: string;
     districtId: string;
-  } | null,
-  options: { allowUnassignedInspector?: boolean } = {}
+  } | null
 ) {
   const role = String(data.role ?? existing?.role ?? 'teacher');
   const directorateId = String(data.directorateId ?? existing?.directorateId ?? '').trim();
@@ -4920,17 +4969,6 @@ async function enforceRoleAssignment(
 
   if (role === 'inspector') {
     if (!directorateId) throw new Error('يرجى اختيار مديرية التربية.');
-    if (!districtId && options.allowUnassignedInspector) {
-      const directorate = await prisma.directorate.findUnique({
-        where: { id: directorateId },
-        select: { id: true },
-      });
-      if (!directorate) throw new Error('مديرية التربية المحددة غير موجودة.');
-      data.institutionId = null;
-      data.schoolName = null;
-      data.municipality = null;
-      return data;
-    }
     if (!districtId) throw new Error('يرجى اختيار المقاطعة التفتيشية.');
     const district = await prisma.inspectionDistrict.findUnique({
       where: { id: districtId },
@@ -4948,6 +4986,12 @@ async function enforceRoleAssignment(
       select: { id: true },
     });
     if (occupied) throw new Error('هذه المقاطعة التفتيشية مرتبطة بالفعل بحساب مفتش.');
+    // Keep both existing geographic representations aligned with Admin approval.
+    data.directorateId = directorateId;
+    data.districtId = districtId;
+    data.eduDirectorateId = directorateId;
+    data.eduDistrictId = districtId;
+    data.eduSchoolId = null;
     data.institutionId = null;
     data.schoolName = null;
     data.municipality = null;
@@ -5051,6 +5095,9 @@ apiRouter.post('/db/users', async (req, res) => {
       }
     }
 
+    if(existing?.status==='archived')return res.status(409).json({error:'الحساب مؤرشف وللقراءة فقط.'});
+    if(user.status==='archived')return res.status(400).json({error:'استخدم إجراء أرشفة الحساب.'});
+    if(isAdmin&&existing&&(existing.id===req.user!.id||existing.isPlatformOwner||existing.role==='admin')&&((user.status!==undefined&&user.status!=='active')||user.isApprovedByAdmin===false))return res.status(403).json({error:'حساب الإدارة محمي من التعطيل والأرشفة.'});
     const data = await buildUserWriteData(
       user,
       privilegedAccountMutation,
@@ -5076,8 +5123,10 @@ apiRouter.post('/db/users', async (req, res) => {
     }
 
     const saved = existing
-      ? await prisma.user.update({ where: { id: user.id }, data: data as any })
-      : await prisma.user.create({ data: { id: user.id, ...data } as any });
+      ? existing.role === 'teacher'
+        ? await updateTeacherProfile(user.id, data, undefined, req.user!.id)
+        : await assignmentTransaction(async (db) => { const before = await db.user.findUnique({ where: { id: user.id } }); if (before?.status === 'archived') throw new TransferError('FORBIDDEN', 'الحساب مؤرشف وللقراءة فقط.'); const result = await db.user.update({ where: { id: user.id }, data: data as any }); await auditAccountChange(db, req.user!.id, before, result); return result; })
+      : await assignmentTransaction(async (db) => { const result = await db.user.create({ data: { id: user.id, ...data } as any }); await auditAccountChange(db, req.user!.id, null, result); return result; });
 
     await triggerAutoAssignment(saved);
 
@@ -5086,6 +5135,7 @@ apiRouter.post('/db/users', async (req, res) => {
       user: isSelf || isAdmin ? sanitizeOwnUser(saved) : sanitizeUser(saved),
     });
   } catch (err: any) {
+    if (err instanceof TransferError) return res.status(409).json({ error: err.message });
     if (
       err instanceof Error &&
       (err.message.startsWith('يرجى') ||
@@ -5127,13 +5177,17 @@ apiRouter.post('/db/users/batch', requireRole('admin'), async (req, res) => {
         outcome.skipped += 1;
         continue;
       }
+      if(existing?.status==='archived'||u.status==='archived'||(existing&&(existing.id===req.user!.id||existing.isPlatformOwner||existing.role==='admin')&&((u.status!==undefined&&u.status!=='active')||u.isApprovedByAdmin===false))){outcome.failed+=1;continue;}
       const data = await buildUserWriteData(u, true, true);
       await enforceRoleAssignment(data, existing);
       let saved = null;
       if (existing) {
-        saved = await prisma.user.update({ where: { id: u.id }, data: data as any });
+        saved =
+          existing.role === 'teacher'
+            ? await updateTeacherProfile(u.id, data, undefined, req.user!.id)
+            : await assignmentTransaction(async (db) => { const before = await db.user.findUnique({ where: { id: u.id } }); if (before?.status === 'archived') throw new TransferError('FORBIDDEN', 'الحساب مؤرشف وللقراءة فقط.'); const result = await db.user.update({ where: { id: u.id }, data: data as any }); await auditAccountChange(db, req.user!.id, before, result); return result; });
       } else if (data.passwordHash) {
-        saved = await prisma.user.create({ data: { id: u.id, ...data } as any });
+        saved = await assignmentTransaction(async (db) => { const result = await db.user.create({ data: { id: u.id, ...data } as any }); await auditAccountChange(db, req.user!.id, null, result); return result; });
       }
       // مستخدم جديد بدون كلمة مرور ضمن دفعة جماعية يُتجاهل بدل رفض الدفعة كاملة
       if (!saved) {
@@ -5158,25 +5212,10 @@ apiRouter.delete('/db/users/:id', requireRole('admin'), async (req, res) => {
     if (existing?.isPlatformOwner && !req.user!.isPlatformOwner) {
       return res.status(403).json({ error: 'حساب مالك المنصة محمي ولا يمكن حذفه.' });
     }
-    // إن كان المحذوف مفتشاً، نحتفظ بقائمة أساتذته قبل الحذف حتى نعيد مطابقتهم
-    // (بمفتش آخر مطابق إن وُجد، أو حالة Pending إن لم يوجد) بدل تركهم مرتبطين بمفتش محذوف
-    const affectedTeacherIds =
-      existing?.role === 'inspector'
-        ? (
-            await prisma.inspectorAssignment.findMany({
-              where: { inspectorId: id },
-              select: { teacherId: true },
-            })
-          ).map((a) => a.teacherId)
-        : [];
-
-    await prisma.user.delete({ where: { id } });
-
-    for (const teacherId of affectedTeacherIds) {
-      await reassignTeacher(teacherId);
-    }
-    return res.json({ success: true, count: 1, outcome: 'deleted' });
+    const user = await changeAccountAccess(req.user!.id, id, 'archive');
+    return res.json({success:true,count:1,outcome:'archived',user:sanitizeUser(user)});
   } catch (err) {
+    if (err instanceof AccountLifecycleError) return res.status(err.status).json({error:err.message});
     if (isPrismaRecordNotFoundError(err)) {
       return res.json({ success: true, count: 0, outcome: 'not_found' });
     }
@@ -5412,6 +5451,14 @@ function jsonCollectionRoutes(opts: {
       return res.status(400).json({ error: 'بيانات غير مكتملة' });
     }
     if (
+      path === 'community-notifications' &&
+      isVisitSystemNotification(item as Record<string, unknown>)
+    ) {
+      return res
+        .status(403)
+        .json({ error: 'إشعارات الزيارات والتقارير تُنشأ حصريًا من الإجراء المصرّح به.' });
+    }
+    if (
       !(await validatePlannedLesson(item as Record<string, unknown>, req.user!)) ||
       !(await validateNotebookSession(item as Record<string, unknown>, req.user!)) ||
       !(await validateTeacherObjectiveReferences(item as Record<string, unknown>, req.user!))
@@ -5495,6 +5542,13 @@ function jsonCollectionRoutes(opts: {
           continue;
         }
         try {
+          if (
+            path === 'community-notifications' &&
+            isVisitSystemNotification(item as Record<string, unknown>)
+          ) {
+            outcome.skipped += 1;
+            continue;
+          }
           if (!(await validatePlannedLesson(item as Record<string, unknown>, req.user!))) {
             outcome.skipped += 1;
             continue;
@@ -5594,6 +5648,16 @@ function jsonCollectionRoutes(opts: {
   });
 }
 
+function isVisitSystemNotification(item: Record<string, unknown>) {
+  const id = typeof item.id === 'string' ? item.id : '';
+  return (
+    item.type === 'visit_appointment' ||
+    item.type === 'visit_report_shared' ||
+    id.startsWith('visit_pv_') ||
+    id.startsWith('visit_report_shared_')
+  );
+}
+
 // 2. Lesson Plans — خاصة بالأستاذ صاحبها، ومرئية للمفتش المرتبط به بإسناد مقبول، بالإضافة إلى admin
 jsonCollectionRoutes({
   path: 'lesson-plans',
@@ -5634,61 +5698,104 @@ jsonCollectionRoutes({
 // Inspection visits are persisted separately from the UI state and are scoped
 // to the current active teacher↔inspector assignment.
 apiRouter.post('/inspection-visits', requireRole('inspector'), async (req, res) => {
-  const visit = (
-    req.body?.visit && typeof req.body.visit === 'object' ? req.body.visit : req.body
-  ) as Record<string, unknown>;
-  const teacherId = typeof visit.teacherId === 'string' ? visit.teacherId : '';
-  if (!teacherId) return res.status(400).json({ error: 'المعلم مطلوب.' });
-  const assignment = await prisma.inspectorAssignment.findUnique({ where: { teacherId } });
-  if (
-    !assignment ||
-    assignment.inspectorId !== req.user!.id ||
-    !['Active', 'Changed'].includes(assignment.status)
-  ) {
-    return res.status(403).json({ error: 'لا تملك صلاحية تسجيل زيارة لهذا الأستاذ.' });
+  try {
+    const visit = (
+      req.body?.visit && typeof req.body.visit === 'object' ? req.body.visit : req.body
+    ) as Record<string, unknown>;
+    const teacherId = typeof visit.teacherId === 'string' ? visit.teacherId : '';
+    if (!teacherId) return res.status(400).json({ error: 'المعلم مطلوب.' });
+    // Compatibility recording is retrospective only. Future appointments must
+    // use the private lifecycle routes, never the legacy Teacher-visible feed.
+    const legacyTypes = [
+      'توجيهية',
+      'تفتيش تثبيت',
+      'متابعة دورية',
+      'GUIDANCE',
+      'TENURE',
+      'MONITORING',
+    ];
+    if (visit.visitType != null && !legacyTypes.includes(String(visit.visitType)))
+      return res.status(400).json({ error: 'نوع الزيارة غير معتمد.' });
+    if (visit.visitDate != null) {
+      const day = String(visit.visitDate);
+      const today = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Africa/Algiers',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(day) ||
+        !Number.isFinite(Date.parse(day)) ||
+        new Date(day).toISOString().slice(0, 10) !== day ||
+        day > today
+      )
+        return res.status(400).json({ error: 'استخدم برمجة الزيارات للمواعيد المستقبلية.' });
+    }
+    if (visit.pedagogicalGrade != null && !isExplicitInspectionMark(visit.pedagogicalGrade))
+      return res.status(400).json({ error: 'العلامة الاختيارية يجب أن تكون عددًا بين 0 و20.' });
+    const row = await assignmentTransaction(async (tx) => {
+      await lockVisitAssignmentHead(tx, teacherId);
+      const assignment = await tx.inspectorAssignment.findUnique({ where: { teacherId } });
+      if (
+        !assignment ||
+        assignment.inspectorId !== req.user!.id ||
+        !['Active', 'Changed'].includes(assignment.status)
+      ) {
+        return null;
+      }
+      const teacher = await tx.user.findUnique({
+        where: { id: teacherId },
+        select: { id: true, institutionId: true },
+      });
+      if (!teacher || teacher.id !== teacherId) return null;
+      const id =
+        typeof visit.id === 'string' && visit.id.trim()
+          ? visit.id
+          : `visit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const stringList = (value: unknown) =>
+        Array.isArray(value)
+          ? value.filter((item): item is string => typeof item === 'string').slice(0, 50)
+          : [];
+      const safeData = {
+        id,
+        teacherId,
+        inspectorId: req.user!.id,
+        institutionId: teacher.institutionId,
+        visitDate:
+          typeof visit.visitDate === 'string'
+            ? visit.visitDate
+            : new Date().toISOString().slice(0, 10),
+        visitType: typeof visit.visitType === 'string' ? visit.visitType : 'توجيهية',
+        lessonObservedTitle:
+          typeof visit.lessonObservedTitle === 'string'
+            ? visit.lessonObservedTitle
+            : 'حصة التربية البدنية والرياضية',
+        pedagogicalGrade: isExplicitInspectionMark(visit.pedagogicalGrade)
+          ? visit.pedagogicalGrade
+          : null,
+        positivePoints: stringList(visit.positivePoints),
+        areasForImprovement: stringList(visit.areasForImprovement),
+        recommendations: stringList(visit.recommendations),
+        officialReportGenerated: false,
+      };
+      return tx.inspectionVisitRecord.create({
+        data: {
+          id,
+          inspectorId: req.user!.id,
+          teacherId,
+          institutionId: teacher.institutionId,
+          data: safeData as any,
+        },
+      });
+    });
+    if (!row) return res.status(403).json({ error: 'الأستاذ غير متاح ضمن إسناداتك المقبولة.' });
+    res.status(201).json({ success: true, visit: row.data });
+  } catch (error) {
+    if (error instanceof TransferError)
+      return res.status(error.code === 'CONFLICT' ? 409 : 403).json({ error: error.message });
+    throw error;
   }
-  const teacher = await prisma.user.findUnique({
-    where: { id: teacherId },
-    select: { id: true, institutionId: true },
-  });
-  if (!teacher || teacher.id !== teacherId)
-    return res.status(403).json({ error: 'الأستاذ المحدد غير متاح ضمن إسناداتك المقبولة.' });
-  const id =
-    typeof visit.id === 'string' && visit.id.trim()
-      ? visit.id
-      : `visit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const stringList = (value: unknown) =>
-    Array.isArray(value)
-      ? value.filter((item): item is string => typeof item === 'string').slice(0, 50)
-      : [];
-  const safeData = {
-    id,
-    teacherId,
-    inspectorId: req.user!.id,
-    institutionId: teacher.institutionId,
-    visitDate:
-      typeof visit.visitDate === 'string' ? visit.visitDate : new Date().toISOString().slice(0, 10),
-    visitType: typeof visit.visitType === 'string' ? visit.visitType : 'توجيهية',
-    lessonObservedTitle:
-      typeof visit.lessonObservedTitle === 'string'
-        ? visit.lessonObservedTitle
-        : 'حصة التربية البدنية والرياضية',
-    pedagogicalGrade: typeof visit.pedagogicalGrade === 'number' ? visit.pedagogicalGrade : null,
-    positivePoints: stringList(visit.positivePoints),
-    areasForImprovement: stringList(visit.areasForImprovement),
-    recommendations: stringList(visit.recommendations),
-    officialReportGenerated: visit.officialReportGenerated === true,
-  };
-  const row = await prisma.inspectionVisitRecord.create({
-    data: {
-      id,
-      inspectorId: req.user!.id,
-      teacherId,
-      institutionId: teacher.institutionId,
-      data: safeData as any,
-    },
-  });
-  res.status(201).json({ success: true, visit: row.data });
 });
 
 // 5. District Group Chat — تُعرض ضمن نطاق مقاطعة المستخدم (districtId) فقط

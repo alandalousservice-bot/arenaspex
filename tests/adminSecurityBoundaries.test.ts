@@ -31,8 +31,9 @@ describe('Admin mutation security boundaries', () => {
   });
 
   it('executes bulk reassignment through one transaction client', () => {
-    expect(assignmentService).toContain('return prisma.$transaction(async (tx) =>');
-    expect(assignmentService).toContain('reassignTeacher(t.id, tx)');
+    expect(assignmentService).toMatch(/return prisma\.\$transaction\(\s*async \(tx\)/);
+    expect(assignmentService).toContain("isolationLevel: 'Serializable'");
+    expect(assignmentService).toContain('reassignTeacher(t.id, tx, actorUserId)');
     expect(assignmentService).toContain('db.inspectorAssignment.upsert');
   });
 });

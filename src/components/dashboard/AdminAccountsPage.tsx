@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { AdminAccountDetail, fetchAdminAccountsDirectory } from '../../services/api';
 
 type Role = 'all' | 'teacher' | 'inspector' | 'director' | 'admin';
-type Status = 'all' | 'pending_approval' | 'active' | 'inactive';
+type Status = 'all' | 'pending_approval' | 'active' | 'inactive' | 'archived';
 const roles: Record<Role, string> = {
   all: 'الكل',
   teacher: 'الأساتذة',
@@ -25,9 +25,11 @@ const statuses: Record<Status, string> = {
   pending_approval: 'بانتظار التفعيل',
   active: 'نشط',
   inactive: 'معطل',
+  archived: 'مؤرشف',
 };
 const pending = (u: AdminAccountDetail) =>
-  u.status === 'pending_approval' || u.isApprovedByAdmin === false;
+  u.status === 'pending_approval' ||
+  (u.status !== 'inactive' && u.status !== 'archived' && u.isApprovedByAdmin === false);
 const place = (u: AdminAccountDetail) =>
   u.adminAffiliation?.institutionName ||
   u.schoolName ||
@@ -101,13 +103,13 @@ export const AdminAccountsPage: React.FC = () => {
     <div className="workspace-page workspace-page--admin space-y-6" dir="rtl">
       <header className="rounded-3xl bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 p-6 text-white shadow-lg">
         <div className="flex items-center gap-3">
-          <Users className="h-7 w-7 text-purple-300" />
+          <Users className="h-7 w-7 workspace-brand-subtitle" />
           <div>
-            <p className="text-xs font-bold text-purple-200">مساحة الإدارة اليومية</p>
+            <p className="text-xs font-bold workspace-brand-subtitle">مساحة الإدارة اليومية</p>
             <h1 className="mt-1 text-2xl font-black">إدارة الحسابات</h1>
           </div>
         </div>
-        <p className="mt-3 text-sm text-purple-100/80">
+        <p className="mt-3 text-sm workspace-brand-subtitle">
           دليل الحسابات المحفوظة في قاعدة البيانات وصفحة الإدارة المركزية لكل حساب.
         </p>
       </header>

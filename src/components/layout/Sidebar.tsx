@@ -44,6 +44,7 @@ export type NavTab =
   | 'assessment_notebook'
   | 'attendance'
   | 'students'
+  | 'information_card'
   | 'professional_hub'
   | 'inspector_portal'
   | 'inspector_teachers'
@@ -61,6 +62,7 @@ export type NavTab =
   | 'admin_approvals'
   | 'admin_curriculum'
   | 'admin_reports'
+  | 'admin_audit'
   | 'reports'
   | 'settings';
 
@@ -99,6 +101,8 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
           title: 'الوحدات البيداغوجية للأستاذ',
           items: [
             { id: 'dashboard' as NavTab, label: 'لوحة القيادة', icon: LayoutDashboard },
+            { id: 'information_card' as NavTab, label: 'بطاقة المعلومات', icon: FileText },
+            { id: 'reports' as NavTab, label: 'تقاريري', icon: FileSpreadsheet },
             {
               id: 'professional_hub' as NavTab,
               label: 'التواصل المهني',
@@ -153,11 +157,6 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
               icon: FileSpreadsheet,
             },
             {
-              id: 'inspector_curriculum' as NavTab,
-              label: 'تدقيق المنهاج',
-              icon: BookMarked,
-            },
-            {
               id: 'inspector_guidance' as NavTab,
               label: 'التوجيهات والندوات التربوية',
               icon: Calendar,
@@ -205,6 +204,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
           { id: 'admin_approvals' as NavTab, label: 'الاعتمادات والمراجعة', icon: CheckCircle2 },
           { id: 'admin_curriculum' as NavTab, label: 'المناهج والمراجع', icon: BookMarked },
           { id: 'admin_reports' as NavTab, label: 'الإحصاءات والتحليل', icon: FileSpreadsheet },
+          { id: 'admin_audit' as NavTab, label: 'سجل التدقيق', icon: ShieldCheck },
           {
             id: 'professional_hub' as NavTab,
             label: 'التواصل',
@@ -366,10 +366,14 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(
             <div className="m-3 p-3 bg-gradient-to-br from-emerald-950 to-teal-950 text-white rounded-2xl shadow-md border border-emerald-800">
               <div className="flex items-center gap-2 mb-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <span className="text-[11px] font-bold text-emerald-300">المنهاج الرسمي معتمد</span>
+                <span className="text-[11px] font-bold text-emerald-300">
+                  {userRole === 'inspector' ? 'مساحة الإشراف' : 'المنهاج الرسمي معتمد'}
+                </span>
               </div>
               <p className="text-[11px] text-slate-300 leading-snug">
-                متوافق 100% مع التوجيهات البيداغوجية لوزارة التربية الوطنية الجزائرية.
+                {userRole === 'inspector'
+                  ? 'ملفات الأساتذة وفق الإسنادات الحالية المحفوظة.'
+                  : 'متوافق 100% مع التوجيهات البيداغوجية لوزارة التربية الوطنية الجزائرية.'}
               </p>
             </div>
           )}

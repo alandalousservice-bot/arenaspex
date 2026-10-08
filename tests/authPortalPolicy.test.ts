@@ -18,7 +18,7 @@ describe('public auth portal policy', () => {
     expect(authRouter).toContain(
       "const role = requestedRole === 'inspector' ? 'inspector' : 'teacher';"
     );
-    expect(authRouter).toContain("const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher'])");
+    expect(authRouter).toContain("const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher', 'inspector'])");
     expect(authRouter).toContain("status: 'pending_approval'");
     expect(authRouter).toContain('eduDirectorateId: z.string().trim().min(1');
     expect(authRouter).toContain('المقاطعة التفتيشية المحددة لا تتبع مديرية التربية المختارة');

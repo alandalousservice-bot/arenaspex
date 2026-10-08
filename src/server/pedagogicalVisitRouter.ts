@@ -1,0 +1,11 @@
+import { Router } from 'express';
+import { actOnVisit, listInspectorVisits, listTeacherAppointments, scheduleVisit, VisitError } from './pedagogicalVisitService.js';
+import { TransferError } from './assignmentTransferService.js';
+export const pedagogicalVisitRouter = Router();
+pedagogicalVisitRouter.use((_req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); });
+pedagogicalVisitRouter.post('/pedagogical-visits', async (req, res, next) => { try { res.status(201).json({ visit: await scheduleVisit(req.user!, req.body) }); } catch (e) { next(e); } });
+pedagogicalVisitRouter.post('/pedagogical-visits/:id/actions', async (req, res, next) => { try { res.json({ visit: await actOnVisit(req.user!, req.params.id, req.body) }); } catch (e) { next(e); } });
+pedagogicalVisitRouter.get('/inspector/visit-planning', async (req, res, next) => { try { res.json({ visits: await listInspectorVisits(req.user!, typeof req.query.teacherId === 'string' ? req.query.teacherId : undefined, typeof req.query.academicYearId === 'string' ? req.query.academicYearId : undefined) }); } catch (e) { next(e); } });
+pedagogicalVisitRouter.get('/teacher/visit-appointments', async (req, res, next) => { try { const appointments = await listTeacherAppointments(req.user!); res.json({ appointments, count: appointments.length }); } catch (e) { next(e); } });
+pedagogicalVisitRouter.get('/teacher/visit-appointments/:id', async (req, res, next) => { try { res.json({ appointment: (await listTeacherAppointments(req.user!, req.params.id))[0] }); } catch (e) { next(e); } });
+pedagogicalVisitRouter.use((e: Error, _req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) => { if (e instanceof VisitError) return res.status(e.status).json({ error: e.message }); if (e instanceof TransferError) return res.status(e.code === 'CONFLICT' ? 409 : 403).json({ error: e.message }); next(e); });
