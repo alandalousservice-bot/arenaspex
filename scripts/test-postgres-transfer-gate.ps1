@@ -38,7 +38,7 @@ try {
     $env:ARENASPEX_POSTGRES_GATE_URL = "postgresql://gate_admin@127.0.0.1:${gatePort}/${gateDb}?schema=public&connection_limit=6"
     $env:DATABASE_URL = $env:ARENASPEX_POSTGRES_GATE_URL
     $env:DIRECT_DATABASE_URL = $env:ARENASPEX_POSTGRES_GATE_URL
-    & node node_modules/vitest/vitest.mjs run $TestFile --maxWorkers=1 --minWorkers=1 *> (Join-Path $gateRoot 'postgres-tests.log')
+    & node node_modules/vitest/vitest.mjs run $TestFile --maxWorkers=1 *> (Join-Path $gateRoot 'postgres-tests.log')
     $gateExit = $LASTEXITCODE
     Get-Content -LiteralPath (Join-Path $gateRoot 'postgres-tests.log')
 } finally {

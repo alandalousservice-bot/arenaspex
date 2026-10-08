@@ -41,6 +41,25 @@ function singleSheetBuffer(rows: unknown[][], name = 'القائمة') {
 }
 
 describe('استيراد قوائم التلاميذ', () => {
+  it('يحافظ على الأسماء العربية والأصفار الأولى عند قراءة ملف Excel القديم XLS', () => {
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      book,
+      XLSX.utils.aoa_to_sheet([
+        ['الفوج التربوي : أولى ابتدائي 1'],
+        ['matricule', 'nom', 'prenom'],
+        ['0000000000000007', 'قاسم', 'ليلى'],
+      ]),
+      'القائمة'
+    );
+    const bytes = XLSX.write(book, { type: 'buffer', bookType: 'xls' }) as Buffer;
+    expect(parseStudentRosterWorkbook(bytes)[0].students[0]).toMatchObject({
+      matricule: '0000000000000007',
+      lastName: 'قاسم',
+      firstName: 'ليلى',
+    });
+  });
+
   it('يستخرج اسم الفوج دون المادة أو الرموز اللاحقة', () => {
     expect(
       extractEducationalGroupName(
