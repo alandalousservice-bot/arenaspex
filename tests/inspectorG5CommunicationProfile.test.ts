@@ -11,6 +11,11 @@ describe('Inspector G5 communication and profile boundaries', () => {
     expect(api).toContain('senderId: user.id');
     expect(api).toContain('canContactUser(user.id, user.role, recipientId)');
     expect(hub).toContain("'/communication/direct-messages'");
+    expect(hub).toContain("'?scope=assigned-teachers'");
+    expect(hub).toContain('inspectorTeacherOnly');
+    expect(api).toContain("req.query.scope === 'assigned-teachers'");
+    expect(api).toContain('requiresAcceptedInspectorAssignment(requester.role, target.role)');
+    expect(api).toContain('authorizedContacts.map');
     expect(api).not.toContain('InspectorMessage');
     expect(api).not.toContain('InspectorChat');
   });
@@ -26,7 +31,8 @@ describe('Inspector G5 communication and profile boundaries', () => {
 
   it('protects read state and notifications by recipient identity', () => {
     const api = read('src/server/apiRouter.ts');
-    expect(api).toContain('where: { id: req.params.id, recipientId: req.user!.id }');
+    expect(api).toContain('view.recipientId !== req.user!.id');
+    expect(api).toContain('canContactUser(req.user!.id, req.user!.role, view.senderId)');
     expect(api).toContain('where: { id: req.params.id, userId: req.user!.id }');
     expect(api).toContain('where: { userId: req.user!.id }');
     expect(api).not.toContain('broadcast-to-all');
@@ -47,7 +53,7 @@ describe('Inspector G5 communication and profile boundaries', () => {
   it('keeps guidance distinct from messaging and does not add fake broadcast or resource review messages', () => {
     const api = read('src/server/apiRouter.ts');
     const workspace = read('src/components/dashboard/InspectorWorkspacePage.tsx');
-    expect(workspace).toContain('onAddDirectMessage');
+    expect(workspace).toContain('<ProfessionalHub currentUser={inspector} inspectorTeacherOnly />');
     expect(api).toContain('prisma.inspectorNote');
     expect(api).not.toContain('ResourceReviewMessage');
     expect(workspace).not.toContain('إرسال للجميع');

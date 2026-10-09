@@ -42,6 +42,7 @@ interface Notification {
 }
 interface ProfessionalHubProps {
   currentUser: User;
+  inspectorTeacherOnly?: boolean;
   [key: string]: unknown;
 }
 
@@ -63,9 +64,13 @@ const roleLabel: Record<string, string> = {
 const formatDate = (value: string) =>
   new Date(value).toLocaleString('ar-DZ', { dateStyle: 'short', timeStyle: 'short' });
 
-export const ProfessionalHub: React.FC<ProfessionalHubProps> = ({ currentUser }) => {
+export const ProfessionalHub: React.FC<ProfessionalHubProps> = ({
+  currentUser,
+  inspectorTeacherOnly = false,
+}) => {
   const navigate = useNavigate();
   const [section, setSection] = useState<'direct' | 'district' | 'notifications'>('direct');
+  const communicationScope = inspectorTeacherOnly ? '?scope=assigned-teachers' : '';
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selected, setSelected] = useState<Contact | null>(null);
@@ -84,10 +89,14 @@ export const ProfessionalHub: React.FC<ProfessionalHubProps> = ({ currentUser })
     try {
       const [contactResult, conversationResult, notificationResult, districtResult] =
         await Promise.all([
-          api<{ contacts: Contact[] }>('/communication/contacts'),
-          api<{ conversations: Conversation[] }>('/communication/direct-conversations'),
+          api<{ contacts: Contact[] }>(`/communication/contacts${communicationScope}`),
+          api<{ conversations: Conversation[] }>(
+            `/communication/direct-conversations${communicationScope}`
+          ),
           api<{ notifications: Notification[] }>('/communication/notifications'),
-          api<{ messages: DistrictMessage[] }>('/communication/district-messages'),
+          inspectorTeacherOnly
+            ? Promise.resolve({ messages: [] as DistrictMessage[] })
+            : api<{ messages: DistrictMessage[] }>('/communication/district-messages'),
         ]);
       setContacts(contactResult.contacts);
       setConversations(conversationResult.conversations);
@@ -99,7 +108,7 @@ export const ProfessionalHub: React.FC<ProfessionalHubProps> = ({ currentUser })
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [communicationScope, inspectorTeacherOnly]);
 
   const loadConversation = useCallback(
     async (contact: Contact) => {
@@ -153,7 +162,7 @@ export const ProfessionalHub: React.FC<ProfessionalHubProps> = ({ currentUser })
       setMessages((prev) => [...prev, result.message]);
       setDraft('');
       const overview = await api<{ conversations: Conversation[] }>(
-        '/communication/direct-conversations'
+        `/communication/direct-conversations${communicationScope}`
       );
       setConversations(overview.conversations);
     } catch (reason) {
@@ -240,12 +249,16 @@ export const ProfessionalHub: React.FC<ProfessionalHubProps> = ({ currentUser })
     <div className="space-y-4" dir="rtl">
       <header className="rounded-3xl bg-gradient-to-l from-emerald-700 to-cyan-700 p-6 text-white shadow-lg">
         <h1 className="text-2xl font-black">التواصل المهني</h1>
-        <p className="mt-1 text-sm text-emerald-100">دردشة خاصة، فضاء المقاطعة، وإشعارات موثوقة</p>
+        <p className="mt-1 text-sm text-emerald-100">
+          {inspectorTeacherOnly
+            ? 'تواصل خاص مع الأساتذة المسندين إليك وإشعارات موثوقة'
+            : 'دردشة خاصة، فضاء المقاطعة، وإشعارات موثوقة'}
+        </p>
         <nav className="mt-5 flex flex-wrap gap-2">
           {(
             [
               ['direct', 'الدردشة الخاصة', MessageCircle, unreadMessages],
-              ['district', 'فضاء المقاطعة', Radio, 0],
+              ...(!inspectorTeacherOnly ? [['district', 'فضاء المقاطعة', Radio, 0] as const] : []),
               ['notifications', 'الإشعارات', Bell, unreadNotifications],
             ] as const
           ).map(([id, label, Icon, badge]) => (

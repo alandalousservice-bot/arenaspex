@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { canReadDirectMessage, canReadDistrictMessage, normalizeMessageText } from '../src/services/communicationRules';
+import {
+  canReadDirectMessage,
+  canReadDistrictMessage,
+  normalizeMessageText,
+  requiresAcceptedInspectorAssignment,
+} from '../src/services/communicationRules';
 
 describe('قواعد التواصل المهني', () => {
   it('يرفض الرسائل الفارغة والطويلة ويطبع المسافات', () => {
@@ -18,5 +23,11 @@ describe('قواعد التواصل المهني', () => {
     expect(canReadDistrictMessage({ districtId: 'd1' }, 'd1')).toBe(true);
     expect(canReadDistrictMessage({ districtId: 'd1' }, 'd2')).toBe(false);
     expect(canReadDistrictMessage({ legacyDistrictId: 'd1' }, 'd1')).toBe(true);
+  });
+  it('يشترط علاقة إسناد مقبولة للتواصل المباشر بين المفتش والأستاذ فقط', () => {
+    expect(requiresAcceptedInspectorAssignment('inspector', 'teacher')).toBe(true);
+    expect(requiresAcceptedInspectorAssignment('teacher', 'inspector')).toBe(true);
+    expect(requiresAcceptedInspectorAssignment('teacher', 'teacher')).toBe(false);
+    expect(requiresAcceptedInspectorAssignment('inspector', 'inspector')).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, FileSpreadsheet, MessageSquare, ShieldCheck, Users } from 'lucide-react';
+import { Calendar, FileSpreadsheet, ShieldCheck, Users } from 'lucide-react';
 import {
   User,
   InspectorNote,
@@ -22,7 +22,7 @@ import { InspectorReportsView } from './inspector/InspectorReportsView';
 import { PedagogicalVisitPlanner } from './inspector/PedagogicalVisitPlanner';
 import { InspectorCurriculumAuditView } from './inspector/InspectorCurriculumAuditView';
 import { InspectorBroadcastsView } from './inspector/InspectorBroadcastsView';
-import { InspectorDirectChat } from './inspector/InspectorDirectChat';
+import { ProfessionalHub } from '../community/ProfessionalHub';
 import { fetchInspectorTeacherFollowUp } from '../../services/api';
 import {
   formatAcademicYearLabel,
@@ -60,16 +60,7 @@ interface Props {
 }
 
 export const InspectorWorkspacePage: React.FC<Props> = (props) => {
-  const {
-    module,
-    inspector,
-    teachers,
-    notes,
-    visits,
-    broadcasts,
-    directMessages,
-    lessonPlans,
-  } = props;
+  const { module, inspector, teachers, notes, visits, broadcasts, lessonPlans } = props;
   const [selectedTeacherId, setSelectedTeacherId] = useState(
     props.teacherId || teachers[0]?.id || ''
   );
@@ -141,7 +132,6 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
     return () => window.removeEventListener('inspector-visit-saved', handler);
   }, [props.teacherId, refreshTeacherDetail]);
 
-
   if (!inspector)
     return (
       <div className="rounded-3xl bg-amber-50 p-8 text-center font-bold text-amber-900">
@@ -152,11 +142,25 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
   if (module === 'inspector_teachers' && props.teacherId) {
     if (!detailLoading && !detail)
       return (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900" dir="rtl" role="alert">
+        <div
+          className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900"
+          dir="rtl"
+          role="alert"
+        >
           <h1 className="text-xl font-bold">ملف المتابعة غير متاح</h1>
           <p className="my-3">{detailError || 'لم يتم العثور على ملف متابعة متاح لهذا الحساب.'}</p>
-          <button onClick={() => props.onNavigate('inspector_teachers')} className="action-primary rounded-xl px-4 py-2">العودة إلى أساتذة المقاطعة</button>
-          <button onClick={() => void refreshTeacherDetail()} className="mr-3 rounded-xl border border-amber-700 px-4 py-2">إعادة المحاولة</button>
+          <button
+            onClick={() => props.onNavigate('inspector_teachers')}
+            className="action-primary rounded-xl px-4 py-2"
+          >
+            العودة إلى أساتذة المقاطعة
+          </button>
+          <button
+            onClick={() => void refreshTeacherDetail()}
+            className="mr-3 rounded-xl border border-amber-700 px-4 py-2"
+          >
+            إعادة المحاولة
+          </button>
         </div>
       );
     if (!detail)
@@ -187,7 +191,12 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
           </p>
         </section>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="col-span-2 sm:col-span-4"><InspectorSupervisionDossier teacherId={props.teacherId} academicYearId={academicYearId} /></div>
+          <div className="col-span-2 sm:col-span-4">
+            <InspectorSupervisionDossier
+              teacherId={props.teacherId}
+              academicYearId={academicYearId}
+            />
+          </div>
           <div className="rounded-2xl bg-white p-4 text-center border border-slate-200">
             <b className="block text-2xl">{detail.classes?.length || 0}</b>
             <span className="text-xs text-slate-500">الأقسام</span>
@@ -440,7 +449,13 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
           <FileSpreadsheet className="text-emerald-600" />
           الزيارات البيداغوجية وسجل المعاينات
         </h1>
-        <PedagogicalVisitPlanner teacherId={props.teacherId} academicYearId={academicYearId} teacherNames={Object.fromEntries(teachers.map((t) => [t.id, `${t.firstName} ${t.lastName}`]))} />
+        <PedagogicalVisitPlanner
+          teacherId={props.teacherId}
+          academicYearId={academicYearId}
+          teacherNames={Object.fromEntries(
+            teachers.map((t) => [t.id, `${t.firstName} ${t.lastName}`])
+          )}
+        />
         <InspectorReportsView
           readOnly
           visits={visits}
@@ -508,32 +523,6 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
       </section>
     );
   if (module === 'inspector_communication')
-    return (
-      <section className="space-y-5">
-        <h1 className="text-lg font-black flex items-center gap-2">
-          <MessageSquare className="text-emerald-600" />
-          التواصل المباشر مع الأستاذ
-        </h1>
-        {selectedTeacher ? (
-          <InspectorDirectChat
-            inspector={inspector}
-            selectedTeacher={selectedTeacher}
-            teacherId={props.teacherId}
-            chatMessages={directMessages}
-            onSendMessage={(message) =>
-              props.onAddDirectMessage({
-                receiverId: selectedTeacher.id,
-                receiverName: `${selectedTeacher.firstName} ${selectedTeacher.lastName}`.trim(),
-                message,
-              })
-            }
-          />
-        ) : (
-          <p className="rounded-2xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
-            لا توجد محادثات بعد.
-          </p>
-        )}
-      </section>
-    );
+    return <ProfessionalHub currentUser={inspector} inspectorTeacherOnly />;
   return null;
 };

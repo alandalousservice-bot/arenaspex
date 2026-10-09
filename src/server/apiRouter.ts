@@ -22,7 +22,11 @@ import {
 } from './aiGateway.js';
 import { prisma } from './prismaClient.js';
 import { auditRouter } from './auditRouter.js';
-import { changeAccountAccess, AccountLifecycleError, type AccountAction } from './accountLifecycle.js';
+import {
+  changeAccountAccess,
+  AccountLifecycleError,
+  type AccountAction,
+} from './accountLifecycle.js';
 import { appendAudit, auditAccountChange } from './auditService.js';
 import { hashPassword, sanitizeUser, sanitizeOwnUser, encryptApiKey } from './auth.js';
 import { requireAuth, requireOperationalAccount, requireRole } from './middleware/requireAuth.js';
@@ -37,7 +41,11 @@ import {
   canWriteRecord,
   resolveOwnerFieldValue,
 } from './collectionAuth.js';
-import { canReadDistrictMessage, normalizeMessageText } from '../services/communicationRules.js';
+import {
+  canReadDistrictMessage,
+  normalizeMessageText,
+  requiresAcceptedInspectorAssignment,
+} from '../services/communicationRules.js';
 import { providerIsUsable } from './generationAccess.policy.js';
 import { academicYearAccessExpiry, currentAcademicYearId } from './accountAccess.js';
 import {
@@ -367,35 +375,47 @@ apiRouter.get(
     const academicYearId = academicYearIdSchema.safeParse(req.query.academicYearId);
     if (!academicYearId.success) return res.status(400).json({ error: 'السنة الدراسية مطلوبة.' });
     const result = await assignmentTransaction(async (db) => {
-    const assignment = await db.inspectorAssignment.findUnique({
-      where: { teacherId: req.params.teacherId },
-    });
-    if (
-      !assignment ||
-      assignment.inspectorId !== req.user!.id ||
-      !['Active', 'Changed'].includes(assignment.status)
-    ) {
-      throw new TransferError('FORBIDDEN', 'لا تملك صلاحية الاطلاع على التوقيت الأسبوعي لهذا الأستاذ.');
-    }
-    const teacher = await db.user.findUnique({
-      where: { id: req.params.teacherId },
-      select: { id: true, firstName: true, lastName: true, schoolName: true },
-    });
-    if (!teacher) throw new TransferError('NOT_FOUND', 'الأستاذ غير موجود.');
-    const slots = await db.teacherWeeklySlot.findMany({
-      where: { teacherId: teacher.id, academicYearId: academicYearId.data },
-      include: { class: { select: { name: true, levelId: true } } },
-      orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
-    });
-    const years = await db.teacherWeeklySlot.findMany({
-      where: { teacherId: teacher.id }, select: { academicYearId: true },
-      distinct: ['academicYearId'], orderBy: { academicYearId: 'desc' },
-    });
-    return { success: true, teacher, academicYearId: academicYearId.data,
-      academicYears: years.map((year) => year.academicYearId), slots: slots.map(weeklySlotView) };
+      const assignment = await db.inspectorAssignment.findUnique({
+        where: { teacherId: req.params.teacherId },
+      });
+      if (
+        !assignment ||
+        assignment.inspectorId !== req.user!.id ||
+        !['Active', 'Changed'].includes(assignment.status)
+      ) {
+        throw new TransferError(
+          'FORBIDDEN',
+          'لا تملك صلاحية الاطلاع على التوقيت الأسبوعي لهذا الأستاذ.'
+        );
+      }
+      const teacher = await db.user.findUnique({
+        where: { id: req.params.teacherId },
+        select: { id: true, firstName: true, lastName: true, schoolName: true },
+      });
+      if (!teacher) throw new TransferError('NOT_FOUND', 'الأستاذ غير موجود.');
+      const slots = await db.teacherWeeklySlot.findMany({
+        where: { teacherId: teacher.id, academicYearId: academicYearId.data },
+        include: { class: { select: { name: true, levelId: true } } },
+        orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
+      });
+      const years = await db.teacherWeeklySlot.findMany({
+        where: { teacherId: teacher.id },
+        select: { academicYearId: true },
+        distinct: ['academicYearId'],
+        orderBy: { academicYearId: 'desc' },
+      });
+      return {
+        success: true,
+        teacher,
+        academicYearId: academicYearId.data,
+        academicYears: years.map((year) => year.academicYearId),
+        slots: slots.map(weeklySlotView),
+      };
     }, 'apiRouter.result').catch((error: unknown) => {
       if (error instanceof TransferError) {
-        res.status(error.code === 'NOT_FOUND' ? 404 : error.code === 'FORBIDDEN' ? 403 : 409).json({ error: error.message });
+        res
+          .status(error.code === 'NOT_FOUND' ? 404 : error.code === 'FORBIDDEN' ? 403 : 409)
+          .json({ error: error.message });
         return null;
       }
       throw error;
@@ -452,7 +472,9 @@ apiRouter.patch('/teacher/weekly-timetable/:slotId', requireRole('teacher'), asy
   if (!existing || !classRecord)
     return res.status(404).json({ error: 'الحصة الأسبوعية غير موجودة ضمن أقسامك.' });
   if (existing.academicYearId !== academicYearId)
-    return res.status(409).json({ error: 'لا يمكن نقل حصة محفوظة إلى سنة دراسية أخرى. أضف حصة في السنة المطلوبة.' });
+    return res
+      .status(409)
+      .json({ error: 'لا يمكن نقل حصة محفوظة إلى سنة دراسية أخرى. أضف حصة في السنة المطلوبة.' });
   const others = await prisma.teacherWeeklySlot.findMany({
     where: { teacherId: req.user!.id, academicYearId, weekday, id: { not: existing.id } },
   });
@@ -3469,6 +3491,18 @@ async function canContactUser(requesterId: string, requesterRole: string, target
   if (!requester || !target || target.status !== 'active' || requester.id === target.id)
     return false;
   if (requesterRole === 'admin' || target.role === 'admin') return true;
+  if (requiresAcceptedInspectorAssignment(requester.role, target.role)) {
+    return Boolean(
+      await prisma.inspectorAssignment.findFirst({
+        where: {
+          status: { in: ['Active', 'Changed'] },
+          inspectorId: requester.role === 'inspector' ? requester.id : target.id,
+          teacherId: requester.role === 'teacher' ? requester.id : target.id,
+        },
+        select: { id: true },
+      })
+    );
+  }
   const requesterDistrict = requester.districtId || requester.eduDistrictId;
   const targetDistrict = target.districtId || target.eduDistrictId;
   const requesterDirectorate = requester.directorateId || requester.eduDirectorateId;
@@ -3514,8 +3548,16 @@ function directMessageView(row: {
 
 apiRouter.get('/communication/contacts', async (req, res) => {
   const user = req.user!;
+  const assignedTeachersOnly = req.query.scope === 'assigned-teachers';
+  if (assignedTeachersOnly && user.role !== 'inspector') {
+    return res.status(403).json({ error: 'هذا النطاق مخصص للمفتشين.' });
+  }
   const candidates = await prisma.user.findMany({
-    where: { status: 'active', id: { not: user.id } },
+    where: {
+      status: 'active',
+      id: { not: user.id },
+      ...(assignedTeachersOnly ? { role: 'teacher' } : {}),
+    },
     select: communicationUserSelect,
     orderBy: [{ role: 'asc' }, { firstName: 'asc' }],
   });
@@ -3528,6 +3570,10 @@ apiRouter.get('/communication/contacts', async (req, res) => {
 
 apiRouter.get('/communication/direct-conversations', async (req, res) => {
   const user = req.user!;
+  const assignedTeachersOnly = req.query.scope === 'assigned-teachers';
+  if (assignedTeachersOnly && user.role !== 'inspector') {
+    return res.status(403).json({ error: 'هذا النطاق مخصص للمفتشين.' });
+  }
   const rows = await prisma.directMessage.findMany({
     where: { OR: [{ senderId: user.id }, { recipientId: user.id }] },
     orderBy: { createdAt: 'desc' },
@@ -3549,11 +3595,22 @@ apiRouter.get('/communication/direct-conversations', async (req, res) => {
     });
   }
   const contacts = await prisma.user.findMany({
-    where: { id: { in: [...grouped.keys()] }, status: 'active' },
+    where: {
+      id: { in: [...grouped.keys()] },
+      status: 'active',
+      ...(assignedTeachersOnly ? { role: 'teacher' } : {}),
+    },
     select: communicationUserSelect,
   });
+  const authorizedContacts = [];
+  for (const contact of contacts) {
+    if (await canContactUser(user.id, user.role, contact.id)) authorizedContacts.push(contact);
+  }
   res.json({
-    conversations: contacts.map((contact) => ({ user: contact, ...grouped.get(contact.id)! })),
+    conversations: authorizedContacts.map((contact) => ({
+      user: contact,
+      ...grouped.get(contact.id)!,
+    })),
   });
 });
 
@@ -3609,6 +3666,15 @@ apiRouter.post('/communication/direct-messages', async (req, res) => {
 });
 
 apiRouter.post('/communication/direct-messages/:id/read', async (req, res) => {
+  const existing = await prisma.directMessage.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: 'الرسالة غير موجودة.' });
+  const view = directMessageView(existing);
+  if (
+    view.recipientId !== req.user!.id ||
+    !(await canContactUser(req.user!.id, req.user!.role, view.senderId))
+  ) {
+    return res.status(404).json({ error: 'الرسالة غير موجودة.' });
+  }
   const result = await prisma.directMessage.updateMany({
     where: { id: req.params.id, recipientId: req.user!.id },
     data: { readAt: new Date() },
@@ -4554,7 +4620,8 @@ apiRouter.get('/admin/users/pending', requireRole('admin'), async (_req, res) =>
   res.json({
     success: true,
     users: users.map((user) => {
-      const safe = sanitizeUser(user as any) as any; delete safe.googleId;
+      const safe = sanitizeUser(user as any) as any;
+      delete safe.googleId;
       const { eduDirectorate, eduDistrict, eduSchool, ...base } = safe;
       return {
         ...base,
@@ -4581,7 +4648,8 @@ apiRouter.get('/admin/users', requireRole('admin'), async (_req, res) => {
   res.json({
     success: true,
     users: users.map((user) => {
-      const safe = sanitizeUser(user as any) as any; delete safe.googleId;
+      const safe = sanitizeUser(user as any) as any;
+      delete safe.googleId;
       const { eduDirectorate, eduDistrict, eduSchool, ...base } = safe;
       return {
         ...base,
@@ -4626,7 +4694,8 @@ apiRouter.get('/admin/users/:id', requireRole('admin'), async (req, res) => {
       },
     });
     if (!user) return res.status(404).json({ error: 'الحساب غير موجود.' });
-    const safe = sanitizeUser(user as any) as any; delete safe.googleId;
+    const safe = sanitizeUser(user as any) as any;
+    delete safe.googleId;
     const {
       eduDirectorate,
       eduDistrict,
@@ -4682,7 +4751,19 @@ apiRouter.post('/admin/users/:id/activate', requireRole('admin'), async (req, re
       });
     }
   }
-  const user = await changeAccountAccess(req.user!.id, existing.id, 'activate').catch((error:unknown)=>{if(error instanceof AccountLifecycleError){res.status(error.status).json({error:error.message});return null;}if(error instanceof TransferError){res.status(409).json(transferConflictPayload(error));return null;}throw error;});
+  const user = await changeAccountAccess(req.user!.id, existing.id, 'activate').catch(
+    (error: unknown) => {
+      if (error instanceof AccountLifecycleError) {
+        res.status(error.status).json({ error: error.message });
+        return null;
+      }
+      if (error instanceof TransferError) {
+        res.status(409).json(transferConflictPayload(error));
+        return null;
+      }
+      throw error;
+    }
+  );
   if (!user) return;
   res.json({ success: true, user: sanitizeUser(user) });
 });
@@ -4727,7 +4808,19 @@ apiRouter.post('/admin/users/:id/lifecycle', requireRole('admin'), async (req, r
       }
     }
   }
-  const user = await changeAccountAccess(req.user!.id, existing.id, action as AccountAction).catch((error:unknown)=>{if(error instanceof AccountLifecycleError){res.status(error.status).json({error:error.message});return null;}if(error instanceof TransferError){res.status(409).json(transferConflictPayload(error));return null;}throw error;});
+  const user = await changeAccountAccess(req.user!.id, existing.id, action as AccountAction).catch(
+    (error: unknown) => {
+      if (error instanceof AccountLifecycleError) {
+        res.status(error.status).json({ error: error.message });
+        return null;
+      }
+      if (error instanceof TransferError) {
+        res.status(409).json(transferConflictPayload(error));
+        return null;
+      }
+      throw error;
+    }
+  );
   if (!user) return;
   return res.json({ success: true, user: sanitizeUser(user) });
 });
@@ -4759,7 +4852,8 @@ apiRouter.put('/admin/users/:id/profile', requireRole('admin'), async (req, res)
   if (!parsed.success) return res.status(400).json({ error: 'بيانات الحساب غير صالحة.' });
   const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
   if (!existing) return res.status(404).json({ error: 'الحساب غير موجود.' });
-  if (existing.status === 'archived') return res.status(409).json({error:'الحساب مؤرشف وللقراءة فقط.'});
+  if (existing.status === 'archived')
+    return res.status(409).json({ error: 'الحساب مؤرشف وللقراءة فقط.' });
   if (existing.isPlatformOwner) return res.status(403).json({ error: 'حساب مالك المنصة محمي.' });
 
   const input = parsed.data;
@@ -4851,13 +4945,28 @@ apiRouter.put('/admin/users/:id/profile', requireRole('admin'), async (req, res)
         ? await updateTeacherProfile(existing.id, profileWrite.data, profileWrite.include)
         : await assignmentTransaction(async (db) => {
             const before = await db.user.findUniqueOrThrow({ where: { id: existing.id } });
-            if (before.status === 'archived') throw new TransferError('FORBIDDEN', 'الحساب مؤرشف وللقراءة فقط.');
+            if (before.status === 'archived')
+              throw new TransferError('FORBIDDEN', 'الحساب مؤرشف وللقراءة فقط.');
             const saved = await db.user.update(profileWrite);
-            if (saved.role === 'inspector' && (before.districtId !== saved.districtId || before.directorateId !== saved.directorateId))
-              await appendAudit(db, { eventType: 'INSPECTOR_DISTRICT_ASSIGNED', actorUserId: req.user!.id, entityType: 'USER', entityId: saved.id, affectedUserId: saved.id, before, after: saved, key: `DISTRICT_ADMIN:${saved.id}:${saved.updatedAt.toISOString()}` });
+            if (
+              saved.role === 'inspector' &&
+              (before.districtId !== saved.districtId ||
+                before.directorateId !== saved.directorateId)
+            )
+              await appendAudit(db, {
+                eventType: 'INSPECTOR_DISTRICT_ASSIGNED',
+                actorUserId: req.user!.id,
+                entityType: 'USER',
+                entityId: saved.id,
+                affectedUserId: saved.id,
+                before,
+                after: saved,
+                key: `DISTRICT_ADMIN:${saved.id}:${saved.updatedAt.toISOString()}`,
+              });
             return saved;
           }, 'apiRouter.user');
-    const safe = sanitizeUser(user as any) as any; delete safe.googleId;
+    const safe = sanitizeUser(user as any) as any;
+    delete safe.googleId;
     const { eduDirectorate, eduDistrict, eduSchool, ...base } = safe;
     return res.json({
       success: true,
@@ -5096,9 +5205,17 @@ apiRouter.post('/db/users', async (req, res) => {
       }
     }
 
-    if(existing?.status==='archived')return res.status(409).json({error:'الحساب مؤرشف وللقراءة فقط.'});
-    if(user.status==='archived')return res.status(400).json({error:'استخدم إجراء أرشفة الحساب.'});
-    if(isAdmin&&existing&&(existing.id===req.user!.id||existing.isPlatformOwner||existing.role==='admin')&&((user.status!==undefined&&user.status!=='active')||user.isApprovedByAdmin===false))return res.status(403).json({error:'حساب الإدارة محمي من التعطيل والأرشفة.'});
+    if (existing?.status === 'archived')
+      return res.status(409).json({ error: 'الحساب مؤرشف وللقراءة فقط.' });
+    if (user.status === 'archived')
+      return res.status(400).json({ error: 'استخدم إجراء أرشفة الحساب.' });
+    if (
+      isAdmin &&
+      existing &&
+      (existing.id === req.user!.id || existing.isPlatformOwner || existing.role === 'admin') &&
+      ((user.status !== undefined && user.status !== 'active') || user.isApprovedByAdmin === false)
+    )
+      return res.status(403).json({ error: 'حساب الإدارة محمي من التعطيل والأرشفة.' });
     const data = await buildUserWriteData(
       user,
       privilegedAccountMutation,
@@ -5126,8 +5243,19 @@ apiRouter.post('/db/users', async (req, res) => {
     const saved = existing
       ? existing.role === 'teacher'
         ? await updateTeacherProfile(user.id, data, undefined, req.user!.id)
-        : await assignmentTransaction(async (db) => { const before = await db.user.findUnique({ where: { id: user.id } }); if (before?.status === 'archived') throw new TransferError('FORBIDDEN', 'الحساب مؤرشف وللقراءة فقط.'); const result = await db.user.update({ where: { id: user.id }, data: data as any }); await auditAccountChange(db, req.user!.id, before, result); return result; }, 'apiRouter.saved')
-      : await assignmentTransaction(async (db) => { const result = await db.user.create({ data: { id: user.id, ...data } as any }); await auditAccountChange(db, req.user!.id, null, result); return result; }, 'apiRouter.saved');
+        : await assignmentTransaction(async (db) => {
+            const before = await db.user.findUnique({ where: { id: user.id } });
+            if (before?.status === 'archived')
+              throw new TransferError('FORBIDDEN', 'الحساب مؤرشف وللقراءة فقط.');
+            const result = await db.user.update({ where: { id: user.id }, data: data as any });
+            await auditAccountChange(db, req.user!.id, before, result);
+            return result;
+          }, 'apiRouter.saved')
+      : await assignmentTransaction(async (db) => {
+          const result = await db.user.create({ data: { id: user.id, ...data } as any });
+          await auditAccountChange(db, req.user!.id, null, result);
+          return result;
+        }, 'apiRouter.saved');
 
     await triggerAutoAssignment(saved);
 
@@ -5178,7 +5306,16 @@ apiRouter.post('/db/users/batch', requireRole('admin'), async (req, res) => {
         outcome.skipped += 1;
         continue;
       }
-      if(existing?.status==='archived'||u.status==='archived'||(existing&&(existing.id===req.user!.id||existing.isPlatformOwner||existing.role==='admin')&&((u.status!==undefined&&u.status!=='active')||u.isApprovedByAdmin===false))){outcome.failed+=1;continue;}
+      if (
+        existing?.status === 'archived' ||
+        u.status === 'archived' ||
+        (existing &&
+          (existing.id === req.user!.id || existing.isPlatformOwner || existing.role === 'admin') &&
+          ((u.status !== undefined && u.status !== 'active') || u.isApprovedByAdmin === false))
+      ) {
+        outcome.failed += 1;
+        continue;
+      }
       const data = await buildUserWriteData(u, true, true);
       await enforceRoleAssignment(data, existing);
       let saved = null;
@@ -5186,9 +5323,20 @@ apiRouter.post('/db/users/batch', requireRole('admin'), async (req, res) => {
         saved =
           existing.role === 'teacher'
             ? await updateTeacherProfile(u.id, data, undefined, req.user!.id)
-            : await assignmentTransaction(async (db) => { const before = await db.user.findUnique({ where: { id: u.id } }); if (before?.status === 'archived') throw new TransferError('FORBIDDEN', 'الحساب مؤرشف وللقراءة فقط.'); const result = await db.user.update({ where: { id: u.id }, data: data as any }); await auditAccountChange(db, req.user!.id, before, result); return result; }, 'apiRouter.accountWrite');
+            : await assignmentTransaction(async (db) => {
+                const before = await db.user.findUnique({ where: { id: u.id } });
+                if (before?.status === 'archived')
+                  throw new TransferError('FORBIDDEN', 'الحساب مؤرشف وللقراءة فقط.');
+                const result = await db.user.update({ where: { id: u.id }, data: data as any });
+                await auditAccountChange(db, req.user!.id, before, result);
+                return result;
+              }, 'apiRouter.accountWrite');
       } else if (data.passwordHash) {
-        saved = await assignmentTransaction(async (db) => { const result = await db.user.create({ data: { id: u.id, ...data } as any }); await auditAccountChange(db, req.user!.id, null, result); return result; }, 'apiRouter.accountWrite');
+        saved = await assignmentTransaction(async (db) => {
+          const result = await db.user.create({ data: { id: u.id, ...data } as any });
+          await auditAccountChange(db, req.user!.id, null, result);
+          return result;
+        }, 'apiRouter.accountWrite');
       }
       // مستخدم جديد بدون كلمة مرور ضمن دفعة جماعية يُتجاهل بدل رفض الدفعة كاملة
       if (!saved) {
@@ -5214,9 +5362,10 @@ apiRouter.delete('/db/users/:id', requireRole('admin'), async (req, res) => {
       return res.status(403).json({ error: 'حساب مالك المنصة محمي ولا يمكن حذفه.' });
     }
     const user = await changeAccountAccess(req.user!.id, id, 'archive');
-    return res.json({success:true,count:1,outcome:'archived',user:sanitizeUser(user)});
+    return res.json({ success: true, count: 1, outcome: 'archived', user: sanitizeUser(user) });
   } catch (err) {
-    if (err instanceof AccountLifecycleError) return res.status(err.status).json({error:err.message});
+    if (err instanceof AccountLifecycleError)
+      return res.status(err.status).json({ error: err.message });
     if (err instanceof TransferError) return res.status(409).json(transferConflictPayload(err));
     if (isPrismaRecordNotFoundError(err)) {
       return res.json({ success: true, count: 0, outcome: 'not_found' });
