@@ -329,7 +329,7 @@ export async function readVisitReport(actor: Actor, visitId: string) {
         visit.visitType !== 'MONITORING',
       unsupported: visit.visitType === 'MONITORING',
     };
-  });
+  }, 'visitReportService.readVisitReport');
 }
 export async function listOwnedVisitReports(actor: Actor, teacherId?: string) {
   requireInspector(actor);
@@ -378,7 +378,7 @@ export async function listOwnedVisitReports(actor: Actor, teacherId?: string) {
         void _visit;
         return report;
       });
-  });
+  }, 'visitReportService.listOwnedVisitReports');
 }
 export async function shareVisitReportWithTeacher(actor: Actor, reportId: string) {
   return assignmentTransaction(async (db) => {
@@ -421,7 +421,7 @@ export async function shareVisitReportWithTeacher(actor: Actor, reportId: string
     });
     await appendAudit(db, { eventType: 'VISIT_REPORT_SHARED', actorUserId: actor.id, entityType: 'VISIT_REPORT', entityId: report.id, affectedUserId: visit.teacherId, after: { status: 'FINAL', sharedWithTeacherAt: now }, key: `REPORT_SHARE:${report.id}` });
     return db.visitReport.findUniqueOrThrow({ where: { id: report.id } });
-  });
+  }, 'visitReportService.shareVisitReportWithTeacher');
 }
 export async function listTeacherSharedVisitReports(actor: Actor) {
   requireTeacher(actor);
@@ -435,7 +435,7 @@ export async function listTeacherSharedVisitReports(actor: Actor) {
       orderBy: { sharedWithTeacherAt: 'desc' },
     });
     return reports.map((report) => teacherReportPayload(report));
-  });
+  }, 'visitReportService.listTeacherSharedVisitReports');
 }
 export async function readTeacherSharedVisitReport(actor: Actor, reportId: string) {
   requireTeacher(actor);
@@ -450,7 +450,7 @@ export async function readTeacherSharedVisitReport(actor: Actor, reportId: strin
     });
     if (!report) throw new ReportError(404, 'التقرير غير متاح.');
     return teacherReportPayload(report);
-  });
+  }, 'visitReportService.readTeacherSharedVisitReport');
 }
 export async function acknowledgeTeacherVisitReport(actor: Actor, reportId: string) {
   requireTeacher(actor);
@@ -478,7 +478,7 @@ export async function acknowledgeTeacherVisitReport(actor: Actor, reportId: stri
     if (!changed.count) return db.visitReport.findUniqueOrThrow({ where: { id: report.id } });
     await appendAudit(db, { eventType: 'VISIT_REPORT_ACKNOWLEDGED', actorUserId: actor.id, entityType: 'VISIT_REPORT', entityId: report.id, affectedUserId: actor.id, after: { teacherAcknowledgedAt: now }, key: `REPORT_ACK:${report.id}` });
     return db.visitReport.findUniqueOrThrow({ where: { id: report.id } });
-  });
+  }, 'visitReportService.acknowledgeTeacherVisitReport');
 }
 export async function createVisitReport(actor: Actor, visitId: string, value: unknown) {
   parse(z.object({}).strict(), value);
@@ -492,7 +492,7 @@ export async function createVisitReport(actor: Actor, visitId: string, value: un
     return db.visitReport.create({
       data: { visitId, reportType: visit.visitType, authorId: actor.id, content: {}, mark: null },
     });
-  });
+  }, 'visitReportService.createVisitReport');
 }
 export async function saveVisitReport(actor: Actor, reportId: string, value: unknown) {
   const input = parse(saveSchema, value);
@@ -516,7 +516,7 @@ export async function saveVisitReport(actor: Actor, reportId: string, value: unk
     });
     if (changed.count !== 1) throw new ReportError(409, 'تعارض في حفظ المسودة.');
     return db.visitReport.findUniqueOrThrow({ where: { id: report.id } });
-  });
+  }, 'visitReportService.saveVisitReport');
 }
 export async function finalizeVisitReport(actor: Actor, reportId: string, value: unknown) {
   const input = parse(revisionSchema, value);
@@ -555,5 +555,5 @@ export async function finalizeVisitReport(actor: Actor, reportId: string, value:
     if (changed.count !== 1) throw new ReportError(409, 'تعارض في اعتماد التقرير.');
     await appendAudit(db, { eventType: 'VISIT_REPORT_FINALIZED', actorUserId: actor.id, entityType: 'VISIT_REPORT', entityId: report.id, affectedUserId: visit.teacherId, before: { status: 'DRAFT' }, after: { status: 'FINAL', reportType: report.reportType, revision: report.revision + 1 }, key: `REPORT_FINAL:${report.id}` });
     return db.visitReport.findUniqueOrThrow({ where: { id: report.id } });
-  });
+  }, 'visitReportService.finalizeVisitReport');
 }

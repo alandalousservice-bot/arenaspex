@@ -257,11 +257,11 @@ function extractRecordIdFromPath(path: string): string | null {
   }
 }
 
-export async function offlinePost(
+export async function offlinePost<T = unknown>(
   path: string,
   payload: unknown,
   method: 'POST' | 'PUT' | 'PATCH' = 'POST'
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; data?: T; status?: number; code?: string; retryable?: boolean }> {
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
   if (isOnline) {
@@ -272,12 +272,13 @@ export async function offlinePost(
         body: payload !== undefined ? JSON.stringify(payload) : undefined,
       });
       if (res.ok) {
-        return { success: true };
+        return { success: true, data: typeof res.json === 'function' ? await res.json().catch(() => undefined) as T | undefined : undefined };
       }
       // أخطاء HTTP 4xx/409 لا تُعاد
       if ((res.status >= 400 && res.status < 500) || res.status === 409) {
         // لا نعيد، نعتبرها منتهية (عدم إدخال للصندوق)
-        return { success: false, error: `HTTP ${res.status}` };
+        const body = typeof res.json === 'function' ? await res.json().catch(() => ({})) : {};
+        return { success: false, error: body.error || `HTTP ${res.status}`, status: res.status, code: body.code, retryable: body.retryable === true };
       }
       // 5xx -> consider as failure to be queued
       throw new Error(`Server error ${res.status}`);

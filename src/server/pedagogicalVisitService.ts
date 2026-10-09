@@ -85,7 +85,7 @@ export async function scheduleVisit(actor: Actor, value: unknown) {
     const row = await tx.inspectionVisitRecord.create({ data: { id: `pv_${randomUUID()}`, inspectorId: actor.id, teacherId: input.teacherId, institutionId: teacher.institutionId || teacher.eduSchoolId, visitType: input.visitType, status: 'SCHEDULED', scheduledAt, academicYearId: input.academicYearId, classId, weeklySlotId: input.weeklySlotId || null, updatedAt: now, data: { pedagogicalGrade: null, officialReportGenerated: false }, history: [{ action: 'SCHEDULE', actorId: actor.id, at: now.toISOString(), to: 'SCHEDULED', scheduledAt: scheduledAt.toISOString() }] } });
     await appendAudit(tx, { eventType: 'PEDAGOGICAL_VISIT_SCHEDULED', actorUserId: actor.id, entityType: 'PEDAGOGICAL_VISIT', entityId: row.id, affectedUserId: row.teacherId, after: { status: row.status, visitType: row.visitType, academicYearId: row.academicYearId, scheduledAt: row.scheduledAt }, key: `VISIT_SCHEDULE:${row.id}` });
     return inspectorVisitView(row);
-  });
+  }, 'pedagogicalVisitService.scheduleVisit');
 }
 export async function actOnVisit(actor: Actor, id: string, value: unknown) {
   const input = parse(actionInput, value);
@@ -130,7 +130,7 @@ export async function actOnVisit(actor: Actor, id: string, value: unknown) {
     const eventType = ({ COMPLETE: 'PEDAGOGICAL_VISIT_COMPLETED', POSTPONE: 'PEDAGOGICAL_VISIT_POSTPONED', CANCEL: 'PEDAGOGICAL_VISIT_CANCELLED', RESCHEDULE: 'PEDAGOGICAL_VISIT_RESCHEDULED', COMMUNICATE: 'TENURE_VISIT_COMMUNICATED' } as const)[input.action];
     await appendAudit(tx, { eventType, actorUserId: actor.id, entityType: 'PEDAGOGICAL_VISIT', entityId: id, affectedUserId: row.teacherId, before: { status: row.status, scheduledAt: row.scheduledAt }, after: { status: to, scheduledAt: result.scheduledAt, revision: result.revision, visitType: result.visitType }, reason: input.reason, key: `VISIT_ACTION:${id}:${result.revision}` });
     return inspectorVisitView(result);
-  });
+  }, 'pedagogicalVisitService.actOnVisit');
 }
 export async function listInspectorVisits(actor: Actor, teacherId?: string, academicYearId?: string) {
   return assignmentTransaction(async (tx) => {
@@ -139,7 +139,7 @@ export async function listInspectorVisits(actor: Actor, teacherId?: string, acad
     const assignments = await tx.inspectorAssignment.findMany({ where: { inspectorId: actor.id, status: { in: ['Active', 'Changed'] } }, select: { teacherId: true } });
     const rows = await tx.inspectionVisitRecord.findMany({ where: { teacherId: teacherId || { in: assignments.map((a) => a.teacherId) }, status: { not: null }, ...(academicYearId ? { academicYearId } : {}) }, orderBy: { scheduledAt: 'asc' } });
     return rows.map(inspectorVisitView);
-  });
+  }, 'pedagogicalVisitService.listInspectorVisits');
 }
 export async function listTeacherAppointments(actor: Actor, id?: string) {
   if (actor.role !== 'teacher') throw new VisitError(403, 'مساحة الأستاذ فقط.');

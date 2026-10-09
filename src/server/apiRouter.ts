@@ -42,6 +42,7 @@ import { providerIsUsable } from './generationAccess.policy.js';
 import { academicYearAccessExpiry, currentAcademicYearId } from './accountAccess.js';
 import {
   updateTeacherProfile,
+  transferConflictPayload,
   TransferError,
   assignmentTransaction,
 } from './assignmentTransferService.js';
@@ -392,7 +393,7 @@ apiRouter.get(
     });
     return { success: true, teacher, academicYearId: academicYearId.data,
       academicYears: years.map((year) => year.academicYearId), slots: slots.map(weeklySlotView) };
-    }).catch((error: unknown) => {
+    }, 'apiRouter.result').catch((error: unknown) => {
       if (error instanceof TransferError) {
         res.status(error.code === 'NOT_FOUND' ? 404 : error.code === 'FORBIDDEN' ? 403 : 409).json({ error: error.message });
         return null;
@@ -4681,7 +4682,7 @@ apiRouter.post('/admin/users/:id/activate', requireRole('admin'), async (req, re
       });
     }
   }
-  const user = await changeAccountAccess(req.user!.id, existing.id, 'activate').catch((error:unknown)=>{if(error instanceof AccountLifecycleError){res.status(error.status).json({error:error.message});return null;}throw error;});
+  const user = await changeAccountAccess(req.user!.id, existing.id, 'activate').catch((error:unknown)=>{if(error instanceof AccountLifecycleError){res.status(error.status).json({error:error.message});return null;}if(error instanceof TransferError){res.status(409).json(transferConflictPayload(error));return null;}throw error;});
   if (!user) return;
   res.json({ success: true, user: sanitizeUser(user) });
 });
@@ -4726,7 +4727,7 @@ apiRouter.post('/admin/users/:id/lifecycle', requireRole('admin'), async (req, r
       }
     }
   }
-  const user = await changeAccountAccess(req.user!.id, existing.id, action as AccountAction).catch((error:unknown)=>{if(error instanceof AccountLifecycleError){res.status(error.status).json({error:error.message});return null;}throw error;});
+  const user = await changeAccountAccess(req.user!.id, existing.id, action as AccountAction).catch((error:unknown)=>{if(error instanceof AccountLifecycleError){res.status(error.status).json({error:error.message});return null;}if(error instanceof TransferError){res.status(409).json(transferConflictPayload(error));return null;}throw error;});
   if (!user) return;
   return res.json({ success: true, user: sanitizeUser(user) });
 });
@@ -4855,7 +4856,7 @@ apiRouter.put('/admin/users/:id/profile', requireRole('admin'), async (req, res)
             if (saved.role === 'inspector' && (before.districtId !== saved.districtId || before.directorateId !== saved.directorateId))
               await appendAudit(db, { eventType: 'INSPECTOR_DISTRICT_ASSIGNED', actorUserId: req.user!.id, entityType: 'USER', entityId: saved.id, affectedUserId: saved.id, before, after: saved, key: `DISTRICT_ADMIN:${saved.id}:${saved.updatedAt.toISOString()}` });
             return saved;
-          });
+          }, 'apiRouter.user');
     const safe = sanitizeUser(user as any) as any; delete safe.googleId;
     const { eduDirectorate, eduDistrict, eduSchool, ...base } = safe;
     return res.json({
@@ -5125,8 +5126,8 @@ apiRouter.post('/db/users', async (req, res) => {
     const saved = existing
       ? existing.role === 'teacher'
         ? await updateTeacherProfile(user.id, data, undefined, req.user!.id)
-        : await assignmentTransaction(async (db) => { const before = await db.user.findUnique({ where: { id: user.id } }); if (before?.status === 'archived') throw new TransferError('FORBIDDEN', 'الحساب مؤرشف وللقراءة فقط.'); const result = await db.user.update({ where: { id: user.id }, data: data as any }); await auditAccountChange(db, req.user!.id, before, result); return result; })
-      : await assignmentTransaction(async (db) => { const result = await db.user.create({ data: { id: user.id, ...data } as any }); await auditAccountChange(db, req.user!.id, null, result); return result; });
+        : await assignmentTransaction(async (db) => { const before = await db.user.findUnique({ where: { id: user.id } }); if (before?.status === 'archived') throw new TransferError('FORBIDDEN', 'الحساب مؤرشف وللقراءة فقط.'); const result = await db.user.update({ where: { id: user.id }, data: data as any }); await auditAccountChange(db, req.user!.id, before, result); return result; }, 'apiRouter.saved')
+      : await assignmentTransaction(async (db) => { const result = await db.user.create({ data: { id: user.id, ...data } as any }); await auditAccountChange(db, req.user!.id, null, result); return result; }, 'apiRouter.saved');
 
     await triggerAutoAssignment(saved);
 
@@ -5135,7 +5136,7 @@ apiRouter.post('/db/users', async (req, res) => {
       user: isSelf || isAdmin ? sanitizeOwnUser(saved) : sanitizeUser(saved),
     });
   } catch (err: any) {
-    if (err instanceof TransferError) return res.status(409).json({ error: err.message });
+    if (err instanceof TransferError) return res.status(409).json(transferConflictPayload(err));
     if (
       err instanceof Error &&
       (err.message.startsWith('يرجى') ||
@@ -5185,9 +5186,9 @@ apiRouter.post('/db/users/batch', requireRole('admin'), async (req, res) => {
         saved =
           existing.role === 'teacher'
             ? await updateTeacherProfile(u.id, data, undefined, req.user!.id)
-            : await assignmentTransaction(async (db) => { const before = await db.user.findUnique({ where: { id: u.id } }); if (before?.status === 'archived') throw new TransferError('FORBIDDEN', 'الحساب مؤرشف وللقراءة فقط.'); const result = await db.user.update({ where: { id: u.id }, data: data as any }); await auditAccountChange(db, req.user!.id, before, result); return result; });
+            : await assignmentTransaction(async (db) => { const before = await db.user.findUnique({ where: { id: u.id } }); if (before?.status === 'archived') throw new TransferError('FORBIDDEN', 'الحساب مؤرشف وللقراءة فقط.'); const result = await db.user.update({ where: { id: u.id }, data: data as any }); await auditAccountChange(db, req.user!.id, before, result); return result; }, 'apiRouter.accountWrite');
       } else if (data.passwordHash) {
-        saved = await assignmentTransaction(async (db) => { const result = await db.user.create({ data: { id: u.id, ...data } as any }); await auditAccountChange(db, req.user!.id, null, result); return result; });
+        saved = await assignmentTransaction(async (db) => { const result = await db.user.create({ data: { id: u.id, ...data } as any }); await auditAccountChange(db, req.user!.id, null, result); return result; }, 'apiRouter.accountWrite');
       }
       // مستخدم جديد بدون كلمة مرور ضمن دفعة جماعية يُتجاهل بدل رفض الدفعة كاملة
       if (!saved) {
@@ -5216,6 +5217,7 @@ apiRouter.delete('/db/users/:id', requireRole('admin'), async (req, res) => {
     return res.json({success:true,count:1,outcome:'archived',user:sanitizeUser(user)});
   } catch (err) {
     if (err instanceof AccountLifecycleError) return res.status(err.status).json({error:err.message});
+    if (err instanceof TransferError) return res.status(409).json(transferConflictPayload(err));
     if (isPrismaRecordNotFoundError(err)) {
       return res.json({ success: true, count: 0, outcome: 'not_found' });
     }
@@ -5788,7 +5790,7 @@ apiRouter.post('/inspection-visits', requireRole('inspector'), async (req, res) 
           data: safeData as any,
         },
       });
-    });
+    }, 'apiRouter.row');
     if (!row) return res.status(403).json({ error: 'الأستاذ غير متاح ضمن إسناداتك المقبولة.' });
     res.status(201).json({ success: true, visit: row.data });
   } catch (error) {

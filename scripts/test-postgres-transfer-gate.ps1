@@ -1,7 +1,7 @@
 # Local disposable PostgreSQL only. Run from D:\arenaspex; never uses .env URLs.
 # Replays a schema-generated pre-PO-INS-02 baseline, then the exact target SQL
 # through Prisma migrate deploy. It does not replay or alter older migration history.
-param([string]$PostgresBin = 'C:\Program Files\PostgreSQL\18\bin', [ValidateSet('tests/postgresTeacherTransfer.test.ts', 'tests/postgresInformationCard.test.ts', 'tests/postgresInspectorIntegrity.test.ts', 'tests/postgresPedagogicalVisit.test.ts', 'tests/postgresVisitReport.test.ts', 'tests/postgresWeeklyTimetable.test.ts', 'tests/postgresAuditTrail.test.ts', 'tests/postgresSafeRelease.test.ts')][string]$TestFile = 'tests/postgresTeacherTransfer.test.ts')
+param([string]$PostgresBin = 'C:\Program Files\PostgreSQL\18\bin', [ValidateSet('tests/postgresTeacherTransfer.test.ts', 'tests/postgresInformationCard.test.ts', 'tests/postgresInspectorIntegrity.test.ts', 'tests/postgresPedagogicalVisit.test.ts', 'tests/postgresVisitReport.test.ts', 'tests/postgresWeeklyTimetable.test.ts', 'tests/postgresAuditTrail.test.ts', 'tests/postgresSafeRelease.test.ts', 'tests/postgresTransactionConflict.test.ts')][string]$TestFile = 'tests/postgresTeacherTransfer.test.ts')
 $ErrorActionPreference = 'Stop'
 $gateRepo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 if ((Get-Location).Path -ne $gateRepo) { throw 'Run this script from the repository root.' }
@@ -28,7 +28,9 @@ try {
     $gateProcess = Start-Process -FilePath (Join-Path $PostgresBin 'pg_ctl.exe') -ArgumentList @('-D',$gateData,'-l',(Join-Path $gateRoot 'postgres.log'),'-o',('"-h 127.0.0.1 -p ' + $gatePort + '"'),'-w','start') -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $gateRoot 'start.log') -RedirectStandardError (Join-Path $gateRoot 'start-error.log')
     $gateStarted = $true
     $gateProcess.WaitForExit(15000) | Out-Null
-    if (-not $gateProcess.HasExited -or $gateProcess.ExitCode -ne 0) { throw 'Disposable PostgreSQL startup failed.' }
+    # The directory-identity query below is authoritative; Windows PowerShell
+    # can report a null ExitCode for a successfully exited pg_ctl process.
+    if (-not $gateProcess.HasExited) { throw 'Disposable PostgreSQL startup timed out.' }
     $gateIdentity = & (Join-Path $PostgresBin 'psql.exe') -X -h 127.0.0.1 -p $gatePort -U gate_admin -d postgres -v ON_ERROR_STOP=1 -At -c "SELECT current_setting('data_directory');"
     if ($LASTEXITCODE -ne 0 -or [IO.Path]::GetFullPath($gateIdentity.Trim()) -ne [IO.Path]::GetFullPath($gateData)) { throw 'STOP: cluster directory identity did not match.' }
     & (Join-Path $PostgresBin 'psql.exe') -X -h 127.0.0.1 -p $gatePort -U gate_admin -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE $gateDb;"

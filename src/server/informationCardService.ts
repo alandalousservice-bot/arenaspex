@@ -63,7 +63,7 @@ async function readInDb(db: Db, actor: CardActor, teacherId: string) {
   const history = await db.teacherInformationCardSubmission.findMany({ where: { teacherId }, orderBy: { submittedAt: 'desc' } });
   return { current, revision: card?.revision || 0, status: card?.status || 'DRAFT', missingRequired: missingCardFields(current), submission: history.find((row) => row.id === card?.latestSubmissionId) || null, history };
 }
-export const readCard = (actor: CardActor, teacherId: string) => assignmentTransaction((db) => readInDb(db, actor, teacherId));
+export const readCard = (actor: CardActor, teacherId: string) => assignmentTransaction((db) => readInDb(db, actor, teacherId), 'informationCardService.readCard');
 export async function saveCard(actor: CardActor, teacherId: string, input: z.infer<typeof cardSaveSchema>) {
   return assignmentTransaction(async (db) => {
     await authorize(db, actor, teacherId, true);
@@ -74,7 +74,7 @@ export async function saveCard(actor: CardActor, teacherId: string, input: z.inf
     const data = { extra: input.extra as Prisma.InputJsonValue, revision: input.revision + 1, status: card?.status === 'NEEDS_CORRECTION' ? 'NEEDS_CORRECTION' : 'DRAFT' };
     await db.teacherInformationCard.upsert({ where: { teacherId }, create: { teacherId, ...data }, update: data });
     return readInDb(db, actor, teacherId);
-  });
+  }, 'informationCardService.saveCard');
 }
 export async function submitCard(actor: CardActor, teacherId: string, revision: number) {
   return assignmentTransaction(async (db) => {
@@ -93,7 +93,7 @@ export async function submitCard(actor: CardActor, teacherId: string, revision: 
     await db.teacherInformationCard.update({ where: { teacherId }, data: { status: 'SUBMITTED', latestSubmissionId: submission.id } });
     await appendAudit(db, { eventType: card.status === 'NEEDS_CORRECTION' ? 'INFORMATION_CARD_RESUBMITTED' : 'INFORMATION_CARD_SUBMITTED', actorUserId: actor.id, entityType: 'INFORMATION_CARD', entityId: submission.id, affectedUserId: teacherId, before: { status: card.status }, after: { status: 'SUBMITTED', revision, submittedInspectorId: head.inspectorId }, key: `CARD_SUBMIT:${submission.id}` });
     return readInDb(db, actor, teacherId);
-  });
+  }, 'informationCardService.submitCard');
 }
 export async function reviewCard(actor: CardActor, teacherId: string, id: string, decision: 'VERIFIED' | 'NEEDS_CORRECTION', reason?: string) {
   return assignmentTransaction(async (db) => {
@@ -107,7 +107,7 @@ export async function reviewCard(actor: CardActor, teacherId: string, id: string
     await db.teacherInformationCard.update({ where: { teacherId }, data: { status: decision } });
     await appendAudit(db, { eventType: decision === 'VERIFIED' ? 'INFORMATION_CARD_VERIFIED' : 'INFORMATION_CARD_CORRECTION_REQUESTED', actorUserId: actor.id, entityType: 'INFORMATION_CARD', entityId: id, affectedUserId: teacherId, before: { status: 'SUBMITTED' }, after: { status: decision }, reason, key: `CARD_REVIEW:${id}` });
     return readInDb(db, actor, teacherId);
-  });
+  }, 'informationCardService.reviewCard');
 }
 export async function readDossier(actor: CardActor, teacherId: string, academicYearId: string) {
   if (actor.role !== 'inspector') throw new CardError(403, 'ملف الإشراف متاح للمفتش الحالي فقط.');
@@ -122,5 +122,5 @@ export async function readDossier(actor: CardActor, teacherId: string, academicY
     const groups = classes.map((group) => ({ ...group, pupilCount: pupilCounts.find((row) => row.classId === group.id)?._count._all || 0 }));
     const weeklySchedule = slots.map((slot) => ({ ...slot, className: slot.class.name, levelId: slot.class.levelId, day: WEEKDAYS[slot.weekday], timeSlot: `${slot.startTime} - ${slot.endTime}` }));
     return { card, academicYearId, groups, annualPlans, weeklySchedule, summary: { identity: card.current.identity, professionalStatus: card.current.extra.administrativeStatus || '', cardStatus: card.status, classCount: groups.length, totalPupils: pupilCounts.reduce((sum, row) => sum + row._count._all, 0), weeklyMinutes: slots.length ? weeklySchedule.reduce((sum, slot) => sum + durationMinutes(slot), 0) : null } };
-  });
+  }, 'informationCardService.readDossier');
 }

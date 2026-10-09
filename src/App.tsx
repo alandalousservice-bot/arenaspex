@@ -220,6 +220,7 @@ export default function App() {
     handleAddDirectMessageFromInspector,
     handleAddUser,
     handleUpdateUser,
+    acceptSavedUser,
     handleAdminUpdateUser,
     handleDeleteUser,
     handleDeleteCommunityNotification,
@@ -726,7 +727,7 @@ export default function App() {
               ))}
 
             {activeTab === 'settings' && (
-              <SettingsView currentUser={currentUser} onUpdateUser={handleUpdateUser} />
+              <SettingsView currentUser={currentUser} onUpdateUser={handleUpdateUser} onUserSaved={acceptSavedUser} />
             )}
             {activeTab === 'information_card' && currentUser.role === 'teacher' && (
               <TeacherInformationCardPage />

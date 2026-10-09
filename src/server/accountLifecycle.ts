@@ -69,5 +69,5 @@ export async function changeAccountAccess(actorId: string, id: string, action: A
       key: `ACCOUNT_ACCESS:${id}:${saved.updatedAt.toISOString()}`,
     });
     return saved;
-  });
+  }, 'accountLifecycle.changeAccountAccess');
 }

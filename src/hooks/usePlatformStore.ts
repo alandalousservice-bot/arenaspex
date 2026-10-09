@@ -15,7 +15,6 @@ import {
   syncUserToDB,
   syncAdminUserToDB,
   deleteUserFromDB,
-  syncUsersBatchToDB,
   fetchUsersFromDB,
   syncLessonPlanToDB,
   syncLessonPlansBatchToDB,
@@ -751,7 +750,6 @@ export function usePlatformStore({
   useEffect(() => {
     if (currentUser && isAuthenticated) {
       localStorage.setItem('spex_current_user', JSON.stringify(currentUser));
-      syncUserToDB(currentUser);
     }
   }, [currentUser, isAuthenticated]);
 
@@ -816,9 +814,6 @@ export function usePlatformStore({
   useEffect(() => {
     if (!accountStateReady) return;
     localStorage.setItem('spex_all_users', JSON.stringify(allUsersList));
-    if (allUsersList.length > 0) {
-      syncUsersBatchToDB(allUsersList);
-    }
   }, [accountStateReady, allUsersList]);
 
   useEffect(() => {
@@ -1085,19 +1080,14 @@ export function usePlatformStore({
     setAllUsersList((prev) => [result.user, ...prev]);
   };
 
+  const acceptSavedUser = (finalUser: User) => {
+    setAllUsersList((prev) => prev.map((u) => (u.id === finalUser.id ? finalUser : u)));
+    if (currentUser.id === finalUser.id) setCurrentUser(finalUser);
+  };
   const handleUpdateUser = async (updatedUser: User) => {
     const result = await syncUserToDB(updatedUser);
-    if (!result.success || !result.user) {
-      // لا نحدّث الحالة المحلية — فالتفعيل/التعديل لم يُحفظ فعلاً على الخادم
-      console.warn('DB user update failed:', result.error);
-      window.alert(result.error || 'تعذر حفظ التغييرات على الخادم.');
-      return;
-    }
-    const finalUser = result.user;
-    setAllUsersList((prev) => prev.map((u) => (u.id === finalUser.id ? finalUser : u)));
-    if (currentUser.id === finalUser.id) {
-      setCurrentUser(finalUser);
-    }
+    if (result.success && result.user) acceptSavedUser(result.user);
+    return result;
   };
 
   const handleAdminUpdateUser = async (updatedUser: User) => {
@@ -1570,7 +1560,7 @@ export function usePlatformStore({
     );
   };
 
-  const handleToggleFollowTeacher = (targetTeacherId: string) => {
+  const handleToggleFollowTeacher = async (targetTeacherId: string) => {
     const targetUser = allUsersList.find((u) => u.id === targetTeacherId);
     if (!targetUser) return;
 
@@ -1589,8 +1579,8 @@ export function usePlatformStore({
       : [...currentFollowing, targetTeacherId];
 
     const updatedUser = { ...currentUser, followingIds: updatedFollowing };
-    setCurrentUser(updatedUser);
-    setAllUsersList((prev) => prev.map((u) => (u.id === currentUser.id ? updatedUser : u)));
+    const saved = await handleUpdateUser(updatedUser);
+    if (!saved.success) { window.alert(saved.error || 'تعذر حفظ التغييرات.'); return; }
 
     // Notify the target teacher when they gain a NEW follower (not on unfollow)
     if (!isFollowing) {
@@ -1604,9 +1594,9 @@ export function usePlatformStore({
   };
 
   // Community orchestration handlers (moved from App.tsx JSX inline handlers)
-  const handleUpdateCurrentUser = (upUser: User) => {
-    setCurrentUser(upUser);
-    setAllUsersList((prev) => prev.map((u) => (u.id === upUser.id ? upUser : u)));
+  const handleUpdateCurrentUser = async (upUser: User) => {
+    const saved = await handleUpdateUser(upUser);
+    if (!saved.success) window.alert(saved.error || 'تعذر حفظ التغييرات.');
   };
 
   const handleAddCommunityResource = (res: CommunityResource) => {
@@ -1754,6 +1744,7 @@ export function usePlatformStore({
     // Admin handlers
     handleAddUser,
     handleUpdateUser,
+    acceptSavedUser,
     handleAdminUpdateUser,
     handleDeleteUser,
     // Community handlers

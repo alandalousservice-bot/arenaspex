@@ -118,7 +118,7 @@ export class AssignmentError extends Error {
  * (inspectorId معبأ, assignedAt=null)؛ إلا إن كان بنفس المفتش وActive بالفعل (فلا نعيد إخضاعه).
  */
 export async function reassignTeacher(teacherId: string, db: AssignmentDb = prisma, actorUserId?: string) {
-  if (db === prisma) return assignmentTransaction((tx) => reassignTeacherInDb(teacherId, tx, actorUserId));
+  if (db === prisma) return assignmentTransaction((tx) => reassignTeacherInDb(teacherId, tx, actorUserId), 'assignmentService.reassignTeacher');
   return reassignTeacherInDb(teacherId, db, actorUserId);
 }
 
@@ -247,7 +247,7 @@ export async function removeAssignment(teacherId: string, actorUserId?: string) 
     if (actorUserId && (existing.status !== 'Removed' || existing.inspectorId))
       await appendAudit(db,{eventType:'TEACHER_ASSIGNMENT_REMOVED',actorUserId,entityType:'TEACHER_ASSIGNMENT',entityId:existing.id,affectedUserId:teacherId,before:existing,after:saved,key:`ASSIGN_REMOVE:${existing.id}:${existing.updatedAt.toISOString()}`});
     return saved;
-  });
+  }, 'assignmentService.removeAssignment');
 }
 
 /**
@@ -290,7 +290,7 @@ export async function acceptAssignment(teacherId: string, inspectorId: string) {
       throw new AssignmentError('ALREADY_HANDLED', 'تغير هذا الإسناد قبل تأكيد القبول.');
     await appendAudit(db, { eventType:'TEACHER_ASSIGNMENT_ACCEPTED',actorUserId:inspectorId,entityType:'TEACHER_ASSIGNMENT',entityId:existing.id,affectedUserId:teacherId,before:{status:'Pending',inspectorId},after:{status:'Active',inspectorId},key:`ASSIGN_ACCEPT:${existing.id}:${existing.updatedAt?.toISOString()}` });
     return db.inspectorAssignment.findUnique({ where: { teacherId } });
-  });
+  }, 'assignmentService.acceptAssignment');
 }
 
 /**
@@ -325,5 +325,5 @@ export async function rejectAssignment(teacherId: string, inspectorId: string, r
       throw new AssignmentError('ALREADY_HANDLED', 'تغير هذا الإسناد قبل تأكيد الرفض.');
     await appendAudit(db, { eventType:'TEACHER_ASSIGNMENT_REJECTED',actorUserId:inspectorId,entityType:'TEACHER_ASSIGNMENT',entityId:existing.id,affectedUserId:teacherId,before:{status:'Pending',inspectorId},after:{status:'Removed',inspectorId:null},reason,key:`ASSIGN_REJECT:${existing.id}:${existing.updatedAt?.toISOString()}` });
     return db.inspectorAssignment.findUnique({ where: { teacherId } });
-  });
+  }, 'assignmentService.rejectAssignment');
 }

@@ -34,7 +34,8 @@ import { GoogleSignInButton } from '../auth/GoogleSignInButton';
 
 interface SettingsViewProps {
   currentUser: User;
-  onUpdateUser: (updated: User) => void;
+  onUpdateUser: (updated: User) => Promise<{ success: boolean; error?: string }>;
+  onUserSaved: (updated: User) => void;
 }
 
 // Full List of 58 Algerian Educational Directorates
@@ -71,7 +72,7 @@ const ALL_ALGERIAN_DIRECTORATES = [
   { id: 'other_de', name: 'مديرية تربية أخرى...' },
 ];
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdateUser }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdateUser, onUserSaved }) => {
   // Account Profile Details
   const [firstName, setFirstName] = useState(currentUser.firstName);
   const [lastName, setLastName] = useState(currentUser.lastName);
@@ -108,6 +109,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
   const [districtCreateSuccess, setDistrictCreateSuccess] = useState('');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
   const isInspector = currentUser.role === 'inspector';
   const isAdmin = currentUser.role === 'admin';
   const showProfessionalFields = !isInspector && !isAdmin;
@@ -209,7 +212,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
       setGoogleMsg({ type: 'error', text: result.error || 'تعذر ربط حساب Google.' });
       return;
     }
-    onUpdateUser(result.user);
+    onUserSaved(result.user);
     setGoogleMsg({
       type: 'success',
       text: 'تم ربط حساب Google بنجاح! يمكنك الآن الدخول به مباشرة دون كلمة مرور.',
@@ -227,12 +230,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
       setGoogleMsg({ type: 'error', text: result.error || 'تعذر فك الربط.' });
       return;
     }
-    onUpdateUser(result.user);
+    onUserSaved(result.user);
     setGoogleMsg({ type: 'success', text: 'تم فك الارتباط مع حساب Google.' });
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingProfile) return;
+    setSavedSuccess(false);
+    setSaveError('');
     setPasswordError('');
 
     // Password validation if user entered a new password
@@ -251,7 +257,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
     // Save API key locally and on user object (admin only)
     const isAdminUser = isAdmin;
     const trimmedKey = customApiKeyInput.trim();
-    if (isAdminUser) setStoredApiKey(trimmedKey);
+
 
     const updatedUser: User = {
       ...currentUser,
@@ -284,7 +290,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
       ...(newPassword ? { password: newPassword } : {}),
     };
 
-    onUpdateUser(updatedUser);
+    setSavingProfile(true);
+    try {
+      const result = await onUpdateUser(updatedUser);
+      if (!result.success) {
+        setSaveError(result.error || 'تعذر الحفظ. أعد المحاولة.');
+        return;
+      }
+    } catch {
+      setSaveError('تعذر الاتصال بالخادم. أعد المحاولة.');
+      return;
+    } finally {
+      setSavingProfile(false);
+    }
+    if (isAdminUser) setStoredApiKey(trimmedKey);
     setSavedSuccess(true);
     setNewPassword('');
     setConfirmPassword('');
@@ -311,7 +330,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
     setDistrictName(result.district.name);
     setCustomDistrictName('');
     setNewDistrictNumber('');
-    onUpdateUser({
+    onUserSaved({
       ...currentUser,
       directorateId,
       districtId: result.district.id,
@@ -841,6 +860,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
           )}
 
           <div className="pt-4 flex items-center justify-between border-t border-slate-100 flex-wrap gap-3">
+            {saveError && <span role="alert" className="text-sm text-red-700">{saveError} احتُفظ بمدخلاتك؛ أعد المحاولة بزر الحفظ.</span>}
             {savedSuccess ? (
               <span className="text-xs font-bold text-emerald-700 bg-emerald-100/80 px-3 py-1.5 rounded-xl border border-emerald-300 flex items-center gap-1.5 animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" /> تم حفظ التغييرات والبريد
@@ -853,6 +873,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onUpdat
             )}
             <button
               type="submit"
+              disabled={savingProfile}
               className="action-primary px-6 py-2.5 text-white font-bold rounded-xl shadow-md shadow-emerald-500/20 active:scale-95 transition-all mr-auto cursor-pointer flex items-center gap-2 text-xs"
             >
               <CheckCircle2 className="w-4 h-4" />

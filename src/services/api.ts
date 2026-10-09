@@ -1806,30 +1806,12 @@ export async function sendAIChatMessage(
 
 // Platform DB Auto-Save Sync Helpers — PART C: موجهة عبر offlinePost/offlineDelete
 
-export async function syncUserToDB(
-  user: User
-): Promise<{ success: boolean; user?: User; error?: string }> {
-  const result = await offlinePost('/api/db/users', { user }, 'POST');
-  if (result.success) {
-    // try to get actual user from server if online, but offlinePost already attempted
-    try {
-      const res = await fetch('/api/db/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        return { success: false, error: data.error };
-      }
-      return { success: true, user: data.user };
-    } catch {
-      // if we are offline, we already queued
-      return { success: true };
-    }
-  }
-  // queued offline — consider success for UI
-  return { success: true };
+export type UserSaveResult = { success: boolean; user?: User; error?: string; retryable?: boolean };
+export async function syncUserToDB(user: User): Promise<UserSaveResult> {
+  const result = await offlinePost<{ user?: User }>('/api/db/users', { user }, 'POST');
+  if (!result.success) return { success: false, error: result.error, retryable: result.retryable };
+  if (!result.data?.user) return { success: false, error: 'تعذر تأكيد حفظ التغييرات. أعد المحاولة.' };
+  return { success: true, user: result.data.user };
 }
 
 export async function syncAdminUserToDB(

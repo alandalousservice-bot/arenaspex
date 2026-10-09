@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { retryTransaction } from './transactionRetry.js';
 import { prisma } from './prismaClient.js';
 import { isAccountAccessExpired } from './accountAccess.js';
 import { appendAudit, auditAccountChange } from './auditService.js';
@@ -7,7 +8,8 @@ type Db = Prisma.TransactionClient;
 export class TransferError extends Error {
   constructor(
     public code: 'NOT_FOUND' | 'FORBIDDEN' | 'CONFLICT' | 'INVALID',
-    message: string
+    message: string,
+    public retryable = false
   ) {
     super(message);
   }
@@ -26,21 +28,23 @@ const name = (u: { firstName: string; lastName: string }) => `${u.firstName} ${u
 
 // Serializable retries use the existing Prisma transaction mechanism. A failed
 // CAS throws inside the transaction, rolling back the entire decision/switch.
-export async function assignmentTransaction<T>(work: (db: Db) => Promise<T>): Promise<T> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      return await prisma.$transaction(work, {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      });
-    } catch (error) {
-      const code = (error as { code?: string }).code;
-      if (code === 'P2034' && attempt < 2) continue;
-      if (code === 'P2034' || code === 'P2002')
-        throw new TransferError('CONFLICT', 'تغيرت حالة الإسناد أو يوجد طلب معلّق. حدّث الصفحة.');
-      throw error;
-    }
+export async function assignmentTransaction<T>(work: (db: Db) => Promise<T>, operation = 'assignment'): Promise<T> {
+  try {
+    return await retryTransaction(operation, () => prisma.$transaction(work, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    }));
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === 'P2034' || code === 'P2002')
+      throw new TransferError('CONFLICT', code === 'P2034'
+        ? 'تعذر الحفظ بسبب تعارض مؤقت. تغييراتك لم تُحفظ؛ أعد المحاولة.'
+        : 'تغيرت حالة الإسناد أو يوجد طلب معلّق. حدّث الصفحة.', code === 'P2034');
+    throw error;
   }
-  throw new TransferError('CONFLICT', 'تعذر تأكيد حالة الإسناد.');
+}
+
+export function transferConflictPayload(error: TransferError) {
+  return { error: error.message, ...(error.retryable ? { code: 'TRANSACTION_CONFLICT', retryable: true } : {}) };
 }
 
 export async function assertTeacherGeographyUnchanged(
@@ -85,7 +89,7 @@ export async function updateTeacherProfile(
     });
     if (actorUserId) await auditAccountChange(db, actorUserId, teacher, saved);
     return saved;
-  });
+  }, 'assignmentTransferService.updateTeacherProfile');
 }
 
 async function destination(db: Db, inspectorId: string, expectedDistrict?: string) {
@@ -223,7 +227,7 @@ export async function requestTeacherTransfer(input: {
     });
     await appendAudit(db, { eventType: 'TEACHER_TRANSFER_REQUESTED', actorUserId: actor.id, entityType: 'TEACHER_TRANSFER', entityId: created.id, affectedUserId: teacher.id, before: { inspectorId: current.inspectorId, districtId: source.districtId }, after: { status: 'Pending', inspectorId: target.inspector.id, districtId: target.districtId }, key: `TRANSFER_REQUEST:${created.id}` });
     return created;
-  });
+  }, 'assignmentTransferService.requestTeacherTransfer');
 }
 
 // Initial requests also must not race with an accepted current assignment.
@@ -252,7 +256,7 @@ export async function createInitialAssignmentRequest(teacherId: string, inspecto
     if (!current || current.status !== 'Pending' || current.inspectorId !== inspectorId)
       await appendAudit(db, { eventType: 'TEACHER_ASSIGNMENT_REQUESTED', actorUserId, entityType:'TEACHER_ASSIGNMENT',entityId:saved.id,affectedUserId:teacherId,before:current || undefined,after:saved,key:`INITIAL_ASSIGN:${saved.id}:${saved.updatedAt.toISOString()}` });
     return saved;
-  });
+  }, 'assignmentTransferService.createInitialAssignmentRequest');
 }
 
 export async function decideTeacherTransfer(
@@ -328,5 +332,5 @@ export async function decideTeacherTransfer(
     if (decided.count !== 1) throw new TransferError('CONFLICT', 'تم البت في هذا الطلب مسبقاً.');
     await appendAudit(db, { eventType: decision === 'Accepted' ? 'TEACHER_TRANSFER_ACCEPTED' : 'TEACHER_TRANSFER_REJECTED', actorUserId: inspectorId, entityType: 'TEACHER_TRANSFER', entityId: id, affectedUserId: request.teacherId, before: { status: 'Pending', inspectorId: request.sourceInspectorId, districtId: request.sourceDistrictId, directorateId: request.sourceDirectorateId }, after: { status: decision, inspectorId: decision === 'Accepted' ? request.destinationInspectorId : request.sourceInspectorId, districtId: decision === 'Accepted' ? request.destinationDistrictId : request.sourceDistrictId, directorateId: decision === 'Accepted' ? request.destinationDirectorateId : request.sourceDirectorateId }, reason, key: `TRANSFER_DECISION:${id}` });
     return db.inspectorAssignmentTransfer.findUnique({ where: { id } });
-  });
+  }, 'assignmentTransferService.decideTeacherTransfer');
 }
