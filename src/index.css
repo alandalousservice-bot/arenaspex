@@ -20,9 +20,9 @@
   --color-background: #f4f7f6;
   --color-surface: #ffffff;
   --color-surface-elevated: #f8fbfa;
-  --color-border: #dce8e3;
+  --color-border: #7c8985;
   --color-text: #1f2937;
-  --color-text-muted: #64748b;
+  --color-text-muted: #526176;
   --color-success: #15803d;
   --color-warning: #b45309;
   --color-danger: #be123c;
@@ -37,7 +37,24 @@
   --border-default: var(--color-border);
   --action-primary: var(--color-primary);
   --action-primary-hover: var(--color-primary-hover);
-  --focus-ring: rgb(16 185 129 / 0.35);
+  --action-blue: #1d4ed8;
+  --action-blue-hover: #1e40af;
+  --action-indigo: #4338ca;
+  --action-indigo-hover: #3730a3;
+  --action-purple: #7e22ce;
+  --action-purple-hover: #6b21a8;
+  --action-amber: #b45309;
+  --action-amber-hover: #92400e;
+  --action-rose: #be123c;
+  --action-rose-hover: #9f1239;
+  --action-teal: #0f766e;
+  --action-teal-hover: #115e59;
+  --action-sky: #0369a1;
+  --action-sky-hover: #075985;
+  --focus-ring: #0f172a;
+  --color-disabled-surface: #e2e8f0;
+  --color-disabled-text: #334155;
+  --color-disabled-border: #82918d;
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
   --radius-lg: 1rem;
@@ -88,6 +105,7 @@
   :focus-visible {
     outline: 3px solid var(--focus-ring);
     outline-offset: 2px;
+    box-shadow: 0 0 0 5px #fff;
   }
 
   .app-shell {
@@ -471,7 +489,7 @@
     color: var(--text-on-brand);
   }
 
-  .action-primary:hover:not(:disabled) {
+  .action-primary:hover:not(:disabled):not([aria-busy='true']):not([aria-disabled='true']) {
     background-color: var(--action-primary-hover);
   }
 
@@ -480,9 +498,363 @@
     outline-offset: 2px;
   }
 
-  .action-primary:disabled {
-    background-color: #dce8e3;
-    color: #334155;
+  .action-primary:is(:disabled, [aria-disabled='true'], [aria-busy='true']) {
+    background-color: var(--color-disabled-surface);
+    border-color: var(--color-disabled-border);
+    color: var(--color-disabled-text);
+    opacity: 1;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  /* Legacy utility-colored buttons share these semantic action tokens. This
+     keeps their hue while correcting white-on-mid-tone contrast globally. */
+  :is(.workspace-page, .app-shell main)
+    :is(
+      [class~='bg-emerald-400'],
+      [class~='bg-emerald-500'],
+      [class~='bg-emerald-600'],
+      [class~='bg-emerald-700'],
+      [class~='bg-green-400'],
+      [class~='bg-green-500'],
+      [class~='bg-green-600'],
+      [class~='bg-green-700']
+    ) {
+    --button-action: var(--action-primary);
+    --button-action-hover: var(--action-primary-hover);
+    --button-action-active: #064e3b;
+  }
+
+  :is(.workspace-page, .app-shell main)
+    :is(
+      [class~='bg-blue-400'],
+      [class~='bg-blue-500'],
+      [class~='bg-blue-600'],
+      [class~='bg-blue-700']
+    ) {
+    --button-action: var(--action-blue);
+    --button-action-hover: var(--action-blue-hover);
+    --button-action-active: #1e3a8a;
+  }
+
+  :is(.workspace-page, .app-shell main)
+    :is(
+      [class~='bg-indigo-400'],
+      [class~='bg-indigo-500'],
+      [class~='bg-indigo-600'],
+      [class~='bg-indigo-700']
+    ) {
+    --button-action: var(--action-indigo);
+    --button-action-hover: var(--action-indigo-hover);
+    --button-action-active: #312e81;
+  }
+
+  :is(.workspace-page, .app-shell main)
+    :is(
+      [class~='bg-purple-400'],
+      [class~='bg-purple-500'],
+      [class~='bg-purple-600'],
+      [class~='bg-purple-700']
+    ) {
+    --button-action: var(--action-purple);
+    --button-action-hover: var(--action-purple-hover);
+    --button-action-active: #581c87;
+  }
+
+  :is(.workspace-page, .app-shell main)
+    :is(
+      [class~='bg-amber-400'],
+      [class~='bg-amber-500'],
+      [class~='bg-amber-600'],
+      [class~='bg-amber-700']
+    ) {
+    --button-action: var(--action-amber);
+    --button-action-hover: var(--action-amber-hover);
+    --button-action-active: #78350f;
+  }
+
+  :is(.workspace-page, .app-shell main)
+    :is(
+      [class~='bg-rose-400'],
+      [class~='bg-rose-500'],
+      [class~='bg-rose-600'],
+      [class~='bg-rose-700'],
+      [class~='bg-red-400'],
+      [class~='bg-red-500'],
+      [class~='bg-red-600'],
+      [class~='bg-red-700']
+    ) {
+    --button-action: var(--action-rose);
+    --button-action-hover: var(--action-rose-hover);
+    --button-action-active: #881337;
+  }
+
+  :is(.workspace-page, .app-shell main)
+    :is(
+      [class~='bg-teal-400'],
+      [class~='bg-teal-500'],
+      [class~='bg-teal-600'],
+      [class~='bg-teal-700']
+    ) {
+    --button-action: var(--action-teal);
+    --button-action-hover: var(--action-teal-hover);
+    --button-action-active: #134e4a;
+  }
+
+  :is(.workspace-page, .app-shell main)
+    :is(
+      [class~='bg-sky-400'],
+      [class~='bg-sky-500'],
+      [class~='bg-sky-600'],
+      [class~='bg-sky-700']
+    ) {
+    --button-action: var(--action-sky);
+    --button-action-hover: var(--action-sky-hover);
+    --button-action-active: #0c4a6e;
+  }
+
+  :is(.workspace-page, .app-shell main)
+    :is(
+      [class~='bg-emerald-400'],
+      [class~='bg-emerald-500'],
+      [class~='bg-emerald-600'],
+      [class~='bg-emerald-700'],
+      [class~='bg-green-400'],
+      [class~='bg-green-500'],
+      [class~='bg-green-600'],
+      [class~='bg-green-700'],
+      [class~='bg-blue-400'],
+      [class~='bg-blue-500'],
+      [class~='bg-blue-600'],
+      [class~='bg-blue-700'],
+      [class~='bg-indigo-400'],
+      [class~='bg-indigo-500'],
+      [class~='bg-indigo-600'],
+      [class~='bg-indigo-700'],
+      [class~='bg-purple-400'],
+      [class~='bg-purple-500'],
+      [class~='bg-purple-600'],
+      [class~='bg-purple-700'],
+      [class~='bg-amber-400'],
+      [class~='bg-amber-500'],
+      [class~='bg-amber-600'],
+      [class~='bg-amber-700'],
+      [class~='bg-rose-400'],
+      [class~='bg-rose-500'],
+      [class~='bg-rose-600'],
+      [class~='bg-rose-700'],
+      [class~='bg-red-400'],
+      [class~='bg-red-500'],
+      [class~='bg-red-600'],
+      [class~='bg-red-700'],
+      [class~='bg-teal-400'],
+      [class~='bg-teal-500'],
+      [class~='bg-teal-600'],
+      [class~='bg-teal-700'],
+      [class~='bg-sky-400'],
+      [class~='bg-sky-500'],
+      [class~='bg-sky-600'],
+      [class~='bg-sky-700']
+    )[class~='text-white'] {
+    background-color: var(--button-action) !important;
+    border-color: var(--button-action) !important;
+    color: var(--text-on-brand) !important;
+  }
+
+  :is(.workspace-page, .app-shell main)
+    button:is(
+      [class~='bg-emerald-400'],
+      [class~='bg-emerald-500'],
+      [class~='bg-emerald-600'],
+      [class~='bg-emerald-700'],
+      [class~='bg-green-400'],
+      [class~='bg-green-500'],
+      [class~='bg-green-600'],
+      [class~='bg-green-700'],
+      [class~='bg-blue-400'],
+      [class~='bg-blue-500'],
+      [class~='bg-blue-600'],
+      [class~='bg-blue-700'],
+      [class~='bg-indigo-400'],
+      [class~='bg-indigo-500'],
+      [class~='bg-indigo-600'],
+      [class~='bg-indigo-700'],
+      [class~='bg-purple-400'],
+      [class~='bg-purple-500'],
+      [class~='bg-purple-600'],
+      [class~='bg-purple-700'],
+      [class~='bg-amber-400'],
+      [class~='bg-amber-500'],
+      [class~='bg-amber-600'],
+      [class~='bg-amber-700'],
+      [class~='bg-rose-400'],
+      [class~='bg-rose-500'],
+      [class~='bg-rose-600'],
+      [class~='bg-rose-700'],
+      [class~='bg-red-400'],
+      [class~='bg-red-500'],
+      [class~='bg-red-600'],
+      [class~='bg-red-700'],
+      [class~='bg-teal-400'],
+      [class~='bg-teal-500'],
+      [class~='bg-teal-600'],
+      [class~='bg-teal-700'],
+      [class~='bg-sky-400'],
+      [class~='bg-sky-500'],
+      [class~='bg-sky-600'],
+      [class~='bg-sky-700']
+    ) {
+    background-color: var(--button-action) !important;
+    border-color: var(--button-action) !important;
+    color: var(--text-on-brand) !important;
+    opacity: 1 !important;
+  }
+
+  :is(.workspace-page, .app-shell main)
+    button:is(
+      [class~='bg-emerald-400'],
+      [class~='bg-emerald-500'],
+      [class~='bg-emerald-600'],
+      [class~='bg-emerald-700'],
+      [class~='bg-green-400'],
+      [class~='bg-green-500'],
+      [class~='bg-green-600'],
+      [class~='bg-green-700'],
+      [class~='bg-blue-400'],
+      [class~='bg-blue-500'],
+      [class~='bg-blue-600'],
+      [class~='bg-blue-700'],
+      [class~='bg-indigo-400'],
+      [class~='bg-indigo-500'],
+      [class~='bg-indigo-600'],
+      [class~='bg-indigo-700'],
+      [class~='bg-purple-400'],
+      [class~='bg-purple-500'],
+      [class~='bg-purple-600'],
+      [class~='bg-purple-700'],
+      [class~='bg-amber-400'],
+      [class~='bg-amber-500'],
+      [class~='bg-amber-600'],
+      [class~='bg-amber-700'],
+      [class~='bg-rose-400'],
+      [class~='bg-rose-500'],
+      [class~='bg-rose-600'],
+      [class~='bg-rose-700'],
+      [class~='bg-red-400'],
+      [class~='bg-red-500'],
+      [class~='bg-red-600'],
+      [class~='bg-red-700'],
+      [class~='bg-teal-400'],
+      [class~='bg-teal-500'],
+      [class~='bg-teal-600'],
+      [class~='bg-teal-700'],
+      [class~='bg-sky-400'],
+      [class~='bg-sky-500'],
+      [class~='bg-sky-600'],
+      [class~='bg-sky-700']
+    ):hover:not(:disabled):not([aria-busy='true']) {
+    background-color: var(--button-action-hover) !important;
+    border-color: var(--button-action-hover) !important;
+    color: var(--text-on-brand) !important;
+  }
+
+  :is(.workspace-page, .app-shell main)
+    button:is(
+      [class~='bg-emerald-400'],
+      [class~='bg-emerald-500'],
+      [class~='bg-emerald-600'],
+      [class~='bg-emerald-700'],
+      [class~='bg-green-400'],
+      [class~='bg-green-500'],
+      [class~='bg-green-600'],
+      [class~='bg-green-700'],
+      [class~='bg-blue-400'],
+      [class~='bg-blue-500'],
+      [class~='bg-blue-600'],
+      [class~='bg-blue-700'],
+      [class~='bg-indigo-400'],
+      [class~='bg-indigo-500'],
+      [class~='bg-indigo-600'],
+      [class~='bg-indigo-700'],
+      [class~='bg-purple-400'],
+      [class~='bg-purple-500'],
+      [class~='bg-purple-600'],
+      [class~='bg-purple-700'],
+      [class~='bg-amber-400'],
+      [class~='bg-amber-500'],
+      [class~='bg-amber-600'],
+      [class~='bg-amber-700'],
+      [class~='bg-rose-400'],
+      [class~='bg-rose-500'],
+      [class~='bg-rose-600'],
+      [class~='bg-rose-700'],
+      [class~='bg-red-400'],
+      [class~='bg-red-500'],
+      [class~='bg-red-600'],
+      [class~='bg-red-700'],
+      [class~='bg-teal-400'],
+      [class~='bg-teal-500'],
+      [class~='bg-teal-600'],
+      [class~='bg-teal-700'],
+      [class~='bg-sky-400'],
+      [class~='bg-sky-500'],
+      [class~='bg-sky-600'],
+      [class~='bg-sky-700']
+    ):active:not(:disabled):not([aria-busy='true']) {
+    background-color: var(--button-action-active) !important;
+    border-color: var(--button-action-active) !important;
+    color: var(--text-on-brand) !important;
+  }
+
+  :is(.workspace-page, .app-shell main)
+    button:is(
+      [class~='bg-emerald-400'],
+      [class~='bg-emerald-500'],
+      [class~='bg-emerald-600'],
+      [class~='bg-emerald-700'],
+      [class~='bg-green-400'],
+      [class~='bg-green-500'],
+      [class~='bg-green-600'],
+      [class~='bg-green-700'],
+      [class~='bg-blue-400'],
+      [class~='bg-blue-500'],
+      [class~='bg-blue-600'],
+      [class~='bg-blue-700'],
+      [class~='bg-indigo-400'],
+      [class~='bg-indigo-500'],
+      [class~='bg-indigo-600'],
+      [class~='bg-indigo-700'],
+      [class~='bg-purple-400'],
+      [class~='bg-purple-500'],
+      [class~='bg-purple-600'],
+      [class~='bg-purple-700'],
+      [class~='bg-amber-400'],
+      [class~='bg-amber-500'],
+      [class~='bg-amber-600'],
+      [class~='bg-amber-700'],
+      [class~='bg-rose-400'],
+      [class~='bg-rose-500'],
+      [class~='bg-rose-600'],
+      [class~='bg-rose-700'],
+      [class~='bg-red-400'],
+      [class~='bg-red-500'],
+      [class~='bg-red-600'],
+      [class~='bg-red-700'],
+      [class~='bg-teal-400'],
+      [class~='bg-teal-500'],
+      [class~='bg-teal-600'],
+      [class~='bg-teal-700'],
+      [class~='bg-sky-400'],
+      [class~='bg-sky-500'],
+      [class~='bg-sky-600'],
+      [class~='bg-sky-700']
+    ):is(:disabled, [aria-disabled='true'], [aria-busy='true']) {
+    background-color: var(--color-disabled-surface) !important;
+    border-color: var(--color-disabled-border) !important;
+    color: var(--color-disabled-text) !important;
+    opacity: 1 !important;
+    cursor: not-allowed;
+    box-shadow: none !important;
   }
 
   .workspace-page .workspace-tab-active {
@@ -576,7 +948,10 @@
     color: var(--text-on-brand-muted) !important;
     opacity: 1;
   }
-  .app-shell main :is([class*='bg-slate-900'], [class*='bg-emerald-800'], [class*='bg-emerald-900']) > :is(.text-slate-400, .text-slate-500) {
+  .app-shell
+    main
+    :is([class*='bg-slate-900'], [class*='bg-emerald-800'], [class*='bg-emerald-900'])
+    > :is(.text-slate-400, .text-slate-500) {
     color: var(--text-on-brand-muted) !important;
   }
 
@@ -2479,17 +2854,39 @@
     font-size: 7pt;
   }
 
-  .gradebook-print-table .gradebook-print-col-index { width: 4%; }
-  .gradebook-print-table .gradebook-print-col-registration { width: 8%; }
-  .gradebook-print-table .gradebook-print-col-name { width: 14%; }
-  .gradebook-print-table col:nth-child(4) { width: 8%; }
-  .gradebook-print-table col:nth-child(5) { width: 7%; }
-  .gradebook-print-table col:nth-child(6) { width: 8%; }
-  .gradebook-print-table col:nth-child(7) { width: 10%; }
-  .gradebook-print-table col:nth-child(8) { width: 8%; }
-  .gradebook-print-table col:nth-child(9) { width: 8%; }
-  .gradebook-print-table col:nth-child(10) { width: 14%; }
-  .gradebook-print-table col:nth-child(11) { width: 7%; }
+  .gradebook-print-table .gradebook-print-col-index {
+    width: 4%;
+  }
+  .gradebook-print-table .gradebook-print-col-registration {
+    width: 8%;
+  }
+  .gradebook-print-table .gradebook-print-col-name {
+    width: 14%;
+  }
+  .gradebook-print-table col:nth-child(4) {
+    width: 8%;
+  }
+  .gradebook-print-table col:nth-child(5) {
+    width: 7%;
+  }
+  .gradebook-print-table col:nth-child(6) {
+    width: 8%;
+  }
+  .gradebook-print-table col:nth-child(7) {
+    width: 10%;
+  }
+  .gradebook-print-table col:nth-child(8) {
+    width: 8%;
+  }
+  .gradebook-print-table col:nth-child(9) {
+    width: 8%;
+  }
+  .gradebook-print-table col:nth-child(10) {
+    width: 14%;
+  }
+  .gradebook-print-table col:nth-child(11) {
+    width: 7%;
+  }
 
   .gradebook-print-table th,
   .gradebook-print-table td {

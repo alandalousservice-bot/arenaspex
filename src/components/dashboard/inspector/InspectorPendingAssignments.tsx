@@ -4,7 +4,18 @@
  * (الاسم/المدرسة/البلدية/الهاتف/البريد/تاريخ الميلاد/تاريخ الطلب) مع قبول/رفض+سبب
  */
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, XCircle, Phone, Mail, School, MapPin, Calendar, Clock, User, Loader2 } from 'lucide-react';
+import {
+  CheckCircle2,
+  XCircle,
+  Phone,
+  Mail,
+  School,
+  MapPin,
+  Calendar,
+  Clock,
+  User,
+  Loader2,
+} from 'lucide-react';
 
 interface PendingAssignment {
   id: string;
@@ -27,7 +38,9 @@ interface PendingAssignment {
   } | null;
 }
 
-export const InspectorPendingAssignments: React.FC<{ onAccepted?: () => void }> = ({ onAccepted }) => {
+export const InspectorPendingAssignments: React.FC<{ onAccepted?: () => void }> = ({
+  onAccepted,
+}) => {
   const [assignments, setAssignments] = useState<PendingAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -83,7 +96,7 @@ export const InspectorPendingAssignments: React.FC<{ onAccepted?: () => void }> 
       const res = await fetch(`/api/inspector/assignments/${teacherId}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: reason.trim() || undefined })
+        body: JSON.stringify({ reason: reason.trim() || undefined }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -112,7 +125,12 @@ export const InspectorPendingAssignments: React.FC<{ onAccepted?: () => void }> 
     return (
       <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-sm flex items-center justify-between">
         <span>{error}</span>
-        <button onClick={fetchPending} className="px-3 py-1 bg-rose-600 text-white rounded-lg text-xs">إعادة المحاولة</button>
+        <button
+          onClick={fetchPending}
+          className="px-3 py-1 bg-rose-600 text-white rounded-lg text-xs"
+        >
+          إعادة المحاولة
+        </button>
       </div>
     );
   }
@@ -122,7 +140,9 @@ export const InspectorPendingAssignments: React.FC<{ onAccepted?: () => void }> 
       <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-2xl text-center">
         <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
         <p className="text-sm font-bold text-emerald-800">لا توجد إسنادات بانتظار القبول.</p>
-        <p className="text-xs text-emerald-600 mt-1">سيظهر هنا أي أستاذ طلب الإسناد لمقاطعتك بانتظار موافقتك.</p>
+        <p className="text-xs text-emerald-600 mt-1">
+          سيظهر هنا أي أستاذ طلب الإسناد لمقاطعتك بانتظار موافقتك.
+        </p>
       </div>
     );
   }
@@ -134,7 +154,12 @@ export const InspectorPendingAssignments: React.FC<{ onAccepted?: () => void }> 
           <Clock className="w-5 h-5 text-amber-500" />
           طلبات الإسناد المعلقة ({assignments.length})
         </h3>
-        <button onClick={fetchPending} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg">تحديث</button>
+        <button
+          onClick={fetchPending}
+          className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg"
+        >
+          تحديث
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -146,7 +171,10 @@ export const InspectorPendingAssignments: React.FC<{ onAccepted?: () => void }> 
           const birthDate = t.birthDate ? new Date(t.birthDate).toLocaleDateString('ar-DZ') : '—';
           const isProcessing = processingId === a.teacherId;
           return (
-            <div key={a.id} className="p-4 bg-white rounded-2xl border border-amber-200 shadow-sm space-y-3">
+            <div
+              key={a.id}
+              className="p-4 bg-white rounded-2xl border border-amber-200 shadow-sm space-y-3"
+            >
               <div className="flex items-center gap-2">
                 <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-black">
                   <User className="w-5 h-5" />
@@ -178,7 +206,9 @@ export const InspectorPendingAssignments: React.FC<{ onAccepted?: () => void }> 
                 <div className="flex items-center gap-2">
                   <Mail className="w-3.5 h-3.5 text-slate-400" />
                   <span className="font-bold">البريد:</span>
-                  <span dir="ltr" className="truncate">{t.email}</span>
+                  <span dir="ltr" className="truncate">
+                    {t.email}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -192,7 +222,9 @@ export const InspectorPendingAssignments: React.FC<{ onAccepted?: () => void }> 
                   <label className="text-xs font-bold text-slate-700">سبب الرفض (اختياري):</label>
                   <textarea
                     value={rejectReason[a.teacherId] || ''}
-                    onChange={(e) => setRejectReason((prev) => ({ ...prev, [a.teacherId]: e.target.value }))}
+                    onChange={(e) =>
+                      setRejectReason((prev) => ({ ...prev, [a.teacherId]: e.target.value }))
+                    }
                     placeholder="اكتب سبب الرفض..."
                     className="w-full rounded-lg border border-slate-300 p-2 text-xs"
                     rows={2}
@@ -204,9 +236,14 @@ export const InspectorPendingAssignments: React.FC<{ onAccepted?: () => void }> 
                 <button
                   onClick={() => handleAccept(a.teacherId)}
                   disabled={isProcessing}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition-colors"
+                  aria-busy={isProcessing}
+                  className="action-primary flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-colors"
                 >
-                  {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  {isProcessing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
                   <span>قبول الإسناد</span>
                 </button>
 

@@ -16,8 +16,9 @@ describe('P1-5 semantic theme cascade hardening', () => {
     expect(css).toContain('--border-default: var(--color-border);');
     expect(css).toContain('--action-primary: var(--color-primary);');
     expect(css).toContain('--action-primary-hover: var(--color-primary-hover);');
-    expect(css).toContain('--focus-ring: rgb(16 185 129 / 0.35);');
+    expect(css).toContain('--focus-ring: #0f172a;');
     expect(css).toContain('.action-primary:focus-visible');
+    expect(css).toContain('box-shadow: 0 0 0 5px #fff;');
   });
 
   it('removes the broad blue, indigo, and purple utility remapping selectors', () => {
