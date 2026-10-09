@@ -104,6 +104,10 @@ import {
 import { COMPLETE_ANNUAL_CURRICULUM } from '../data/algerianCurriculum.js';
 import { getObjectiveBank } from '../data/objectiveBankRegistry.js';
 import { getAcademicCalendar, isValidAcademicSchoolDate } from '../data/academicCalendars.js';
+import {
+  getSchedulePeDuringTermTests,
+  setSchedulePeDuringTermTests,
+} from '../services/teacherAcademicCalendarPreference.service.js';
 import { lessonMemoLevelName } from '../services/lessonPlan.generator.service.js';
 import {
   generateLessonMemoDraft,
@@ -282,6 +286,11 @@ const classPlanningConfigurationSchema = z.object({
   grade4WeeklyScheduleMode: z.enum(['TWO_45', 'ONE_90']).nullable(),
 });
 
+const teacherCalendarPreferenceSchema = z.object({
+  academicYearId: academicYearIdSchema,
+  schedulePeDuringTermTests: z.boolean(),
+});
+
 function weeklySlotView(row: any) {
   return {
     id: row.id,
@@ -309,6 +318,32 @@ async function weeklySlotsForTeacher(teacherId: string, academicYearId: string) 
     orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
   });
 }
+
+async function schedulePeDuringTermTestsForTeacher(teacherId: string, academicYearId: string) {
+  return getSchedulePeDuringTermTests(teacherId, academicYearId, prisma);
+}
+
+apiRouter.get('/teacher/planning/calendar-preference', requireRole('teacher'), async (req, res) => {
+  const academicYearId = academicYearIdSchema.safeParse(req.query.academicYearId);
+  if (!academicYearId.success) return res.status(400).json({ error: 'السنة الدراسية مطلوبة.' });
+  const schedulePeDuringTermTests = await schedulePeDuringTermTestsForTeacher(
+    req.user!.id,
+    academicYearId.data
+  );
+  res.json({ success: true, academicYearId: academicYearId.data, schedulePeDuringTermTests });
+});
+
+apiRouter.put('/teacher/planning/calendar-preference', requireRole('teacher'), async (req, res) => {
+  const parsed = teacherCalendarPreferenceSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'إعداد الاختبارات غير صحيح.' });
+  const preference = await setSchedulePeDuringTermTests(
+    req.user!.id,
+    parsed.data.academicYearId,
+    parsed.data.schedulePeDuringTermTests,
+    prisma
+  );
+  res.json({ success: true, preference });
+});
 
 apiRouter.get('/teacher/weekly-timetable', requireRole('teacher'), async (req, res) => {
   const academicYearId = academicYearIdSchema.safeParse(req.query.academicYearId);
@@ -790,7 +825,8 @@ function annualDistributionPersistenceData(data: unknown, note: string): Prisma.
 function isAllowedAnnualDistributionDate(
   value: string,
   academicYearId: string,
-  planningStartDate: string
+  planningStartDate: string,
+  schedulePeDuringTermTests = true
 ): boolean {
   const calendar = getAcademicCalendar(academicYearId);
   const endDate = calendar.schoolEnd || `${academicYearId.slice(5)}-08-31`;
@@ -799,7 +835,7 @@ function isAllowedAnnualDistributionDate(
     value >= planningStartDate &&
     value >= calendar.schoolStart &&
     value <= endDate &&
-    isValidAcademicSchoolDate(value, academicYearId)
+    isValidAcademicSchoolDate(value, academicYearId, schedulePeDuringTermTests)
   );
 }
 
@@ -1008,6 +1044,10 @@ apiRouter.post(
         normalizePrimaryLevelId(existing.class.levelId) === 'lvl_p4'
           ? await grade4WeeklyScheduleModeForClass(existing.classId, academicYearId)
           : undefined;
+      const schedulePeDuringTermTests = await schedulePeDuringTermTestsForTeacher(
+        req.user!.id,
+        academicYearId
+      );
       const teacherLearningPlans = await resolveTeacherLearningPlansForLevels(
         [normalizedLevelId],
         req.user!.id,
@@ -1017,7 +1057,8 @@ apiRouter.post(
         academicYearId,
         planningStartDate,
         teacherLearningPlans,
-        grade4WeeklyScheduleMode
+        grade4WeeklyScheduleMode,
+        schedulePeDuringTermTests
       );
       const distribution = generation.levels.find((level) => level.levelId === normalizedLevelId);
       if (!distribution || distribution.status !== 'generated') {
@@ -1034,7 +1075,8 @@ apiRouter.post(
         academicYearId,
         distribution.sessions,
         classSlots,
-        grade4WeeklyScheduleMode
+        grade4WeeklyScheduleMode,
+        schedulePeDuringTermTests
       );
       if (materialized.error) {
         throw new ProtectedPlanningMoveError('missing-canonical-slot', materialized.error, 400);
@@ -1423,6 +1465,10 @@ apiRouter.post('/teacher/lesson-memos/generate', requireRole('teacher'), async (
 apiRouter.get('/teacher/planning/annual-distribution', requireRole('teacher'), async (req, res) => {
   const parsed = classPlanningQuerySchema.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ error: 'السنة الدراسية مطلوبة.' });
+  const schedulePeDuringTermTests = await schedulePeDuringTermTestsForTeacher(
+    req.user!.id,
+    parsed.data.academicYearId
+  );
   const plans = await prisma.annualPlan.findMany({
     where: {
       teacherId: req.user!.id,
@@ -1464,7 +1510,8 @@ apiRouter.get('/teacher/planning/annual-distribution', requireRole('teacher'), a
     parsed.data.academicYearId,
     planningStartDate,
     teacherLearningPlans,
-    grade4WeeklyScheduleMode
+    grade4WeeklyScheduleMode,
+    schedulePeDuringTermTests
   );
   const levels = await annualDistributionLevelViews(
     generation,
@@ -1518,6 +1565,10 @@ apiRouter.get(
           ? await grade4WeeklyScheduleModeForClass(classId, academicYearId)
           : 'ONE_90'
         : undefined;
+    const schedulePeDuringTermTests = await schedulePeDuringTermTestsForTeacher(
+      req.user!.id,
+      academicYearId
+    );
     const storedPlan = await prisma.annualPlan.findUnique({
       where: {
         teacherId_academicYearId_levelId_kind: {
@@ -1548,7 +1599,8 @@ apiRouter.get(
       academicYearId,
       storedStartDate,
       teacherLearningPlans,
-      grade4WeeklyScheduleMode
+      grade4WeeklyScheduleMode,
+      schedulePeDuringTermTests
     );
     const generatedLevel = generation.levels.find((item) => item.levelId === levelId);
     if (!generatedLevel || generatedLevel.status !== 'generated') {
@@ -1557,7 +1609,13 @@ apiRouter.get(
     const level = applyPersistedAnnualDistributionDates(
       generatedLevel,
       storedData.overrides,
-      (value) => isAllowedAnnualDistributionDate(value, academicYearId, storedStartDate)
+      (value) =>
+        isAllowedAnnualDistributionDate(
+          value,
+          academicYearId,
+          storedStartDate,
+          schedulePeDuringTermTests
+        )
     );
     const references = await resolvePlanningReferences(
       levelId,
@@ -1615,6 +1673,10 @@ apiRouter.post(
         .json({ error: 'السنة الدراسية وتاريخ بداية التخطيط مطلوبان بصيغة صحيحة.' });
 
     const { academicYearId, planningStartDate, preLaunchRebuild } = parsed.data;
+    const schedulePeDuringTermTests = await schedulePeDuringTermTestsForTeacher(
+      req.user!.id,
+      academicYearId
+    );
     if (preLaunchRebuild && !isPreLaunchAcademicYear(academicYearId)) {
       return res.status(400).json({ error: 'إعادة البناء قبل الإطلاق متاحة لسنة الإطلاق فقط.' });
     }
@@ -1649,7 +1711,8 @@ apiRouter.post(
       academicYearId,
       planningStartDate,
       teacherLearningPlans,
-      grade4WeeklyScheduleMode
+      grade4WeeklyScheduleMode,
+      schedulePeDuringTermTests
     );
     const levels = await annualDistributionLevelViews(
       generation,
@@ -1697,7 +1760,8 @@ apiRouter.post(
           academicYearId,
           planningStartDate,
           teacherLearningPlans,
-          classMode
+          classMode,
+          schedulePeDuringTermTests
         ).levels.find((item) => item.levelId === normalizedLevelId);
       }
       if (distribution) distributionsByClass.set(classRecord.id, distribution);
@@ -1738,7 +1802,8 @@ apiRouter.post(
         academicYearId,
         distribution.sessions,
         timetableSlotsByClass.get(link.classId) || [],
-        classMode
+        classMode,
+        schedulePeDuringTermTests
       );
       if (materialized.error) {
         materializationErrors.push({
@@ -2003,6 +2068,10 @@ apiRouter.post(
     });
     if (!classRecord) return res.status(404).json({ error: 'القسم غير موجود ضمن أقسامك.' });
     const timetableSlots = await weeklySlotsForTeacher(req.user!.id, parsed.data.academicYearId);
+    const schedulePeDuringTermTests = await schedulePeDuringTermTestsForTeacher(
+      req.user!.id,
+      parsed.data.academicYearId
+    );
     const grade4WeeklyScheduleMode = await grade4WeeklyScheduleModeForClass(
       classRecord.id,
       parsed.data.academicYearId
@@ -2020,7 +2089,9 @@ apiRouter.post(
         parsed.data.academicYearId,
         0,
         teacherLearningPlans.get(normalizePrimaryLevelId(classRecord.levelId) || ''),
-        grade4WeeklyScheduleMode
+        grade4WeeklyScheduleMode,
+        schedulePeDuringTermTests,
+        true
       );
       const materialized = materializeClassPlannedSessionSeedsFromTimetable(
         req.user!.id,
@@ -2028,7 +2099,8 @@ apiRouter.post(
         parsed.data.academicYearId,
         canonicalSessions,
         timetableSlots.filter((slot) => slot.classId === classRecord.id),
-        grade4WeeklyScheduleMode
+        grade4WeeklyScheduleMode,
+        schedulePeDuringTermTests
       );
       if (materialized.error) return res.status(400).json({ error: materialized.error });
       seeds = materialized.seeds;
@@ -2136,8 +2208,20 @@ apiRouter.patch(
         return res.status(409).json({ error: 'لا يمكن تغيير تاريخ حصة منجزة.' });
       }
       const date = new Date(`${parsed.data.plannedDate}T00:00:00`);
-      if (!isValidAcademicSchoolDate(parsed.data.plannedDate, existing.academicYearId)) {
-        return res.status(400).json({ error: 'اختر تاريخاً يقع في يوم دراسي وليس ضمن عطلة.' });
+      const schedulePeDuringTermTests = await schedulePeDuringTermTestsForTeacher(
+        req.user!.id,
+        existing.academicYearId
+      );
+      if (
+        !isValidAcademicSchoolDate(
+          parsed.data.plannedDate,
+          existing.academicYearId,
+          schedulePeDuringTermTests
+        )
+      ) {
+        return res.status(400).json({
+          error: 'اختر تاريخاً دراسياً صالحاً، خارج العطل والاختبارات المستثناة في إعدادك.',
+        });
       }
     }
     const data: {
@@ -3544,10 +3628,7 @@ async function getDistrictCommunicationContext(userId: string, db: Communication
   if (!user || user.status !== 'active' || !user.isApprovedByAdmin) return null;
 
   const districtId = effectiveInspectionDistrictId(user);
-  if (
-    !districtId ||
-    !canAccessDistrictCommunicationGroup({ user, districtId })
-  ) {
+  if (!districtId || !canAccessDistrictCommunicationGroup({ user, districtId })) {
     return null;
   }
   return { user, districtId };
@@ -3579,7 +3660,12 @@ async function districtCommunicationMemberIds(districtId: string, db: Communicat
   const currentTeachers = teachers.filter(
     (teacher) => effectiveInspectionDistrictId(teacher) === districtId
   );
-  return [...new Set([...currentInspectors.map((inspector) => inspector.id), ...currentTeachers.map((t) => t.id)])];
+  return [
+    ...new Set([
+      ...currentInspectors.map((inspector) => inspector.id),
+      ...currentTeachers.map((t) => t.id),
+    ]),
+  ];
 }
 
 async function inspectorGroupMemberIds(db: CommunicationDb = prisma) {
@@ -3597,25 +3683,29 @@ function groupNotificationRows(args: {
   scope: 'district' | 'inspectors_general';
   districtId?: string;
 }) {
-  return groupNotificationRecipientIds(args.recipientIds, args.senderId)
-    .map((userId) => ({
-      id: `group_notif_${args.messageId}_${userId}`,
-      userId,
-      senderId: args.senderId,
-      type: 'communication_group_message',
-      title: args.scope === 'district' ? 'رسالة جديدة في مجموعة المقاطعة' : 'رسالة جديدة في مجموعة المفتشين',
-      message: 'توجد رسالة جديدة في مجموعة التواصل المهني.',
-      read: false,
-      data: {
-        groupScope: args.scope === 'district' ? 'district' : 'inspectors_general',
-        ...(args.scope === 'district' ? { districtId: args.districtId } : {}),
-        messageId: args.messageId,
-      },
+  return groupNotificationRecipientIds(args.recipientIds, args.senderId).map((userId) => ({
+    id: `group_notif_${args.messageId}_${userId}`,
+    userId,
+    senderId: args.senderId,
+    type: 'communication_group_message',
+    title:
+      args.scope === 'district'
+        ? 'رسالة جديدة في مجموعة المقاطعة'
+        : 'رسالة جديدة في مجموعة المفتشين',
+    message: 'توجد رسالة جديدة في مجموعة التواصل المهني.',
+    read: false,
+    data: {
+      groupScope: args.scope === 'district' ? 'district' : 'inspectors_general',
+      ...(args.scope === 'district' ? { districtId: args.districtId } : {}),
+      messageId: args.messageId,
+    },
   }));
 }
 
 async function groupMessageAuthorNames(rows: Array<{ authorId: string | null }>) {
-  const authorIds = [...new Set(rows.map((row) => row.authorId).filter((id): id is string => Boolean(id)))];
+  const authorIds = [
+    ...new Set(rows.map((row) => row.authorId).filter((id): id is string => Boolean(id))),
+  ];
   if (!authorIds.length) return new Map<string, string>();
   const authors = await prisma.user.findMany({
     where: { id: { in: authorIds } },
@@ -3943,8 +4033,13 @@ apiRouter.get('/communication/notifications', async (req, res) => {
     take: 200,
   });
   const visibleRows = rows.filter((row) => {
-    const data = row.data && typeof row.data === 'object' ? (row.data as Record<string, unknown>) : {};
-    return canReadGroupNotification(data, districtContext?.districtId || null, inspectorsGroupAllowed);
+    const data =
+      row.data && typeof row.data === 'object' ? (row.data as Record<string, unknown>) : {};
+    return canReadGroupNotification(
+      data,
+      districtContext?.districtId || null,
+      inspectorsGroupAllowed
+    );
   });
   res.json({
     notifications: visibleRows.map((row) => ({

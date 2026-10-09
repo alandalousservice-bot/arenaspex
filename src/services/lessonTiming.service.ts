@@ -26,15 +26,15 @@ function gradeNumber(value: OperationalLessonGrade): number {
 
 /**
  * Resolves the operational duration. A persisted ClassPlannedSession is the
- * strongest signal; the Grade 4 class/year mode is next; the historical
- * unset Grade 4 behavior remains ONE_90 without writing a fallback.
+ * strongest signal. Primary Grade 4 uses one 90-minute PE lesson regardless
+ * of legacy class configuration values.
  */
 export function resolveOperationalLessonDuration(input: OperationalLessonDurationInput): number {
   const actual = input.classPlannedSessionDurationMinutes;
   if (Number.isFinite(actual) && (actual ?? 0) > 0) return Math.round(actual as number);
 
   const grade = gradeNumber(input.gradeId);
-  if (grade === 4) return input.classPlanningMode === 'TWO_45' ? 45 : 90;
+  if (grade === 4) return 90;
   if (grade === 5) return 60;
   return 60;
 }

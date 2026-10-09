@@ -3,119 +3,131 @@ import {
   annualDistributionUnitSummary,
   buildAnnualDistributionWeeks,
   buildClassPlannedSessionSeedsFromCanonicalSessions,
-  canonicalPlanningSessions,
   generateAllPrimaryLevelDistributions,
 } from '../src/services/teacherPlanning.service';
-import { lessonPhaseBudgetsForDuration } from '../src/services/lessonTiming.service';
+import { resolveGrade4WeeklyScheduleMode } from '../src/services/classPlanningConfiguration.service';
+import { resolveOperationalLessonDuration } from '../src/services/lessonTiming.service';
+import { isValidAcademicSchoolDate } from '../src/data/academicCalendars';
 
 const academicYearId = '2026-2027';
 const planningStartDate = '2026-09-21';
-const timetable = [
-  { weekday: 1, startTime: '08:00', endTime: '09:30' },
-  { weekday: 3, startTime: '10:00', endTime: '11:30' },
-];
+const timetable = [{ weekday: 1, startTime: '08:00', endTime: '09:30' }];
 
-function grade4Distribution(mode: 'ONE_90' | 'TWO_45') {
+function generated(mode: 'ONE_90' | 'TWO_45', schedulePeDuringTermTests = true) {
   return generateAllPrimaryLevelDistributions(
     academicYearId,
     planningStartDate,
     undefined,
-    mode
-  ).levels.find((level) => level.levelId === 'lvl_p4')!;
+    mode,
+    schedulePeDuringTermTests
+  );
 }
 
-describe('Grade 4 mode-aware annual distribution', () => {
-  it('generates one learning reference per objective for ONE_90', () => {
-    const level = grade4Distribution('ONE_90');
-    const learning = level.sessions.filter((session) => session.sessionType === 'تعلمية');
-    const objectives = learning.map((session) => session.objectiveId);
+describe('authoritative primary weekly annual distributions', () => {
+  it.each(['ONE_90', 'TWO_45'] as const)(
+    'keeps every level at one reference lesson per week under legacy mode %s',
+    (mode) => {
+      const result = generated(mode);
+      expect(result.levels.map((level) => level.levelId)).toEqual([
+        'lvl_p1',
+        'lvl_p2',
+        'lvl_p3',
+        'lvl_p4',
+        'lvl_p5',
+      ]);
+      for (const level of result.levels) {
+        expect(level.status).toBe('generated');
+        expect(level.durationMinutes).toBe(level.grade === 4 ? 90 : 60);
+        expect(
+          level.sessions.every((session) => session.durationMinutes === level.durationMinutes)
+        ).toBe(true);
+        const weeks = buildAnnualDistributionWeeks(level, undefined, mode);
+        expect(annualDistributionUnitSummary(weeks).weekCount).toBe(weeks.length);
+        expect(weeks.slice(1).every((week) => week.slots.length === 1)).toBe(true);
+        expect(new Set(level.sessions.map((session) => session.referenceSessionId)).size).toBe(
+          level.sessions.length
+        );
+      }
+    }
+  );
 
-    expect(learning).toHaveLength(18);
-    expect(new Set(objectives).size).toBe(18);
-    expect(level.sessions.map((session) => session.sequenceIndex)).toEqual(
-      level.sessions.map((_, index) => index + 1)
-    );
+  it('preserves shared family structures while keeping five distinct level identities', () => {
+    const levels = generated('TWO_45').levels;
+    const structure = (level: (typeof levels)[number]) =>
+      level.sessions.map((session) =>
+        [
+          session.domainId,
+          session.sessionType,
+          session.fieldSessionNumber,
+          Boolean(session.objectiveId),
+        ].join('|')
+      );
+    expect(structure(levels[0])).toEqual(structure(levels[1]));
+    expect(structure(levels[1])).toEqual(structure(levels[2]));
+    expect(structure(levels[3])).toEqual(structure(levels[4]));
+    expect(new Set(levels.map((level) => level.levelId)).size).toBe(5);
     expect(
-      learning.every((session, index) => session.fieldSessionNumber > 0 && objectives[index])
-    ).toBe(true);
+      new Set(
+        levels.flatMap((level) => level.sessions.map((session) => session.referenceSessionId))
+      ).size
+    ).toBe(levels.reduce((sum, level) => sum + level.sessions.length, 0));
   });
 
-  it('keeps ONE_90 at one weekly pedagogical lesson and coherent counters/hours', () => {
-    const level = grade4Distribution('ONE_90');
-    const weeks = buildAnnualDistributionWeeks(level, undefined, 'ONE_90');
-    const summary = annualDistributionUnitSummary(weeks);
-    const learningSlots = weeks
-      .flatMap((week) => week.slots)
-      .filter((slot) => slot.sessionType === 'تعلمية');
-
-    expect(level.sessionCount).toBe(31);
-    expect(level.annualHours).toBe(45);
-    expect(summary.weekCount).toBe(31);
-    expect(summary.learningUnitCount).toBe(18);
-    expect(learningSlots).toHaveLength(18);
-    expect(learningSlots.every((slot) => slot.meetingIndex === null)).toBe(true);
-    expect(learningSlots.some((slot) => /\(أ|ب\)/u.test(slot.displayLabel))).toBe(false);
+  it.each([true, false])('keeps holiday and test-date rules with preference=%s', (preference) => {
+    const levels = generated('TWO_45', preference).levels;
+    for (const level of levels) {
+      expect(level.status).toBe('generated');
+      expect(level.sessions.map((session) => session.sequenceIndex)).toEqual(
+        level.sessions.map((_, index) => index + 1)
+      );
+      expect(
+        level.sessions.every((session) =>
+          isValidAcademicSchoolDate(session.plannedDate, academicYearId, preference)
+        )
+      ).toBe(true);
+      expect(new Set(level.sessions.map((session) => session.referenceSessionId)).size).toBe(
+        level.sessions.length
+      );
+    }
+    expect(isValidAcademicSchoolDate('2026-10-28', academicYearId, preference)).toBe(false);
+    expect(isValidAcademicSchoolDate('2026-12-06', academicYearId, preference)).toBe(preference);
   });
 
-  it('materializes one 90-minute CPS and keeps the 15/65/10 budget', () => {
-    const level = grade4Distribution('ONE_90');
+  it('materializes one official-duration operational lesson per real timetable week', () => {
+    const level = generated('TWO_45').levels.find((item) => item.levelId === 'lvl_p4')!;
     const seeds = buildClassPlannedSessionSeedsFromCanonicalSessions(
-      'teacher-one90',
-      'class-one90',
-      academicYearId,
-      level.sessions,
-      timetable,
-      'ONE_90'
-    );
-    const pedagogical = seeds.filter((seed) => !seed.referenceSessionId.includes(':intro:'));
-
-    expect(pedagogical).toHaveLength(30);
-    expect(new Set(pedagogical.map((seed) => seed.referenceSessionId)).size).toBe(30);
-    expect(pedagogical.every((seed) => seed.durationMinutes === 90)).toBe(true);
-    expect(lessonPhaseBudgetsForDuration(90)).toEqual({ warmup: 15, main: 65, final: 10 });
-  });
-
-  it('preserves TWO_45 paired realization and starts the next objective after each pair', () => {
-    const level = grade4Distribution('TWO_45');
-    const learning = level.sessions.filter((session) => session.sessionType === 'تعلمية');
-    const groups = [...new Set(learning.map((session) => session.objectiveGroupId))];
-    const seeds = buildClassPlannedSessionSeedsFromCanonicalSessions(
-      'teacher-two45',
-      'class-two45',
+      'teacher-year4',
+      'real-year4-class',
       academicYearId,
       level.sessions,
       timetable,
       'TWO_45'
     );
-    const learningSeeds = seeds.filter((seed) =>
-      learning.some((session) => session.referenceSessionId === seed.referenceSessionId)
-    );
-
-    expect(learning).toHaveLength(36);
-    expect(groups).toHaveLength(18);
-    expect(learningSeeds).toHaveLength(36);
-    expect(learningSeeds.every((seed) => seed.durationMinutes === 45)).toBe(true);
-    expect(lessonPhaseBudgetsForDuration(45)).toEqual({ warmup: 10, main: 30, final: 5 });
-    for (const group of groups) {
-      expect(learning.filter((session) => session.objectiveGroupId === group)).toHaveLength(2);
+    const pedagogical = seeds.filter((seed) => !seed.referenceSessionId.includes(':intro:'));
+    const occurrencesPerWeek = new Map<string, number>();
+    for (const seed of pedagogical) {
+      const sunday = new Date(seed.plannedDate);
+      sunday.setUTCDate(sunday.getUTCDate() - sunday.getUTCDay());
+      const key = sunday.toISOString().slice(0, 10);
+      occurrencesPerWeek.set(key, (occurrencesPerWeek.get(key) || 0) + 1);
     }
-    expect(
-      learning.every(
-        (session, index) =>
-          index === 0 || session.objectiveGroupId === learning[index - (index % 2)].objectiveGroupId
-      )
-    ).toBe(true);
+    expect(seeds.length).toBe(level.sessions.length + 1);
+    expect(pedagogical.every((seed) => seed.durationMinutes === 90)).toBe(true);
+    expect([...occurrencesPerWeek.values()].every((count) => count === 1)).toBe(true);
   });
 
-  it('keeps non-Grade-4 occurrence semantics unchanged', () => {
-    const grade1 = canonicalPlanningSessions('lvl_p1', planningStartDate, academicYearId);
-    const grade2 = canonicalPlanningSessions('lvl_p2', planningStartDate, academicYearId);
-    const grade3 = canonicalPlanningSessions('lvl_p3', planningStartDate, academicYearId);
-    const grade5 = canonicalPlanningSessions('lvl_p5', planningStartDate, academicYearId);
-
-    expect(grade1.filter((session) => session.sessionType === 'تعلمية')).toHaveLength(42);
-    expect(grade2.filter((session) => session.sessionType === 'تعلمية')).toHaveLength(42);
-    expect(grade3.filter((session) => session.sessionType === 'تعلمية')).toHaveLength(42);
-    expect(grade5.filter((session) => session.sessionType === 'تعلمية')).toHaveLength(18);
+  it('ignores obsolete two-by-45-minute configuration for Year 4', () => {
+    expect(resolveGrade4WeeklyScheduleMode('TWO_45')).toBe('ONE_90');
+    expect(
+      resolveOperationalLessonDuration({ gradeId: 'lvl_p4', classPlanningMode: 'TWO_45' })
+    ).toBe(90);
+    const level = generated('TWO_45').levels.find((item) => item.levelId === 'lvl_p4')!;
+    const seeds = buildClassPlannedSessionSeedsFromCanonicalSessions(
+      'teacher-year4',
+      'real-year4-class',
+      academicYearId,
+      level.sessions
+    );
+    expect(seeds.every((seed) => seed.durationMinutes === 90)).toBe(true);
   });
 });

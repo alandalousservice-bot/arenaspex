@@ -244,7 +244,7 @@ describe('Grade 1 / Domain 1 reference objective bank', () => {
     const level = result.levels.find((item) => item.levelId === LEVEL)!;
     const selected = plan.domains[0].objectives.at(-1)!;
     expect(level.status).toBe('generated');
-    expect(level.sessions.filter((item) => item.objectiveId === selected.id)).toHaveLength(2);
+    expect(level.sessions.filter((item) => item.objectiveId === selected.id)).toHaveLength(1);
     expect(
       level.sessions
         .filter((item) => item.objectiveId === selected.id)

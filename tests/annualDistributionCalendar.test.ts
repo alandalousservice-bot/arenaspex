@@ -23,7 +23,7 @@ describe('weekly level-based annual distribution', () => {
     expect(source).toContain('الأسبوع / الفترة');
     expect(source).not.toContain('التعلمات / الهدف');
     expect(source).not.toContain('لقاءان: 1/2 و 2/2');
-    expect(source).toContain('(أ - ب)');
+    expect(source).not.toContain('(أ - ب)');
     expect(source).toContain('annualDistributionWeekDateRange');
     expect(source).toContain('planningStartDate');
     expect(source).toContain('academicYearId');
@@ -76,17 +76,23 @@ describe('weekly level-based annual distribution', () => {
     }
   );
 
-  it('keeps each Grade 1–4 learning pair as one annual weekly unit', () => {
+  it('keeps exactly one lesson in each generated week for all five levels', () => {
     const annual = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
-    for (const level of annual.levels.filter((item) => item.grade <= 4)) {
+    for (const level of annual.levels) {
       const weeks = buildAnnualDistributionWeeks(level);
       const learningUnits = weeks.flatMap((week) =>
         week.pedagogicalUnits.filter((unit) => unit.sessionType === 'تعلمية')
       );
       expect(learningUnits.length).toBeGreaterThan(0);
-      expect(learningUnits.every((unit) => unit.meetingCount === 2)).toBe(true);
+      expect(learningUnits.every((unit) => unit.meetingCount === 1 && !unit.meetings.length)).toBe(
+        true
+      );
+      expect(weeks.slice(1).every((week) => week.slots.length === 1)).toBe(true);
       expect(
-        learningUnits.every((unit) => unit.meetings.length === 2 && unit.objectiveGroupId !== null)
+        weeks
+          .slice(1)
+          .flatMap((week) => week.slots)
+          .every((slot) => slot.durationMinutes === (level.grade === 4 ? 90 : 60))
       ).toBe(true);
       expect(new Set(learningUnits.map((unit) => unit.referenceSessionId)).size).toBe(
         learningUnits.length
@@ -113,9 +119,9 @@ describe('weekly level-based annual distribution', () => {
   it('calculates user-facing summaries from weekly pedagogical units', () => {
     const level = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21').levels[0];
     const summary = annualDistributionUnitSummary(buildAnnualDistributionWeeks(level));
-    expect(summary.weekCount).toBe(28);
+    expect(summary.weekCount).toBe(34);
     expect(summary.pedagogicalUnitCount).toBe(34);
-    expect(summary.meetingCount).toBe(55);
+    expect(summary.meetingCount).toBe(34);
     expect(summary.pedagogicalUnitCount).toBeGreaterThan(0);
     expect(summary.learningUnitCount).toBeGreaterThan(0);
   });
@@ -134,7 +140,7 @@ describe('weekly level-based annual distribution', () => {
     ).toEqual(['عطلة الخريف', 'عطلة الشتاء', 'عطلة الربيع']);
   });
 
-  it('places the next pedagogical unit in the remaining Grade 1–4 weekly meeting', () => {
+  it('places one pedagogical unit in each non-intro week', () => {
     const level = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21').levels[0];
     const weeks = buildAnnualDistributionWeeks(level);
     const firstFieldWeek = weeks.find((week) =>
@@ -142,10 +148,8 @@ describe('weekly level-based annual distribution', () => {
     );
     expect(firstFieldWeek?.pedagogicalUnits.map((unit) => unit.sessionType)).toEqual([
       'تقويم تشخيصي',
-      'تعلمية',
     ]);
     expect(firstFieldWeek?.pedagogicalUnits[0].meetingCount).toBe(1);
-    expect(firstFieldWeek?.pedagogicalUnits[1].meetingCount).toBe(2);
   });
 
   it('uses the planning calendar date range for each pedagogical week', () => {
@@ -156,16 +160,14 @@ describe('weekly level-based annual distribution', () => {
     );
   });
 
-  it('uses pedagogical A/B labels without numerical meeting fractions', () => {
+  it('uses one lesson label without paired A/B meetings', () => {
     const level = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21').levels[0];
     const weeks = buildAnnualDistributionWeeks(level);
-    expect(annualDistributionMeetingLabel(weeks[2].pedagogicalUnits[0], 1)).toBe(
-      'حصة تعلمية 1 (أ - ب)'
-    );
+    expect(annualDistributionMeetingLabel(weeks[2].pedagogicalUnits[0], 1)).toBe('تعلمية 1');
     expect(annualDistributionMeetingLabel(weeks[1].pedagogicalUnits[0])).toBe('تقويم تشخيصي');
   });
 
-  it('represents all three domains with 18 sequential slots each', () => {
+  it('represents all three domains with unchanged content and one slot per lesson', () => {
     const level = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21').levels[0];
     const weeks = buildAnnualDistributionWeeks(level);
     const slots = weeks.flatMap((week) => week.slots);
@@ -189,7 +191,7 @@ describe('weekly level-based annual distribution', () => {
       expect(
         domainSessions.filter((session) => session.sessionType === 'تقويم تحصيلي')
       ).toHaveLength(1);
-      expect(domainSlots).toHaveLength(18);
+      expect(domainSlots).toHaveLength(11);
       expect(
         new Set(
           domainSlots
@@ -198,28 +200,24 @@ describe('weekly level-based annual distribution', () => {
         ).size
       ).toBe(7);
     }
-    expect(slots.filter((slot) => slot.fieldId !== 'intro')).toHaveLength(54);
+    expect(slots.filter((slot) => slot.fieldId !== 'intro')).toHaveLength(33);
   });
 
-  it('packs two sequential pedagogical slots without exposing meeting columns', () => {
+  it('keeps pedagogical order while rendering a single weekly lesson', () => {
     const level = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21').levels[0];
     const weeks = buildAnnualDistributionWeeks(level);
-    expect(annualDistributionWeekTypeLabel(weeks[1])).toBe('تقويم تشخيصي - تعلمية 1 (أ)');
-    expect(annualDistributionWeekTypeLabel(weeks[2])).toBe('تعلمية 1 (ب) - تعلمية 2 (أ)');
-    expect(annualDistributionWeekTypeLabel(weeks[3])).toBe('تعلمية 2 (ب) - تعلمية 3 (أ)');
-    expect(annualDistributionWeekTypeLabel(weeks[4])).toBe('تعلمية 3 (ب) - إدماجية 1');
-    expect(annualDistributionWeekTypeLabel(weeks[5])).toBe('تعلمية 4 (أ - ب)');
-    expect(annualDistributionWeekTypeLabel(weeks[8])).toBe('تعلمية 7 (أ - ب)');
-    expect(annualDistributionWeekTypeLabel(weeks[9])).toBe('إدماجية 2 - تقويم تحصيلي');
-    expect(annualDistributionWeekTypeLabel(weeks[9])).toContain('إدماجية 2');
-    expect(annualDistributionWeekTypeLabel(weeks[10])).toBe('تقويم تشخيصي - تعلمية 1 (أ)');
+    expect(annualDistributionWeekTypeLabel(weeks[1])).toBe('تقويم تشخيصي');
+    expect(annualDistributionWeekTypeLabel(weeks[2])).toBe('تعلمية 1');
+    expect(annualDistributionWeekTypeLabel(weeks[3])).toBe('تعلمية 2');
+    expect(annualDistributionWeekTypeLabel(weeks[11])).toBe('تقويم تحصيلي');
+    expect(annualDistributionWeekTypeLabel(weeks[12])).toBe('تقويم تشخيصي');
   });
 
   it('derives field labels from the same weekly slots as the table', () => {
     const level = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21').levels[0];
     const weeks = buildAnnualDistributionWeeks(level);
     expect(annualDistributionWeekFieldLabel(weeks[1])).toBe('الوضعيات والتنقلات');
-    expect(annualDistributionWeekFieldLabel(weeks[10])).toBe('الحركات القاعدية');
+    expect(annualDistributionWeekFieldLabel(weeks[12])).toBe('الحركات القاعدية');
   });
 
   it('does not expose operational fields in the weekly read model', () => {

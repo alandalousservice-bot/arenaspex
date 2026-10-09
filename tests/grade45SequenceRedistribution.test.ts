@@ -10,14 +10,14 @@ describe('Grade 4/5 learning sequence redistribution', () => {
         '2026-09-21'
       ).levels.find((level) => level.levelId === levelId)!;
 
-      expect(distribution.sessions.length).toBe(levelId === 'lvl_p4' ? 48 : 30);
+      expect(distribution.sessions.length).toBe(30);
       expect(
         distribution.sessions.filter((session) => session.sessionType === 'تعلمية')
-      ).toHaveLength(levelId === 'lvl_p4' ? 36 : 18);
+      ).toHaveLength(18);
       for (const domainId of ['f_locomotion', 'f_fundamentals', 'f_structuring']) {
         const sessions = distribution.sessions.filter((session) => session.domainId === domainId);
         const learning = sessions.filter((session) => session.sessionType === 'تعلمية');
-        expect(learning.length).toBe(levelId === 'lvl_p4' ? 12 : 6);
+        expect(learning.length).toBe(6);
         expect(sessions.filter((session) => session.sessionType === 'تقويم تشخيصي')).toHaveLength(
           1
         );

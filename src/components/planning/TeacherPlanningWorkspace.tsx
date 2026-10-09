@@ -8,9 +8,9 @@ import { WeeklyTimetableView } from '../schedule/WeeklyTimetableView';
 import {
   fetchTeacherPlanningSessions,
   fetchTeacherAnnualDistribution,
-  fetchClassPlanningConfiguration,
   initializeTeacherAnnualDistribution,
-  updateClassPlanningConfiguration,
+  fetchTeacherAcademicCalendarPreference,
+  updateTeacherAcademicCalendarPreference,
   TeacherPlanningSession,
   TeacherAnnualDistributionResponse,
 } from '../../services/api';
@@ -92,13 +92,38 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
     useState<TeacherAnnualDistributionResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [grade4WeeklyScheduleMode, setGrade4WeeklyScheduleMode] = useState<'TWO_45' | 'ONE_90'>(
-    'ONE_90'
-  );
-  const [grade4ModeSaving, setGrade4ModeSaving] = useState(false);
+  const [schedulePeDuringTermTests, setSchedulePeDuringTermTests] = useState(true);
+  const [calendarPreferenceLoading, setCalendarPreferenceLoading] = useState(false);
+  const [calendarPreferenceSaving, setCalendarPreferenceSaving] = useState(false);
+  const [calendarPreferenceSaved, setCalendarPreferenceSaved] = useState(false);
   const sessionsRequestId = useRef(0);
 
   const selectedClass = classes.find((item) => item.id === selectedClassId);
+  const hasTermTestPeriods = Boolean(getAcademicCalendar(academicYearId).termTestPeriods?.length);
+
+  useEffect(() => {
+    if (!hasTermTestPeriods) {
+      setSchedulePeDuringTermTests(true);
+      return;
+    }
+    let cancelled = false;
+    setCalendarPreferenceLoading(true);
+    setCalendarPreferenceSaved(false);
+    fetchTeacherAcademicCalendarPreference(academicYearId)
+      .then((result) => {
+        if (!cancelled) setSchedulePeDuringTermTests(result.schedulePeDuringTermTests);
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled)
+          setError(reason instanceof Error ? reason.message : 'تعذر تحميل إعداد التقويم.');
+      })
+      .finally(() => {
+        if (!cancelled) setCalendarPreferenceLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [academicYearId, hasTermTestPeriods]);
   useEffect(() => {
     if (requestedClassId && requestedSection === 'weekly') {
       if (!selectedClassId && classes.some((item) => item.id === requestedClassId)) {
@@ -164,9 +189,6 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
         if (cancelled || !result) return;
         setAnnualGeneration(result);
         setPlanningStartDate(result.planningStartDate);
-        const selectedLevel = result.levels.find((item) => item.levelId === 'lvl_p4');
-        if (selectedLevel?.grade4WeeklyScheduleMode)
-          setGrade4WeeklyScheduleMode(selectedLevel.grade4WeeklyScheduleMode);
       })
       .catch((reason: unknown) => {
         if (!cancelled) setError(reason instanceof Error ? reason.message : 'تعذر تحميل التوزيع.');
@@ -178,26 +200,6 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
       cancelled = true;
     };
   }, [academicYearId, section, selectedClassId]);
-
-  useEffect(() => {
-    if (
-      section !== 'annual-distribution' ||
-      !selectedClass ||
-      normalizePrimaryLevelId(selectedClass.levelId) !== 'lvl_p4'
-    )
-      return;
-    let cancelled = false;
-    fetchClassPlanningConfiguration(selectedClass.id, academicYearId)
-      .then((result) => {
-        if (!cancelled) setGrade4WeeklyScheduleMode(result.effectiveGrade4WeeklyScheduleMode);
-      })
-      .catch(() => {
-        if (!cancelled) setGrade4WeeklyScheduleMode('ONE_90');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [academicYearId, section, selectedClass]);
 
   useEffect(() => {
     window.localStorage.setItem(ACADEMIC_YEAR_PREFERENCE_KEY, academicYearId);
@@ -295,19 +297,20 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
   };
 
   const operationalView = section === 'weekly';
-  const changeGrade4Mode = async (mode: 'TWO_45' | 'ONE_90') => {
-    if (!selectedClass || selectedClass.levelId !== 'lvl_p4') return;
-    setGrade4WeeklyScheduleMode(mode);
-    setGrade4ModeSaving(true);
+  const changeTermTestPreference = async (value: boolean) => {
+    setSchedulePeDuringTermTests(value);
+    setCalendarPreferenceSaving(true);
+    setCalendarPreferenceSaved(false);
     setError('');
     try {
-      await updateClassPlanningConfiguration(selectedClass.id, academicYearId, mode);
-      const result = await fetchTeacherAnnualDistribution(academicYearId, selectedClass.id);
-      if (result) setAnnualGeneration(result);
+      const result = await updateTeacherAcademicCalendarPreference(academicYearId, value);
+      setSchedulePeDuringTermTests(result.schedulePeDuringTermTests);
+      setCalendarPreferenceSaved(true);
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : 'تعذر حفظ نمط جدولة السنة الرابعة.');
+      setError(reason instanceof Error ? reason.message : 'تعذر حفظ إعداد الاختبارات الفصلية.');
+      setSchedulePeDuringTermTests(!value);
     } finally {
-      setGrade4ModeSaving(false);
+      setCalendarPreferenceSaving(false);
     }
   };
 
@@ -342,7 +345,7 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
               ))}
             </select>
           </label>
-          {(operationalView || section === 'annual-distribution') && (
+          {operationalView && (
             <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
               القسم
               <select
@@ -359,24 +362,6 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
               </select>
             </label>
           )}
-          {section === 'annual-distribution' &&
-            selectedClass &&
-            normalizePrimaryLevelId(selectedClass.levelId) === 'lvl_p4' && (
-              <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
-                نمط حصص السنة الرابعة
-                <select
-                  value={grade4WeeklyScheduleMode}
-                  disabled={grade4ModeSaving}
-                  onChange={(event) =>
-                    void changeGrade4Mode(event.target.value as 'TWO_45' | 'ONE_90')
-                  }
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
-                >
-                  <option value="ONE_90">حصة واحدة · 90 دقيقة</option>
-                  <option value="TWO_45">حصتان · 45 دقيقة</option>
-                </select>
-              </label>
-            )}
         </div>
         <nav
           className="workspace-tabs mt-5 flex gap-2 overflow-x-auto border-t border-slate-100 pt-4"
@@ -410,19 +395,63 @@ export const TeacherPlanningWorkspace: React.FC<TeacherPlanningWorkspaceProps> =
       )}
 
       {section === 'annual-distribution' && (
-        <AnnualDistributionCalendar
-          currentUser={currentUser}
-          selectedLevelId={selectedLevelId}
-          academicYearId={academicYearId}
-          planningStartDate={planningStartDate}
-          loading={loading}
-          error={error}
-          annualGeneration={annualGeneration}
-          onLevelChange={changeLevel}
-          onPlanningStartDateChange={setPlanningStartDate}
-          onInitialize={() => void initialize()}
-          onNavigateToCalendar={() => changeSection('calendar')}
-        />
+        <>
+          {hasTermTestPeriods && (
+            <section className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4" dir="rtl">
+              <fieldset disabled={calendarPreferenceLoading || calendarPreferenceSaving}>
+                <legend className="font-bold text-slate-900">
+                  برمجة حصص التربية البدنية خلال فترة الاختبارات الفصلية
+                </legend>
+                <p className="mt-1 text-sm text-slate-700">
+                  هذا الاختيار خاص بحسابك والسنة الدراسية {formatAcademicYearLabel(academicYearId)}.
+                  العطل المدرسية تبقى أياماً غير متاحة دائماً.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-4 text-sm font-bold text-slate-800">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name={`term-test-scheduling-${academicYearId}`}
+                      checked={schedulePeDuringTermTests}
+                      onChange={() => void changeTermTestPreference(true)}
+                    />
+                    نعم، تستمر الحصص
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name={`term-test-scheduling-${academicYearId}`}
+                      checked={!schedulePeDuringTermTests}
+                      onChange={() => void changeTermTestPreference(false)}
+                    />
+                    لا، تتوقف الحصص خلال الاختبارات
+                  </label>
+                </div>
+              </fieldset>
+              <p aria-live="polite" className="mt-2 text-xs font-semibold text-slate-700">
+                {calendarPreferenceLoading
+                  ? 'جارٍ تحميل إعداد هذه السنة…'
+                  : calendarPreferenceSaving
+                    ? 'جارٍ حفظ الإعداد…'
+                    : calendarPreferenceSaved
+                      ? 'حُفظ الإعداد. سيُستخدم عند إعادة بناء التوزيع السنوي يدويًا؛ ولن تتغير الحصص المحفوظة تلقائيًا.'
+                      : 'يُطبق الاختيار عند إعادة بناء التوزيع السنوي يدويًا، ولا يغيّر التوزيعات والحصص الموجودة تلقائيًا.'}
+              </p>
+            </section>
+          )}
+          <AnnualDistributionCalendar
+            currentUser={currentUser}
+            selectedLevelId={selectedLevelId}
+            academicYearId={academicYearId}
+            planningStartDate={planningStartDate}
+            loading={loading}
+            error={error}
+            annualGeneration={annualGeneration}
+            onLevelChange={changeLevel}
+            onPlanningStartDateChange={setPlanningStartDate}
+            onInitialize={() => void initialize()}
+            onNavigateToCalendar={() => changeSection('calendar')}
+          />
+        </>
       )}
 
       {section === 'calendar' && (

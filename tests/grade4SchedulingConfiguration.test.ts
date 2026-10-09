@@ -145,13 +145,13 @@ describe('MEMO-G3A Grade 4 scheduling foundation', () => {
     expect(resolveGrade4WeeklyScheduleMode(null)).toBe('ONE_90');
     expect(resolveGrade4WeeklyScheduleMode(undefined)).toBe('ONE_90');
     expect(resolveGrade4WeeklyScheduleMode('ONE_90')).toBe('ONE_90');
-    expect(resolveGrade4WeeklyScheduleMode('TWO_45')).toBe('TWO_45');
+    expect(resolveGrade4WeeklyScheduleMode('TWO_45')).toBe('ONE_90');
   });
 
   it('resolves actual session duration before configuration, then applies Grade 4 mode', () => {
     expect(
       resolveOperationalLessonDuration({ gradeId: 'lvl_p4', classPlanningMode: 'TWO_45' })
-    ).toBe(45);
+    ).toBe(90);
     expect(
       resolveOperationalLessonDuration({ gradeId: 'lvl_p4', classPlanningMode: 'ONE_90' })
     ).toBe(90);
@@ -175,8 +175,8 @@ describe('MEMO-G3A Grade 4 scheduling foundation', () => {
     }
   });
 
-  it('uses the mode-aware duration in the lesson generator and keeps Grade 5 at 60', () => {
-    expect(lessonDurationForLevel('السنة الرابعة ابتدائي', 'TWO_45')).toBe(45);
+  it('uses the authoritative Grade 4 duration and keeps Grade 5 at 60', () => {
+    expect(lessonDurationForLevel('السنة الرابعة ابتدائي', 'TWO_45')).toBe(90);
     expect(lessonDurationForLevel('السنة الرابعة ابتدائي', 'ONE_90')).toBe(90);
     expect(lessonDurationForLevel('السنة الرابعة ابتدائي')).toBe(90);
     expect(lessonDurationForLevel('السنة الخامسة ابتدائي')).toBe(60);

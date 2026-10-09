@@ -59,7 +59,7 @@ describe('daily flow acknowledged status mutation contract', () => {
     const planning = read('src/services/teacherPlanning.service.ts');
     const notebook = read('src/services/dailyNotebook.service.ts');
 
-    expect(timing).toContain("input.classPlanningMode === 'TWO_45' ? 45 : 90");
+    expect(timing).toContain('if (grade === 4) return 90;');
     expect(timing).toContain('if (grade === 5) return 60;');
     expect(planning).toContain('const sessionsPerWeek = planningSessionsPerWeek');
     expect(planning).toContain('grade4WeeklyScheduleMode');

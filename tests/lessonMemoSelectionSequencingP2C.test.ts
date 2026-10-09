@@ -138,11 +138,11 @@ describe('MEMO-DEEP-CLEAN-P2C characterization', () => {
       grade4WeeklyScheduleMode: 'ONE_90',
       situations: [],
     });
-    expect(two45.durationMinutes).toBe(45);
+    expect(two45.durationMinutes).toBe(90);
     expect(phaseTotals(two45)).toEqual({
-      'المرحلة التحضيرية': 10,
-      'المرحلة الرئيسية': 30,
-      'المرحلة الختامية': 5,
+      'المرحلة التحضيرية': 15,
+      'المرحلة الرئيسية': 65,
+      'المرحلة الختامية': 10,
     });
     expect(one90.durationMinutes).toBe(90);
     expect(phaseTotals(one90)).toEqual({

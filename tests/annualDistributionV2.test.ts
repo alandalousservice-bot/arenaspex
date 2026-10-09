@@ -74,15 +74,15 @@ describe('academic-year annual distribution generation v2', () => {
     ).toBe(true);
   });
 
-  it('preserves the existing weekly and paired-session cadence from the selected anchor', () => {
+  it('schedules one annual reference lesson per week from the selected anchor', () => {
     const result = generateAllPrimaryLevelDistributions('2026-2027', '2026-09-21');
     const gradeOne = result.levels.find((level) => level.levelId === 'lvl_p1')!;
     const gradeFour = result.levels.find((level) => level.levelId === 'lvl_p4')!;
 
     expect(gradeOne.sessions.slice(0, 3).map((session) => session.plannedDate)).toEqual([
       '2026-09-27',
-      '2026-09-29',
       '2026-10-04',
+      '2026-10-11',
     ]);
     expect(gradeFour.sessions[0].plannedDate).toBe('2026-09-27');
   });
@@ -110,7 +110,7 @@ describe('academic-year annual distribution generation v2', () => {
   it('skips a selected start date only when the academic calendar excludes it', () => {
     const result = generateAllPrimaryLevelDistributions('2026-2027', '2026-10-29');
 
-    expect(result.levels.every((level) => level.firstSessionDate === '2026-11-09')).toBe(true);
+    expect(result.levels.every((level) => level.firstSessionDate === '2026-11-02')).toBe(true);
   });
 
   it('ignores legacy date overrides when building weekly pedagogical units', () => {
@@ -165,9 +165,9 @@ describe('academic-year annual distribution generation v2', () => {
       gradeFour.sessions
     );
 
-    expect(classA).toHaveLength(54);
-    expect(classB).toHaveLength(54);
-    expect(classC).toHaveLength(48);
+    expect(classA).toHaveLength(33);
+    expect(classB).toHaveLength(33);
+    expect(classC).toHaveLength(30);
     expect(classA.every((session) => session.classId === 'class-2a')).toBe(true);
     expect(classB.every((session) => session.classId === 'class-2b')).toBe(true);
     expect(classA.map((session) => session.referenceSessionId)).toEqual(
@@ -198,6 +198,7 @@ describe('academic-year annual distribution generation v2', () => {
       router.indexOf("'/teacher/planning/annual-distribution/initialize'"),
       router.indexOf("'/teacher/planning/classes/:classId/sessions/initialize'")
     );
+    const normalizedGlobalRoute = globalRoute.replace(/\s+/g, ' ');
     expect(router).toContain("'/teacher/planning/annual-distribution/initialize'");
     expect(globalRoute).toContain(
       'classLinkViews(classes, generation.levels, distributionsByClass)'
@@ -209,7 +210,7 @@ describe('academic-year annual distribution generation v2', () => {
     expect(globalRoute).toContain(
       'level-owned Annual Distribution is independent from class timing'
     );
-    expect(globalRoute).toContain("status: materializationErrors.length ? 'partial'");
+    expect(normalizedGlobalRoute).toContain("status: materializationErrors.length ? 'partial'");
     expect(globalRoute).toContain('missingTimetableClasses: materializationErrors');
     expect(router).toContain("'/teacher/planning/annual-distribution'");
     expect(router).toContain('ANNUAL_DISTRIBUTION_KIND');
@@ -217,6 +218,7 @@ describe('academic-year annual distribution generation v2', () => {
 
   it('preserves safe regeneration and completed-session protection contracts', () => {
     const router = fs.readFileSync('src/server/apiRouter.ts', 'utf8');
+    const normalizedRouter = router.replace(/\s+/g, ' ');
     expect(router).toContain('decideClassSessionRebuild');
     expect(router).toContain('executionDependencyIds');
     expect(router).toContain('preLaunchRebuild');
@@ -232,10 +234,10 @@ describe('academic-year annual distribution generation v2', () => {
     expect(router).toContain('prisma.classPlannedSession.delete({ where: { id: row.id } })');
     expect(router).not.toContain('classPlannedSession.deleteMany');
     expect(router).toContain('sessionsRemovedOrRetired');
-    expect(router).toContain(
+    expect(normalizedRouter).toContain(
       "status: preLaunchRebuild && allOperations.length ? 'partial' : 'blocked'"
     );
-    expect(router).toContain("allOperations.length ? 'rebuilt' : 'unchanged'");
+    expect(normalizedRouter).toContain("allOperations.length ? 'rebuilt' : 'unchanged'");
     expect(router).toContain('missingTimetableClasses');
     expect(router).toContain('orphaned-generated-session');
   });

@@ -74,9 +74,9 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
         ['lvl_p3', customP3],
       ])
     );
-    expect(p1.sessions.filter((session) => session.domainId === 'f_locomotion')).toHaveLength(20);
-    expect(p2.sessions.filter((session) => session.domainId === 'f_locomotion')).toHaveLength(20);
-    expect(p3.sessions.filter((session) => session.domainId === 'f_locomotion')).toHaveLength(18);
+    expect(p1.sessions.filter((session) => session.domainId === 'f_locomotion')).toHaveLength(12);
+    expect(p2.sessions.filter((session) => session.domainId === 'f_locomotion')).toHaveLength(12);
+    expect(p3.sessions.filter((session) => session.domainId === 'f_locomotion')).toHaveLength(11);
     expect(
       customGeneration.levels
         .slice(0, 3)
@@ -85,7 +85,7 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
             total + level.sessions.filter((session) => session.domainId === 'f_locomotion').length,
           0
         )
-    ).toBe(58);
+    ).toBe(35);
   });
 
   it('uses one meeting per objective for Grade 5', () => {
@@ -205,10 +205,10 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
     );
     expect(
       yearA.levels[0].sessions.filter((session) => session.domainId === 'f_locomotion')
-    ).toHaveLength(20);
+    ).toHaveLength(12);
     expect(
       yearB.levels[0].sessions.filter((session) => session.domainId === 'f_locomotion')
-    ).toHaveLength(24);
+    ).toHaveLength(14);
     const levels = generateAllPrimaryLevelDistributions(
       '2026-2027',
       '2026-09-21',
@@ -219,10 +219,10 @@ describe('dynamic Teacher Learning Plan annual distribution', () => {
     );
     expect(
       levels.levels[0].sessions.filter((session) => session.domainId === 'f_locomotion')
-    ).toHaveLength(20);
+    ).toHaveLength(12);
     expect(
       levels.levels[1].sessions.filter((session) => session.domainId === 'f_locomotion')
-    ).toHaveLength(24);
+    ).toHaveLength(14);
     expect(seedTeacherLearningPlan('lvl_p1').domains[0].objectives).toHaveLength(7);
   });
 

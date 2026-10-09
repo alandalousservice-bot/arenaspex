@@ -87,12 +87,9 @@ const typeTone = (slot: TeacherAnnualDistributionWeeklySlot) => {
 
 export function annualDistributionMeetingLabel(
   unit: TeacherAnnualDistributionPedagogicalUnit,
-  learningUnitNumber?: number
+  _learningUnitNumber?: number
 ): string {
   if (unit.fieldId === 'intro') return 'حصة تعارف وتنظيم';
-  if (unit.meetingCount === 2 && learningUnitNumber) {
-    return `حصة تعلمية ${learningUnitNumber} (أ - ب)`;
-  }
   return unit.sessionTypeLabel;
 }
 
@@ -144,22 +141,7 @@ export function annualDistributionWeekDateRange(
 }
 
 export function annualDistributionWeekTypeLabel(week: TeacherAnnualDistributionWeek): string {
-  const labels: string[] = [];
-  for (let index = 0; index < week.slots.length; index += 1) {
-    const slot = week.slots[index];
-    const next = week.slots[index + 1];
-    if (
-      slot.meetingIndex === 1 &&
-      next?.meetingIndex === 2 &&
-      slot.sourceUnitReferenceSessionId === next.sourceUnitReferenceSessionId
-    ) {
-      labels.push(`${slot.sessionTypeLabel} (أ - ب)`);
-      index += 1;
-      continue;
-    }
-    labels.push(slot.displayLabel);
-  }
-  return labels.join(' - ');
+  return week.slots.map((slot) => slot.displayLabel).join(' - ');
 }
 
 export function annualDistributionWeekFieldLabel(week: TeacherAnnualDistributionWeek): string {
@@ -286,7 +268,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
               className="workspace-button-primary flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RefreshCw className="h-4 w-4" />
-              {annualGeneration ? 'إعادة بناء التوزيع' : 'إنشاء التوزيع السنوي'}
+              توليد التوزيع السنوي
             </button>
             <button
               type="button"
@@ -337,13 +319,7 @@ export const AnnualDistributionCalendar: React.FC<AnnualDistributionCalendarProp
                 بيداغوجية · {selectedLevel.learningUnitCount} حصة تعلمية ·{' '}
                 {selectedLevel.meetingCount} لقاءً تشغيلياً متوقعاً
                 {selectedLevel.grade4WeeklyScheduleMode && (
-                  <>
-                    {' '}
-                    · نمط السنة الرابعة:{' '}
-                    {selectedLevel.grade4WeeklyScheduleMode === 'TWO_45'
-                      ? 'حصتان من 45 دقيقة'
-                      : 'حصة واحدة من 90 دقيقة'}
-                  </>
+                  <> · السنة الرابعة: حصة أسبوعية واحدة من 90 دقيقة</>
                 )}
               </p>
             </div>

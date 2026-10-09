@@ -147,7 +147,7 @@ describe('MEMO-DEEP-CLEAN-P1', () => {
     expect(snapshotIds(plan)).toContain('learning-direct');
     expect(snapshotIds(plan)).not.toContain('learning-assessment');
 
-    expect(resolveGrade4WeeklyScheduleMode('TWO_45')).toBe('TWO_45');
+    expect(resolveGrade4WeeklyScheduleMode('TWO_45')).toBe('ONE_90');
     expect(resolveGrade4WeeklyScheduleMode('ONE_90')).toBe('ONE_90');
     expect(resolveGrade4WeeklyScheduleMode(null)).toBe('ONE_90');
     expect(
@@ -157,7 +157,7 @@ describe('MEMO-DEEP-CLEAN-P1', () => {
         grade4WeeklyScheduleMode: 'TWO_45',
         situations: [],
       }).durationMinutes
-    ).toBe(45);
+    ).toBe(90);
     expect(
       autoGenerateLessonPlan(learningSource, {
         teacher,

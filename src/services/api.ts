@@ -782,6 +782,36 @@ export interface ClassPlanningConfigurationResponse {
   explicitlySelected: boolean;
 }
 
+export interface TeacherAcademicCalendarPreferenceResponse {
+  success: boolean;
+  academicYearId: string;
+  schedulePeDuringTermTests: boolean;
+}
+
+export async function fetchTeacherAcademicCalendarPreference(
+  academicYearId: string
+): Promise<TeacherAcademicCalendarPreferenceResponse> {
+  const query = new URLSearchParams({ academicYearId });
+  const res = await fetch(`/api/teacher/planning/calendar-preference?${query.toString()}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر تحميل إعداد الاختبارات الفصلية.');
+  return data as TeacherAcademicCalendarPreferenceResponse;
+}
+
+export async function updateTeacherAcademicCalendarPreference(
+  academicYearId: string,
+  schedulePeDuringTermTests: boolean
+): Promise<TeacherAcademicCalendarPreferenceResponse> {
+  const res = await fetch('/api/teacher/planning/calendar-preference', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ academicYearId, schedulePeDuringTermTests }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'تعذر حفظ إعداد الاختبارات الفصلية.');
+  return { success: data.success, academicYearId, schedulePeDuringTermTests };
+}
+
 export async function fetchClassPlanningConfiguration(
   classId: string,
   academicYearId: string
@@ -1810,7 +1840,8 @@ export type UserSaveResult = { success: boolean; user?: User; error?: string; re
 export async function syncUserToDB(user: User): Promise<UserSaveResult> {
   const result = await offlinePost<{ user?: User }>('/api/db/users', { user }, 'POST');
   if (!result.success) return { success: false, error: result.error, retryable: result.retryable };
-  if (!result.data?.user) return { success: false, error: 'تعذر تأكيد حفظ التغييرات. أعد المحاولة.' };
+  if (!result.data?.user)
+    return { success: false, error: 'تعذر تأكيد حفظ التغييرات. أعد المحاولة.' };
   return { success: true, user: result.data.user };
 }
 
@@ -2135,8 +2166,11 @@ export async function fetchInspectorWeeklyTimetable(teacherId: string, academicY
   );
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'تعذر تحميل التوقيت الأسبوعي للأستاذ.');
-  return { teacher: data.teacher, slots: Array.isArray(data.slots) ? data.slots : [],
-    academicYears: Array.isArray(data.academicYears) ? data.academicYears as string[] : [] };
+  return {
+    teacher: data.teacher,
+    slots: Array.isArray(data.slots) ? data.slots : [],
+    academicYears: Array.isArray(data.academicYears) ? (data.academicYears as string[]) : [],
+  };
 }
 
 export async function saveTeacherWeeklySlot(slot: unknown) {

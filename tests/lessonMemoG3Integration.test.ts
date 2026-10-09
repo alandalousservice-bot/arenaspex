@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildClassPlannedSessionSeedsFromCanonicalSessions,
   canonicalPlanningSessions,
+  generateAllPrimaryLevelDistributions,
   materializeClassPlannedSessionSeedsFromTimetable,
 } from '../src/services/teacherPlanning.service';
 import {
@@ -80,8 +81,10 @@ function source(
 }
 
 describe('MEMO-G3B planned session integration', () => {
-  it('materializes Grade 4 as two 45-minute sessions or one 90-minute session', () => {
-    const canonical = canonicalPlanningSessions('lvl_p4', '2025-09-21', '2025-2026');
+  it('materializes Grade 4 as one authoritative 90-minute weekly lesson', () => {
+    const canonical = generateAllPrimaryLevelDistributions('2025-2026', '2025-09-21').levels.find(
+      (level) => level.levelId === 'lvl_p4'
+    )!.sessions;
     const two45 = materializeClassPlannedSessionSeedsFromTimetable(
       'teacher',
       'class-two45',
@@ -105,9 +108,9 @@ describe('MEMO-G3B planned session integration', () => {
       (seed) => !seed.referenceSessionId.includes(':intro:')
     );
 
-    expect(two45Learning).toHaveLength(48);
-    expect(new Set(two45Learning.map((seed) => seed.referenceSessionId)).size).toBe(48);
-    expect(two45Learning.every((seed) => seed.durationMinutes === 45)).toBe(true);
+    expect(two45Learning).toHaveLength(30);
+    expect(new Set(two45Learning.map((seed) => seed.referenceSessionId)).size).toBe(30);
+    expect(two45Learning.every((seed) => seed.durationMinutes === 90)).toBe(true);
     expect(one90Learning).toHaveLength(30);
     expect(new Set(one90Learning.map((seed) => seed.referenceSessionId)).size).toBe(30);
     expect(one90Learning.every((seed) => seed.durationMinutes === 90)).toBe(true);

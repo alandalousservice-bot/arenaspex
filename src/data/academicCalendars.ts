@@ -17,11 +17,17 @@ export interface AcademicCalendarEvent {
   status?: AcademicCalendarEventStatus;
 }
 
+export interface AcademicTermTestPeriod {
+  name: string;
+  dates: string[];
+}
+
 export interface AcademicCalendar {
   academicYearId: string;
   schoolStart: string;
   schoolEnd: string | null;
   events: AcademicCalendarEvent[];
+  termTestPeriods?: AcademicTermTestPeriod[];
   source: string;
   complete: boolean;
 }
@@ -88,8 +94,22 @@ export const ALGERIAN_ACADEMIC_CALENDARS: Record<string, AcademicCalendar> = {
     academicYearId: '2026-2027',
     schoolStart: '2026-09-21',
     schoolEnd: null,
-    source: 'وزارة التربية الوطنية — البلاغ المحين لرزنامة الدخول المدرسي 2026-2027',
+    source: 'وزارة التربية الوطنية — رزنامة التعليم الابتدائي للسنة الدراسية 2026-2027',
     complete: false,
+    termTestPeriods: [
+      {
+        name: 'اختبارات الفصل الأول',
+        dates: ['2026-12-06', '2026-12-07', '2026-12-08', '2026-12-09', '2026-12-10'],
+      },
+      {
+        name: 'اختبارات الفصل الثاني',
+        dates: ['2027-03-02', '2027-03-03', '2027-03-04', '2027-03-07', '2027-03-08'],
+      },
+      {
+        name: 'اختبارات الفصل الثالث',
+        dates: ['2027-05-23', '2027-05-24', '2027-05-25', '2027-05-26', '2027-05-27'],
+      },
+    ],
     events: [
       {
         name: 'الدخول المدرسي للتلاميذ',
@@ -101,10 +121,10 @@ export const ALGERIAN_ACADEMIC_CALENDARS: Record<string, AcademicCalendar> = {
       },
       {
         name: 'عطلة الخريف',
-        startDate: '2026-10-29',
-        endDate: '2026-11-08',
+        startDate: '2026-10-28',
+        endDate: '2026-11-01',
         type: 'SCHOOL_VACATION',
-        status: 'PROVISIONAL',
+        status: 'CONFIRMED',
       },
       {
         name: 'ذكرى اندلاع الثورة التحريرية',
@@ -115,10 +135,10 @@ export const ALGERIAN_ACADEMIC_CALENDARS: Record<string, AcademicCalendar> = {
       },
       {
         name: 'عطلة الشتاء',
-        startDate: '2026-12-24',
-        endDate: '2027-01-03',
+        startDate: '2026-12-18',
+        endDate: '2027-01-02',
         type: 'SCHOOL_VACATION',
-        status: 'PROVISIONAL',
+        status: 'CONFIRMED',
       },
       {
         name: 'رأس السنة الميلادية',
@@ -144,16 +164,17 @@ export const ALGERIAN_ACADEMIC_CALENDARS: Record<string, AcademicCalendar> = {
       },
       {
         name: 'عطلة الربيع',
-        startDate: '2027-03-25',
-        endDate: '2027-04-04',
+        startDate: '2027-03-19',
+        endDate: '2027-04-03',
         type: 'SCHOOL_VACATION',
-        status: 'PROVISIONAL',
+        status: 'CONFIRMED',
       },
       {
         name: 'عيد الفطر المبارك',
         startDate: '2027-03-08',
         endDate: '2027-03-10',
         type: 'RELIGIOUS_HOLIDAY',
+        blocksTeaching: false,
         status: 'PROVISIONAL',
       },
       {
@@ -168,6 +189,7 @@ export const ALGERIAN_ACADEMIC_CALENDARS: Record<string, AcademicCalendar> = {
         startDate: '2027-05-16',
         endDate: '2027-05-18',
         type: 'RELIGIOUS_HOLIDAY',
+        blocksTeaching: false,
         status: 'PROVISIONAL',
       },
       {
@@ -226,6 +248,15 @@ export function calendarEventForDate(
   );
 }
 
+export function isAcademicTermTestDate(value: string, academicYearId: string): boolean {
+  const day = value.slice(0, 10);
+  return Boolean(
+    getAcademicCalendar(academicYearId).termTestPeriods?.some((period) =>
+      period.dates.includes(day)
+    )
+  );
+}
+
 export function getCalendarEventsForDisplay(academicYearId: string): AcademicCalendarEvent[] {
   const calendar = getAcademicCalendar(academicYearId);
   const blockingEvents = calendar.events.filter((event) => event.blocksTeaching !== false);
@@ -241,7 +272,8 @@ export function getCalendarEventsForDisplay(academicYearId: string): AcademicCal
 
 export function isValidAcademicSchoolDate(
   value: string,
-  academicYearId = academicYearForDate(value)
+  academicYearId = academicYearForDate(value),
+  schedulePeDuringTermTests = true
 ) {
   const calendar = getAcademicCalendar(academicYearId);
   const date = new Date(`${value.slice(0, 10)}T00:00:00`);
@@ -249,5 +281,6 @@ export function isValidAcademicSchoolDate(
   if (value < calendar.schoolStart || (calendar.schoolEnd && value > calendar.schoolEnd))
     return false;
   if (date.getDay() > 4) return false;
+  if (!schedulePeDuringTermTests && isAcademicTermTestDate(value, academicYearId)) return false;
   return !calendarEventForDate(value, academicYearId);
 }

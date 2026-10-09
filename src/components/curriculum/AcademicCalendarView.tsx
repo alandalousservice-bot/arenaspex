@@ -7,9 +7,10 @@ import {
 } from '../../data/academicCalendars';
 
 export interface AcademicCalendarSlide {
-  id: 'vacations' | 'national' | 'religious' | 'chronology';
+  id: 'vacations' | 'tests' | 'national' | 'religious' | 'chronology';
   title: string;
   events: AcademicCalendarEvent[];
+  termTestPeriods?: Array<{ name: string; dates: string[] }>;
 }
 
 export function buildAcademicCalendarSlides(academicYearId: string): AcademicCalendarSlide[] {
@@ -20,6 +21,16 @@ export function buildAcademicCalendarSlides(academicYearId: string): AcademicCal
       title: 'العطل المدرسية',
       events: events.filter((event) => event.type === 'SCHOOL_VACATION'),
     },
+    ...(getAcademicCalendar(academicYearId).termTestPeriods?.length
+      ? [
+          {
+            id: 'tests' as const,
+            title: 'الاختبارات الفصلية',
+            events: [],
+            termTestPeriods: getAcademicCalendar(academicYearId).termTestPeriods,
+          },
+        ]
+      : []),
     {
       id: 'national',
       title: 'الأعياد الوطنية والمدنية',
@@ -86,6 +97,30 @@ function statusTone(event: AcademicCalendarEvent): string {
 }
 
 function CalendarTable({ slide }: { slide: AcademicCalendarSlide }) {
+  if (slide.id === 'tests') {
+    return (
+      <div className="overflow-x-auto rounded-2xl border border-slate-200">
+        <table className="w-full min-w-[520px] text-right text-sm">
+          <thead className="bg-indigo-950 text-white">
+            <tr>
+              <th className="p-3">فترة الاختبارات</th>
+              <th className="p-3">التواريخ المعتمدة</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 bg-white">
+            {slide.termTestPeriods?.map((period) => (
+              <tr key={period.name} className="bg-indigo-50/70">
+                <td className="p-3 font-extrabold text-slate-900">{period.name}</td>
+                <td className="p-3 font-semibold text-slate-700">
+                  {period.dates.map(formatDate).join('، ')}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
   const chronology = slide.id === 'chronology';
   const national = slide.id === 'national';
   return (
@@ -192,10 +227,11 @@ export const AcademicCalendarView: React.FC<AcademicCalendarViewProps> = ({
               <CalendarDays className="h-6 w-6 text-blue-600" /> رزنامة العطل والأعياد
             </h2>
             <p className="mt-2 text-sm text-slate-500">
-              العطل المدرسية والأعياد القانونية المعتمدة في تنظيم التوزيع السنوي
+              العطل المدرسية أيام غير متاحة دائماً، وتظهر الاختبارات الفصلية في قسم مستقل
             </p>
             <p className="mt-2 text-xs font-semibold text-slate-500">
-              تُستثنى الأيام غير الدراسية تلقائياً عند إنشاء التوزيع السنوي
+              يمكن للأستاذ تحديد برمجة حصص التربية البدنية أثناء الاختبارات من إعدادات التوزيع
+              السنوي
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -276,7 +312,8 @@ export const AcademicCalendarView: React.FC<AcademicCalendarViewProps> = ({
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-lg font-extrabold text-slate-900">{slide.title}</h3>
                 <span className="text-xs font-bold text-slate-400">
-                  {slide.events.length} عناصر
+                  {slide.id === 'tests' ? slide.termTestPeriods?.length || 0 : slide.events.length}{' '}
+                  عناصر
                 </span>
               </div>
               <CalendarTable slide={slide} />

@@ -39,7 +39,7 @@ export async function setGrade4WeeklyScheduleMode(
 }
 
 export function resolveGrade4WeeklyScheduleMode(
-  mode: Grade4WeeklyScheduleMode | null | undefined
+  _mode: Grade4WeeklyScheduleMode | null | undefined
 ): Grade4WeeklyScheduleMode {
-  return mode === 'TWO_45' ? 'TWO_45' : legacyGrade4WeeklyScheduleMode;
+  return legacyGrade4WeeklyScheduleMode;
 }

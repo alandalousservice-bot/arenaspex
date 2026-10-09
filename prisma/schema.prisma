@@ -143,6 +143,7 @@ model User {
   attendanceRecords       StudentAttendance[]      @relation("TeacherAttendance")
   medicalExemptions       MedicalExemption[]       @relation("TeacherMedicalExemptions")
   weeklySlots             TeacherWeeklySlot[]
+  academicCalendarPreferences TeacherAcademicCalendarPreference[]
 
   // نظام الإسناد التلقائي للأساتذة إلى المفتشين
   teacherAssignment          InspectorAssignment?               @relation("TeacherAssignment")
@@ -218,6 +219,20 @@ model ClassPlanningConfiguration {
   class StudentClass @relation(fields: [classId], references: [id], onDelete: Cascade)
 
   @@unique([classId, academicYearId])
+  @@index([academicYearId])
+}
+
+model TeacherAcademicCalendarPreference {
+  id                        String   @id @default(cuid())
+  teacherId                 String
+  academicYearId            String
+  schedulePeDuringTermTests Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  teacher User @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, academicYearId])
   @@index([academicYearId])
 }
 

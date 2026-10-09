@@ -185,6 +185,198 @@ describe.skipIf(!url)('Weekly timetable real local PostgreSQL ownership and supe
     expect((await request('A', view())).data.slots[0]).toMatchObject({ id, startTime: '10:00' });
     expect(await db.teacherWeeklySlot.count()).toBe(1);
   });
+  it('persists term-test scheduling preferences independently per teacher and year', async () => {
+    const endpoint = '/teacher/planning/calendar-preference';
+    const completedDate = new Date('2026-12-06T00:00:00.000Z');
+    await db.annualPlan.create({
+      data: {
+        id: 'saved-annual-distribution',
+        teacherId: 'T',
+        academicYearId: '2026-2027',
+        levelId: 'lvl_p3',
+        kind: 'schedule',
+        data: { note: 'saved distribution', overrides: { session1: { date: '2026-12-06' } } },
+      },
+    });
+    await db.classPlannedSession.create({
+      data: {
+        id: 'completed-test-period-session',
+        teacherId: 'T',
+        classId: 'group',
+        academicYearId: '2026-2027',
+        referenceSessionId: 'stored-reference',
+        plannedDate: completedDate,
+        durationMinutes: 45,
+        status: 'منجزة',
+        operationalNote: 'protected history',
+      },
+    });
+    expect((await request('T', `${endpoint}?academicYearId=2026-2027`)).data).toMatchObject({
+      schedulePeDuringTermTests: true,
+    });
+    expect(
+      (
+        await request('T', endpoint, 'PUT', {
+          academicYearId: '2026-2027',
+          schedulePeDuringTermTests: false,
+        })
+      ).status
+    ).toBe(200);
+    expect((await request('T', `${endpoint}?academicYearId=2026-2027`)).data).toMatchObject({
+      schedulePeDuringTermTests: false,
+    });
+    expect((await request('T2', `${endpoint}?academicYearId=2026-2027`)).data).toMatchObject({
+      schedulePeDuringTermTests: true,
+    });
+    expect((await request('T', `${endpoint}?academicYearId=2027-2028`)).data).toMatchObject({
+      schedulePeDuringTermTests: true,
+    });
+    expect(await db.teacherAcademicCalendarPreference.count()).toBe(1);
+    expect(
+      await db.annualPlan.findUniqueOrThrow({ where: { id: 'saved-annual-distribution' } })
+    ).toMatchObject({
+      data: { note: 'saved distribution', overrides: { session1: { date: '2026-12-06' } } },
+    });
+    expect(
+      await db.classPlannedSession.findUniqueOrThrow({
+        where: { id: 'completed-test-period-session' },
+      })
+    ).toMatchObject({
+      plannedDate: completedDate,
+      status: 'منجزة',
+      operationalNote: 'protected history',
+    });
+  });
+  it('generates all five reference levels for zero-class and Year-2-only teachers', async () => {
+    const createTeacher = async (id: string) =>
+      db.user.create({
+        data: {
+          id,
+          username: id,
+          spexId: id,
+          firstName: id,
+          lastName: 'Synthetic',
+          email: `${id}@example.test`,
+          passwordHash: 'synthetic',
+          role: 'teacher',
+          status: 'active',
+          isApprovedByAdmin: true,
+          accessExpiresAt: new Date('2099-07-31'),
+          directorateId: '',
+          districtId: '',
+          eduDirectorateId: null,
+          eduDistrictId: null,
+        },
+      });
+    await createTeacher('zero-class-teacher');
+    await createTeacher('year2-only-teacher');
+    await db.studentClass.create({
+      data: {
+        id: 'real-year2-class',
+        teacherId: 'year2-only-teacher',
+        name: 'قسم السنة الثانية الحقيقي',
+        levelId: 'lvl_p2',
+      },
+    });
+    await db.teacherWeeklySlot.create({
+      data: {
+        id: 'real-year2-monday-slot',
+        teacherId: 'year2-only-teacher',
+        classId: 'real-year2-class',
+        academicYearId: '2026-2027',
+        weekday: 1,
+        startTime: '08:00',
+        endTime: '09:00',
+      },
+    });
+    const editedData = {
+      note: 'teacher manual note',
+      overrides: { f_locomotion__1: { objective: 'teacher-edited objective' } },
+    };
+    await db.annualPlan.create({
+      data: {
+        id: 'manual-zero-plan',
+        teacherId: 'zero-class-teacher',
+        academicYearId: '2026-2027',
+        levelId: 'lvl_p1',
+        kind: 'annual_distribution',
+        status: 'approved',
+        data: editedData,
+      },
+    });
+
+    const generate = (teacherId: string) =>
+      request(teacherId, '/teacher/planning/annual-distribution/initialize', 'POST', {
+        academicYearId: '2026-2027',
+        planningStartDate: '2026-09-21',
+      });
+    const zeroResult = await generate('zero-class-teacher');
+    expect(zeroResult.status).toBe(201);
+    expect(zeroResult.data.levels.map((level: { levelId: string }) => level.levelId)).toEqual([
+      'lvl_p1',
+      'lvl_p2',
+      'lvl_p3',
+      'lvl_p4',
+      'lvl_p5',
+    ]);
+    const zeroPlans = await db.annualPlan.findMany({
+      where: { teacherId: 'zero-class-teacher', academicYearId: '2026-2027' },
+    });
+    expect(zeroPlans).toHaveLength(5);
+    expect(await db.studentClass.count({ where: { teacherId: 'zero-class-teacher' } })).toBe(0);
+    expect(await db.student.count()).toBe(0);
+    expect(await db.classPlannedSession.count({ where: { teacherId: 'zero-class-teacher' } })).toBe(
+      0
+    );
+    expect(
+      await db.annualPlan.findUniqueOrThrow({ where: { id: 'manual-zero-plan' } })
+    ).toMatchObject({ data: { overrides: editedData.overrides } });
+
+    const repeated = await generate('zero-class-teacher');
+    expect(repeated.status).toBe(201);
+    expect(
+      await db.annualPlan.count({
+        where: { teacherId: 'zero-class-teacher', academicYearId: '2026-2027' },
+      })
+    ).toBe(5);
+    expect(await db.classPlannedSession.count({ where: { teacherId: 'zero-class-teacher' } })).toBe(
+      0
+    );
+
+    const partialResult = await generate('year2-only-teacher');
+    expect(partialResult.status).toBe(201);
+    expect(partialResult.data.levels.map((level: { levelId: string }) => level.levelId)).toEqual([
+      'lvl_p1',
+      'lvl_p2',
+      'lvl_p3',
+      'lvl_p4',
+      'lvl_p5',
+    ]);
+    expect(
+      await db.annualPlan.count({
+        where: { teacherId: 'year2-only-teacher', academicYearId: '2026-2027' },
+      })
+    ).toBe(5);
+    const realClassSessions = await db.classPlannedSession.findMany({
+      where: { teacherId: 'year2-only-teacher', academicYearId: '2026-2027' },
+    });
+    expect(realClassSessions).toHaveLength(34);
+    expect(realClassSessions.every((session) => session.classId === 'real-year2-class')).toBe(true);
+    expect(realClassSessions.every((session) => session.durationMinutes === 60)).toBe(true);
+    expect(
+      new Set(realClassSessions.map((session) => session.plannedDate.toISOString().slice(0, 10)))
+        .size
+    ).toBe(34);
+    expect(await db.student.count()).toBe(0);
+    expect(
+      (
+        await request('A', '/teacher/planning/annual-distribution/initialize', 'POST', {
+          academicYearId: '2026-2027',
+          planningStartDate: '2026-09-21',
+        })
+      ).status
+    ).toBe(403);
+  });
   it('new-year creation preserves the previous year and cross-year PATCH cannot move an old slot', async () => {
     const previous = (await request('T', own, 'POST', input('2024-2025'))).data.slot;
     expect((await request('T', own, 'POST', input())).status).toBe(201);

@@ -43,7 +43,9 @@ describe('unified Teacher planning workspace', () => {
     expect(workspace).toContain('requestedLevelId');
     expect(workspace).toContain('القسم المطلوب غير موجود ضمن أقسامك.');
     expect(read('src/server/apiRouter.ts')).toContain('resolvePlanningReferences');
-    expect(read('src/server/apiRouter.ts')).toContain('اختر تاريخاً يقع في يوم دراسي');
+    expect(read('src/server/apiRouter.ts')).toContain(
+      'اختر تاريخاً دراسياً صالحاً، خارج العطل والاختبارات المستثناة في إعدادك.'
+    );
   });
 
   it('keeps annual level selection independent from class refreshes', () => {

@@ -18,6 +18,8 @@ import {
   calendarEventForDate,
   getAcademicCalendar,
   getCalendarEventsForDisplay,
+  isAcademicTermTestDate,
+  isValidAcademicSchoolDate,
 } from '../src/data/academicCalendars';
 
 describe('canonical academic year utility', () => {
@@ -108,6 +110,60 @@ describe('canonical academic year utility', () => {
     const displayEvents = getCalendarEventsForDisplay('2025-2026');
     expect(displayEvents.some((event) => event.name.includes('الفطر'))).toBe(false);
     expect(displayEvents.some((event) => event.name === 'عطلة الربيع')).toBe(true);
+  });
+
+  it('uses the supplied primary 2026-2027 holidays and discrete term-test dates', () => {
+    const calendar = getAcademicCalendar('2026-2027');
+    expect(calendar.events.filter((event) => event.type === 'SCHOOL_VACATION')).toMatchObject([
+      { name: 'عطلة الخريف', startDate: '2026-10-28', endDate: '2026-11-01' },
+      { name: 'عطلة الشتاء', startDate: '2026-12-18', endDate: '2027-01-02' },
+      { name: 'عطلة الربيع', startDate: '2027-03-19', endDate: '2027-04-03' },
+    ]);
+    expect(calendar.termTestPeriods?.map((period) => period.dates)).toEqual([
+      ['2026-12-06', '2026-12-07', '2026-12-08', '2026-12-09', '2026-12-10'],
+      ['2027-03-02', '2027-03-03', '2027-03-04', '2027-03-07', '2027-03-08'],
+      ['2027-05-23', '2027-05-24', '2027-05-25', '2027-05-26', '2027-05-27'],
+    ]);
+    expect(isAcademicTermTestDate('2027-03-05', '2026-2027')).toBe(false);
+    expect(isAcademicTermTestDate('2027-03-06', '2026-2027')).toBe(false);
+    expect(isAcademicTermTestDate('2027-03-08', '2026-2027')).toBe(true);
+  });
+
+  it('keeps tests available by default, while holidays always override the preference', () => {
+    for (const date of [
+      '2026-12-06',
+      '2026-12-07',
+      '2026-12-08',
+      '2026-12-09',
+      '2026-12-10',
+      '2027-03-02',
+      '2027-03-03',
+      '2027-03-04',
+      '2027-03-07',
+      '2027-03-08',
+      '2027-05-23',
+      '2027-05-24',
+      '2027-05-25',
+      '2027-05-26',
+      '2027-05-27',
+    ]) {
+      expect(isValidAcademicSchoolDate(date, '2026-2027')).toBe(true);
+      expect(isValidAcademicSchoolDate(date, '2026-2027', false)).toBe(false);
+    }
+    for (const date of [
+      '2026-10-28',
+      '2026-11-01',
+      '2026-12-18',
+      '2027-01-02',
+      '2027-03-19',
+      '2027-04-03',
+    ]) {
+      expect(isValidAcademicSchoolDate(date, '2026-2027')).toBe(false);
+      expect(isValidAcademicSchoolDate(date, '2026-2027', false)).toBe(false);
+    }
+    expect(isValidAcademicSchoolDate('2026-11-02', '2026-2027')).toBe(true);
+    expect(isValidAcademicSchoolDate('2027-01-03', '2026-2027')).toBe(true);
+    expect(isValidAcademicSchoolDate('2027-04-04', '2026-2027')).toBe(true);
   });
 
   it('enforces the confirmed 2026-2027 student boundary', () => {
