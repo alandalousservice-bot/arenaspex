@@ -35,7 +35,7 @@ describe('Inspector workspace information architecture', () => {
     expect(page).toContain('InspectorReportsView');
     expect(page).toContain('InspectorCurriculumAuditView');
     expect(page).toContain('InspectorBroadcastsView');
-    expect(page).toContain('<ProfessionalHub currentUser={inspector} inspectorTeacherOnly />');
+    expect(page).toContain('<ProfessionalHub currentUser={inspector} inspectorCommunication />');
     expect(page).not.toContain('<InspectorDirectChat');
     expect(read('src/App.tsx')).toContain('InspectorWorkspacePage');
   });

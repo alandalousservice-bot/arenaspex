@@ -42,9 +42,16 @@ import {
   resolveOwnerFieldValue,
 } from './collectionAuth.js';
 import {
-  canReadDistrictMessage,
   normalizeMessageText,
   requiresAcceptedInspectorAssignment,
+  canAccessDistrictCommunicationGroup,
+  canAccessInspectorsGeneralGroup,
+  canContactAuthorizedInspectorPeer,
+  canReadDistrictGroupMessage,
+  canReadInspectorsGeneralMessage,
+  effectiveInspectionDistrictId,
+  canReadGroupNotification,
+  groupNotificationRecipientIds,
 } from '../services/communicationRules.js';
 import { providerIsUsable } from './generationAccess.policy.js';
 import { academicYearAccessExpiry, currentAcademicYearId } from './accountAccess.js';
@@ -3481,6 +3488,7 @@ const communicationUserSelect = {
   eduDistrictId: true,
   eduDirectorateId: true,
   status: true,
+  isApprovedByAdmin: true,
 } as const;
 
 async function canContactUser(requesterId: string, requesterRole: string, targetId: string) {
@@ -3490,6 +3498,9 @@ async function canContactUser(requesterId: string, requesterRole: string, target
   ]);
   if (!requester || !target || target.status !== 'active' || requester.id === target.id)
     return false;
+  if (requester.role === 'inspector' && target.role === 'inspector') {
+    return canContactAuthorizedInspectorPeer(requester, target);
+  }
   if (requesterRole === 'admin' || target.role === 'admin') return true;
   if (requiresAcceptedInspectorAssignment(requester.role, target.role)) {
     return Boolean(
@@ -3523,6 +3534,98 @@ async function canContactUser(requesterId: string, requesterRole: string, target
   return Boolean(assignment);
 }
 
+type CommunicationDb = Pick<Prisma.TransactionClient, 'user'>;
+
+async function getDistrictCommunicationContext(userId: string, db: CommunicationDb = prisma) {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: communicationUserSelect,
+  });
+  if (!user || user.status !== 'active' || !user.isApprovedByAdmin) return null;
+
+  const districtId = effectiveInspectionDistrictId(user);
+  if (
+    !districtId ||
+    !canAccessDistrictCommunicationGroup({ user, districtId })
+  ) {
+    return null;
+  }
+  return { user, districtId };
+}
+
+async function districtCommunicationMemberIds(districtId: string, db: CommunicationDb = prisma) {
+  if (!districtId.trim()) return [] as string[];
+  const inspectors = await db.user.findMany({
+    where: {
+      role: 'inspector',
+      status: 'active',
+      isApprovedByAdmin: true,
+      OR: [{ districtId }, { eduDistrictId: districtId }],
+    },
+    select: communicationUserSelect,
+  });
+  const currentInspectors = inspectors.filter(
+    (inspector) => effectiveInspectionDistrictId(inspector) === districtId
+  );
+  const teachers = await db.user.findMany({
+    where: {
+      role: 'teacher',
+      status: 'active',
+      isApprovedByAdmin: true,
+      OR: [{ districtId }, { eduDistrictId: districtId }],
+    },
+    select: communicationUserSelect,
+  });
+  const currentTeachers = teachers.filter(
+    (teacher) => effectiveInspectionDistrictId(teacher) === districtId
+  );
+  return [...new Set([...currentInspectors.map((inspector) => inspector.id), ...currentTeachers.map((t) => t.id)])];
+}
+
+async function inspectorGroupMemberIds(db: CommunicationDb = prisma) {
+  const inspectors = await db.user.findMany({
+    where: { role: 'inspector', status: 'active', isApprovedByAdmin: true },
+    select: { id: true },
+  });
+  return inspectors.map((inspector) => inspector.id);
+}
+
+function groupNotificationRows(args: {
+  recipientIds: string[];
+  senderId: string;
+  messageId: string;
+  scope: 'district' | 'inspectors_general';
+  districtId?: string;
+}) {
+  return groupNotificationRecipientIds(args.recipientIds, args.senderId)
+    .map((userId) => ({
+      id: `group_notif_${args.messageId}_${userId}`,
+      userId,
+      senderId: args.senderId,
+      type: 'communication_group_message',
+      title: args.scope === 'district' ? 'رسالة جديدة في مجموعة المقاطعة' : 'رسالة جديدة في مجموعة المفتشين',
+      message: 'توجد رسالة جديدة في مجموعة التواصل المهني.',
+      read: false,
+      data: {
+        groupScope: args.scope === 'district' ? 'district' : 'inspectors_general',
+        ...(args.scope === 'district' ? { districtId: args.districtId } : {}),
+        messageId: args.messageId,
+      },
+  }));
+}
+
+async function groupMessageAuthorNames(rows: Array<{ authorId: string | null }>) {
+  const authorIds = [...new Set(rows.map((row) => row.authorId).filter((id): id is string => Boolean(id)))];
+  if (!authorIds.length) return new Map<string, string>();
+  const authors = await prisma.user.findMany({
+    where: { id: { in: authorIds } },
+    select: { id: true, firstName: true, lastName: true },
+  });
+  return new Map(
+    authors.map((author) => [author.id, `${author.firstName} ${author.lastName}`.trim()])
+  );
+}
+
 function directMessageView(row: {
   id: string;
   senderId: string | null;
@@ -3549,14 +3652,19 @@ function directMessageView(row: {
 apiRouter.get('/communication/contacts', async (req, res) => {
   const user = req.user!;
   const assignedTeachersOnly = req.query.scope === 'assigned-teachers';
-  if (assignedTeachersOnly && user.role !== 'inspector') {
+  const inspectorContacts = req.query.scope === 'inspector-contacts';
+  if ((assignedTeachersOnly || inspectorContacts) && user.role !== 'inspector') {
     return res.status(403).json({ error: 'هذا النطاق مخصص للمفتشين.' });
   }
   const candidates = await prisma.user.findMany({
     where: {
       status: 'active',
       id: { not: user.id },
-      ...(assignedTeachersOnly ? { role: 'teacher' } : {}),
+      ...(assignedTeachersOnly
+        ? { role: 'teacher' }
+        : inspectorContacts
+          ? { role: { in: ['teacher', 'inspector'] } }
+          : {}),
     },
     select: communicationUserSelect,
     orderBy: [{ role: 'asc' }, { firstName: 'asc' }],
@@ -3571,7 +3679,8 @@ apiRouter.get('/communication/contacts', async (req, res) => {
 apiRouter.get('/communication/direct-conversations', async (req, res) => {
   const user = req.user!;
   const assignedTeachersOnly = req.query.scope === 'assigned-teachers';
-  if (assignedTeachersOnly && user.role !== 'inspector') {
+  const inspectorContacts = req.query.scope === 'inspector-contacts';
+  if ((assignedTeachersOnly || inspectorContacts) && user.role !== 'inspector') {
     return res.status(403).json({ error: 'هذا النطاق مخصص للمفتشين.' });
   }
   const rows = await prisma.directMessage.findMany({
@@ -3598,7 +3707,11 @@ apiRouter.get('/communication/direct-conversations', async (req, res) => {
     where: {
       id: { in: [...grouped.keys()] },
       status: 'active',
-      ...(assignedTeachersOnly ? { role: 'teacher' } : {}),
+      ...(assignedTeachersOnly
+        ? { role: 'teacher' }
+        : inspectorContacts
+          ? { role: { in: ['teacher', 'inspector'] } }
+          : {}),
     },
     select: communicationUserSelect,
   });
@@ -3684,69 +3797,157 @@ apiRouter.post('/communication/direct-messages/:id/read', async (req, res) => {
 });
 
 apiRouter.get('/communication/district-messages', async (req, res) => {
-  const currentDistrictId =
-    req.user!.districtId ||
-    (req.user as typeof req.user & { eduDistrictId?: string }).eduDistrictId ||
-    '';
+  const context = await getDistrictCommunicationContext(req.user!.id);
+  if (!context) return res.status(403).json({ error: 'لا تملك عضوية حالية في مجموعة مقاطعة.' });
   const rows = await prisma.districtMessage.findMany({
-    orderBy: { createdAt: 'asc' },
+    where: { districtId: context.districtId },
+    orderBy: { createdAt: 'desc' },
     take: 500,
   });
-  const visible = rows.filter((row) =>
-    canReadDistrictMessage(
-      { districtId: row.districtId, legacyDistrictId: String((row.data as any)?.districtId || '') },
-      currentDistrictId,
-      req.user!.role === 'admin'
-    )
-  );
+  const visible = rows.filter((row) => canReadDistrictGroupMessage(row, context.districtId));
+  const authorNames = await groupMessageAuthorNames(visible);
+  const district = await prisma.inspectionDistrict.findUnique({
+    where: { id: context.districtId },
+    select: { id: true, name: true },
+  });
   res.json({
-    messages: visible.map((row) => ({
+    messages: visible.reverse().map((row) => ({
       id: row.id,
       authorId: row.authorId,
-      districtId: row.districtId || String((row.data as any)?.districtId || ''),
+      authorName: row.authorId ? authorNames.get(row.authorId) || '' : '',
+      districtId: row.districtId,
       text: row.content || String((row.data as any)?.message || (row.data as any)?.text || ''),
       createdAt: row.createdAt.toISOString(),
     })),
+    district: district || { id: context.districtId, name: context.districtId },
   });
 });
 
 apiRouter.post('/communication/district-messages', async (req, res) => {
   const text = normalizeMessageText(req.body?.text);
   if (!text) return res.status(400).json({ error: 'الرسالة مطلوبة وبحد أقصى 4000 حرف.' });
-  const currentDistrictId =
-    req.user!.districtId ||
-    (req.user as typeof req.user & { eduDistrictId?: string }).eduDistrictId ||
-    '';
-  if (!currentDistrictId)
-    return res.status(403).json({ error: 'لا ينتمي حسابك إلى مقاطعة صالحة.' });
-  const created = await prisma.districtMessage.create({
-    data: {
-      id: `district_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      authorId: req.user!.id,
-      districtId: currentDistrictId,
-      content: text,
-      data: { text },
-    },
+  const messageId = `district_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const created = await prisma.$transaction(async (tx) => {
+    const context = await getDistrictCommunicationContext(req.user!.id, tx);
+    if (!context) return null;
+    const members = await districtCommunicationMemberIds(context.districtId, tx);
+    const message = await tx.districtMessage.create({
+      data: {
+        id: messageId,
+        authorId: context.user.id,
+        districtId: context.districtId,
+        content: text,
+        data: { groupScope: 'district', text },
+      },
+    });
+    const notifications = groupNotificationRows({
+      recipientIds: members,
+      senderId: context.user.id,
+      messageId,
+      scope: 'district',
+      districtId: context.districtId,
+    });
+    if (notifications.length) await tx.communityNotification.createMany({ data: notifications });
+    return { message, authorName: `${context.user.firstName} ${context.user.lastName}`.trim() };
   });
+  if (!created) return res.status(403).json({ error: 'لا تملك عضوية حالية في مجموعة مقاطعة.' });
   res.status(201).json({
     message: {
-      id: created.id,
-      authorId: created.authorId,
-      districtId: created.districtId,
+      id: created.message.id,
+      authorId: created.message.authorId,
+      authorName: created.authorName,
+      districtId: created.message.districtId,
       text,
-      createdAt: created.createdAt.toISOString(),
+      createdAt: created.message.createdAt.toISOString(),
+    },
+  });
+});
+
+apiRouter.get('/communication/inspectors-messages', async (req, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: communicationUserSelect,
+  });
+  if (!user || !canAccessInspectorsGeneralGroup(user)) {
+    return res.status(403).json({ error: 'هذه المجموعة مخصصة للمفتشين المعتمدين.' });
+  }
+  const rows = await prisma.districtMessage.findMany({
+    where: { districtId: null, data: { path: ['groupScope'], equals: 'inspectors_general' } },
+    orderBy: { createdAt: 'desc' },
+    take: 500,
+  });
+  const visible = rows.filter(canReadInspectorsGeneralMessage);
+  const authorNames = await groupMessageAuthorNames(visible);
+  res.json({
+    messages: visible.reverse().map((row) => ({
+      id: row.id,
+      authorId: row.authorId,
+      authorName: row.authorId ? authorNames.get(row.authorId) || '' : '',
+      text: row.content || String((row.data as any)?.text || ''),
+      createdAt: row.createdAt.toISOString(),
+    })),
+  });
+});
+
+apiRouter.post('/communication/inspectors-messages', async (req, res) => {
+  const text = normalizeMessageText(req.body?.text);
+  if (!text) return res.status(400).json({ error: 'الرسالة مطلوبة وبحد أقصى 4000 حرف.' });
+  const messageId = `inspectors_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const created = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { id: req.user!.id },
+      select: communicationUserSelect,
+    });
+    if (!user || !canAccessInspectorsGeneralGroup(user)) return null;
+    const members = await inspectorGroupMemberIds(tx);
+    const message = await tx.districtMessage.create({
+      data: {
+        id: messageId,
+        authorId: user.id,
+        districtId: null,
+        content: text,
+        data: { groupScope: 'inspectors_general', text },
+      },
+    });
+    const notifications = groupNotificationRows({
+      recipientIds: members,
+      senderId: user.id,
+      messageId,
+      scope: 'inspectors_general',
+    });
+    if (notifications.length) await tx.communityNotification.createMany({ data: notifications });
+    return { message, authorName: `${user.firstName} ${user.lastName}`.trim() };
+  });
+  if (!created) return res.status(403).json({ error: 'هذه المجموعة مخصصة للمفتشين المعتمدين.' });
+  res.status(201).json({
+    message: {
+      id: created.message.id,
+      authorId: created.message.authorId,
+      authorName: created.authorName,
+      text,
+      createdAt: created.message.createdAt.toISOString(),
     },
   });
 });
 
 apiRouter.get('/communication/notifications', async (req, res) => {
+  const districtContext = await getDistrictCommunicationContext(req.user!.id);
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: communicationUserSelect,
+  });
+  const inspectorsGroupAllowed = Boolean(user && canAccessInspectorsGeneralGroup(user));
   const rows = await prisma.communityNotification.findMany({
     where: { userId: req.user!.id },
     orderBy: { createdAt: 'desc' },
     take: 200,
   });
+  const visibleRows = rows.filter((row) => {
+    const data = row.data && typeof row.data === 'object' ? (row.data as Record<string, unknown>) : {};
+    return canReadGroupNotification(data, districtContext?.districtId || null, inspectorsGroupAllowed);
+  });
   res.json({
-    notifications: rows.map((row) => ({
+    notifications: visibleRows.map((row) => ({
       id: row.id,
       userId: row.userId,
       senderId: row.senderId,
@@ -5947,41 +6148,6 @@ apiRouter.post('/inspection-visits', requireRole('inspector'), async (req, res) 
       return res.status(error.code === 'CONFLICT' ? 409 : 403).json({ error: error.message });
     throw error;
   }
-});
-
-// 5. District Group Chat — تُعرض ضمن نطاق مقاطعة المستخدم (districtId) فقط
-jsonCollectionRoutes({
-  path: 'district-messages',
-  model: prisma.districtMessage,
-  bodyKey: 'message',
-  listKey: 'districtMessages',
-  batchBodyKey: 'districtMessages',
-  ownerField: 'authorId',
-  transformCreate: (item, user) => ({ ...item, districtId: user.districtId }),
-  readKind: 'district-message',
-});
-
-// 6. Direct Messages — خاصة بطرفي المحادثة (المُرسل والمُستقبِل) والمفتش والمسؤول
-jsonCollectionRoutes({
-  path: 'direct-messages',
-  model: prisma.directMessage,
-  bodyKey: 'message',
-  listKey: 'directMessages',
-  batchBodyKey: 'directMessages',
-  ownerField: 'senderId',
-  ownerAssignedByServer: true,
-  transformCreate: (item, user) => {
-    const receiverId =
-      typeof item.receiverId === 'string'
-        ? item.receiverId
-        : typeof item.recipientId === 'string'
-          ? item.recipientId
-          : undefined;
-    const safe: Record<string, unknown> = { ...item, senderId: user.id };
-    delete safe.recipientId;
-    return receiverId ? { ...safe, receiverId } : safe;
-  },
-  readKind: 'direct-message',
 });
 
 // 7. Community Resources — محتوى عام مشترك، يبقى مرئياً للجميع كما هو مصمَّم

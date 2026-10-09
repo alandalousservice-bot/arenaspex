@@ -2181,25 +2181,19 @@ export async function syncInspectionVisitToDB(
 }
 
 export async function syncDistrictMessageToDB(message: unknown) {
-  await offlinePost('/api/db/district-messages', { message }, 'POST');
+  void message;
 }
 
 export async function fetchDistrictMessagesFromDB() {
-  const res = await fetch('/api/db/district-messages');
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'تعذر تحميل رسائل المقاطعة.');
-  return data.districtMessages || [];
+  return [];
 }
 
 export async function syncDirectMessageToDB(message: unknown) {
-  await offlinePost('/api/db/direct-messages', { message }, 'POST');
+  void message;
 }
 
 export async function fetchDirectMessagesFromDB() {
-  const res = await fetch('/api/db/direct-messages');
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'تعذر تحميل الرسائل الخاصة.');
-  return data.directMessages || [];
+  return [];
 }
 
 export async function syncCommunityResourceToDB(resource: unknown) {

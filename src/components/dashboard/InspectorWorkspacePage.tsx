@@ -523,6 +523,6 @@ export const InspectorWorkspacePage: React.FC<Props> = (props) => {
       </section>
     );
   if (module === 'inspector_communication')
-    return <ProfessionalHub currentUser={inspector} inspectorTeacherOnly />;
+    return <ProfessionalHub currentUser={inspector} inspectorCommunication />;
   return null;
 };

@@ -28,8 +28,13 @@ interface Conversation {
 interface DistrictMessage {
   id: string;
   authorId: string;
+  authorName?: string;
   text: string;
   createdAt: string;
+}
+interface DistrictGroupResponse {
+  messages: DistrictMessage[];
+  district?: { id: string; name: string };
 }
 interface Notification {
   id: string;
@@ -42,7 +47,7 @@ interface Notification {
 }
 interface ProfessionalHubProps {
   currentUser: User;
-  inspectorTeacherOnly?: boolean;
+  inspectorCommunication?: boolean;
   [key: string]: unknown;
 }
 
@@ -66,16 +71,20 @@ const formatDate = (value: string) =>
 
 export const ProfessionalHub: React.FC<ProfessionalHubProps> = ({
   currentUser,
-  inspectorTeacherOnly = false,
+  inspectorCommunication = false,
 }) => {
   const navigate = useNavigate();
-  const [section, setSection] = useState<'direct' | 'district' | 'notifications'>('direct');
-  const communicationScope = inspectorTeacherOnly ? '?scope=assigned-teachers' : '';
+  const [section, setSection] = useState<'direct' | 'district' | 'inspectors' | 'notifications'>(
+    'direct'
+  );
+  const communicationScope = inspectorCommunication ? '?scope=inspector-contacts' : '';
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selected, setSelected] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [districtMessages, setDistrictMessages] = useState<DistrictMessage[]>([]);
+  const [inspectorsMessages, setInspectorsMessages] = useState<DistrictMessage[]>([]);
+  const [districtName, setDistrictName] = useState('');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [draft, setDraft] = useState('');
   const [contactQuery, setContactQuery] = useState('');
@@ -87,28 +96,31 @@ export const ProfessionalHub: React.FC<ProfessionalHubProps> = ({
   const loadOverview = useCallback(async () => {
     setLoading(true);
     try {
-      const [contactResult, conversationResult, notificationResult, districtResult] =
+      const [contactResult, conversationResult, notificationResult, districtResult, inspectorsResult] =
         await Promise.all([
           api<{ contacts: Contact[] }>(`/communication/contacts${communicationScope}`),
           api<{ conversations: Conversation[] }>(
             `/communication/direct-conversations${communicationScope}`
           ),
           api<{ notifications: Notification[] }>('/communication/notifications'),
-          inspectorTeacherOnly
-            ? Promise.resolve({ messages: [] as DistrictMessage[] })
-            : api<{ messages: DistrictMessage[] }>('/communication/district-messages'),
+          api<DistrictGroupResponse>('/communication/district-messages'),
+          inspectorCommunication
+            ? api<{ messages: DistrictMessage[] }>('/communication/inspectors-messages')
+            : Promise.resolve({ messages: [] as DistrictMessage[] }),
         ]);
       setContacts(contactResult.contacts);
       setConversations(conversationResult.conversations);
       setNotifications(notificationResult.notifications);
       setDistrictMessages(districtResult.messages);
+      setDistrictName(districtResult.district?.name || districtResult.district?.id || '');
+      setInspectorsMessages(inspectorsResult.messages);
       setError('');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'تعذر تحميل بيانات التواصل.');
     } finally {
       setLoading(false);
     }
-  }, [communicationScope, inspectorTeacherOnly]);
+  }, [communicationScope, inspectorCommunication]);
 
   const loadConversation = useCallback(
     async (contact: Contact) => {
@@ -187,6 +199,22 @@ export const ProfessionalHub: React.FC<ProfessionalHubProps> = ({
       setSending(false);
     }
   };
+  const sendInspectors = async () => {
+    if (!draft.trim() || sending || !inspectorCommunication) return;
+    setSending(true);
+    try {
+      const result = await api<{ message: DistrictMessage }>('/communication/inspectors-messages', {
+        method: 'POST',
+        body: JSON.stringify({ text: draft.trim() }),
+      });
+      setInspectorsMessages((prev) => [...prev, result.message]);
+      setDraft('');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'تعذر إرسال رسالة إلى مجموعة المفتشين.');
+    } finally {
+      setSending(false);
+    }
+  };
   const markNotificationRead = async (notification: Notification) => {
     if (notification.read) return;
     try {
@@ -210,6 +238,12 @@ export const ProfessionalHub: React.FC<ProfessionalHubProps> = ({
   }, [contacts, contactQuery]);
   const unreadNotifications = notifications.filter((item) => !item.read).length;
   const unreadMessages = conversations.reduce((sum, item) => sum + item.unreadCount, 0);
+  const unreadDistrictNotifications = notifications.filter(
+    (item) => !item.read && item.data?.groupScope === 'district'
+  ).length;
+  const unreadInspectorsNotifications = notifications.filter(
+    (item) => !item.read && item.data?.groupScope === 'inspectors_general'
+  ).length;
 
   if (loading)
     return (
@@ -250,15 +284,18 @@ export const ProfessionalHub: React.FC<ProfessionalHubProps> = ({
       <header className="rounded-3xl bg-gradient-to-l from-emerald-700 to-cyan-700 p-6 text-white shadow-lg">
         <h1 className="text-2xl font-black">التواصل المهني</h1>
         <p className="mt-1 text-sm text-emerald-100">
-          {inspectorTeacherOnly
-            ? 'تواصل خاص مع الأساتذة المسندين إليك وإشعارات موثوقة'
-            : 'دردشة خاصة، فضاء المقاطعة، وإشعارات موثوقة'}
+          {inspectorCommunication
+            ? 'تواصل مباشر مع الأساتذة المسندين والمفتشين، ومجموعات مهنية آمنة'
+            : 'تواصل مباشر ومجموعة مقاطعتك التفتيشية وإشعارات موثوقة'}
         </p>
         <nav className="mt-5 flex flex-wrap gap-2">
           {(
             [
               ['direct', 'الدردشة الخاصة', MessageCircle, unreadMessages],
-              ...(!inspectorTeacherOnly ? [['district', 'فضاء المقاطعة', Radio, 0] as const] : []),
+              ['district', `مجموعة المقاطعة${districtName ? ` · ${districtName}` : ''}`, Radio, unreadDistrictNotifications],
+              ...(inspectorCommunication
+                ? [['inspectors', 'مجموعة المفتشين', Users, unreadInspectorsNotifications] as const]
+                : []),
               ['notifications', 'الإشعارات', Bell, unreadNotifications],
             ] as const
           ).map(([id, label, Icon, badge]) => (
@@ -388,13 +425,18 @@ export const ProfessionalHub: React.FC<ProfessionalHubProps> = ({
       {section === 'district' && (
         <section className="flex min-h-[540px] flex-col rounded-2xl border bg-white">
           <div className="border-b p-4">
-            <h2 className="font-black">فضاء المقاطعة المهنية</h2>
-            <p className="text-xs text-slate-500">تظهر هنا رسائل مقاطعتك فقط.</p>
+            <h2 className="font-black">مجموعة المقاطعة{districtName ? ` · ${districtName}` : ''}</h2>
+            <p className="text-xs text-slate-500">
+              تظهر هنا رسائل مقاطعتك فقط. العدّاد يخص الإشعارات غير المقروءة، لا إيصالات قراءة الرسائل.
+            </p>
           </div>
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
             {districtMessages.length ? (
               districtMessages.map((message) => (
                 <div key={message.id} className="rounded-xl border p-3">
+                  <strong className="mb-1 block text-xs text-teal-800">
+                    {message.authorName || 'عضو في المجموعة'}
+                  </strong>
                   <p>{message.text}</p>
                   <time className="mt-1 block text-[10px] text-slate-500">
                     {formatDate(message.createdAt)}
@@ -406,6 +448,34 @@ export const ProfessionalHub: React.FC<ProfessionalHubProps> = ({
             )}
           </div>
           {composer('اكتب رسالة للمقاطعة…', () => void sendDistrict(), 'إرسال إلى المقاطعة')}
+        </section>
+      )}
+      {section === 'inspectors' && inspectorCommunication && (
+        <section className="flex min-h-[540px] flex-col rounded-2xl border bg-white">
+          <div className="border-b p-4">
+            <h2 className="font-black">مجموعة المفتشين</h2>
+            <p className="text-xs text-slate-500">
+              تواصل مهني مشترك بين المفتشين المعتمدين. العدّاد يخص الإشعارات، لا قراءة كل رسالة.
+            </p>
+          </div>
+          <div className="flex-1 space-y-3 overflow-y-auto p-4">
+            {inspectorsMessages.length ? (
+              inspectorsMessages.map((message) => (
+                <div key={message.id} className="rounded-xl border p-3">
+                  <strong className="mb-1 block text-xs text-teal-800">
+                    {message.authorName || 'مفتش'}
+                  </strong>
+                  <p>{message.text}</p>
+                  <time className="mt-1 block text-[10px] text-slate-500">
+                    {formatDate(message.createdAt)}
+                  </time>
+                </div>
+              ))
+            ) : (
+              <p className="text-center text-sm text-slate-500">لا توجد رسائل في مجموعة المفتشين.</p>
+            )}
+          </div>
+          {composer('اكتب رسالة للمفتشين…', () => void sendInspectors(), 'إرسال إلى المفتشين')}
         </section>
       )}
       {section === 'notifications' && (
