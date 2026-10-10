@@ -49,7 +49,14 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return res.status(401).json({ error: 'الحساب غير موجود.', code: 'ACCOUNT_GONE' });
   }
   if (user.status === 'archived') {
-    return res.status(401).json({error:'الحساب مؤرشف ولا يمكن استخدامه.',code:'ACCOUNT_ARCHIVED',disabled:true,user:{id:user.id,status:user.status}});
+    return res
+      .status(401)
+      .json({
+        error: 'الحساب مؤرشف ولا يمكن استخدامه.',
+        code: 'ACCOUNT_ARCHIVED',
+        disabled: true,
+        user: { id: user.id, status: user.status },
+      });
   }
   if (user.status === 'inactive') {
     return res.status(401).json({
@@ -57,6 +64,12 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       code: 'ACCOUNT_DISABLED',
       disabled: true,
       user: { id: user.id, status: user.status },
+    });
+  }
+  if (user.role !== 'admin' && !user.emailVerifiedAt) {
+    return res.status(403).json({
+      error: 'تحقق من بريدك الإلكتروني قبل استخدام الحساب.',
+      code: 'EMAIL_VERIFICATION_REQUIRED',
     });
   }
   if (user.role !== 'admin' && isAccountAccessExpired(user.accessExpiresAt)) {

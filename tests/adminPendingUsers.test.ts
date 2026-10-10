@@ -28,6 +28,7 @@ describe('authoritative Admin pending accounts', () => {
 
   it('keeps one pending definition and removes legacy operational duplication', () => {
     expect(router).toContain("OR: [{ status: 'pending_approval' }, { isApprovedByAdmin: false }]");
+    expect(router).toContain('emailVerifiedAt: { not: null }');
     expect(api).toContain("fetch('/api/admin/users/pending')");
     expect(legacy).not.toContain('حسابات بانتظار التفعيل');
     expect(auth).toContain("const role = requestedRole === 'inspector' ? 'inspector' : 'teacher';");
@@ -36,7 +37,9 @@ describe('authoritative Admin pending accounts', () => {
 
   it('requires a district before Inspector activation and links the existing review workspace', () => {
     expect(router).not.toContain('allowUnassignedInspector');
-    expect(router).toContain("if (!districtId) throw new Error('يرجى اختيار المقاطعة التفتيشية.');");
+    expect(router).toContain(
+      "if (!districtId) throw new Error('يرجى اختيار المقاطعة التفتيشية.');"
+    );
     expect(page).toContain('الدور: {roleLabel[user.role] || user.role}');
     expect(page).toContain("navigate('/admin/inspectors')");
   });

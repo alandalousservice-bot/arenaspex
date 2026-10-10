@@ -50,6 +50,7 @@ const activeTeacher = {
   isPlatformOwner: false,
   status: 'active',
   isApprovedByAdmin: true,
+  emailVerifiedAt: new Date('2026-01-01T00:00:00Z'),
   accessExpiresAt: new Date('2099-07-31T23:59:59Z'),
 };
 

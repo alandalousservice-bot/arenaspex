@@ -41,10 +41,11 @@ export interface AuthResult {
   success: boolean;
   user?: User;
   error?: string;
+  code?: string;
+  verificationRequired?: boolean;
   offline?: boolean;
   disabled?: boolean;
   isOfflineSession?: boolean;
-  code?: string;
 }
 
 export type LoginPortal = 'professional' | 'admin';
@@ -66,7 +67,12 @@ export async function loginRequest(
       if (data.code === 'ACCOUNT_DISABLED' || data.disabled) {
         return { success: false, disabled: true, user: data.user, error: data.error };
       }
-      return { success: false, error: data.error || 'تعذر تسجيل الدخول.' };
+      return {
+        success: false,
+        code: data.code,
+        verificationRequired: data.code === 'EMAIL_VERIFICATION_REQUIRED',
+        error: data.error || 'تعذر تسجيل الدخول.',
+      };
     }
     // store local copy for offline mode
     try {
@@ -88,13 +94,8 @@ export async function registerRequest(userData: {
   email: string;
   password: string;
   role?: string;
-  schoolName?: string;
-  municipality?: string;
-  phone?: string;
-  eduDirectorateId?: string;
-  eduDistrictId?: string;
-  eduSchoolId?: string;
-  municipalityId?: string;
+  eduDirectorateId: string;
+  eduDistrictId: string;
 }): Promise<AuthResult> {
   try {
     const res = await fetch('/api/auth/register', {
@@ -106,12 +107,48 @@ export async function registerRequest(userData: {
     if (!res.ok) {
       return { success: false, error: data.error || 'تعذر إنشاء الحساب.' };
     }
+    if (data.verificationRequired) return { success: true, verificationRequired: true };
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('spex_current_user', JSON.stringify(data.user));
       }
     } catch {
       // localStorage may be unavailable; registration itself already completed.
+    }
+    return { success: true, user: data.user };
+  } catch {
+    return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
+  }
+}
+
+export async function requestEmailVerification(email: string): Promise<AuthResult> {
+  try {
+    const res = await fetch('/api/auth/email-verification/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    return { success: res.ok, error: res.ok ? undefined : data.error || 'تعذر طلب رمز التحقق.' };
+  } catch {
+    return { success: false, error: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.' };
+  }
+}
+
+export async function verifyEmailRequest(email: string, code: string): Promise<AuthResult> {
+  try {
+    const res = await fetch('/api/auth/email-verification/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code }),
+    });
+    const data = await res.json();
+    if (!res.ok) return { success: false, error: data.error || 'تعذر التحقق من البريد.' };
+    try {
+      if (typeof localStorage !== 'undefined')
+        localStorage.setItem('spex_current_user', JSON.stringify(data.user));
+    } catch {
+      /* session cookie remains authoritative */
     }
     return { success: true, user: data.user };
   } catch {
@@ -141,13 +178,13 @@ export async function logoutRequest(): Promise<void> {
 // ---------------------------------------------------------------------------
 export async function googleLoginRequest(
   credential: string,
-  role?: 'teacher' | 'inspector' | 'director' | 'admin'
+  registration?: { role: 'teacher' | 'inspector'; eduDirectorateId: string; eduDistrictId: string }
 ): Promise<AuthResult> {
   try {
     const res = await fetch('/api/auth/google', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(role ? { credential, role } : { credential }),
+      body: JSON.stringify(registration ? { credential, registration } : { credential }),
     });
     const data = await res.json();
     if (!res.ok) {

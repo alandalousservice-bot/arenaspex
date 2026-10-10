@@ -30,7 +30,7 @@ describe('separate Admin authentication portal', () => {
     expect(api).toContain('body: JSON.stringify({ email, password, portal })');
   });
   it('keeps unknown Google identities out of Admin creation', () => {
-    expect(router).toContain("if (requestedRole === 'admin')");
-    expect(router).toContain("user.role === 'admin' && requestedRole !== 'admin'");
+    expect(router).toContain("role: z.enum(['teacher', 'inspector'])");
+    expect(router).toContain("GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher', 'inspector'])");
   });
 });

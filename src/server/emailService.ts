@@ -27,9 +27,15 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
-async function sendEmail(to: string, subject: string, html: string): Promise<{ sent: boolean; error?: string }> {
+async function sendEmail(
+  to: string,
+  subject: string,
+  html: string
+): Promise<{ sent: boolean; error?: string }> {
   if (!RESEND_API_KEY) {
-    console.warn('⚠️ RESEND_API_KEY غير معرّف — لن يُرسل أي بريد فعلياً. راجع README-PRODUCTION.md.');
+    console.warn(
+      '⚠️ RESEND_API_KEY غير معرّف — لن يُرسل أي بريد فعلياً. راجع README-PRODUCTION.md.'
+    );
     return { sent: false, error: 'خدمة البريد الإلكتروني غير مُهيّأة على الخادم.' };
   }
 
@@ -38,9 +44,9 @@ async function sendEmail(to: string, subject: string, html: string): Promise<{ s
       method: 'POST',
       headers: {
         Authorization: `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from: EMAIL_FROM, to: [to], subject, html })
+      body: JSON.stringify({ from: EMAIL_FROM, to: [to], subject, html }),
     });
 
     if (!res.ok) {
@@ -78,4 +84,18 @@ export async function sendPasswordResetEmail(to: string, firstName: string, rawT
   `;
 
   return sendEmail(to, 'إعادة تعيين كلمة المرور - منصة SPEX', html);
+}
+
+export async function sendEmailVerificationCode(to: string, firstName: string, code: string) {
+  const safeName = escapeHtml(firstName || '');
+  const html = `
+    <div dir="rtl" style="font-family: Tahoma, Arial, sans-serif; max-width: 480px; margin: 0 auto; background:#0f172a; padding: 32px; border-radius: 16px; color:#e2e8f0;">
+      <h2 style="color:#60a5fa; margin-bottom: 4px;">منصة SPEX الابتدائي</h2>
+      <p style="font-size: 14px; line-height: 1.7;">مرحباً ${safeName}،</p>
+      <p style="font-size: 14px; line-height: 1.7;">رمز التحقق من البريد الإلكتروني صالح لمدة عشر دقائق:</p>
+      <p dir="ltr" style="font-size: 28px; letter-spacing: 8px; font-weight: bold; text-align: center; color: #fff;">${code}</p>
+      <p style="font-size: 12px; color:#94a3b8;">إذا لم تطلب إنشاء حساب، فتجاهل هذه الرسالة.</p>
+    </div>
+  `;
+  return sendEmail(to, 'رمز التحقق من البريد الإلكتروني - منصة SPEX', html);
 }

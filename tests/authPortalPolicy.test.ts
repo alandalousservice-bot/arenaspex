@@ -18,13 +18,16 @@ describe('public auth portal policy', () => {
     expect(authRouter).toContain(
       "const role = requestedRole === 'inspector' ? 'inspector' : 'teacher';"
     );
-    expect(authRouter).toContain("const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher', 'inspector'])");
+    expect(authRouter).toContain(
+      "const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher', 'inspector'])"
+    );
     expect(authRouter).toContain("status: 'pending_approval'");
     expect(authRouter).toContain('eduDirectorateId: z.string().trim().min(1');
     expect(authRouter).toContain('المقاطعة التفتيشية المحددة لا تتبع مديرية التربية المختارة');
-    expect(authRouter).toContain('eduDistrictId: eduDistrictId || null');
-    expect(authRouter).toContain('eduSchoolId: eduSchoolId || null');
-    expect(authRouter).toContain("districtId: eduDistrictId || ''");
+    expect(authRouter).toContain(
+      "eduDistrictId: z.string().trim().min(1, 'يجب اختيار المقاطعة التفتيشية')"
+    );
+    expect(authRouter).toContain('emailVerifiedAt: null');
   });
 
   it('keeps public registration geographic scope server-authoritative', () => {
@@ -34,13 +37,9 @@ describe('public auth portal policy', () => {
     expect(authRouter).toContain(
       'prisma.inspectionDistrict.findUnique({ where: { id: eduDistrictId } })'
     );
-    expect(authRouter).toContain(
-      'prisma.municipality.findUnique({ where: { id: municipalityId } })'
-    );
-    expect(authRouter).toContain('prisma.school.findUnique({ where: { id: eduSchoolId } })');
-    expect(authRouter).toContain('المؤسسة التعليمية لا تتبع البلدية المختارة');
-    expect(authRouter).not.toContain('eduDistrictId: null,');
-    expect(authRouter).not.toContain('eduSchoolId: null,');
+    expect(authRouter).toContain('district.directorateId !== directorate.id');
+    expect(authRouter).not.toContain('municipalityId');
+    expect(authRouter).not.toContain('eduSchoolId');
   });
 
   it('keeps the persisted account-management list separate from the pending queue', () => {

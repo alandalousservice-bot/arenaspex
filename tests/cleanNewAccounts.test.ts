@@ -19,10 +19,13 @@ describe('new account data cleanliness', () => {
     expect(app).not.toContain('DEMO_USERS.find');
   });
 
-  it('keeps registration optional profile fields empty when omitted', () => {
-    expect(register).toContain('phone: phone || null');
-    expect(register).toContain('schoolName: schoolName || null');
-    expect(register).toContain('institutionId: eduSchoolId || null');
+  it('keeps initial registration limited to identity and required geography', () => {
+    expect(register).toContain(
+      "eduDistrictId: z.string().trim().min(1, 'يجب اختيار المقاطعة التفتيشية')"
+    );
+    expect(register).toContain('emailVerifiedAt: null');
+    expect(register).not.toContain('schoolName: schoolName || null');
+    expect(register).not.toContain('phone: phone || null');
   });
 
   it('keeps empty roster and operational metrics empty', () => {

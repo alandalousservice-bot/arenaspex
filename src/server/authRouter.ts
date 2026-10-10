@@ -2,7 +2,7 @@
  * SPEX - Authentication Router
  * تسجيل الدخول الحقيقي (bcrypt + JWT في كوكيز httpOnly)، بدل التحقق من كلمة المرور في المتصفح
  */
-import { Router, urlencoded } from 'express';
+import { Router, urlencoded, type Request } from 'express';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { prisma } from './prismaClient.js';
@@ -18,10 +18,13 @@ import {
   generateResetToken,
   hashResetToken,
 } from './auth.js';
-import { sendPasswordResetEmail } from './emailService.js';
+import { isEmailConfigured, sendPasswordResetEmail } from './emailService.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { verifyGoogleIdToken, isGoogleSignInConfigured } from './googleAuth.js';
 import { createPlatformEmail } from './platformEmail.js';
+import { allowAuthAttempt } from './authRateLimit.js';
+import { hasEmailVerificationSecret } from './emailVerification.js';
+import { issueEmailVerification, verifyEmailCode } from './emailVerificationService.js';
 
 export const authRouter = Router();
 
@@ -38,14 +41,9 @@ const registerSchema = z.object({
   password: z.string().min(6, 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'),
   // Public registration creates a pending pedagogical account; Admin remains separate.
   role: z.enum(['teacher', 'inspector']).optional().default('teacher'),
-  schoolName: z.string().optional(),
-  municipality: z.string().optional(),
-  phone: z.string().optional(),
   // PART A: هيكلية جغرافية وطنية + تسجيل بالقوائم المتراكبة
   eduDirectorateId: z.string().trim().min(1, 'يجب اختيار مديرية التربية'),
-  eduDistrictId: z.string().trim().optional(),
-  eduSchoolId: z.string().trim().optional(),
-  municipalityId: z.string().trim().optional(),
+  eduDistrictId: z.string().trim().min(1, 'يجب اختيار المقاطعة التفتيشية'),
 });
 
 function remapHistoricDirectorateId(id?: string | null): string | null {
@@ -56,7 +54,26 @@ function remapHistoricDirectorateId(id?: string | null): string | null {
   return trimmed;
 }
 
+const VERIFICATION_REQUEST_MESSAGE =
+  'إذا كان البريد مؤهلاً للتحقق، فستصلك رسالة برمز صالح لعشر دقائق.';
+const verificationIssueRateLimit = 10;
+const verificationCheckRateLimit = 20;
+
+function requestIdentity(req: Request) {
+  return req.ip || req.socket.remoteAddress || 'unknown';
+}
+
+async function findAccountByAddress(address: string) {
+  const normalizedEmail = address.trim().toLowerCase();
+  return prisma.user.findFirst({
+    where: { OR: [{ email: normalizedEmail }, { platformEmail: normalizedEmail }] },
+  });
+}
+
 authRouter.post('/register', async (req, res) => {
+  if (!allowAuthAttempt('registration-ip', requestIdentity(req), 10, 60 * 60 * 1000)) {
+    return res.status(429).json({ error: 'تجاوزت عدد محاولات التسجيل المسموح. حاول لاحقاً.' });
+  }
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.errors[0]?.message || 'بيانات غير صحيحة.' });
@@ -68,22 +85,14 @@ authRouter.post('/register', async (req, res) => {
     email,
     password,
     role: requestedRole,
-    schoolName,
-    municipality,
-    phone,
     eduDirectorateId,
     eduDistrictId,
-    eduSchoolId,
-    municipalityId,
   } = parsed.data;
   const role = requestedRole === 'inspector' ? 'inspector' : 'teacher';
   const lowerEmail = email.toLowerCase();
 
-  const existingUser = await prisma.user.findUnique({ where: { email: lowerEmail } });
-  if (existingUser) {
-    return res
-      .status(409)
-      .json({ error: 'هذا البريد الإلكتروني مسجل مسبقاً في المنظومة. يمكنك تسجيل الدخول به.' });
+  if (!isEmailConfigured() || !hasEmailVerificationSecret()) {
+    return res.status(503).json({ error: 'تعذر بدء التحقق من البريد حالياً. حاول لاحقاً.' });
   }
 
   const passwordHash = await hashPassword(password);
@@ -103,79 +112,116 @@ authRouter.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'مديرية التربية المحددة غير موجودة.' });
     }
 
-    const [district, municipalityRecord, school] = await Promise.all([
-      eduDistrictId
-        ? prisma.inspectionDistrict.findUnique({ where: { id: eduDistrictId } })
-        : Promise.resolve(null),
-      municipalityId
-        ? prisma.municipality.findUnique({ where: { id: municipalityId } })
-        : Promise.resolve(null),
-      eduSchoolId
-        ? prisma.school.findUnique({ where: { id: eduSchoolId } })
-        : Promise.resolve(null),
-    ]);
-    if (eduDistrictId && !district) {
+    const district = await prisma.inspectionDistrict.findUnique({ where: { id: eduDistrictId } });
+    if (!district) {
       return res.status(400).json({ error: 'المقاطعة التفتيشية المحددة غير موجودة.' });
     }
-    if (district && district.directorateId !== directorate.id) {
+    if (district.directorateId !== directorate.id) {
       return res
         .status(400)
         .json({ error: 'المقاطعة التفتيشية المحددة لا تتبع مديرية التربية المختارة.' });
     }
-    if (
-      municipalityId &&
-      (!municipalityRecord || municipalityRecord.directorateId !== directorate.id)
-    ) {
-      return res.status(400).json({ error: 'البلدية المحددة لا تتبع مديرية التربية المختارة.' });
-    }
-    if (eduSchoolId && !school) {
-      return res.status(400).json({ error: 'المؤسسة التعليمية المحددة غير موجودة.' });
-    }
-    if (school && (!municipalityRecord || school.municipalityId !== municipalityRecord.id)) {
-      return res.status(400).json({ error: 'المؤسسة التعليمية لا تتبع البلدية المختارة.' });
+
+    let user;
+    try {
+      user = await prisma.user.create({
+        data: {
+          id: userId,
+          username: `user_${Date.now().toString().slice(-6)}`,
+          spexId,
+          firstName,
+          lastName,
+          email: lowerEmail,
+          platformEmail,
+          passwordHash,
+          role,
+          directorateId: normalizedLegacyDir,
+          districtId: eduDistrictId,
+          eduDirectorateId: normalizedEduDir,
+          eduDistrictId,
+          specialization:
+            role === 'inspector'
+              ? 'مفتش التربية البدنية والرياضية'
+              : 'أستاذ التربية البدنية والرياضية - الطور الابتدائي',
+          yearsExperience: null,
+          status: 'pending_approval',
+          isApprovedByAdmin: false,
+          emailVerifiedAt: null,
+          customApiKey: '',
+          apiKeyStatus: 'not_set',
+        } as any,
+      });
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'P2002') {
+        return res
+          .status(202)
+          .json({
+            success: true,
+            verificationRequired: true,
+            message: VERIFICATION_REQUEST_MESSAGE,
+          });
+      }
+      throw error;
     }
 
-    const user = await prisma.user.create({
-      data: {
-        id: userId,
-        username: `user_${Date.now().toString().slice(-6)}`,
-        spexId,
-        firstName,
-        lastName,
-        email: lowerEmail,
-        platformEmail,
-        passwordHash,
-        role,
-        phone: phone || null,
-        schoolName: schoolName || null,
-        municipality: municipality || null,
-        directorateId: normalizedLegacyDir,
-        districtId: eduDistrictId || '',
-        institutionId: eduSchoolId || null,
-        municipalityId: municipalityId || null,
-        eduDirectorateId: normalizedEduDir,
-        eduDistrictId: eduDistrictId || null,
-        eduSchoolId: eduSchoolId || null,
-        specialization:
-          role === 'inspector'
-            ? 'مفتش التربية البدنية والرياضية'
-            : 'أستاذ التربية البدنية والرياضية - الطور الابتدائي',
-        yearsExperience: null,
-        status: 'pending_approval',
-        isApprovedByAdmin: false,
-        customApiKey: '',
-        apiKeyStatus: 'not_set',
-      } as any,
-    });
-
-    const token = signSession({ userId: user.id, role: user.role });
-    setSessionCookie(res, token);
-
-    res.json({ success: true, user: sanitizeOwnUser(user) });
+    await issueEmailVerification(user, new Date());
+    res
+      .status(202)
+      .json({ success: true, verificationRequired: true, message: VERIFICATION_REQUEST_MESSAGE });
   } catch (err: unknown) {
-    console.error('Registration error:', err);
+    console.error('Registration request failed.');
     res.status(500).json({ error: 'تعذر إنشاء الحساب، يرجى إعادة المحاولة.' });
   }
+});
+
+authRouter.post('/email-verification/request', async (req, res) => {
+  const parsed = z.object({ email: z.string().trim().email() }).strict().safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'يرجى إدخال بريد إلكتروني صحيح.' });
+  const address = parsed.data.email.toLowerCase();
+  if (
+    !allowAuthAttempt(
+      'email-verification-request-ip',
+      requestIdentity(req),
+      verificationIssueRateLimit,
+      60 * 60 * 1000
+    )
+  ) {
+    return res.status(429).json({ success: true, message: VERIFICATION_REQUEST_MESSAGE });
+  }
+  const user = await findAccountByAddress(address);
+  if (user && user.role !== 'admin' && !user.emailVerifiedAt) {
+    await issueEmailVerification(user, new Date()).catch(() => undefined);
+  }
+  return res.status(202).json({ success: true, message: VERIFICATION_REQUEST_MESSAGE });
+});
+
+authRouter.post('/email-verification/verify', async (req, res) => {
+  if (
+    !allowAuthAttempt(
+      'email-verification-check-ip',
+      requestIdentity(req),
+      verificationCheckRateLimit,
+      60 * 60 * 1000
+    )
+  ) {
+    return res.status(429).json({ error: 'تجاوزت عدد المحاولات المسموح. حاول لاحقاً.' });
+  }
+  const parsed = z
+    .object({ email: z.string().trim().email(), code: z.string().regex(/^\d{6}$/) })
+    .strict()
+    .safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'البريد أو رمز التحقق غير صالح.' });
+  if (!hasEmailVerificationSecret())
+    return res.status(503).json({ error: 'تعذر التحقق من البريد حالياً. حاول لاحقاً.' });
+  const user = await findAccountByAddress(parsed.data.email);
+  if (!user || user.role === 'admin')
+    return res.status(400).json({ error: 'رمز التحقق غير صالح أو منتهي الصلاحية.' });
+  const result = await verifyEmailCode(user.id, parsed.data.code, new Date());
+  if (result.kind !== 'verified')
+    return res.status(400).json({ error: 'رمز التحقق غير صالح أو منتهي الصلاحية.' });
+  const token = signSession({ userId: result.user.id, role: result.user.role });
+  setSessionCookie(res, token);
+  return res.json({ success: true, verified: true, user: sanitizeOwnUser(result.user) });
 });
 
 authRouter.post('/login', async (req, res) => {
@@ -200,7 +246,23 @@ authRouter.post('/login', async (req, res) => {
     return res.status(401).json({ error: genericError });
   }
 
-  if (user.status === 'archived') return res.status(403).json({error:'الحساب مؤرشف ولا يمكن تسجيل الدخول إليه.',code:'ACCOUNT_ARCHIVED',disabled:true});
+  if (user.status === 'archived')
+    return res
+      .status(403)
+      .json({
+        error: 'الحساب مؤرشف ولا يمكن تسجيل الدخول إليه.',
+        code: 'ACCOUNT_ARCHIVED',
+        disabled: true,
+      });
+
+  if (user.role !== 'admin' && !user.emailVerifiedAt) {
+    return res
+      .status(403)
+      .json({
+        error: 'تحقق من بريدك الإلكتروني قبل تسجيل الدخول.',
+        code: 'EMAIL_VERIFICATION_REQUIRED',
+      });
+  }
 
   if (portal === 'admin' && user.role !== 'admin') {
     return res.status(403).json({
@@ -215,11 +277,20 @@ authRouter.post('/login', async (req, res) => {
   }
 
   if (user.status !== 'active' || !user.isApprovedByAdmin) {
-    return res.status(403).json({error:'حسابك قيد انتظار موافقة الإدارة أو غير مفعّل حالياً.',code:'ACCOUNT_PENDING_APPROVAL',user:sanitizeOwnUser(user)});
+    return res
+      .status(403)
+      .json({
+        error: 'حسابك قيد انتظار موافقة الإدارة أو غير مفعّل حالياً.',
+        code: 'ACCOUNT_PENDING_APPROVAL',
+        user: sanitizeOwnUser(user),
+      });
   }
   if (!user.platformEmail) {
     user.platformEmail = await createPlatformEmail(user.firstName, user.lastName);
-    await prisma.user.update({where:{id:user.id},data:{platformEmail:user.platformEmail}});
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { platformEmail: user.platformEmail },
+    });
   }
   const token = signSession({ userId: user.id, role: user.role });
   setSessionCookie(res, token);
@@ -236,12 +307,18 @@ authRouter.post('/logout', (req, res) => {
 // Sign in with Google — سياسة المنصة: الإنشاء الذاتي المعلّق مسموح للأستاذ
 // والمفتش فقط؛ أي بريد Google موثّق ينشئ حساباً بانتظار اعتماد المشرف.
 // (pending_approval) والمشرف يفعّله لاحقاً من بوابته. الحسابات الموجودة بنفس
-// البريد تُربَط تلقائياً وتدخل بصلاحياتها الحقيقية.
+// البريد تتطلب تسجيل الدخول ثم ربطاً صريحاً من جلسة الحساب.
 // -----------------------------------------------------------------------
+const googleRegistrationSchema = z
+  .object({
+    role: z.enum(['teacher', 'inspector']),
+    eduDirectorateId: z.string().trim().min(1),
+    eduDistrictId: z.string().trim().min(1),
+  })
+  .strict();
 const googleAuthSchema = z.object({
-  credential: z.string().min(10), // Google ID token (JWT) القادم من Google Identity Services
-  // دور ذاتي الاختيار عند الإنشاء الأول — أبداً "admin" من هنا (الإدارة للمشرف)
-  role: z.enum(['teacher', 'inspector', 'director', 'admin']).optional(),
+  credential: z.string().min(10),
+  registration: googleRegistrationSchema.optional(),
 });
 
 const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher', 'inspector']);
@@ -249,8 +326,8 @@ const GOOGLE_SELF_REGISTER_ROLES = new Set(['teacher', 'inspector']);
 /**
  * منطق Google الموحّد (يخدم مسارَي /google و /google/gsi-callback):
  * - حساب مربوط بـ googleId: دخول مباشر (بعد فحص التفعيل).
- * - حساب موجود بنفس البريد بلا ربط: ربط تلقائي ثم دخول (بعد فحص التفعيل).
- * - لا حساب إطلاقاً: إنشاء حساب جديد فوراً بوضع "بانتظار تفعيل المشرف"
+ * - حساب موجود بنفس البريد بلا ربط: يتطلب دخولاً محلياً ثم ربطاً صريحاً.
+ * - لا حساب إطلاقاً: إنشاء حساب جديد بعد إدخال الدور والمديرية والمقاطعة
  *   (pending_approval — نفس سياسة التسجيل العادي)، بكلمة مرور عشوائية غير
  *   قابلة للاستعمال (لا يحتاجها — الدخول عبر Google، ويمكنه تعيين كلمة مرور
  *   لاحقاً من الإعدادات).
@@ -264,84 +341,94 @@ async function findOrCreateGoogleUser(
     lastName: string;
     avatar?: string;
   },
-  requestedRole?: string
+  registration?: z.infer<typeof googleRegistrationSchema>
 ) {
   let user = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
-  if (!user) {
-    user = await prisma.user.findUnique({ where: { email: profile.email } });
-  }
-
   if (user) {
-    if (user.status === 'archived' || user.status === 'inactive') return { kind: 'disabled' as const };
-    if (user.role === 'admin' && requestedRole !== 'admin') {
-      return { kind: 'forbidden' as const };
-    }
-    // ربط Google تلقائياً حتى للحسابات المعلقة — يسمح بالدخول المباشر عبر Google لأي بريد
-    if (!user.googleId) {
-      try {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { googleId: profile.googleId },
-        });
-      } catch (err) {
-        console.error('تعذر ربط حساب Google تلقائياً:', err);
-      }
+    if (user.status === 'archived' || user.status === 'inactive')
+      return { kind: 'disabled' as const };
+    if (!user.emailVerifiedAt && user.email.toLowerCase() === profile.email.toLowerCase()) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerifiedAt: new Date() },
+      });
     }
     if (user.status !== 'active' || !user.isApprovedByAdmin) {
       return { kind: 'pending' as const, user };
     }
     return { kind: 'ok' as const, user, created: false };
   }
-
-  // The admin context is login-only: an unknown Google identity must never
-  // be converted into a new account from that card.
-  if (requestedRole === 'admin') {
-    return { kind: 'forbidden' as const };
-  }
-
-  // إنشاء أول للحساب عبر Google — معتمد للأدوار البيداغوجية فقط وبانتظار تفعيل المشرف
-  if (!requestedRole || !GOOGLE_SELF_REGISTER_ROLES.has(requestedRole)) {
-    return { kind: 'registration_role_required' as const };
-  }
-  const role = requestedRole;
+  const sameEmail = await prisma.user.findUnique({ where: { email: profile.email.toLowerCase() } });
+  if (sameEmail)
+    return sameEmail.googleId
+      ? { kind: 'identity_conflict' as const }
+      : { kind: 'link_required' as const };
+  if (!registration || !GOOGLE_SELF_REGISTER_ROLES.has(registration.role))
+    return { kind: 'registration_required' as const };
+  const directorate = await prisma.directorate.findUnique({
+    where: { id: registration.eduDirectorateId },
+  });
+  const district = await prisma.inspectionDistrict.findUnique({
+    where: { id: registration.eduDistrictId },
+  });
+  if (!directorate || !district || district.directorateId !== directorate.id)
+    return { kind: 'invalid_geography' as const };
+  const role = registration.role;
   const passwordHash = await hashPassword(crypto.randomBytes(24).toString('hex')); // غير قابلة للاستعمال إطلاقاً
   const spexId = `SPX-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
   const platformEmail = await createPlatformEmail(profile.firstName, profile.lastName);
 
-  const created = await prisma.user.create({
-    data: {
-      id: `usr_${crypto.randomUUID()}`,
-      username: `user_${Date.now().toString().slice(-6)}`,
-      spexId,
-      firstName: profile.firstName || 'مستخدم',
-      lastName: profile.lastName || 'جديد',
-      email: profile.email,
-      googleId: profile.googleId,
-      platformEmail,
-      passwordHash,
-      role,
-      avatar: profile.avatar || null,
-      phone: null,
-      schoolName: null,
-      municipality: null,
-      directorateId: '',
-      districtId: '',
-      institutionId: null,
-      specialization:
-        role === 'teacher'
-          ? 'أستاذ التربية البدنية والرياضية - الطور الابتدائي'
-          : role === 'inspector'
-            ? 'مفتش التربية البدنية والرياضية'
-            : 'مدير مدرسة ابتدائية',
-      yearsExperience: null,
-      status: 'pending_approval',
-      isApprovedByAdmin: false,
-      customApiKey: '',
-      apiKeyStatus: 'not_set',
-    },
-  });
+  let created;
+  try {
+    created = await prisma.user.create({
+      data: {
+        id: `usr_${crypto.randomUUID()}`,
+        username: `user_${Date.now().toString().slice(-6)}`,
+        spexId,
+        firstName: profile.firstName || 'مستخدم',
+        lastName: profile.lastName || 'جديد',
+        email: profile.email,
+        googleId: profile.googleId,
+        platformEmail,
+        passwordHash,
+        role,
+        directorateId: directorate.id,
+        districtId: district.id,
+        eduDirectorateId: directorate.id,
+        eduDistrictId: district.id,
+        avatar: profile.avatar || null,
+        phone: null,
+        schoolName: null,
+        municipality: null,
+        institutionId: null,
+        specialization:
+          role === 'teacher'
+            ? 'أستاذ التربية البدنية والرياضية - الطور الابتدائي'
+            : role === 'inspector'
+              ? 'مفتش التربية البدنية والرياضية'
+              : 'مدير مدرسة ابتدائية',
+        yearsExperience: null,
+        status: 'pending_approval',
+        isApprovedByAdmin: false,
+        emailVerifiedAt: new Date(),
+        customApiKey: '',
+        apiKeyStatus: 'not_set',
+      },
+    });
+  } catch (error) {
+    if ((error as { code?: string })?.code !== 'P2002') throw error;
+    const linked = await prisma.user.findUnique({ where: { googleId: profile.googleId } });
+    if (linked)
+      return linked.status !== 'active' || !linked.isApprovedByAdmin
+        ? { kind: 'pending' as const, user: linked }
+        : { kind: 'ok' as const, user: linked, created: false };
+    const byEmail = await prisma.user.findUnique({ where: { email: profile.email.toLowerCase() } });
+    return byEmail?.googleId
+      ? { kind: 'identity_conflict' as const }
+      : { kind: 'link_required' as const };
+  }
 
-  return { kind: 'ok' as const, user: created, created: true };
+  return { kind: 'pending' as const, user: created, created: true };
 }
 
 authRouter.post('/google', async (req, res) => {
@@ -366,21 +453,38 @@ authRouter.post('/google', async (req, res) => {
       .json({ error: 'يجب أن يكون بريد حساب Google موثّقاً (verified) لاستخدامه في الدخول.' });
   }
 
-  const outcome = await findOrCreateGoogleUser(profile, parsed.data.role);
-
-  if (outcome.kind === 'registration_role_required') {
-    return res.status(400).json({ error: 'اختر نوع الحساب: أستاذ أو مفتش قبل التسجيل عبر Google.' });
+  const outcome = await findOrCreateGoogleUser(profile, parsed.data.registration);
+  if (outcome.kind === 'registration_required') {
+    return res
+      .status(400)
+      .json({
+        error: 'لإنشاء حساب جديد عبر Google، اختر الدور والمديرية والمقاطعة من نموذج التسجيل.',
+      });
   }
+  if (outcome.kind === 'invalid_geography')
+    return res.status(400).json({ error: 'مديرية التربية أو المقاطعة التفتيشية غير صحيحة.' });
+  if (outcome.kind === 'link_required') {
+    return res
+      .status(409)
+      .json({
+        code: 'GOOGLE_LINK_REQUIRED',
+        error: 'يوجد حساب بهذا البريد. سجّل الدخول إليه أولاً ثم اربط Google من إعدادات الحساب.',
+      });
+  }
+  if (outcome.kind === 'identity_conflict')
+    return res
+      .status(409)
+      .json({ error: 'تعذر ربط هوية Google بهذا الحساب. تواصل مع إدارة المنصة.' });
 
-  if (outcome.kind === 'forbidden') {
+  // Google identity is verified, but operational access still requires Admin approval.
+  if (outcome.kind === 'disabled')
     return res
       .status(403)
-      .json({ error: 'حساب Google غير مرتبط بحساب مشرف موجود. اطلب إنشاء الحساب من مالك المنصة.' });
-  }
-
-  // السماح لأي مستخدم بالتسجيل مباشرة عبر Google — حتى الحساب المعلق يدخل لوضع المشاهدة بدل 403
-  // (فرق واضح بين تسجيل الدخول العادي الذي يرفض المعلق، وبين Google الذي يُعتبر تسجيلاً مباشراً)
-  if (outcome.kind === 'disabled') return res.status(403).json({error:'الحساب معطل أو مؤرشف ولا يمكن تسجيل الدخول إليه.',code:'ACCOUNT_DISABLED',disabled:true});
+      .json({
+        error: 'الحساب معطل أو مؤرشف ولا يمكن تسجيل الدخول إليه.',
+        code: 'ACCOUNT_DISABLED',
+        disabled: true,
+      });
   if (outcome.kind === 'pending') {
     const user = outcome.user;
     const token = signSession({ userId: user.id, role: user.role });
@@ -434,16 +538,28 @@ authRouter.post('/google/link', requireAuth, async (req, res) => {
   }
 
   const me = await prisma.user.findUnique({ where: { id: req.user!.id } });
-  if (me && me.email.toLowerCase() !== profile.email) {
+  if (me && me.email.toLowerCase() !== profile.email.toLowerCase()) {
     return res.status(400).json({
       error: 'يجب أن يطابق بريد حساب Google بريد حسابك الحالي على SPEX لربطهما.',
     });
   }
-
-  const updated = await prisma.user.update({
-    where: { id: req.user!.id },
-    data: { googleId: profile.googleId },
-  });
+  if (!me?.emailVerifiedAt)
+    return res.status(403).json({ error: 'تحقق من بريد حساب SPEX قبل ربط Google.' });
+  if (me.googleId === profile.googleId)
+    return res.json({ success: true, user: sanitizeOwnUser(me) });
+  try {
+    const linked = await prisma.user.updateMany({
+      where: { id: req.user!.id, googleId: null },
+      data: { googleId: profile.googleId },
+    });
+    if (linked.count !== 1)
+      return res.status(409).json({ error: 'تغير ارتباط الحساب بالتزامن. أعد المحاولة.' });
+  } catch (error) {
+    if ((error as { code?: string })?.code === 'P2002')
+      return res.status(409).json({ error: 'حساب Google هذا مرتبط بالفعل بحساب SPEX آخر.' });
+    throw error;
+  }
+  const updated = await prisma.user.findUnique({ where: { id: req.user!.id } });
   res.json({ success: true, user: sanitizeOwnUser(updated) });
 });
 
@@ -496,23 +612,27 @@ authRouter.post('/google/gsi-callback', urlencoded({ extended: false }), async (
 
     let outcome;
     try {
-      const requestedRole = googleAuthSchema.shape.role.safeParse(req.body.role ?? req.query.role);
-      if (!requestedRole.success) return fail('نوع الحساب المطلوب غير صالح.');
-      outcome = await findOrCreateGoogleUser(profile, requestedRole.data);
+      outcome = await findOrCreateGoogleUser(profile);
     } catch (err) {
       console.error('خطأ أثناء البحث/الإنشاء (gsi-callback):', err);
       return fail('تعذر إتمام الدخول الآن. أعد المحاولة بعد قليل.');
     }
 
-    if (outcome.kind === 'registration_role_required') {
-      return fail('اختر نوع الحساب: أستاذ أو مفتش من صفحة التسجيل عبر Google.');
-    }
-    if (outcome.kind === 'forbidden') return fail('الدخول إلى حساب المشرف متاح من بوابة الإدارة.');
-    if (outcome.kind === 'disabled') return fail('الحساب معطل أو مؤرشف ولا يمكن تسجيل الدخول إليه.');
+    if (outcome.kind === 'registration_required' || outcome.kind === 'invalid_geography')
+      return fail('اختر إنشاء حساب وحدد الدور والمديرية والمقاطعة من صفحة التسجيل.');
+    if (outcome.kind === 'link_required')
+      return fail(
+        'يوجد حساب بهذا البريد. سجّل الدخول إليه أولاً ثم اربط Google من إعدادات الحساب.'
+      );
+    if (outcome.kind === 'identity_conflict')
+      return fail('تعذر ربط هوية Google بهذا الحساب. تواصل مع إدارة المنصة.');
+    if (outcome.kind === 'disabled')
+      return fail('الحساب معطل أو مؤرشف ولا يمكن تسجيل الدخول إليه.');
 
     // أي مستخدم (حتى المعلق) يستطيع الدخول عبر Google مباشرة إلى وضع المشاهدة
     const user = outcome.user;
-    const target = user.role === 'inspector' ? '/inspector' : user.role === 'admin' ? '/admin' : '/dashboard';
+    const target =
+      user.role === 'inspector' ? '/inspector' : user.role === 'admin' ? '/admin' : '/dashboard';
     const token = signSession({ userId: user.id, role: user.role });
     // للمسار القادم من accounts.google.com (cross-site)، نحتاج SameSite=None لضمان حفظ الكوكي
     // نضبط الكوكي يدوياً هنا بـ SameSite=None; Secure ليتجاوز حجب الطرف الثالث
@@ -642,7 +762,22 @@ authRouter.get('/me', async (req, res) => {
     return res.status(401).json({ error: 'الحساب غير موجود.', code: 'ACCOUNT_GONE' });
   }
 
-  if(user.status==='archived') { clearSessionCookie(res);return res.status(401).json({error:'الحساب مؤرشف.',code:'ACCOUNT_ARCHIVED',disabled:true}); }
+  if (user.status === 'archived') {
+    clearSessionCookie(res);
+    return res
+      .status(401)
+      .json({ error: 'الحساب مؤرشف.', code: 'ACCOUNT_ARCHIVED', disabled: true });
+  }
+
+  if (user.role !== 'admin' && !user.emailVerifiedAt) {
+    clearSessionCookie(res);
+    return res
+      .status(403)
+      .json({
+        error: 'تحقق من بريدك الإلكتروني قبل استخدام الحساب.',
+        code: 'EMAIL_VERIFICATION_REQUIRED',
+      });
+  }
 
   // PART C/C3: إذا كان الحساب معطلاً ⇒ كيان الخادم (inactive) ⇒ يقفل إلى وضع المشاهدة
   // نعيد {disabled:true, user} مع كود ACCOUNT_DISABLED

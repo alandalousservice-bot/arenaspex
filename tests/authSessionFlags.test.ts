@@ -3,8 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock prisma for requireAuth
 const mockPrisma = {
   user: {
-    findUnique: vi.fn()
-  }
+    findUnique: vi.fn(),
+  },
 };
 
 vi.mock('../src/server/prismaClient.js', () => ({ prisma: mockPrisma }));
@@ -21,13 +21,13 @@ function mockRes() {
 function mockReq(tokenPayload?: any, userId?: string) {
   return {
     cookies: tokenPayload ? { spex_session: 'fake-token' } : {},
-    user: undefined
+    user: undefined,
   } as any;
 }
 
 // Mock auth helpers
 vi.mock('../src/server/auth.js', async () => {
-  const actual = await vi.importActual('../src/server/auth.js') as any;
+  const actual = (await vi.importActual('../src/server/auth.js')) as any;
   return {
     ...actual,
     getSessionTokenFromRequest: vi.fn((req: any) => {
@@ -38,7 +38,7 @@ vi.mock('../src/server/auth.js', async () => {
       // tokenPayload is injected via global
       const globalAny = global as any;
       return globalAny.__testSessionPayload || null;
-    })
+    }),
   };
 });
 
@@ -79,7 +79,7 @@ describe('authSessionFlags - ACCOUNT_DISABLED / ACCOUNT_GONE / normal (PART C/D)
       id: 'u1',
       role: 'teacher',
       districtId: 'd1',
-      status: 'inactive'
+      status: 'inactive',
     });
     const req = mockReq(true);
     const res = mockRes();
@@ -99,7 +99,8 @@ describe('authSessionFlags - ACCOUNT_DISABLED / ACCOUNT_GONE / normal (PART C/D)
       role: 'teacher',
       districtId: 'd1',
       status: 'active',
-      accessExpiresAt: new Date('2099-07-31T23:59:59Z')
+      emailVerifiedAt: new Date('2026-01-01T00:00:00Z'),
+      accessExpiresAt: new Date('2099-07-31T23:59:59Z'),
     });
     const req = mockReq(true);
     const res = mockRes();

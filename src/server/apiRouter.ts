@@ -4903,6 +4903,7 @@ apiRouter.get('/admin/users/pending', requireRole('admin'), async (_req, res) =>
   const users = await prisma.user.findMany({
     where: {
       role: { in: ['teacher', 'inspector'] },
+      emailVerifiedAt: { not: null },
       status: { notIn: ['inactive', 'archived'] },
       OR: [{ status: 'pending_approval' }, { isApprovedByAdmin: false }],
     },

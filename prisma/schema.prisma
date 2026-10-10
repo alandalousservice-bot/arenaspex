@@ -106,6 +106,7 @@ model User {
   bio                     String?
   status                  String    @default("active") // active | inactive
   isApprovedByAdmin       Boolean   @default(false)
+  emailVerifiedAt         DateTime? @db.Timestamptz(3)
   accessExpiresAt         DateTime?
   accessAcademicYearId    String?
   followingIds            String[]  @default([])
@@ -133,6 +134,7 @@ model User {
   birthDate        DateTime?
 
   resetTokens             PasswordResetToken[]
+  emailVerificationChallenge EmailVerificationChallenge?
   pedagogicalGames        PedagogicalGame[]
   generationAccess        UserGenerationAccess?
   students                Student[]
@@ -529,6 +531,23 @@ model PasswordResetToken {
   createdAt DateTime  @default(now())
 
   @@index([userId])
+}
+
+model EmailVerificationChallenge {
+  id                       String    @id @default(cuid())
+  userId                   String    @unique
+  user                     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash                 String?
+  expiresAt                DateTime?
+  failedAttempts           Int       @default(0)
+  lastSentAt               DateTime
+  issuanceWindowStartedAt  DateTime
+  issuanceCount            Int       @default(1)
+  consumedAt               DateTime? @db.Timestamptz(3)
+  createdAt                DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@index([lastSentAt])
 }
 
 // -----------------------------------------------------------------------

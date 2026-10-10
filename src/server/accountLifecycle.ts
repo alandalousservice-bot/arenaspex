@@ -33,6 +33,9 @@ export async function changeAccountAccess(actorId: string, id: string, action: A
     if (action === 'reject' && before.status !== 'pending_approval' && before.isApprovedByAdmin)
       throw new AccountLifecycleError(409, 'لا يمكن رفض حساب معتمد؛ استخدم التعطيل.');
     const enabling = action === 'activate' || action === 'reactivate';
+    if (enabling && before.role !== 'admin' && !before.emailVerifiedAt) {
+      throw new AccountLifecycleError(409, 'يجب التحقق من البريد الإلكتروني قبل تفعيل الحساب.');
+    }
     const data = enabling
       ? {
           status: 'active',

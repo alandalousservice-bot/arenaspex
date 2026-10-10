@@ -26,8 +26,8 @@ import {
   googleLoginRequest,
   fetchGeoDirectorates,
   fetchGeoDistricts,
-  fetchGeoMunicipalities,
-  fetchGeoSchools,
+  requestEmailVerification,
+  verifyEmailRequest,
 } from '../../services/api';
 import { GoogleSignInButton } from './GoogleSignInButton';
 
@@ -50,9 +50,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [schoolName, setSchoolName] = useState('');
-  const [municipality, setMunicipality] = useState('');
-  const [phone, setPhone] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole>('teacher');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -61,13 +58,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
   // Geo registration states (PART A/A7)
   const [geoDirectorates, setGeoDirectorates] = useState<GeoOption[]>([]);
   const [geoDistricts, setGeoDistricts] = useState<GeoOption[]>([]);
-  const [geoMunicipalities, setGeoMunicipalities] = useState<GeoOption[]>([]);
-  const [geoSchools, setGeoSchools] = useState<GeoOption[]>([]);
   const [eduDirectorateId, setEduDirectorateId] = useState('');
   const [eduDistrictId, setEduDistrictId] = useState('');
-  const [selectedMunicipalityId, setSelectedMunicipalityId] = useState('');
-  const [eduSchoolId, setEduSchoolId] = useState('');
   const [geoLoading, setGeoLoading] = useState(false);
+  const [awaitingEmailVerification, setAwaitingEmailVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
 
   // Reset-password form state
   const [resetToken, setResetToken] = useState('');
@@ -109,60 +104,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
   useEffect(() => {
     if (!eduDirectorateId) {
       setGeoDistricts([]);
-      setGeoMunicipalities([]);
-      setGeoSchools([]);
       setEduDistrictId('');
-      setSelectedMunicipalityId('');
-      setEduSchoolId('');
       return;
     }
     (async () => {
       setGeoLoading(true);
-      const [distRes, muniRes] = await Promise.all([
-        fetchGeoDistricts(eduDirectorateId),
-        fetchGeoMunicipalities(eduDirectorateId),
-      ]);
+      const distRes = await fetchGeoDistricts(eduDirectorateId);
       if (distRes.success) setGeoDistricts(distRes.districts);
       else setGeoDistricts([]);
-      if (muniRes.success) setGeoMunicipalities(muniRes.municipalities);
-      else setGeoMunicipalities([]);
-      setGeoSchools([]);
-      setSelectedMunicipalityId('');
-      setEduSchoolId('');
       setGeoLoading(false);
     })();
   }, [eduDirectorateId]);
-
-  // When municipality changes: load schools
-  useEffect(() => {
-    if (!selectedMunicipalityId) {
-      setGeoSchools([]);
-      setEduSchoolId('');
-      return;
-    }
-    (async () => {
-      setGeoLoading(true);
-      const schoolsRes = await fetchGeoSchools({ municipalityId: selectedMunicipalityId });
-      if (schoolsRes.success) {
-        setGeoSchools(schoolsRes.schools);
-        // Fill municipality text for compatibility
-        const muni = geoMunicipalities.find((m) => m.id === selectedMunicipalityId);
-        if (muni) setMunicipality(muni.name);
-      } else {
-        setGeoSchools([]);
-      }
-      setEduSchoolId('');
-      setGeoLoading(false);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMunicipalityId]);
-
-  // When school selected: fill schoolName text
-  useEffect(() => {
-    if (!eduSchoolId) return;
-    const sch = geoSchools.find((s) => s.id === eduSchoolId);
-    if (sch) setSchoolName(sch.name);
-  }, [eduSchoolId, geoSchools]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,6 +126,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
     setIsSubmitting(true);
     const result = await loginRequest(email.trim(), password, 'professional');
     setIsSubmitting(false);
+    if (result.verificationRequired) {
+      setAwaitingEmailVerification(true);
+      setSuccessMsg('يجب تأكيد البريد أولاً. اطلب الرمز ثم أدخله للمتابعة.');
+      return;
+    }
     if (!result.success || !result.user) {
       setErrorMsg(result.error || 'تعذر تسجيل الدخول.');
       return;
@@ -185,7 +142,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password) {
+    if (
+      !firstName.trim() ||
+      !lastName.trim() ||
+      !email.trim() ||
+      !password ||
+      !eduDirectorateId ||
+      !eduDistrictId
+    ) {
       setErrorMsg('يرجى ملء كافة الحقول الأساسية لإنشاء الحساب.');
       return;
     }
@@ -200,40 +164,57 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
       email: email.trim(),
       password,
       role: selectedRole,
-      schoolName:
-        schoolName.trim() ||
-        (eduSchoolId ? geoSchools.find((s) => s.id === eduSchoolId)?.name : '') ||
-        '',
-      municipality:
-        municipality.trim() ||
-        (selectedMunicipalityId
-          ? geoMunicipalities.find((m) => m.id === selectedMunicipalityId)?.name
-          : '') ||
-        '',
-      phone: phone.trim() || undefined,
-      eduDirectorateId: eduDirectorateId || undefined,
-      eduDistrictId: eduDistrictId || undefined,
-      eduSchoolId: eduSchoolId || undefined,
-      municipalityId: selectedMunicipalityId || undefined,
+      eduDirectorateId,
+      eduDistrictId,
     });
     setIsSubmitting(false);
-    if (!result.success || !result.user) {
+    if (!result.success) {
       setErrorMsg(result.error || 'تعذر إنشاء الحساب.');
+      return;
+    }
+    setAwaitingEmailVerification(true);
+    setSuccessMsg('إذا كان البريد مؤهلاً للتحقق، فستصلك رسالة برمز صالح لعشر دقائق.');
+  };
+
+  const handleVerifyEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    if (!/^\d{6}$/.test(verificationCode)) {
+      setErrorMsg('أدخل رمز التحقق المكوّن من ستة أرقام.');
+      return;
+    }
+    setIsSubmitting(true);
+    const result = await verifyEmailRequest(email.trim(), verificationCode);
+    setIsSubmitting(false);
+    if (!result.success || !result.user) {
+      setErrorMsg(result.error || 'تعذر التحقق من البريد.');
       return;
     }
     onLoginSuccess(result.user);
   };
 
+  const handleResendVerification = async () => {
+    setErrorMsg('');
+    setIsSubmitting(true);
+    const result = await requestEmailVerification(email.trim());
+    setIsSubmitting(false);
+    if (!result.success) setErrorMsg(result.error || 'تعذر طلب رمز التحقق.');
+    else setSuccessMsg('إذا كان البريد مؤهلاً للتحقق، فستصلك رسالة برمز صالح لعشر دقائق.');
+  };
+
   const handleGoogleCredential = async (credential: string) => {
     setErrorMsg('');
     setIsSubmitting(true);
-    const requestedRole =
+    const registration =
       activeForm === 'register'
-        ? selectedRole
-        : selectedRole === 'inspector'
-          ? 'inspector'
-          : 'teacher';
-    const result = await googleLoginRequest(credential, requestedRole);
+        ? { role: selectedRole as 'teacher' | 'inspector', eduDirectorateId, eduDistrictId }
+        : undefined;
+    if (activeForm === 'register' && (!eduDirectorateId || !eduDistrictId)) {
+      setIsSubmitting(false);
+      setErrorMsg('اختر مديرية التربية والمقاطعة التفتيشية أولاً.');
+      return;
+    }
+    const result = await googleLoginRequest(credential, registration);
     setIsSubmitting(false);
     if (!result.success || !result.user) {
       setErrorMsg(result.error || 'تعذر تسجيل الدخول عبر Google.');
@@ -423,7 +404,57 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
           </div>
         )}
 
-        {activeForm === 'login' && (
+        {awaitingEmailVerification && (
+          <form onSubmit={handleVerifyEmail} className="space-y-4" dir="rtl">
+            <p className="text-xs text-slate-300 leading-relaxed">
+              أدخل الرمز المكوّن من ستة أرقام الذي أُرسل إلى البريد المدخل. تنتهي صلاحيته بعد عشر
+              دقائق.
+            </p>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-300">رمز التحقق</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                required
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-3 text-center text-xl tracking-[0.5em] text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 dir-ltr"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isSubmitting || verificationCode.length !== 6}
+              className="w-full py-3 rounded-xl action-primary text-white font-bold text-xs disabled:opacity-60"
+            >
+              {isSubmitting ? 'جارٍ التحقق...' : 'تأكيد البريد والمتابعة'}
+            </button>
+            <button
+              type="button"
+              onClick={handleResendVerification}
+              disabled={isSubmitting}
+              className="w-full py-2 text-xs text-blue-300 hover:text-blue-200 disabled:opacity-60"
+            >
+              إعادة إرسال رمز التحقق
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAwaitingEmailVerification(false);
+                setVerificationCode('');
+                setSuccessMsg('');
+              }}
+              className="w-full py-2 text-xs text-slate-400 hover:text-white"
+            >
+              تغيير البريد أو العودة
+            </button>
+          </form>
+        )}
+
+        {!awaitingEmailVerification && activeForm === 'login' && (
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-300">البريد الإلكتروني المهني</label>
@@ -498,12 +529,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
           </div>
         )}
 
-        {activeForm === 'register' && (
+        {!awaitingEmailVerification && activeForm === 'register' && (
           <form onSubmit={handleRegister} className="space-y-3.5">
-            <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-300 text-[11px] leading-relaxed">
-              <span className="font-extrabold text-white">📌 تلميح التسجيل:</span> أدخل معلوماتك
-              الشخصية، ثم اختر مديريتك ومقاطعتك وبيانات مؤسستك من القوائم المتاحة.
-            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              اختر صفتك المهنية ثم أدخل بياناتك الأساسية. تفعيل دور المفتش يخضع لمراجعة الإدارة.
+            </p>
 
             <div className="grid grid-cols-2 gap-2.5">
               <div className="space-y-1">
@@ -557,27 +587,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
               />
             </div>
 
-            {/* Geo dependent selects */}
             <div className="space-y-3 pt-2 border-t border-slate-700/50">
-              <p className="text-[11px] font-bold text-slate-300">
-                الهيكلية الجغرافية الوطنية (قوائم متراكبة حية):
-              </p>
-
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-300">مديرية التربية *</label>
                 <select
+                  required
                   value={eduDirectorateId}
                   onChange={(e) => {
                     setEduDirectorateId(e.target.value);
                     setEduDistrictId('');
-                    setSelectedMunicipalityId('');
-                    setEduSchoolId('');
-                    setMunicipality('');
-                    setSchoolName('');
                     setGeoDistricts([]);
-                    setGeoMunicipalities([]);
-                    setGeoSchools([]);
                   }}
+                  disabled={geoLoading}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                 >
                   <option value="">اختر مديرية التربية...</option>
@@ -588,109 +609,22 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                   ))}
                 </select>
               </div>
-
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-300">
-                  المقاطعة التفتيشية (اختيارية — الزر معطل عند فراغ القائمة)
-                </label>
+                <label className="text-[11px] font-bold text-slate-300">المقاطعة التفتيشية *</label>
                 <select
+                  required
                   value={eduDistrictId}
                   onChange={(e) => setEduDistrictId(e.target.value)}
-                  disabled={geoDistricts.length === 0 || geoLoading}
+                  disabled={!eduDirectorateId || geoDistricts.length === 0 || geoLoading}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 disabled:opacity-40"
                 >
-                  <option value="">— بلا مقاطعة (لم أطلب الإسناد بعد) —</option>
+                  <option value="">اختر المقاطعة التفتيشية...</option>
                   {geoDistricts.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.name}
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-300">بلدية العمل *</label>
-                <select
-                  value={selectedMunicipalityId}
-                  onChange={(e) => setSelectedMunicipalityId(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                >
-                  <option value="">اختر البلدية...</option>
-                  {geoMunicipalities.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-300">
-                  المدرسة الابتدائية {geoSchools.length === 0 ? '(كتابة يدوية عند فراغها)' : ''}
-                </label>
-                {geoSchools.length > 0 ? (
-                  <select
-                    value={eduSchoolId}
-                    onChange={(e) => setEduSchoolId(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                  >
-                    <option value="">اختر المدرسة...</option>
-                    {geoSchools.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    value={schoolName}
-                    onChange={(e) => setSchoolName(e.target.value)}
-                    placeholder="اكتب اسم المدرسة يدوياً"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
-                  />
-                )}
-              </div>
-
-              {/* Manual fallback for municipality text if needed */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-400">
-                    البلدية (نصي للتوافق)
-                  </label>
-                  <input
-                    type="text"
-                    value={municipality}
-                    onChange={(e) => setMunicipality(e.target.value)}
-                    placeholder="يُملأ تلقائياً"
-                    className="w-full bg-slate-900/60 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-400">
-                    المدرسة (نصي للتوافق)
-                  </label>
-                  <input
-                    type="text"
-                    value={schoolName}
-                    onChange={(e) => setSchoolName(e.target.value)}
-                    placeholder="يُملأ تلقائياً"
-                    className="w-full bg-slate-900/60 border border-slate-700/60 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-300">رقم الهاتف للتفعيل</label>
-                <input
-                  type="text"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="0661234567"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 dir-ltr text-right"
-                />
               </div>
             </div>
 
@@ -721,15 +655,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
                   text="signup_with"
                 />
                 <p className="text-[10px] text-slate-500 text-center leading-relaxed">
-                  الحسابات العامة الجديدة تُنشأ كحساب {selectedRole === 'inspector' ? 'مفتش' : 'أستاذ'} معلّق بانتظار تفعيل مشرف المنظومة قبل
-                  الاستفادة من الخدمات.
+                  الحسابات العامة الجديدة تُنشأ كحساب{' '}
+                  {selectedRole === 'inspector' ? 'مفتش' : 'أستاذ'} معلّق بانتظار تفعيل مشرف
+                  المنظومة قبل الاستفادة من الخدمات.
                 </p>
               </div>
             )}
           </form>
         )}
 
-        {activeForm === 'forgot' && (
+        {!awaitingEmailVerification && activeForm === 'forgot' && (
           <form onSubmit={handleForgot} className="space-y-4">
             <p className="text-xs text-slate-400 leading-relaxed">
               أدخل بريدك الإلكتروني المهني المسجل بالنظام لاستلام رابط إعادة تعيين كلمة المرور
@@ -756,7 +691,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess, onBackTo
           </form>
         )}
 
-        {activeForm === 'reset' && (
+        {!awaitingEmailVerification && activeForm === 'reset' && (
           <div className="space-y-4">
             {!resetDone ? (
               <form onSubmit={handleResetPassword} className="space-y-4">
